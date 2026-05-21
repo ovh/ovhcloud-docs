@@ -166,7 +166,7 @@ export default defineConfig({
     // See rspress.config.build.ts for rationale — disabled here too for dev parity
     localeRedirect: 'never',
     editLink: {
-      docRepoBaseUrl: 'https://github.com/ovh/docs/tree/develop-beta/docs',
+      docRepoBaseUrl: 'https://github.com/ovh/ovhcloud-docs/tree/develop/docs',
     },
     // Nav uses custom format with localized links, processed by useLocalizedNav() hook
     nav: nav as unknown as NavItem[],
@@ -175,7 +175,7 @@ export default defineConfig({
       {
         icon: 'github',
         mode: 'link',
-        content: 'https://github.com/ovh/docs',
+        content: 'https://github.com/ovh/ovhcloud-docs',
       },
     ],
     footer: {

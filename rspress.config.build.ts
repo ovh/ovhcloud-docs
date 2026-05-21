@@ -144,7 +144,7 @@ export default defineConfig({
     // See node_modules/@rspress/core/dist/theme/logic/useRedirect4FirstVisit.js
     localeRedirect: 'never',
     editLink: {
-      docRepoBaseUrl: `https://github.com/ovh/docs/tree/develop-beta/docs/${locale}`,
+      docRepoBaseUrl: `https://github.com/ovh/ovhcloud-docs/tree/develop/docs/${locale}`,
     },
     nav: nav as Parameters<typeof defineConfig>[0]['themeConfig']['nav'],
     sidebar,
@@ -152,7 +152,7 @@ export default defineConfig({
       {
         icon: 'github',
         mode: 'link',
-        content: 'https://github.com/ovh/docs',
+        content: 'https://github.com/ovh/ovhcloud-docs',
       },
     ],
     footer: {
