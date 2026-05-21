@@ -1,4 +1,4 @@
-import { useNav } from '@rspress/core/runtime';
+import type { NavItem } from '@rspress/core';
 import { SocialLinks } from '@rspress/core/theme';
 import { clearAllBodyScrollLocks, disableBodyScroll } from 'body-scroll-lock';
 import clsx from 'clsx';
@@ -7,6 +7,7 @@ import '@rspress/core/dist/theme/components/NavScreen/index.css';
 import { NavScreenAppearance } from '@rspress/core/dist/theme/components/NavScreen/NavScreenAppearance.js';
 import { NavScreenMenu } from '@rspress/core/dist/theme/components/NavScreen/NavScreenMenu.js';
 import { NavScreenVersions } from '@rspress/core/dist/theme/components/NavScreen/NavScreenVersions.js';
+import { useLocalizedNav } from '../Nav/hooks';
 import { NavScreenLangs } from './NavScreenLangs';
 
 export function NavScreenDivider() {
@@ -20,7 +21,7 @@ interface NavScreenProps {
 
 export function NavScreen({ isScreenOpen, toggleScreen }: NavScreenProps) {
   const screen = useRef<HTMLDivElement>(null);
-  const menuItems = useNav();
+  const menuItems = useLocalizedNav() as unknown as NavItem[];
 
   useEffect(() => {
     if (screen.current && isScreenOpen) {
