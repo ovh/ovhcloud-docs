@@ -1,43 +1,72 @@
+// Release preparation:
+//   1. On develop, this script generates VERSION and CHANGELOG.md, then commits
+//      them so the release metadata travels with the code.
+//   2. It does not create a tag. The deploy pipeline runs on master, reads
+//      VERSION from the deployed commit, and tags only versions that shipped.
+
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 function git(cmd: string): string {
-  return execSync(`git ${cmd}`, { encoding: 'utf-8' }).trim();
+  return execSync(`git ${cmd}`, {
+    encoding: 'utf-8',
+    maxBuffer: 64 * 1024 * 1024, // 64MB
+  }).trim();
 }
 
-function getCalVer(): string {
+function hasReleaseFileChanges(): boolean {
+  try {
+    git('diff --quiet -- CHANGELOG.md VERSION');
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function tagExists(tag: string): boolean {
+  return git(`tag -l "${tag}"`) === tag;
+}
+
+function computeNextCalendarVersion(): string {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
   const base = `${yyyy}.${mm}.${dd}`;
 
-  // Check if a tag already exists for today
   let suffix = 0;
   let version = base;
-  try {
-    const existingTags = git(`tag -l "v${base}*"`).split('\n').filter(Boolean);
-    if (existingTags.length > 0) {
-      // Find the highest suffix
-      for (const tag of existingTags) {
-        const tagVersion = tag.replace(/^v/, '');
-        if (tagVersion === base) {
-          suffix = Math.max(suffix, 1);
-        } else {
-          const match = tagVersion.match(/^\d{4}\.\d{2}\.\d{2}\.(\d+)$/);
-          if (match) {
-            suffix = Math.max(suffix, Number.parseInt(match[1], 10) + 1);
-          }
+  const existingTags = git(`tag -l "v${base}*"`).split('\n').filter(Boolean);
+  if (existingTags.length > 0) {
+    for (const tag of existingTags) {
+      const tagVersion = tag.replace(/^v/, '');
+      if (tagVersion === base) {
+        suffix = Math.max(suffix, 1);
+      } else {
+        const match = tagVersion.match(/^\d{4}\.\d{2}\.\d{2}\.(\d+)$/);
+        if (match) {
+          suffix = Math.max(suffix, Number.parseInt(match[1], 10) + 1);
         }
       }
-      version = `${base}.${suffix}`;
     }
-  } catch {
-    // No tags exist yet
+    version = `${base}.${suffix}`;
   }
 
   return version;
+}
+
+function resolveNextReleaseVersion(): string {
+  const versionPath = resolve(process.cwd(), 'VERSION');
+  const preparedVersion = existsSync(versionPath)
+    ? readFileSync(versionPath, 'utf-8').trim()
+    : null;
+
+  if (preparedVersion && !tagExists(`v${preparedVersion}`)) {
+    return preparedVersion;
+  }
+
+  return computeNextCalendarVersion();
 }
 
 interface Commit {
@@ -49,18 +78,17 @@ interface Commit {
 
 function getCommitsSinceTag(tag: string | null): Commit[] {
   const range = tag ? `${tag}..HEAD` : 'HEAD';
-  let log: string;
-  try {
-    log = git(`log ${range} --pretty=format:"%H|%s"`);
-  } catch {
-    return [];
-  }
+  const log = git(`log ${range} --pretty=format:"%H|%s"`);
 
   const commits: Commit[] = [];
   for (const line of log.split('\n').filter(Boolean)) {
     const clean = line.replace(/^"|"$/g, '');
     const [hash, ...rest] = clean.split('|');
     const subject = rest.join('|');
+    if (subject.startsWith('chore(release):')) {
+      continue;
+    }
+
     const match = subject.match(/^(\w+)(?:\(([^)]+)\))?!?:\s*(.+)$/);
     if (match) {
       commits.push({
@@ -75,27 +103,23 @@ function getCommitsSinceTag(tag: string | null): Commit[] {
 }
 
 function getLastTag(): string | null {
-  try {
-    const tags = git('tag -l "v*" --sort=-version:refname');
-    return tags ? tags.split('\n')[0] : null;
-  } catch {
-    return null;
-  }
+  const tags = git('tag -l "v*" --sort=-version:refname');
+  return tags ? tags.split('\n')[0] : null;
 }
 
-function countDocsChanges(from: string | null): {
+function summarizeDocsChangesSince(from: string | null): {
   count: number;
   locales: string[];
 } {
-  const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'];
-  const range = from ? `${from}..HEAD` : 'HEAD';
-  let files: string[];
-  try {
-    const output = git(`diff --name-only ${range} -- docs/`);
-    files = output ? output.split('\n') : [];
-  } catch {
+  if (!from) {
     return { count: 0, locales: [] };
   }
+
+  const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'];
+  const output = git(`log ${from}..HEAD --name-only --pretty=format: -- docs/`);
+  const files = output
+    ? Array.from(new Set(output.split('\n').filter(Boolean)))
+    : [];
 
   const mdFiles = files.filter((f) => f.endsWith('.mdx') || f.endsWith('.md'));
   const localesFound = new Set<string>();
@@ -110,7 +134,24 @@ function countDocsChanges(from: string | null): {
   return { count: mdFiles.length, locales: [...localesFound].sort() };
 }
 
-function formatReleaseSection(
+function formatCommitEntry(commit: Commit): string {
+  const scope = commit.scope ? `**${commit.scope}:** ` : '';
+  return `- ${scope}${commit.subject}`;
+}
+
+function appendChangelogSection(
+  lines: string[],
+  title: string,
+  entries: string[],
+): void {
+  if (entries.length === 0) {
+    return;
+  }
+
+  lines.push(`### ${title}`, ...entries, '');
+}
+
+function buildChangelogReleaseMarkdown(
   version: string,
   commits: Commit[],
   docs: { count: number; locales: string[] },
@@ -123,58 +164,55 @@ function formatReleaseSection(
 
   const lines: string[] = [`## ${version}`, ''];
 
-  if (features.length > 0) {
-    lines.push('### Features');
-    for (const c of features) {
-      const scope = c.scope ? `**${c.scope}:** ` : '';
-      lines.push(`- ${scope}${c.subject}`);
-    }
-    lines.push('');
-  }
-
-  if (fixes.length > 0) {
-    lines.push('### Fixes');
-    for (const c of fixes) {
-      const scope = c.scope ? `**${c.scope}:** ` : '';
-      lines.push(`- ${scope}${c.subject}`);
-    }
-    lines.push('');
-  }
-
-  if (maintenance.length > 0) {
-    lines.push('### Maintenance');
-    for (const c of maintenance) {
-      const scope = c.scope ? `**${c.scope}:** ` : '';
-      lines.push(`- ${scope}${c.subject}`);
-    }
-    lines.push('');
-  }
+  appendChangelogSection(lines, 'Features', features.map(formatCommitEntry));
+  appendChangelogSection(lines, 'Fixes', fixes.map(formatCommitEntry));
+  appendChangelogSection(
+    lines,
+    'Maintenance',
+    maintenance.map(formatCommitEntry),
+  );
 
   if (docs.count > 0) {
-    lines.push('### Documentation');
-    const localeStr = docs.locales.join(', ');
-    lines.push(`- ${docs.count} guides updated across ${localeStr}`);
-    lines.push('');
+    appendChangelogSection(lines, 'Documentation', [
+      `- ${docs.count} guides updated across ${docs.locales.join(', ')}`,
+    ]);
   }
 
   return lines.join('\n');
 }
 
+function patchChangelog(
+  existing: string,
+  version: string,
+  section: string,
+): string {
+  if (!existing.startsWith('# Changelog')) {
+    return `# Changelog\n\n${section.trimEnd()}\n`;
+  }
+
+  const parts = existing.split(/(?=^## )/m);
+  const header = parts.shift() || '# Changelog\n';
+  const sections = parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !part.startsWith(`## ${version}\n`));
+
+  return `${header.trimEnd()}\n\n${[section.trim(), ...sections].join('\n\n').trimEnd()}\n`;
+}
+
 function main() {
-  const version = getCalVer();
-  const tag = `v${version}`;
+  const version = resolveNextReleaseVersion();
   const lastTag = getLastTag();
 
-  console.log(`Preparing release ${tag}...`);
+  console.log(`Preparing release v${version}...`);
   if (lastTag) {
     console.log(`Previous release: ${lastTag}`);
   } else {
     console.log('No previous release found. This will be the first release.');
   }
 
-  // Get commits and docs changes since last tag
   const commits = getCommitsSinceTag(lastTag);
-  const docs = countDocsChanges(lastTag);
+  const docs = summarizeDocsChangesSince(lastTag);
 
   if (commits.length === 0 && docs.count === 0) {
     console.log('No changes since last release. Skipping.');
@@ -183,39 +221,30 @@ function main() {
 
   console.log(`Found ${commits.length} commits and ${docs.count} doc changes.`);
 
-  // Generate release section
-  const section = formatReleaseSection(version, commits, docs);
+  const section = buildChangelogReleaseMarkdown(version, commits, docs);
 
-  // Update CHANGELOG.md
   const changelogPath = resolve(process.cwd(), 'CHANGELOG.md');
   let existing = '';
   if (existsSync(changelogPath)) {
     existing = readFileSync(changelogPath, 'utf-8');
   }
 
-  let newChangelog: string;
-  if (existing.startsWith('# Changelog')) {
-    // Insert after the header
-    const headerEnd = existing.indexOf('\n\n') + 2;
-    newChangelog = `${existing.substring(0, headerEnd)}${section}\n---\n\n${existing.substring(headerEnd)}`;
-  } else {
-    newChangelog = `# Changelog\n\n${section}\n`;
-  }
+  const newChangelog = patchChangelog(existing, version, section);
 
   writeFileSync(changelogPath, newChangelog, 'utf-8');
-  console.log('Updated CHANGELOG.md');
+  writeFileSync(resolve(process.cwd(), 'VERSION'), `${version}\n`, 'utf-8');
+  console.log('Updated CHANGELOG.md and VERSION.');
 
-  // Commit changelog
-  git('add CHANGELOG.md');
-  git(`commit -m "chore(scripts): release ${version}"`);
-  console.log('Committed changelog update.');
+  if (!hasReleaseFileChanges()) {
+    console.log('Release files are already up to date. Skipping commit.');
+    process.exit(0);
+  }
 
-  // Create tag
-  git(`tag -a ${tag} -m "Release ${version}"`);
-  console.log(`Created tag ${tag}`);
-
-  console.log(`\nRelease ${version} complete!`);
-  console.log(`Run 'git push && git push --tags' to publish.`);
+  git('add CHANGELOG.md VERSION');
+  git(
+    `commit CHANGELOG.md VERSION -m "chore(release): update changelog ${version} [skip ci]"`,
+  );
+  console.log(`Committed release ${version}. Run 'git push' to publish.`);
 }
 
 main();
