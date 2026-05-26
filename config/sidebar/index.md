@@ -1826,6 +1826,7 @@
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)
             + [Video Center - Manage your videos online](web-cloud/video-center/manage-videos)
+            + [Video Center - Embed a video on your website](web-cloud/video-center/website-integration)
     + [SSL Gateway](products/web-cloud-ssl-gateway)
         + [Getting started](web-cloud-ssl-gateway-getting-started)
             + [Order an SSL Gateway](web-cloud/ssl-gateway/order)
