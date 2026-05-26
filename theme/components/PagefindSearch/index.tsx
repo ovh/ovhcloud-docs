@@ -665,6 +665,22 @@ export function PagefindSearch() {
     return () => document.removeEventListener('keydown', handleKey);
   }, []);
 
+  // Open with ?q=... from URL (e.g. redirect from help.ovhcloud.com search)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (!q?.trim()) return;
+    setQuery(q.slice(0, 250));
+    setIsOpen(true);
+    params.delete('q');
+    const remaining = params.toString();
+    const cleanUrl =
+      window.location.pathname +
+      (remaining ? `?${remaining}` : '') +
+      window.location.hash;
+    window.history.replaceState(window.history.state, '', cleanUrl);
+  }, []);
+
   // Escape to close
   useEffect(() => {
     if (!isOpen) return;
