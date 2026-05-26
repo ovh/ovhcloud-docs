@@ -888,6 +888,8 @@
                 + [Getting started with Load Balancer on Public Cloud](public-cloud/network-services/getting-started-load-balancer)
             + [Public IPs](public-cloud-network-getting-started-public-ips)
                 + [Attaching a Floating IP to a Public Cloud instance](public-cloud/network-services/attach-floating-ip-to-instance)
+            + [Gateway](public-cloud-network-getting-started-gateway)
+                + [Getting started with OVHcloud Public Cloud Gateway](public-cloud/network-services/getting-started-gateway)
         + [Configuration](public-cloud-network-configuration)
             + [Private Network](public-cloud-network-configuration-private-network)
                 + [How to share a private network between 2 Public Cloud projects](public-cloud/network-services/create-share-private-network)
