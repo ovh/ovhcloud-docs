@@ -1765,6 +1765,7 @@
                 + [Back up your WordPress websites with MainWP](web-cloud/web-hosting/mainwp-backup)
                 + [Improve your WordPress website's security with MainWP](web-cloud/web-hosting/mainwp-security)
                 + [Manage customer information for your WordPress websites with MainWP](web-cloud/web-hosting/mainwp-client-management)
+                + [Managing WordPress websites with MainWP on Managed Hosting](web-cloud/web-hosting/mainwp-site-management)
             + [Cloud Web hosting plan Tutorials](web-cloud-hosting-tutorials-cloud-web)
                 + [Cloud Web Tutorial - Installing Ghost on a Cloud Web hosting plan](web-cloud/web-hosting/install-ghost)
                 + [Installer Etherpad sur son hébergement Cloud Web](web-cloud/web-hosting/install-etherpad)
