@@ -1549,6 +1549,7 @@
                 + [AI Endpoints - Structured Output](public-cloud/ai-machine-learning/ai-endpoints-structured-output)
                 + [AI Endpoints - Function Calling](public-cloud/ai-machine-learning/ai-endpoints-function-calling)
                 + [AI Endpoints - Responses API](public-cloud/ai-machine-learning/ai-endpoints-responses-api)
+                + [AI Endpoints - Batch mode](public-cloud/ai-machine-learning/ai-endpoints-batch-mode)
             + [Getting started](public-cloud-ai-and-machine-learning-ai-endpoints-getting-started)
                 + [AI Endpoints - Getting started](public-cloud/ai-machine-learning/ai-endpoints-getting-started)
             + [Tutorials](public-cloud-ai-and-machine-learning-ai-endpoints-tutorials)
