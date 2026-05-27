@@ -549,6 +549,7 @@
         + [Overview](hosted-private-cloud/opcp/overview)
         + [Getting started](hosted-private-cloud-hosted-private-cloud-opcp-getting-started)
             + [Getting started with your OPCP](hosted-private-cloud/opcp/getting-started)
+            + [OPCP - How to install a controller](hosted-private-cloud/opcp/install-controller)
             + [OPCP - Node lifecycle](hosted-private-cloud/opcp/node-lifecycle)
             + [OPCP - How to use the APIs and obtain the credentials](hosted-private-cloud/opcp/how-to-use-api-and-get-credentials)
             + [OPCP - How to install an instance from the Horizon interface](hosted-private-cloud/opcp/how-to-setup-instance)
