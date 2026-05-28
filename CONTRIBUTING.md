@@ -203,6 +203,16 @@ Irreversible or destructive actions.
 :::
 ```
 
+When a callout ends with a list, leave a blank line before the closing `:::`. (Without it the fence is absorbed into the list and the callout never closes.)
+
+```mdx
+:::tip
+- First item
+- Second item
+
+:::
+```
+
 ### Collapsible sections
 
 Use `:::details` (replaces the legacy `<FAQ>` / `<FAQItem>` components):
