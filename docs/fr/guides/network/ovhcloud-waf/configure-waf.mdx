@@ -1,0 +1,496 @@
+---
+title: Configuration de l'OVHcloud Web Application Firewall
+description: Configurez l'OVHcloud Web Application Firewall pour inspecter, filtrer et bloquer le trafic HTTP/HTTPS malveillant avant qu'il n'atteigne vos applications backend
+lastUpdated: 2026-05-20
+---
+
+## Objectif
+
+Ce guide présente les fonctionnalités de l'OVHcloud Web Application Firewall (OWAF) et vous accompagne dans sa configuration de bout en bout durant le programme alpha, de la demande d'accès à l'application de règles personnalisées et à la surveillance du trafic en temps réel. Il décrit également les scénarios de configuration les plus courants ainsi que les bonnes pratiques.
+
+:::warning
+**Important** : l'OVHcloud Web Application Firewall est actuellement en **alpha fermée**. Les fonctionnalités, les limites et l'interface d'administration décrites dans ce guide sont susceptibles d'évoluer avant la disponibilité générale. L'accès est accordé au cas par cas via la page [OVHcloud Labs](https://labs.ovhcloud.com/en/).
+:::
+
+## Prérequis
+
+- Un <ManagerLink to="/">compte OVHcloud</ManagerLink> actif
+- Un accès validé au programme alpha de l'OVHcloud Web Application Firewall (voir [Étape 1 : Rejoindre l'alpha](#step-1-join-the-alpha))
+- Un **token Bearer** émis par OVHcloud lors de l'onboarding, nécessaire pour vous authentifier à l'interface d'administration OWAF
+- L'**URL de l'instance OWAF** fournie par l'équipe OVHcloud (en général `https://<your-instance-ip>:8443/control-plane`)
+- Un **serveur backend (origine)** accessible en HTTP ou HTTPS, qui recevra le trafic relayé par le proxy
+- Un navigateur moderne — Chrome, Firefox, Edge ou Safari (les deux dernières versions)
+- Un accès réseau depuis votre poste vers l'instance OWAF sur le port `8443` (interface d'administration) et depuis vos clients vers le port `443` (chemin de données du WAF, HTTPS)
+- Des connaissances sur le trafic HTTP/HTTPS, les concepts de sécurité des applications web et l'OWASP Core Rule Set
+
+## Présentation de l'OVHcloud Web Application Firewall
+
+L'OWAF est un pare-feu applicatif web haute performance qui inspecte, filtre et bloque le trafic HTTP/HTTPS malveillant avant qu'il n'atteigne vos applications backend, sans aucune modification de code sur le service protégé. Son moteur de règles repose sur l'**OWASP Core Rule Set (CRS)**, qui couvre les vecteurs d'attaque courants tels que l'injection SQL (SQLi), le cross-site scripting (XSS), l'exécution de code à distance (RCE), l'inclusion de fichier local (LFI), l'injection de template côté serveur (SSTI) et la détection de scanners. Le WAF est piloté via l'**interface d'administration OWAF**, une console web pour la configuration et la surveillance en temps réel.
+
+Le trafic des clients est envoyé à l'instance WAF sur le port `443` (HTTPS), où chaque requête est inspectée par rapport à l'ensemble de règles actif et notée par rapport au seuil d'anomalie. Les requêtes qui passent l'inspection sont transmises au backend défini comme **Upstream URL** sur la page **Proxy** ; les requêtes qui dépassent le seuil en mode **Blocking** sont rejetées avec une réponse `403 Forbidden`. Les opérateurs configurent le moteur et consultent les métriques en temps réel via l'interface d'administration OWAF sur le port `8443`, totalement indépendante du chemin de données.
+
+```mermaid
+flowchart LR
+    Client[Client] -->|HTTPS port 443| WAF[Proxy OWAF<br/>Inspection des requêtes]
+    WAF -->|Autorisé| Backend[Backend<br/>Upstream URL]
+    WAF -->|Correspondance en mode Blocking| Blocked[403 Forbidden]
+    Operator[Opérateur] -->|HTTPS + token Bearer<br/>port 8443| AdminUI[Interface d'administration OWAF]
+    AdminUI -. Rechargement à chaud .-> WAF
+```
+
+Pour une présentation plus détaillée de l'OWAF, vous pouvez consulter la page dédiée [OVHcloud Labs](https://labs.ovhcloud.com/en/web-application-firewall).
+
+## Cas d'usage
+
+L'OWAF prend en charge de nombreux scénarios de protection ; les exemples suivants mettent en avant les implémentations les plus fréquentes :
+
+| Cas d'usage | Comment l'OWAF vous aide |
+| :--- | :--- |
+| **Protéger une API publique** | Bloquez les tentatives de SQLi, XSS et RCE ciblant les points de terminaison de l'API. Utilisez des règles à préfixe de chemin pour appliquer des politiques plus strictes aux routes sensibles comme `/admin/`. |
+| **Protéger une application web** | Activez le mode Blocking avec le Paranoia Level 1 pour une couverture large avec un minimum de faux positifs. Montez jusqu'aux Paranoia Levels 2 à 3 pour les applications à plus haut risque. |
+| **Tests de sécurité en préproduction** | Exécutez en mode Detection pour voir ce qui serait bloqué sans impacter les utilisateurs. Consultez le tableau de bord **Stats** afin d'identifier les règles bruyantes avant la mise en production. |
+| **Rotation d'identifiants et de tokens** | Utilisez les règles d'en-tête de requête de la page **Proxy** pour effectuer une rotation transparente des tokens de service — supprimez l'en-tête `Authorization` du client et injectez un token de service backend. |
+| **Liste d'autorisation et de blocage d'adresses IP** | Créez des règles personnalisées avec l'opérateur `ipmatch` sur `REMOTE_ADDR` pour autoriser des IP de confiance ou bloquer des plages connues comme malveillantes. |
+| **Atténuation des bots et scrapers** | Créez des règles personnalisées correspondant à des chaînes user-agent ou à des schémas de requête suspects pour bloquer le trafic automatisé. |
+| **Défense multicouche** | Déployez le WAF devant un load balancer ou un CDN existant comme couche d'inspection supplémentaire, sans modifier votre infrastructure existante. |
+
+## Capacités et limites du service
+
+Avant de configurer l'OWAF, prenez connaissance des capacités et contraintes suivantes.
+
+### Ce que l'OWAF peut faire
+
+- **Inspection complète des requêtes** du trafic HTTP/HTTPS entrant, y compris les en-têtes, le corps, l'URI, les cookies et les paramètres de requête.
+- **Couverture par l'OWASP Core Rule Set** avec des règles intégrées détectant les SQLi, XSS, RCE, LFI, SSTI, la détection de scanners et d'autres catégories d'attaques courantes.
+- **Règles personnalisées** créées depuis l'interface d'administration à l'aide d'expressions régulières, de correspondance exacte, de correspondance IP, d'opérateurs de comparaison ou des détecteurs SQLi et XSS intégrés.
+- **Trois modes de fonctionnement** — **Blocking** (les requêtes correspondantes reçoivent un `403 Forbidden`), **Detection** (les règles sont évaluées et journalisées mais le trafic est laissé passer) et **Disabled** (le trafic est transmis sans inspection).
+- **Notation des anomalies** qui agrège les scores de toutes les règles correspondantes et ne bloque la requête que lorsque le total atteint le seuil configuré, ce qui aide à réduire les faux positifs.
+- **Paranoia Levels 1 à 4** (Basic, Standard, Strict, Paranoid) pour ajuster l'agressivité avec laquelle le moteur signale le trafic suspect.
+- **Manipulation des en-têtes de requête** sur le chemin du proxy — actions `Set value`, `Remove`, `Move to` et `Copy to` appliquées avant la transmission au backend.
+- **Gestion du CORS**, avec injection des en-têtes de réponse CORS sur chaque réponse (y compris les pages de blocage) et un passthrough optionnel des requêtes préliminaires OPTIONS.
+- **Statistiques en temps réel** dans l'interface d'administration — total des requêtes, nombre de requêtes bloquées, taux de passage, connexions actives, répartition par catégorie et durée de fonctionnement.
+- **Rechargement à chaud** de toutes les modifications de configuration, appliquées immédiatement sans redémarrer le WAF.
+
+### Limites actuelles (alpha)
+
+| Limite | Valeur |
+| :--- | :--- |
+| Tenants par instance | 1  |
+| Taille maximale du corps de requête inspecté | 128 Ko |
+| Règles personnalisées | Jusqu'à 500 |
+| Protocoles pris en charge | HTTP/1.1, HTTP/2 |
+| Haute disponibilité | Nœud unique (le mode HA est prévu pour la disponibilité générale) |
+| Limitation de débit via API | Pas encore incluse |
+| Sauvegarde persistante des règles | Pas encore incluse |
+| Certificat SSL client | Pas encore pris en charge (les certificats SSL sont entièrement gérés par OVHcloud durant la phase alpha) |
+
+:::info
+Ces limites s'appliquent à la version **alpha** et évolueront avant la disponibilité générale. La configuration programmatique via une API OVHcloud ou une ressource Terraform ne fait pas partie de l'alpha — toute la configuration s'effectue dans l'interface d'administration OWAF.
+:::
+
+## En pratique
+
+### Étape 1 : Rejoindre l'alpha <a name="step-1-join-the-alpha"></a>
+
+L'OWAF est actuellement disponible en alpha fermée. Pour demander un accès, remplissez le formulaire sur la page [OVHcloud Labs](https://labs.ovhcloud.com/en/) avec les informations suivantes :
+
+- Votre identifiant client OVHcloud (NIC handle)
+- Une brève description de votre cas d'usage
+- L'URL de l'application que vous souhaitez protéger
+- Le nom DNS qui pointe vers l'OWAF
+
+Une fois votre demande approuvée, l'équipe OVHcloud vous transmettra :
+
+- L'**URL de l'instance OWAF** (par exemple, `https://<your-instance-ip>:8443/control-plane`)
+- Un **token Bearer** pour vous authentifier à l'interface d'administration
+
+:::info
+**Important** : durant la phase alpha, OVHcloud ne peut pas s'engager sur un délai de livraison précis. L'onboarding peut prendre plusieurs semaines. Vos retours durant l'alpha sont essentiels — signalez les problèmes, faux positifs ou demandes de fonctionnalités directement à votre interlocuteur OVHcloud.
+:::
+
+### Étape 2 : Faire pointer votre domaine vers l'instance OWAF
+
+Avant de vous connecter à l'interface d'administration ou d'envoyer du trafic à travers le WAF, vous devez router votre domaine vers l'adresse IP fournie par OVHcloud lors de l'onboarding. Cela est nécessaire pour que les certificats TLS puissent être émis via Let's Encrypt (voir [Gestion du TLS](#tls-management)) et pour que les clients atteignent le chemin de données du WAF.
+
+1. Connectez-vous à la console de gestion de votre fournisseur DNS (par exemple, l'espace client OVHcloud, Cloudflare, Route 53).
+2. Localisez la zone DNS du domaine que vous avez soumis lors de l'onboarding alpha.
+3. Créez ou mettez à jour un enregistrement `A` faisant pointer votre domaine (ou sous-domaine) vers l'**IP de l'instance OWAF** fournie par l'équipe OVHcloud :
+
+    | Champ | Valeur |
+    | :--- | :--- |
+    | **Type** | `A` |
+    | **Name** | Le nom d'hôte que vous souhaitez protéger (par exemple, `www` ou `@` pour le domaine apex) |
+    | **Target** | L'adresse IP de l'instance OWAF fournie par OVHcloud |
+    | **TTL** | `3600` (ou la valeur par défaut de votre fournisseur) |
+
+4. Enregistrez l'enregistrement et attendez la propagation DNS. Vous pouvez vérifier avec `dig +short your-domain.example.com` ou un outil équivalent ; la réponse doit retourner l'IP de l'instance OWAF.
+
+:::info
+La propagation DNS peut prendre de quelques minutes jusqu'à 24 heures selon le TTL de tout enregistrement précédent. Attendez que la nouvelle IP soit retournée à l'échelle mondiale avant d'envoyer du trafic de production, car l'émission du certificat Let's Encrypt repose sur la résolution du domaine vers l'instance OWAF.
+:::
+
+### Étape 3 : Se connecter à l'interface d'administration OWAF
+
+Une fois vos identifiants reçus, ouvrez votre navigateur et accédez à l'URL de votre instance OWAF. La page de connexion vous demande votre token Bearer.
+
+1. Ouvrez votre navigateur et accédez à l'URL de l'instance fournie par l'équipe OVHcloud.
+2. Collez votre token Bearer dans le champ de connexion (avec ou sans le préfixe `Bearer `).
+3. Cliquez sur <code className="action">Sign in</code>.
+
+Vous êtes alors redirigé vers le tableau de bord de l'interface d'administration OWAF. L'interface est organisée en une **barre latérale** à gauche, avec des liens de navigation vers les quatre sections principales (**Rules**, **Configuration**, **Proxy**, **Stats**), et un pied de page affichant votre token masqué, la version en cours d'exécution et un bouton de déconnexion. La partie droite de l'écran affiche le contenu de la section active. Un panneau de statut se rafraîchit automatiquement toutes les 30 secondes.
+
+{/* DRAFT: To screenshot — capture the OWAF Admin UI dashboard after first sign-in, sidebar visible */}
+
+### Étape 4 : Configurer le proxy
+
+La page **Proxy** configure la façon dont le WAF transmet le trafic à votre serveur backend.
+
+1. Dans la barre latérale, cliquez sur <code className="action">Proxy</code>.
+2. Dans le champ **Upstream URL**, saisissez l'URL de votre serveur backend (par exemple, `https://my-backend.example.com`). La valeur doit commencer par `http://` ou `https://`.
+3. Sous **Routing**, cochez ou décochez **Preserve Host header** :
+    - **Cochez** lorsque votre backend utilise l'hébergement virtuel (routage selon l'en-tête `Host`).
+    - **Décochez** lorsque l'URL upstream pointe déjà vers le bon site.
+4. Cliquez sur <code className="action">Save Changes</code>.
+
+Les modifications sont rechargées à chaud — le WAF commence immédiatement à transmettre les requêtes non bloquées vers le nouvel upstream, sans redémarrage.
+
+{/* DRAFT: To screenshot — capture the Proxy page with Upstream URL and Routing options visible */}
+
+### Étape 5 : Choisir le mode du WAF et le Paranoia Level
+
+La page **Configuration** contrôle les paramètres globaux du moteur qui s'appliquent à tout le trafic. Pour un premier déploiement, commencez en mode **Detection** avec le Paranoia Level 1 afin d'observer ce qui serait bloqué avant d'appliquer quoi que ce soit.
+
+1. Dans la barre latérale, cliquez sur <code className="action">Configuration</code>.
+2. Sous **WAF Mode**, cliquez sur le mode que vous souhaitez appliquer :
+
+    | Mode | Comportement |
+    | :--- | :--- |
+    | **Blocking** | Les requêtes qui correspondent à des règles et dépassent le seuil d'anomalie reçoivent un `403 Forbidden`. Recommandé en production. |
+    | **Detection** | Les règles sont évaluées et les événements journalisés, mais toutes les requêtes sont laissées passer. Recommandé pour tester de nouvelles règles sans impact sur les utilisateurs. |
+    | **Disabled** | Le WAF est entièrement contourné. Tout le trafic est transmis au backend sans inspection. À utiliser uniquement pour le débogage. |
+
+3. Sous **Paranoia Level**, déplacez le curseur jusqu'au niveau souhaité :
+
+    | Niveau | Nom | Description |
+    | :--- | :--- | :--- |
+    | **1** | Basic | Uniquement les schémas d'attaque les plus courants et les plus fiables. Taux de faux positifs le plus bas. Recommandé pour la plupart des déploiements. |
+    | **2** | Standard | Couverture de détection plus large. Peut produire quelques faux positifs. |
+    | **3** | Strict | Détection agressive. Attendez-vous à davantage de faux positifs. Recommandé pour les applications à haute sécurité. |
+    | **4** | Paranoid | Détection maximale. Produira de nombreux faux positifs. Adapté aux environnements critiques en matière de sécurité, avec un réglage minutieux. |
+
+4. Vous pouvez également ajuster l'**Anomaly Threshold**. Il s'agit du score à partir duquel une requête est bloquée. Chaque règle correspondante ajoute son score au total de la requête ; si le total atteint ou dépasse le seuil, la requête est bloquée. La valeur par défaut est **5**. Une valeur plus basse est plus stricte ; une valeur plus élevée est plus permissive.
+5. Cliquez sur <code className="action">Save Changes</code>.
+
+:::info
+**Fonctionnement des Paranoia Levels** : chaque règle se voit attribuer un Paranoia Level. Seules les règles dont le niveau est inférieur ou égal au Paranoia Level global sont actives. Par exemple, au Paranoia Level 1, seules les règles PL 1 sont actives. Au Paranoia Level 3, les règles PL 1, PL 2 et PL 3 sont toutes actives.
+:::
+
+{/* DRAFT: To screenshot — capture the Configuration page with WAF Mode buttons and Paranoia Level slider */}
+
+### Étape 6 : Vérifier la configuration
+
+Après les étapes 2 à 5, vérifiez que le WAF traite le trafic comme prévu :
+
+1. Depuis un client, envoyez une requête normale vers le chemin de données du WAF (port `443` en HTTPS) et confirmez que la réponse est servie par votre backend.
+2. Envoyez une requête connue comme malveillante, par exemple une simple sonde d'injection SQL dans un paramètre de requête (`?id=1' OR '1'='1`).
+3. Dans l'interface d'administration, ouvrez la page **Stats** et confirmez que le compteur **TOTAL REQUESTS** augmente. En mode Detection, la requête malveillante est journalisée mais laissée passer ; en mode Blocking, elle est rejetée avec un `403 Forbidden`.
+4. Ouvrez la page **Rules** et vérifiez que la règle correspondant à la sonde (par exemple, *SQL Injection Detected*) apparaît dans la liste des règles actives.
+
+:::warning
+L'OWAF est actuellement mono-tenant par instance et ne conserve pas les modifications de règles après un redémarrage dans la version alpha. Ne vous y fiez pas comme unique couche de protection d'une charge de travail de production tant que la disponibilité générale n'est pas atteinte.
+:::
+
+## Gestion du TLS <a name="tls-management"></a>
+
+Le TLS est **entièrement géré par OVHcloud**. Vous n'avez pas besoin de provisionner des certificats, de configurer un reverse proxy ni de gérer les renouvellements. L'instance WAF est déployée avec un sidecar nginx qui assure la terminaison TLS devant le moteur WAF, et les certificats sont automatiquement émis et renouvelés via **cert-manager** avec **Let's Encrypt**.
+
+### Fonctionnement
+
+Le sidecar nginx s'exécute aux côtés du moteur WAF dans le même pod et :
+
+- Écoute sur le port `443` (HTTPS) le trafic du chemin de données du WAF et le relaie en interne vers le moteur WAF.
+- Écoute sur le port `8443` (HTTPS) le trafic de l'interface d'administration et le relaie en interne vers celle-ci.
+- Écoute sur le port `80` (HTTP) uniquement pour servir les challenges ACME HTTP-01 de Let's Encrypt et redirige tout autre trafic vers HTTPS.
+- Impose uniquement TLSv1.2 et TLSv1.3.
+
+### Ce que cela implique pour vous
+
+- Configurez votre domaine pour qu'il route vers l'IP OWAF fournie.
+- Envoyez votre trafic à l'instance WAF en **HTTPS sur le port `443`**. Le HTTP simple sur le port `80` est automatiquement redirigé vers HTTPS.
+- Accédez à l'interface d'administration en **HTTPS sur le port `8443`**.
+- **Aucune configuration TLS n'est requise de votre côté.** Le provisionnement, le renouvellement des certificats et la configuration de nginx sont entièrement gérés par OVHcloud.
+
+:::info
+L'adresse IP réelle du client est préservée et transmise au moteur WAF via les en-têtes `X-Real-IP` et `X-Forwarded-For` définis par le sidecar nginx. Les règles personnalisées basées sur l'IP qui utilisent l'opérateur `ipmatch` sur `REMOTE_ADDR` fonctionnent correctement sans configuration supplémentaire.
+:::
+
+## Gérer les règles intégrées
+
+La page **Rules** est la page d'accueil par défaut après la connexion. Elle vous permet de consulter, rechercher, activer, désactiver et ajuster les règles de l'OWASP Core Rule Set livrées avec l'OWAF.
+
+### Barre de résumé des règles
+
+En haut de la page, la barre de résumé affiche :
+
+- Le nombre **total** de règles et le nombre de règles **actives**.
+- Le **Paranoia Level actuel**.
+- Une note indiquant que les règles dont le Paranoia Level est supérieur au réglage actuel sont marquées comme inactives.
+
+### Tableau des règles
+
+Chaque règle est affichée sous forme de ligne dans le tableau des règles, avec les colonnes suivantes :
+
+| Colonne | Description |
+| :--- | :--- |
+| **RULE** | Nom de la règle et numéro d'identifiant (par exemple, « SQL Injection Detected #942100 »). |
+| **CATEGORY** | Type d'attaque : `sqli`, `xss`, `rce`, `lfi`, `scanner_detection`, etc. |
+| **SEVERITY** | Niveau de risque : `CRITICAL`, `ERROR`, `WARNING` ou `NOTICE`. |
+| **ACTION** | Ce qui se produit lorsque la règle correspond : **block**, **allow** ou **log**. Modifiable en ligne via le menu déroulant. |
+| **PHASE** | Moment où la règle est évaluée : *Request headers* ou *Request body*. |
+| **PL** | Paranoia Level (1 à 4). Modifiable en ligne pour les règles intégrées. |
+| **TYPE** | **BUILT-IN** (livrée avec le WAF) ou **CUSTOM** (créée par l'utilisateur). |
+| **STATUS** | `ENABLED`, `DISABLED` ou `PL X — INACTIVE` (inactive car le PL de la règle est supérieur au PL global actuel). |
+| **ACTIONS** | Bouton d'activation ou de désactivation. Les règles personnalisées exposent également les options de modification et de suppression. |
+
+### Comprendre le statut d'une règle
+
+Une règle peut se trouver dans l'un des trois états suivants :
+
+- **ENABLED** — la règle est active et évalue le trafic entrant.
+- **DISABLED** — la règle a été désactivée manuellement et n'évalue pas le trafic.
+- **PL X — INACTIVE** — le Paranoia Level de la règle est supérieur au Paranoia Level global actuel, elle n'est donc pas active. Par exemple, si le Paranoia Level global est 1, une règle avec un PL 2 affichera `PL 2 — INACTIVE`.
+
+### Rechercher et filtrer les règles
+
+Utilisez les contrôles en haut du tableau des règles pour affiner la liste :
+
+- La **barre de recherche** filtre par nom de règle, identifiant ou catégorie.
+- Le **menu déroulant des catégories** restreint l'affichage à un seul type de règle (par exemple, `sqli`, `xss`).
+- Cliquez sur <code className="action">Refresh</code> pour recharger l'ensemble de règles actuel.
+
+### Désactiver et activer une règle
+
+1. Localisez la règle dans le tableau.
+2. Cliquez sur <code className="action">Disable</code> dans la colonne **ACTIONS** pour la désactiver, ou sur <code className="action">Enable</code> pour la réactiver.
+
+Les règles désactivées apparaissent dans la liste en lecture seule **Disabled Rules** de la page **Configuration**. Pour réactiver une règle depuis cet endroit, revenez à la page **Rules** et cliquez sur <code className="action">Enable</code>.
+
+:::info
+Les règles intégrées ne peuvent pas être supprimées, mais elles peuvent être désactivées et leur **Action** ainsi que leur **Paranoia Level** peuvent être modifiés en ligne depuis le tableau.
+:::
+
+## Créer une règle personnalisée
+
+Les règles personnalisées vous permettent d'étendre la détection intégrée avec des schémas spécifiques à votre application — par exemple, bloquer un bot connu comme malveillant, autoriser une IP de confiance ou rejeter les requêtes ciblant un chemin interne.
+
+### Ajouter une règle personnalisée
+
+1. Sur la page **Rules**, cliquez sur <code className="action">+ Add Rule</code> dans le coin supérieur droit de la page.
+2. Renseignez le formulaire de la règle :
+
+    | Champ | Description |
+    | :--- | :--- |
+    | **Rule ID** | Attribué automatiquement à partir de `200001`. Vous pouvez le modifier si nécessaire. |
+    | **Name** | Un nom descriptif (par exemple, « Block bad bot »). |
+    | **Targets** | La partie de la requête à inspecter. Sélectionnez-en une ou plusieurs : `ARGS` (paramètres de requête/corps), `REQUEST_PATH`, `REQUEST_URI`, `REQUEST_HEADERS`, `REQUEST_COOKIES`, `REQUEST_BODY`, `REMOTE_ADDR`. Utilisez **Select all** pour cocher toutes les cibles. |
+    | **Operator** | Comment faire correspondre le motif : **rx** (regex), **contains**, **streq** (correspondance exacte), **ipmatch** (liste d'IP), **gt** / **lt** (supérieur/inférieur à), **detectsqli**, **detectxss**. |
+    | **Pattern** | Le motif à faire correspondre (regex, chaîne ou IP séparées par des virgules pour `ipmatch`). |
+    | **Category** | La catégorie d'attaque (`custom`, `sqli`, `xss`, `rce`, `lfi`, etc.). |
+    | **Score** | Score d'anomalie ajouté lorsque la règle correspond (plus il est élevé, plus c'est grave). |
+    | **Severity** | Calculée automatiquement à partir du score, ou définie manuellement sur `critical`, `error`, `warning`, `notice`. |
+    | **Action** | Ce qu'il faut faire en cas de correspondance : **block** (rejeter la requête), **allow** (la laisser passer), **log** (uniquement enregistrer). |
+    | **Paranoia Level** | Le Paranoia Level à partir duquel cette règle s'active (1 à 4). |
+    | **Path Prefix** | Facultatif. N'appliquer cette règle qu'aux URL commençant par ce préfixe (par exemple, `/api/`). |
+    | **Enabled/Disabled** | Indiquez si la règle est active immédiatement après l'enregistrement. |
+
+3. Cliquez sur <code className="action">Save Rule</code> pour créer la règle, ou sur <code className="action">Cancel</code> pour annuler.
+
+{/* DRAFT: To screenshot — capture the Add Rule form with the fields populated for a sample bot-block rule */}
+
+### Modifier une règle personnalisée
+
+1. Cliquez sur <code className="action">Edit</code> sur la ligne d'une règle personnalisée.
+2. Modifiez les champs selon vos besoins. Le **Rule ID** ne peut pas être modifié.
+3. Cliquez sur <code className="action">Save Rule</code>.
+
+### Supprimer une règle personnalisée
+
+1. Cliquez sur <code className="action">Delete</code> sur la ligne d'une règle personnalisée.
+2. Confirmez la suppression. La règle est définitivement supprimée.
+
+:::warning
+Seules les règles personnalisées (TYPE = `CUSTOM`) peuvent être modifiées ou supprimées. Les règles intégrées peuvent uniquement être activées, désactivées, ou voir leur action et leur Paranoia Level modifiés.
+:::
+
+### Exemples de règles personnalisées courantes
+
+Le tableau ci-dessous présente trois configurations de règles personnalisées courantes.
+
+| Objectif | Targets | Operator | Pattern | Action |
+| :--- | :--- | :--- | :--- | :--- |
+| Bloquer un bot malveillant par son User-Agent | `REQUEST_HEADERS` | `rx` (regex) | `(?i)badbot` | **block** |
+| Autoriser une IP de confiance | `REMOTE_ADDR` | `ipmatch` | `10.0.0.1,10.0.0.2` | **allow** |
+| Bloquer les requêtes ciblant `/admin/` en dehors d'un CIDR | `REQUEST_PATH` + `REMOTE_ADDR` | `rx` + `ipmatch` | `^/admin/` / `203.0.113.0/24` | **block** |
+
+## Transformer les en-têtes de requête sur le proxy
+
+La page **Proxy** expose également une section **Request Header Rules** qui transforme les en-têtes de requête avant leur transmission au backend. Les règles sont appliquées **dans l'ordre**, de haut en bas. Chaque règle est composée d'un nom d'en-tête, d'une action et d'une valeur ou d'une destination.
+
+### Actions disponibles
+
+| Action | Comportement |
+| :--- | :--- |
+| **Set value** | Définit l'en-tête à la valeur indiquée. Le crée s'il n'existe pas, l'écrase s'il existe. |
+| **Remove** | Supprime entièrement l'en-tête de la requête. |
+| **Move to** | Renomme l'en-tête — supprime l'original et crée la destination avec la même valeur. |
+| **Copy to** | Duplique la valeur de l'en-tête vers un autre nom d'en-tête (l'original est conservé). |
+
+### Ajouter une règle d'en-tête
+
+1. Sur la page **Proxy**, faites défiler jusqu'à **Request Header Rules**.
+2. Cliquez sur <code className="action">+ Add rule</code> pour ajouter une ligne de règle vide.
+3. Renseignez :
+    - **HEADER** — le nom de l'en-tête sur lequel agir (par exemple, `Authorization`).
+    - **ACTION** — `Set value`, `Remove`, `Move to` ou `Copy to`.
+    - **VALUE / DESTINATION** — la valeur à définir, ou le nom de l'en-tête de destination pour `Move to` / `Copy to`.
+4. Utilisez les flèches haut et bas pour réordonner les règles, ou `X` pour supprimer une règle.
+5. Cliquez sur <code className="action">Save Changes</code> pour appliquer.
+
+### Préréglages
+
+La page Proxy expose également des préréglages en un clic pour les scénarios courants :
+
+| Préréglage | Ce qu'il fait |
+| :--- | :--- |
+| **Credential rotation (auth token)** | Déplace l'en-tête `Authorization` du client vers `X-Forwarded-Authorization`, puis définit un nouveau token de service dans `Authorization`. |
+| **Strip internal headers** | Supprime les en-têtes `X-Internal-Role` et `X-Internal-User-Id` pour empêcher les clients d'usurper des en-têtes internes. |
+| **Add tenant header** | Définit un en-tête `X-Tenant` pour identifier le tenant. |
+
+## Configurer le CORS
+
+Les paramètres CORS se configurent sur la page **Proxy**, dans la section **CORS Settings**. Lorsqu'ils sont activés, le WAF injecte les en-têtes de réponse CORS sur chaque réponse, y compris les pages de blocage `403`.
+
+| Paramètre | Description |
+| :--- | :--- |
+| **Access-Control-Allow-Origin** | Laissez vide pour désactiver les en-têtes CORS. Utilisez `*` pour autoriser toutes les origines, ou indiquez un domaine (par exemple, `https://app.example.com`). |
+| **Access-Control-Allow-Headers** | En-têtes autorisés personnalisés pour les réponses préliminaires. Laissez vide pour utiliser la valeur par défaut intégrée. Exemple : `authorization, content-type, x-requested-with`. |
+| **OPTIONS preflight passthrough** | Lorsqu'il est coché, le WAF répond immédiatement aux requêtes préliminaires `OPTIONS` avec un `204 No Content`, sans inspection du WAF ni transmission au backend. Cela évite que les requêtes préliminaires soient bloquées par accident par les règles du WAF. |
+
+Cliquez sur <code className="action">Save Changes</code> pour appliquer les nouveaux paramètres CORS.
+
+## Surveiller le trafic en temps réel
+
+La page **Stats** fournit un tableau de bord de surveillance en temps réel pour le WAF.
+
+### Cartes de résumé
+
+La rangée supérieure de la page **Stats** affiche les compteurs suivants :
+
+| Carte | Description |
+| :--- | :--- |
+| **TOTAL REQUESTS** | Nombre total de requêtes traitées depuis le démarrage du WAF. |
+| **BLOCKED** | Nombre de requêtes bloquées par les règles du WAF (affiché en rouge lorsqu'il est supérieur à 0). |
+| **PASS RATE** | Pourcentage de requêtes laissées passer (affiché en rouge sous 95 %, en vert sinon). |
+| **ACTIVE CONNECTIONS** | Nombre de connexions actuellement actives. |
+| **WAF MODE** | Mode de fonctionnement actuel — `Blocking`, `Detection` ou `Disabled`. |
+| **ACTIVE RULES** | Nombre de règles actuellement actives. |
+| **UPTIME** | Durée de fonctionnement du WAF. |
+| **VERSION** | Version actuelle du WAF. |
+
+### Graphiques
+
+Sous les cartes de résumé, deux graphiques à barres mettent en évidence les schémas d'attaque :
+
+- **Blocked Requests by Category** — répartition des blocages par catégorie d'attaque (`Lfi`, `Rce`, `Xss`, `SqlInjection`, etc.). Cela vous aide à comprendre les types d'attaques que reçoit votre application.
+- **Requests by Action** — répartition des requêtes entre les actions `allowed` et `blocked`.
+
+### Comportement du rafraîchissement
+
+- La page **Stats** se rafraîchit automatiquement toutes les **15 secondes**.
+- L'heure du dernier rafraîchissement est affichée sous le titre de la page.
+- Cliquez sur <code className="action">Refresh</code> pour rafraîchir à la demande.
+
+{/* DRAFT: To screenshot — capture the Stats page with summary cards and both bar charts visible */}
+
+## Bonnes pratiques
+
+Les recettes ci-dessous couvrent les tâches opérationnelles les plus courantes durant l'alpha. Chacune s'appuie sur les étapes de la section **En pratique** ci-dessus.
+
+### Intégrer un nouveau site web en toute sécurité
+
+Pour commencer à protéger un nouveau site web sans risquer d'interruption :
+
+1. Sur la page **Proxy**, définissez l'**Upstream URL** sur l'adresse de votre backend et enregistrez.
+2. Sur la page **Configuration**, réglez le **WAF Mode** sur **Detection** et enregistrez.
+3. Faites passer du trafic représentatif à travers le WAF pendant quelques heures (trafic manuel ou trafic miroir depuis un load balancer).
+4. Ouvrez la page **Stats** et examinez les catégories bloquées et les correspondances de règles.
+5. Ajustez les règles bruyantes (désactivez-les, abaissez leur Paranoia Level ou passez leur action sur `log`).
+6. Lorsque le taux de faux positifs est acceptable, basculez le **WAF Mode** sur **Blocking** sur la page **Configuration** et enregistrez.
+
+### Réduire les faux positifs <a name="reduce-false-positives"></a>
+
+1. Sur la page **Stats**, identifiez les catégories ou règles qui bloquent du trafic légitime.
+2. Rendez-vous sur la page **Rules** et localisez la règle à l'origine des faux positifs.
+3. Choisissez l'une des solutions suivantes :
+    - **Désactivez** la règle si elle n'est pas pertinente pour votre application.
+    - **Changez l'action** de `block` à `log` pour conserver la visibilité sans bloquer.
+    - **Abaissez le Paranoia Level** sur la page **Configuration** pour désactiver les règles les plus strictes.
+    - **Augmentez l'Anomaly Threshold** sur la page **Configuration** pour exiger davantage de correspondances de règles avant de bloquer.
+
+### Tester des modifications sans impacter les utilisateurs
+
+1. Sur la page **Configuration**, basculez le **WAF Mode** sur **Detection** et enregistrez.
+2. Appliquez la règle ou la modification de seuil que vous souhaitez évaluer.
+3. Surveillez la page **Stats** pour examiner ce qui aurait été bloqué.
+4. Une fois la modification validée, repassez en **Blocking**.
+
+### Effectuer une rotation transparente du token de service backend
+
+Utilisez le préréglage **Credential rotation (auth token)** sur la page **Proxy**. Il déplace l'en-tête `Authorization` du client vers `X-Forwarded-Authorization` et définit le token de service backend dans `Authorization`. Ce schéma vous permet d'effectuer la rotation du token backend depuis le WAF sans modifier le code client.
+
+## Résolution de problèmes
+
+Si vous rencontrez des problèmes avec l'OWAF, parcourez les vérifications ci-dessous.
+
+| Symptôme | Cause possible | Résolution |
+| :--- | :--- | :--- |
+| Impossible d'atteindre l'interface d'administration OWAF sur le port `8443` | L'accès réseau est bloqué entre votre poste et l'instance WAF. | Vérifiez que votre pare-feu autorise le trafic sortant vers l'instance sur le port TCP `8443`. Confirmez que l'URL de l'instance fournie par OVHcloud est bien la plus récente. |
+| La connexion échoue avec le token fourni | Le token Bearer est mal formé ou a été révoqué. | Collez à nouveau le token exactement tel que reçu, avec ou sans le préfixe `Bearer `. Si le problème persiste, contactez votre interlocuteur OVHcloud pour obtenir un nouveau token. |
+| Des requêtes légitimes sont bloquées | Une règle intégrée se déclenche sur une entrée bénigne, ou le Paranoia Level est trop élevé. | Identifiez la règle sur les pages **Stats** et **Rules**, puis désactivez-la, passez son action sur `log` ou abaissez le Paranoia Level global. Voir la recette [Réduire les faux positifs](#reduce-false-positives). |
+| Le WAF ne transmet pas le trafic au backend | L'**Upstream URL** est manquante ou incorrecte, ou le backend est injoignable depuis le WAF. | Sur la page **Proxy**, confirmez que l'Upstream URL est définie avec un schéma `http://` ou `https://`. Vérifiez que le backend est joignable depuis l'instance WAF. |
+| Une règle personnalisée ne correspond pas au trafic attendu | La cible ou l'opérateur sélectionné est incorrect, ou le motif est erroné. | Ouvrez la règle sur la page **Rules** et vérifiez les **Targets**, l'**Operator** et le **Pattern**. Testez l'expression régulière sur un échantillon d'entrée en dehors du WAF. |
+| Les requêtes préliminaires sont bloquées | Une règle de l'OWASP CRS rejette la requête `OPTIONS`. | Sur la page **Proxy**, activez **OPTIONS preflight passthrough** sous **CORS Settings**. |
+| Les modifications ne sont pas appliquées | Le formulaire n'a pas été enregistré. | Vérifiez que le bouton <code className="action">Save Changes</code> a bien été cliqué sur la page modifiée. La configuration est appliquée immédiatement à l'enregistrement, sans redémarrage. |
+
+Si les étapes ci-dessus ne résolvent pas le problème, rassemblez :
+
+- La requête exacte qui échoue (méthode, chemin, en-têtes, échantillon du corps).
+- L'identifiant et la catégorie de la règle correspondante depuis la page **Rules**, si vous les connaissez.
+- Une capture d'écran de la page **Stats** au moment où le problème se produit.
+
+Signalez ensuite le problème à votre interlocuteur OVHcloud.
+
+## Glossaire
+
+| Terme | Définition |
+| :--- | :--- |
+| **Anomaly Score** | Score cumulé attribué à une requête. Chaque règle correspondante ajoute son score. Lorsque le total atteint le seuil, la requête est bloquée. |
+| **Anomaly Threshold** | La valeur de score à partir de laquelle une requête est bloquée. Plus basse = plus stricte. Par défaut : `5`. |
+| **Blocking Mode** | Le WAF bloque activement les requêtes qui dépassent le seuil d'anomalie. Recommandé en production. |
+| **Built-in Rule** | Une règle livrée avec le WAF, basée sur l'OWASP Core Rule Set. Ne peut être ni modifiée ni supprimée, mais peut être désactivée ou voir son action et son Paranoia Level modifiés. |
+| **CRS** | OWASP Core Rule Set — l'ensemble de règles WAF open source, standard du secteur, sur lequel l'OWAF est basé. |
+| **Custom Rule** | Une règle créée par l'utilisateur. Peut être entièrement modifiée et supprimée. |
+| **Detection Mode** | Le WAF évalue toutes les règles et journalise les événements, mais laisse passer toutes les requêtes. Utilisé pour les tests. |
+| **LFI** | Local File Inclusion — une attaque qui tente de lire des fichiers sur le serveur. |
+| **Paranoia Level (PL)** | Un réglage (1 à 4) qui contrôle le nombre de règles actives. Des niveaux plus élevés activent davantage de règles, augmentant la couverture de détection et les faux positifs. |
+| **RCE** | Remote Code Execution — une attaque qui tente d'exécuter des commandes sur le serveur. |
+| **SPOE** | Stream Processing Offload Engine — un protocole d'intégration avec des instances HAProxy externes. |
+| **SQLi** | SQL Injection — une attaque qui injecte des requêtes SQL malveillantes. |
+| **SSTI** | Server-Side Template Injection — une attaque ciblant les moteurs de template. |
+| **Upstream** | Le serveur backend vers lequel le WAF transmet le trafic légitime. |
+| **WAF** | Web Application Firewall — une couche de sécurité qui inspecte et filtre le trafic HTTP. |
+| **XSS** | Cross-Site Scripting — une attaque qui injecte des scripts malveillants dans des pages web. |
+
+## Aller plus loin
+
+Échangez avec notre [communauté d'utilisateurs](https://community.ovh.com/).

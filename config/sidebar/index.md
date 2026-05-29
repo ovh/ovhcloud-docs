@@ -2456,6 +2456,8 @@
             + [Troubleshooting common errors setting up OVHcloud Connect](network/ovhcloud-connect/troubleshooting)
         + [Additional resources](network-ovhcloud-connect-technical-resources)
             + [Technical capabilities and limitations](network/ovhcloud-connect/occ-limits)
+    + [OVHcloud Web Application Firewall](products/network-ovhcloud-waf)
+        + [Configure the OVHcloud Web Application Firewall](network/ovhcloud-waf/configure-waf)
     + [SecNumCloud](network-secnumcloud-connectivity)
         + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
         + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
