@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import type { MigrationCTAProps } from 'theme/components/MigrationCTA';
 import { MigrationCTA } from 'theme/components/MigrationCTA';
 import type { MigrationResourcesProps } from 'theme/components/MigrationResources';
@@ -103,6 +104,7 @@ export function MigrationLayout(props: MigrationLayoutProps) {
     frontmatter as MigrationFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useMigrationSidebarMenu();
+  usePageTitle(title);
 
   return (
     <>
