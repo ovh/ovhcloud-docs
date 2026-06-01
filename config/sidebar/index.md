@@ -548,6 +548,8 @@
     + [On-Prem Cloud Platform](products/hosted-private-cloud-hosted-private-cloud-opcp)
         + [Overview](hosted-private-cloud/opcp/overview)
         + [Getting started](hosted-private-cloud-hosted-private-cloud-opcp-getting-started)
+            + [OPCP - Network integration and platform connectivity](hosted-private-cloud/opcp/opcp-network-architecture)
+            + [OPCP - Technical prerequisites for deployment](hosted-private-cloud/opcp/opcp-prerequisites)
             + [Getting started with your OPCP](hosted-private-cloud/opcp/getting-started)
             + [OPCP - How to install a controller](hosted-private-cloud/opcp/install-controller)
             + [OPCP - Node lifecycle](hosted-private-cloud/opcp/node-lifecycle)
