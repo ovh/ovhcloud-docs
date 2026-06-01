@@ -171,7 +171,7 @@ export function generateChangelog(): string {
 
   if (tags.length === 0) {
     console.log(
-      'No tags found. Run `pnpm release` to create the first release.',
+      'No tags found. Run `pnpm release:prepare` to create the first release.',
     );
     return '';
   }

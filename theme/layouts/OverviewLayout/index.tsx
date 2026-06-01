@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import { HomeUsecases } from 'theme/components/HomeUsecases';
 import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
@@ -138,6 +139,7 @@ export function OverviewLayout(props: OverviewLayoutProps) {
   } = frontmatter as OverviewFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useOverviewSidebarMenu();
+  usePageTitle(title);
 
   return (
     <>

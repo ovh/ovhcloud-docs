@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import type { ELearningCoursesProps } from 'theme/components/ELearningCourses';
 import { ELearningCourses } from 'theme/components/ELearningCourses';
 import type { ELearningCTAProps } from 'theme/components/ELearningCTA';
@@ -100,6 +101,7 @@ export function ELearningLayout(props: ELearningLayoutProps) {
   const { hero, courses, cta } = frontmatter as ELearningFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useELearningSidebarMenu();
+  usePageTitle((frontmatter as { title?: string }).title);
 
   return (
     <>
