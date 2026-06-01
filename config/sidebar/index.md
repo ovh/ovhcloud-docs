@@ -563,6 +563,8 @@
             + [OPCP - IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
         + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
             + [Getting started with your CloudStore](hosted-private-cloud/opcp/cloudstore-getting-started)
+        + [Landing Zone Manager](hosted-private-cloud-hosted-private-cloud-opcp-landing-zone-manager)
+            + [Landing Zone Manager - Creating a user account](hosted-private-cloud/opcp/landing-zone-manager-create-user-account)
         + [Additional resources](hosted-private-cloud-hosted-private-cloud-opcp-additional-resources)
             + [OPCP - Object Storage features and specifications](hosted-private-cloud/opcp/s3-opcp-limitations)
             + [OPCP - How to create a custom OS image](hosted-private-cloud/opcp/how-to-create-image)
