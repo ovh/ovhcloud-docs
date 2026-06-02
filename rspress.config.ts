@@ -111,6 +111,10 @@ export default defineConfig({
     },
   },
   globalStyles: path.join(__dirname, 'styles/index.css'),
+  // Default zoom applies to every `.rspress-doc img`. Let images opt out with
+  // `className="no-zoom"` so clickable image-links (e.g. card icons wrapped in
+  // an <a>) follow the link on click instead of opening the zoom overlay.
+  mediumZoom: { selector: '.rspress-doc img:not(.no-zoom)' },
   title: 'OVHcloud Documentation',
   icon: '/images/favicon.png',
   logo: {
