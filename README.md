@@ -7,7 +7,7 @@ Serves 7 locales (fr, en, de, es, it, pl, pt) with 9500+ MDX pages.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - pnpm
 
 ## Quick Start
