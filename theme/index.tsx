@@ -10,6 +10,7 @@ import { AnalyticsBootstrap } from '@components/Analytics';
 import { AIChatbotDrawerProvider } from 'theme/components/AIChatbotDrawer/context';
 import Breadcrumbs from 'theme/components/Breadcrumbs/Breadcrumbs.tsx';
 import { EditLink } from 'theme/components/EditLink';
+import { FallbackHeading } from 'theme/components/FallbackHeading';
 import { LlmsViewOptions } from 'theme/components/LlmsViewOptions';
 import { Nav } from 'theme/components/Nav';
 import { PageFeedback } from 'theme/components/PageFeedback';
@@ -117,6 +118,7 @@ export {
   DocLayout,
   EditLink,
   ELearningLayout,
+  FallbackHeading,
   HomeLayout,
   Layout,
   LlmsViewOptions,
