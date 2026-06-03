@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.06.02.1
+
+### Documentation
+- 7 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.06.02
 
 ### Features
@@ -7,6 +12,7 @@
 - **seo:** publish sitemap-help.xml and reference it in robots.txt (#84)
 
 ### Fixes
+- **links:** resolve community to bare community.ovhcloud.com for all locales (#114)
 - **data-platform:** restore clickable image links on Data Platform landing guide (#111)
 - **billing:** use bare community.ovhcloud.com link without locale suffix
 - **content:** decode HTML entities leaked into code blocks (batch 7 of 7)
@@ -20,7 +26,7 @@
 - **docs:** update weblinks
 
 ### Documentation
-- 1784 guides updated across de, en, es, fr, it, pl, pt
+- 1791 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.05.29
 
