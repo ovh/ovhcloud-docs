@@ -114,6 +114,9 @@ export * from '@rspress/core/theme-original';
 // Then override with custom components (must come AFTER wildcard export)
 export { LastUpdated } from 'theme/components/LastUpdated';
 export { NavHamburger } from 'theme/components/NavHamburger';
+// Restore v1-style Tabs sync: derive a groupId from tab labels so selection
+// persists across blocks and navigation (Rspress v2 only syncs with a groupId).
+export { Tab, Tabs } from 'theme/components/SyncedTabs';
 export {
   DocLayout,
   EditLink,
