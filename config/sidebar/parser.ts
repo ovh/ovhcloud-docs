@@ -190,6 +190,17 @@ function readFrontmatterTitle(basePathNoExt: string): string | null {
 }
 
 /**
+ * Whether a guide's source file exists in a given locale tree (tries
+ * .mdx then .md). Used to drop sidebar entries for guides intentionally
+ * absent from a locale (e.g. a language disabled for that guide), so the
+ * locale sidebar never points at a 404. Symlink-to-en fallbacks resolve
+ * via existsSync and are therefore kept.
+ */
+function guideFileExists(basePathNoExt: string): boolean {
+  return ['.mdx', '.md'].some((ext) => fs.existsSync(basePathNoExt + ext));
+}
+
+/**
  * Convert a ref string to a camelCase i18n key segment.
  * e.g. "bare-metal-cloud-dedicated-servers-key-concepts" → "bareMetalCloudDedicatedServersKeyConcepts"
  */
@@ -369,6 +380,18 @@ export function parseIndexMd(
         continue;
       }
       const link = slugToLink(ref as string);
+
+      // Drop guides whose source file is absent in this locale (deleted
+      // or never created — e.g. a language disabled for that guide, such
+      // as SMS in de/pt) so the locale sidebar never surfaces a 404.
+      // Symlink-to-en fallbacks resolve via guideFileExists and stay.
+      if (
+        docsDir &&
+        locale &&
+        !guideFileExists(path.join(docsDir, locale, link.slice(1)))
+      ) {
+        continue;
+      }
 
       // Resolve locale-specific title from MDX frontmatter
       // Overview pages use a translated "Overview" label instead of the
