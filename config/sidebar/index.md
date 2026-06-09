@@ -661,7 +661,7 @@
         + [Migration](public-cloud-cross-functional-migration)
             + [Public Cloud IaaS Migration - Steps and Best Practices](public-cloud/cross-functional/iaas-migration-steps)
             + [Architecture Reference - Building a Landing Zone with OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-migration)
-            + [Hub and Spoke Landing Zone on OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects)
+            + [Hub and spoke landing zone on OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects)
         + [Tutorials](products/public-cloud-cross-functional-tutorials)
             + [Managing from Horizon](public-cloud-cross-functional-tutorials-horizon)
                 + [Introducing Horizon](public-cloud/cross-functional/introducing-horizon)
