@@ -69,7 +69,9 @@ function AIChatbotClient({
           containerRef.current,
           {
             locale: locale ?? 'fr',
-            linkPolicy: linkPolicy ?? 'https://www.ovhcloud.com/',
+            linkPolicy:
+              linkPolicy ??
+              `https://www.ovhcloud.com/${locale ?? 'fr'}/compliance/informations-legales/`,
             darkTheme: darkTheme ?? false,
             onClose,
             onTracking,
@@ -119,7 +121,7 @@ function AIChatbotClient({
 // Wrapper that skips SSG - only renders on client
 export function AIChatbot({
   locale = 'fr',
-  linkPolicy = 'https://www.ovhcloud.com/',
+  linkPolicy = 'https://www.ovhcloud.com/fr/compliance/informations-legales/',
   onClose,
   onTracking,
 }: AIChatbotProps) {

@@ -29,7 +29,13 @@ export function AIChatbotDrawer() {
         className={`ai-drawer-panel ${isOpen ? 'ai-drawer-panel--open' : ''}`}
       >
         <div className="ai-drawer-content">
-          {hasBeenOpened && <AIChatbot locale={lang} onClose={close} />}
+          {hasBeenOpened && (
+            <AIChatbot
+              locale={lang}
+              linkPolicy={`https://www.ovhcloud.com/${lang}/compliance/informations-legales/`}
+              onClose={close}
+            />
+          )}
         </div>
       </div>
     </>
