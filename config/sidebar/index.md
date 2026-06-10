@@ -2633,6 +2633,7 @@
                 + [Public Cloud Load Balancer TCP / HTTP / HTTPS Logs Forwarding](public-cloud/network-services/loadbalancer-logs-forward)
                 + [Public Cloud Databases - How to setup logs forwarding](public-cloud/databases/logs-to-customers)
                 + [Web Cloud Databases - How to manage logs](web-cloud/databases/db-retrieve-logs)
+                + [Managed Hosting for WordPress - Retrieving and analysing your logs](web-cloud/managed-hosting/wordpress-logs)
                 + [Managed Kubernetes Service Audit Logs Forwarding](public-cloud/containers-orchestration/managed-kubernetes/forwarding-audit-logs)
                 + [Pushing logs from OVHcloud KMS to Logs Data Platform](manage-and-operate/kms/logs)
                 + [OVHcloud Connect Logs Forwarding](network/ovhcloud-connect/logs-to-customers)
