@@ -486,7 +486,6 @@
                 + [Setting up Zerto multi-site replication on OVHcloud Managed vSphere](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/zerto-multi-site)
                 + [Zerto LTR - Configure long-term retention bucket](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/zerto-ltr)
                 + [Zerto VRA - Resize Virtual Replication Appliances](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/zerto-vra)
-                + [Zerto - Post-Deployment Configuration](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/zerto-configuration-post-deploiement)
                 + [Using Zerto between OVHcloud and a third party platform](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/zerto-virtual-replication-customer-to-ovhcloud)
                 + [Encrypting backup jobs with Veeam and OKMS](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/veeam-encrypt-backup-job-with-okms)
                 + [Avoiding VM freeze with the Veeam Managed Backup option](hosted-private-cloud/hosted-private-cloud-powered-by-vmware/eviter-le-freeze-de-vm-avec-l-option-veeam-backup)
