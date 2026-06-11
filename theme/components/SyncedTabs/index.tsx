@@ -3,6 +3,14 @@ import type { ComponentProps, ReactElement } from 'react';
 import { Children, isValidElement } from 'react';
 
 type BaseTabsProps = ComponentProps<typeof BaseTabs>;
+type TabsProps = BaseTabsProps & {
+  /**
+   * Opt this block OUT of cross-block sync + persistence (renders purely local).
+   * Escape hatch for the rare non-sequential block that still shouldn't sync —
+   * sequential "Step N" tabs are excluded automatically (see isSequential).
+   */
+  noSync?: boolean;
+};
 
 /**
  * Build a stable groupId from the set of tab labels.
@@ -25,8 +33,33 @@ function groupIdFromLabels(labels: string[]): string {
     .replace(/^-+|-+$/g, '')}`;
 }
 
-export function Tabs(props: BaseTabsProps): ReactElement {
-  // Respect an explicit groupId if a guide sets one.
+/**
+ * A "sequential" label-set is a numbered series — every label starts with the
+ * same word(s) followed by a number: "Step 1" / "Step 2" / "Step 3 - IMAP",
+ * "Étape 1…", "Option 1…". These are ordered/branching content, not a user
+ * preference, so they must NOT sync or persist across blocks (otherwise picking
+ * "Step 3" in one block flips every other step block on the page and remembers
+ * it across navigation).
+ *
+ * Detection is purely structural — same leading text + a trailing number, with
+ * any suffix allowed — so it is locale-agnostic (no word list) and also catches
+ * branched steps like "Step 3 - IMAP" / "Step 3 - POP3".
+ */
+function isSequential(labels: string[]): boolean {
+  if (labels.length < 2) return false;
+  const leads = labels.map((label) =>
+    /^(.+?)\s+\d+\b/.exec(label.trim())?.[1]?.trim().toLowerCase(),
+  );
+  return leads.every((lead) => Boolean(lead)) && new Set(leads).size === 1;
+}
+
+export function Tabs({ noSync, ...props }: TabsProps): ReactElement {
+  // 1. Explicit opt-out → keep this block local (no sync, no persistence).
+  if (noSync) {
+    return <BaseTabs {...props} />;
+  }
+
+  // 2. Respect an explicit groupId if a guide sets one.
   if (props.groupId) {
     return <BaseTabs {...props} />;
   }
@@ -38,8 +71,12 @@ export function Tabs(props: BaseTabsProps): ReactElement {
       (label): label is string => typeof label === 'string' && label.length > 0,
     );
 
-  // No usable labels (e.g. index-keyed tabs) → leave default local behaviour.
-  const groupId = labels.length > 0 ? groupIdFromLabels(labels) : undefined;
+  // 3. Sequential (numbered) tabs — e.g. "Step 1/2/3" — must stay local.
+  // 4. Otherwise derive a stable groupId so identical-label blocks sync.
+  const groupId =
+    labels.length > 0 && !isSequential(labels)
+      ? groupIdFromLabels(labels)
+      : undefined;
 
   return <BaseTabs {...props} groupId={groupId} />;
 }
