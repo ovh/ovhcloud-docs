@@ -150,6 +150,10 @@ interface ParsedLine {
   label: string;
   ref: string | null;
   kind: 'universe' | 'product' | 'section' | 'guide';
+  // Optional landing-page slug declared via a `{landing=<slug>}` marker on a
+  // product/section line. When set, the resulting SidebarGroup gets a `link`
+  // so clicking the category navigates to that page (and still expands).
+  landing?: string;
 }
 
 interface StackEntry {
@@ -334,6 +338,13 @@ export function parseIndexMd(
           collapsible: true,
           items: items as SidebarItem[],
         };
+        // A `{landing=<slug>}` marker turns this category into a clickable
+        // node: set `link` so the sidebar navigates to the landing page
+        // (SidebarGroup keeps the group expanded on click). Reached only for
+        // non-empty groups — pruned FR-only categories never get here.
+        if (parsed.landing) {
+          node.link = slugToLink(parsed.landing);
+        }
       }
 
       // Add to parent or to root
@@ -350,13 +361,26 @@ export function parseIndexMd(
 
     const leadingSpaces = line.match(/^(\s*)/)?.[1].length || 0;
     const indent = Math.floor(leadingSpaces / 4);
-    const stripped = line.replace(/^\s*\+\s+/, '');
+    let stripped = line.replace(/^\s*\+\s+/, '');
+
+    // Extract an optional trailing `{landing=<slug>}` marker before parsing the
+    // `[label](ref)` so it doesn't pollute the label/ref. Only meaningful on
+    // product/section lines (groups); ignored on guide leaves.
+    let landing: string | undefined;
+    const landingMatch = stripped.match(/\s*\{landing=([^}]+)\}\s*$/);
+    if (landingMatch) {
+      landing = landingMatch[1].trim();
+      stripped = stripped.slice(0, landingMatch.index).trimEnd();
+    }
 
     const linkMatch = stripped.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     const label = linkMatch ? linkMatch[1] : stripped.trim();
     const ref = linkMatch ? linkMatch[2] : null;
 
     const parsed = classifyLine(indent, label, ref);
+    if (landing && (parsed.kind === 'product' || parsed.kind === 'section')) {
+      parsed.landing = landing;
+    }
 
     // Flush stack entries at the same or deeper indent
     flushTo(indent);

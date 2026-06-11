@@ -2092,8 +2092,7 @@
                     + [Créer manuellement une interface modem](web-cloud/internet/overthebox/advanced-creer-une-interface-modem-manuellement)
                     + [Installer l'image OverTheBox sur votre matériel](web-cloud/internet/overthebox/advanced-installer-limage-overthebox-sur-votre-materiel)
                     + [Configurer un ancien appareil OverTheBox v1 (Intel & IT v1)](web-cloud/internet/overthebox/intel-itv1-installation)
-    + [Phone and Fax](products/web-cloud-phone-and-fax)
-            + [VoIP - Présentation de la documentation](web-cloud/phone-and-fax/voip/landing-page-voip)
+    + [Phone and Fax](products/web-cloud-phone-and-fax){landing=web-cloud/phone-and-fax/voip/landing-page-voip}
             + [Getting started](web-cloud-phone-and-fax-voip-getting-started)
                 + [FAQ](web-cloud/phone-and-fax/voip/faq-voip)
                 + [Gérer vos services VoIP](web-cloud/phone-and-fax/voip/changer-l-offre-et-les-options-d-une-ligne-voip)

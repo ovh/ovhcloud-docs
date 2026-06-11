@@ -63,6 +63,7 @@ export function SidebarItemRaw({
       <Link
         href={link}
         startTransition={startTransition}
+        onClick={onClick}
         className={clsx(
           'rp-sidebar-item',
           {

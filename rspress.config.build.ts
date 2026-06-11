@@ -99,6 +99,7 @@ export default defineConfig({
       path.join(BASE_DIR, 'components/Api/index.tsx'),
       path.join(BASE_DIR, 'components/ManagerLink/ManagerLink.tsx'),
       path.join(BASE_DIR, 'components/Tooltip/Tooltip.tsx'),
+      path.join(BASE_DIR, 'components/CardGrid/CardGrid.tsx'),
     ],
     link: {
       checkDeadLinks: true,
