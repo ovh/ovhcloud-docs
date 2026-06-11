@@ -133,6 +133,8 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
 export * from '@rspress/core/theme-original';
 
 // Then override with custom components (must come AFTER wildcard export)
+const LlmsCopyButton = () => null;
+
 export { LastUpdated } from 'theme/components/LastUpdated';
 export { NavHamburger } from 'theme/components/NavHamburger';
 // Restore v1-style Tabs sync: derive a groupId from tab labels so selection
@@ -145,6 +147,7 @@ export {
   FallbackHeading,
   HomeLayout,
   Layout,
+  LlmsCopyButton,
   LlmsViewOptions,
   MigrationLayout,
   Nav,

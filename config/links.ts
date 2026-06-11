@@ -13,6 +13,15 @@ export const externalLinks: LinkMap = {
     'pl': 'https://eu.api.ovh.com/',
     'pt': 'https://eu.api.ovh.com/',
   },
+  'bare-metal/advance': {
+    'fr': 'https://www.ovhcloud.com/fr/bare-metal/advance/',
+    'en': 'https://www.ovhcloud.com/en-gb/bare-metal/advance/',
+    'de': 'https://www.ovhcloud.com/de/bare-metal/advance/',
+    'es': 'https://www.ovhcloud.com/es-es/bare-metal/advance/',
+    'it': 'https://www.ovhcloud.com/it/bare-metal/advance/',
+    'pl': 'https://www.ovhcloud.com/pl/bare-metal/advance/',
+    'pt': 'https://www.ovhcloud.com/pt/bare-metal/advance/',
+  },
   'bare-metal/backup-storage': {
     'fr': 'https://www.ovhcloud.com/fr/bare-metal/backup-storage/',
     'en': 'https://www.ovhcloud.com/en-gb/bare-metal/backup-storage/',

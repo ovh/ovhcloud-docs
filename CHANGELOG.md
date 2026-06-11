@@ -1,12 +1,62 @@
 # Changelog
 
+## 2026.06.11
+
+### Features
+- **network:** ne GS about gateway (#133)
+- **enteprise-file-storage:** update getting started with trident with service URN retrieval (#166)
+
+### Documentation
+- 1173 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.10
+
+### Fixes
+- **build:** use 301.map from plublic directory
+
+## 2026.06.09
+
+### Fixes
+- **chatbot:** point linkPolicy at localized legal-information page (#159)
+
+### Documentation
+- 149 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.08.1
+
+### Fixes
+- **domains/dns-dnssec:** remove .it unavailability notice
+
+### Documentation
+- 153 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.08
+
+### Maintenance
+- **telecom:** standardize guides (legacy cleanup, links, structure)
+
+### Documentation
+- 413 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.04.1
+
+### Features
+- **web-cloud:** adapt guide content to commercial zones (EU/CA/APAC) - wave 2
+- **theme:** add llms options and pdf export
+
+### Documentation
+- 396 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.06.04
+
+### Features
+- **web-hosting:** translate LDP logs guide to all locales
 
 ### Fixes
 - **web-hosting,file-storage:** blank line before ::: closer after list
 
 ### Documentation
-- 50 guides updated across de, en, es, fr, it, pl, pt
+- 64 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.06.03
 

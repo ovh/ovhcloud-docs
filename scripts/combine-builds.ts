@@ -129,11 +129,25 @@ const rootIndexHtml = `<!DOCTYPE html>
 fs.writeFileSync(path.join(DIST_DIR, 'index.html'), rootIndexHtml);
 console.log('   ✓ Created dist/index.html (redirects to /fr/)');
 
-// Also create 301.map if it doesn't exist
-const redirectMapPath = path.join(DIST_DIR, '301.map');
-if (!fs.existsSync(redirectMapPath)) {
-  fs.writeFileSync(redirectMapPath, '/ /fr/;\n');
-  console.log('   ✓ Created dist/301.map');
+// Copy the 301.map maintained in docs/public/ to the dist root so nginx can
+// read it. Rspress copies docs/public/* into each dist/{locale}/ root (not into
+// dist/{locale}/public/), so the canonical source is the first built locale's
+// dist root. Fall back to the shared public location.
+const redirectMapCandidates = [
+  path.join(DIST_DIR, builtLocales[0], '301.map'),
+  path.join(sharedPublic, '301.map'),
+];
+const redirectMapSrc = redirectMapCandidates.find((p) => fs.existsSync(p));
+const redirectMapDst = path.join(DIST_DIR, '301.map');
+
+if (redirectMapSrc) {
+  fs.copyFileSync(redirectMapSrc, redirectMapDst);
+  console.log(
+    `   ✓ Copied 301.map to dist root (from ${path.relative(ROOT_DIR, redirectMapSrc)})`,
+  );
+} else {
+  fs.writeFileSync(redirectMapDst, '/ /fr/;\n');
+  console.log('   ✓ Created default dist/301.map');
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -282,7 +296,9 @@ const robotsDst = path.join(DIST_DIR, 'robots.txt');
 
 if (robotsSrc) {
   fs.copyFileSync(robotsSrc, robotsDst);
-  console.log(`   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`);
+  console.log(
+    `   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`,
+  );
 } else {
   // Create default robots.txt
   const defaultRobots = `User-agent: *
@@ -307,7 +323,9 @@ const helpSitemapSrc = helpSitemapCandidates.find((p) => fs.existsSync(p));
 const helpSitemapDst = path.join(DIST_DIR, 'sitemap-help.xml');
 if (helpSitemapSrc) {
   fs.copyFileSync(helpSitemapSrc, helpSitemapDst);
-  console.log(`   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`);
+  console.log(
+    `   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`,
+  );
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -346,9 +364,16 @@ const workerPath = fileURLToPath(
   new URL('./preprocess-html-worker.ts', import.meta.url),
 );
 
-function runWorker(dir: string): Promise<number> {
+const DOCS_DIR = path.join(ROOT_DIR, 'docs');
+
+function runWorker(
+  dir: string,
+  locale: string,
+): Promise<{ html: number; md: number }> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerPath, { workerData: { dir } });
+    const worker = new Worker(workerPath, {
+      workerData: { dir, locale, siteUrl: SITE_URL, docsDir: DOCS_DIR },
+    });
     worker.on('message', resolve);
     worker.on('error', reject);
   });
@@ -356,14 +381,16 @@ function runWorker(dir: string): Promise<number> {
 
 const preProcessResults = await Promise.all(
   builtLocales.map(async (locale) => {
-    const count = await runWorker(path.join(DIST_DIR, locale));
-    console.log(`   ✓ ${locale}: ${count} files pre-processed`);
-    return count;
+    const counts = await runWorker(path.join(DIST_DIR, locale), locale);
+    console.log(`   ✓ ${locale}: ${counts.html} HTML + ${counts.md} MD files`);
+    return counts;
   }),
 );
-const processedCount = preProcessResults.reduce((a, b) => a + b, 0);
+
+const totalHtml = preProcessResults.reduce((a, b) => a + b.html, 0);
+const totalMd = preProcessResults.reduce((a, b) => a + b.md, 0);
 console.log(
-  `   ✓ Pre-processed ${processedCount} HTML files total (h1 boost + anchor cleanup)`,
+  `   ✓ Total: ${totalHtml} HTML (h1 boost + anchor cleanup) + ${totalMd} MD (frontmatter injected)`,
 );
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
