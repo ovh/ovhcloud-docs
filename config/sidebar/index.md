@@ -2099,7 +2099,6 @@
                 + [Gérer vos groupes de téléphonie](web-cloud/phone-and-fax/voip/regrouper-services-telephonie)
                 + [Renseigner les coordonnées d'une ligne ou d'un numéro et les faire paraître en ligne](web-cloud/phone-and-fax/voip/publication-annuaire)
                 + [Administration](web-cloud-phone-and-fax-voip-getting-started-administration)
-                    + [Valider votre identité pour l'utilisation des services VoIP](web-cloud/phone-and-fax/voip/la-procedure-de-validation-voip)
                     + [Valider votre identité pour l'exploitation d'un numéro spécial SVA](web-cloud/phone-and-fax/voip/verification-identite-numeros-sva)
                     + [Gérer les reversements ou les coûts de vos numéros spéciaux](web-cloud/phone-and-fax/voip/reversements-sva)
                     + [Gestion du dépôt de garantie et de la limite hors-forfait](web-cloud/phone-and-fax/voip/gestion-du-depot-de-garantie-et-de-la-limite-hors-forfait)
