@@ -560,6 +560,8 @@
             + [OPCP - How to setup trunk on a Node](hosted-private-cloud/opcp/setup-trunk-on-node)
             + [OPCP - How to setup Softraid on a Node](hosted-private-cloud/opcp/how-to-setup-softraid-on-node)
             + [OPCP - How to see node inventory](hosted-private-cloud/opcp/how-to-see-node-inventory)
+            + [OPCP - How to handle the NetBox rack elevation](hosted-private-cloud/opcp/how-to-handle-rack-elevation)
+            + [OPCP - How the Ironic to NetBox synchronization works](hosted-private-cloud/opcp/netbox-ironic-synchronization)
             + [OPCP - How to use Terraform](hosted-private-cloud/opcp/use-terraform)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [OPCP - IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
