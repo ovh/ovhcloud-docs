@@ -25,39 +25,14 @@
  * The plugin also injects `import { Region } from '@components/Zone';` at the
  * top of the file if at least one wrap was applied and the import isn't there.
  */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import type { Root, RootContent } from 'mdast';
 import type { VFile } from 'vfile';
-import { parse } from 'yaml';
+import { PRODUCT_AVAILABILITY } from '../config/product-availability';
 
-// Single source of truth for product→zone availability: the same matrix the
-// /zone-adapt skill maintains and scripts/build-product-availability.ts bakes
-// for the browser components. Read here at build time so CP-NAV gating stays
-// in sync automatically — no duplicated hardcoded table.
-const PRODUCT_ZONES: Record<string, string[]> = (() => {
-  try {
-    const file = path.resolve(
-      process.cwd(),
-      'data/zones/product-availability.yaml',
-    );
-    const doc = parse(fs.readFileSync(file, 'utf8')) as {
-      products?: Record<string, { available_in?: string[] }>;
-    };
-    const map: Record<string, string[]> = {};
-    for (const [key, val] of Object.entries(doc.products ?? {})) {
-      if (Array.isArray(val?.available_in)) map[key] = val.available_in;
-    }
-    return map;
-  } catch (err) {
-    // Fail-open: never break MDX compilation over a data file. Degrade to no
-    // gating, but warn loudly so the broken matrix is noticed.
-    console.warn(
-      `⚠️  remarkCpNavGate: could not read data/zones/product-availability.yaml — CP-NAV zone gating disabled. ${(err as Error).message}`,
-    );
-    return {};
-  }
-})();
+// Single in-repo source of truth for product→zone availability, shared with
+// the browser components (components/Api/productRegions.ts). Imported here so
+// CP-NAV gating stays in sync automatically — no duplicated hardcoded table.
+const PRODUCT_ZONES = PRODUCT_AVAILABILITY;
 
 // CP-NAV keys are universe-prefixed (e.g. "telecom-sms", "web-exchange"); the
 // availability matrix uses bare product keys ("sms", "exchange"). Strip the

@@ -1,4 +1,4 @@
-import { PRODUCT_AVAILABILITY } from '../../theme/data/product-availability';
+import { PRODUCT_AVAILABILITY } from '../../config/product-availability';
 import { type Region, zoneToApiRegion } from './RegionContext';
 
 const REGION_ORDER: readonly Region[] = ['eu', 'ca'];
