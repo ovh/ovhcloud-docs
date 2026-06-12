@@ -9,7 +9,7 @@ import {
 } from 'react';
 
 const REGIONS = ['eu', 'ca'] as const;
-type Region = (typeof REGIONS)[number];
+export type Region = (typeof REGIONS)[number];
 
 interface RegionContextValue {
   region: Region;
@@ -26,7 +26,7 @@ export function useRegion() {
 }
 
 // CA and APAC commercial zones both use the ca.api.ovh.com endpoint.
-function zoneToApiRegion(zone: string): Region {
+export function zoneToApiRegion(zone: string): Region {
   return zone === 'eu' ? 'eu' : 'ca';
 }
 

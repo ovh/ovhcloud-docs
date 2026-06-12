@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useRegion } from '../Api/RegionContext';
+import { regionsForPath } from '../Api/productRegions';
 import '../Api/index.css'; // shared dropdown styles
 import './index.css';
 
@@ -86,11 +87,17 @@ export function ManagerLink({
   to,
   children,
   authFlow = true,
-  regions = ['eu', 'ca'],
+  regions: regionsProp,
 }: ManagerLinkProps) {
   const { region: globalRegion, setRegion } = useRegion();
   const lang = useLang();
   const t = useI18n();
+
+  // Default the offered regions to the product's commercial-zone availability
+  // (derived from `to`); an explicit `regions` prop overrides it. Falls back to
+  // both regions when no zoned product matches the path.
+  const regions =
+    regionsProp ?? regionsForPath(to) ?? (['eu', 'ca'] as Region[]);
 
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
@@ -244,6 +251,21 @@ export function ManagerLink({
       })}
     </div>
   );
+
+  // Single region (e.g. an EU-only product like SMS): link directly to that
+  // manager, with no region picker.
+  if (regions.length === 1) {
+    return (
+      <a
+        className="ovh-manager-link__trigger"
+        href={buildManagerUrl(regions[0], to, authFlow, lang)}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  }
 
   return (
     <>

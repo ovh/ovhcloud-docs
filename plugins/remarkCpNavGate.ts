@@ -25,16 +25,46 @@
  * The plugin also injects `import { Region } from '@components/Zone';` at the
  * top of the file if at least one wrap was applied and the import isn't there.
  */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { Root, RootContent } from 'mdast';
 import type { VFile } from 'vfile';
+import { parse } from 'yaml';
 
-const PRODUCT_TO_ZONES: Record<string, string[]> = {
-  'web-mx-plan': ['eu', 'ca', 'apac'], // available everywhere — no wrap needed
-  'web-zimbra': ['eu'],
-  'web-email-pro': ['eu'],
-  'web-exchange': ['eu', 'ca'],
-  'telecom-sms': ['eu'],
-};
+// Single source of truth for product→zone availability: the same matrix the
+// /zone-adapt skill maintains and scripts/build-product-availability.ts bakes
+// for the browser components. Read here at build time so CP-NAV gating stays
+// in sync automatically — no duplicated hardcoded table.
+const PRODUCT_ZONES: Record<string, string[]> = (() => {
+  try {
+    const file = path.resolve(
+      process.cwd(),
+      'data/zones/product-availability.yaml',
+    );
+    const doc = parse(fs.readFileSync(file, 'utf8')) as {
+      products?: Record<string, { available_in?: string[] }>;
+    };
+    const map: Record<string, string[]> = {};
+    for (const [key, val] of Object.entries(doc.products ?? {})) {
+      if (Array.isArray(val?.available_in)) map[key] = val.available_in;
+    }
+    return map;
+  } catch (err) {
+    // Fail-open: never break MDX compilation over a data file. Degrade to no
+    // gating, but warn loudly so the broken matrix is noticed.
+    console.warn(
+      `⚠️  remarkCpNavGate: could not read data/zones/product-availability.yaml — CP-NAV zone gating disabled. ${(err as Error).message}`,
+    );
+    return {};
+  }
+})();
+
+// CP-NAV keys are universe-prefixed (e.g. "telecom-sms", "web-exchange"); the
+// availability matrix uses bare product keys ("sms", "exchange"). Strip the
+// leading universe segment to resolve. Unknown keys → undefined (no gating).
+function zonesForCpNavKey(cpNavKey: string): string[] | undefined {
+  return PRODUCT_ZONES[cpNavKey.replace(/^[^-]+-/, '')];
+}
 
 interface FlowExpressionNode {
   type: string;
@@ -188,7 +218,7 @@ function transformChildren(children: RootContent[]): {
       continue;
     }
 
-    const zones = PRODUCT_TO_ZONES[product];
+    const zones = zonesForCpNavKey(product);
     if (!zones || zones.length === 3) {
       // Unknown product or full zone coverage → no wrap needed.
       out.push(...collected);
