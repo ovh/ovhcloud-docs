@@ -4,6 +4,8 @@ import './index.scss';
 interface CourseLearn {
   title?: string;
   items?: string[];
+  /** Closing line shown below the checklist (supports HTML, e.g. <strong>). */
+  footer?: string;
 }
 
 interface CourseServices {
@@ -14,6 +16,8 @@ interface CourseServices {
 
 export interface ELearningCourseOverviewProps {
   description?: string;
+  /** Certification level, shown as a distinctive badge under the description. */
+  level?: string;
   learn?: CourseLearn;
   /** Embed URL for the course video (iframe src). */
   video?: string;
@@ -22,19 +26,32 @@ export interface ELearningCourseOverviewProps {
 
 export function ELearningCourseOverview({
   description,
+  level,
   learn,
   video,
   services,
 }: ELearningCourseOverviewProps) {
   return (
     <div className="rp-elearning-course-overview">
-      {description && (
+      {(description || level) && (
         <section className="rp-elearning-course-overview__section">
           <h2 className="rp-elearning-course-overview__heading">Description</h2>
-          <p
-            className="rp-elearning-course-overview__description"
-            {...renderHtmlOrText(description)}
-          />
+          {description && (
+            <p
+              className="rp-elearning-course-overview__description"
+              {...renderHtmlOrText(description)}
+            />
+          )}
+          {level && (
+            <p className="rp-elearning-course-overview__level">
+              <span className="rp-elearning-course-overview__level-label">
+                Level:
+              </span>
+              <span className="rp-elearning-course-overview__level-badge">
+                {level}
+              </span>
+            </p>
+          )}
         </section>
       )}
 
@@ -71,6 +88,12 @@ export function ELearningCourseOverview({
               </li>
             ))}
           </ul>
+          {learn.footer && (
+            <p
+              className="rp-elearning-course-overview__learn-footer"
+              {...renderHtmlOrText(learn.footer)}
+            />
+          )}
         </section>
       )}
 

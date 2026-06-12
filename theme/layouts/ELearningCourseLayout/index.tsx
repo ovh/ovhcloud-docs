@@ -1,6 +1,5 @@
 import { useFrontmatter, useI18n } from '@rspress/core/runtime';
 import {
-  DocFooter,
   IconMenu,
   PageTab,
   PageTabs,
@@ -105,8 +104,9 @@ export interface ELearningCourseLayoutProps {
 }
 
 export function ELearningCourseLayout(props: ELearningCourseLayoutProps) {
-  const { beforeDocFooter, afterDocFooter, beforeDocContent, afterDocContent } =
-    props;
+  // beforeDocFooter (the <PageFeedback /> widget) is intentionally not
+  // rendered on the course template — see the footer region below.
+  const { afterDocFooter, beforeDocContent, afterDocContent } = props;
   const { frontmatter } = useFrontmatter();
   const { title, meta, cta, overview, curriculum } =
     frontmatter as ELearningCourseFrontmatter;
@@ -145,10 +145,10 @@ export function ELearningCourseLayout(props: ELearningCourseLayoutProps) {
 
             {afterDocContent}
 
-            {beforeDocFooter}
-            <div className="rp-elearning-course-layout__footer">
-              <DocFooter />
-            </div>
+            {/* The course template intentionally omits the page-feedback
+                widget ({beforeDocFooter} = <PageFeedback />) and the
+                <DocFooter /> "Edit this page" / prev-next nav — neither fits
+                a course landing page. */}
             {afterDocFooter}
           </main>
         </div>

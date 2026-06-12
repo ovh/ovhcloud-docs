@@ -1,3 +1,4 @@
+import { ManagerLink } from '@components/ManagerLink';
 import { Button, renderHtmlOrText } from '@theme-original';
 import './index.scss';
 
@@ -12,9 +13,17 @@ interface CourseMeta {
   audience?: string[];
 }
 
+/**
+ * The CTA link is either a single URL (same for everyone) or a per-region map.
+ * When it's a map, the button opens the shared Control Panel region picker
+ * (EU / CA) — the same popup and persisted RegionContext used by every
+ * `ManagerLink` across the docs — and follows the reader's choice.
+ */
+type CourseCTALink = string | { eu: string; ca?: string };
+
 interface CourseCTA {
   text: string;
-  link: string;
+  link: CourseCTALink;
   theme?: 'brand' | 'alt';
 }
 
@@ -110,13 +119,24 @@ export function ELearningCourseHeader({
       )}
 
       {cta && (
-        <div className="rp-elearning-course-header__cta">
-          <Button
-            type="a"
-            href={cta.link}
-            theme={cta.theme ?? 'brand'}
-            {...renderHtmlOrText(cta.text)}
-          />
+        <div
+          className={`rp-elearning-course-header__cta rp-elearning-course-header__cta--${cta.theme ?? 'brand'}`}
+        >
+          {typeof cta.link === 'string' ? (
+            <Button
+              type="a"
+              href={cta.link}
+              theme={cta.theme ?? 'brand'}
+              {...renderHtmlOrText(cta.text)}
+            />
+          ) : (
+            // Per-region CTA: reuse the Control Panel region picker so the
+            // reader's EU/CA choice stays coherent with every ManagerLink.
+            // The trigger is styled as a brand button via the wrapper class.
+            <ManagerLink urls={{ eu: cta.link.eu, ca: cta.link.ca }}>
+              {cta.text}
+            </ManagerLink>
+          )}
         </div>
       )}
     </header>
