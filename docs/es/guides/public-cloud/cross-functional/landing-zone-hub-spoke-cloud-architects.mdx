@@ -1,0 +1,640 @@
+---
+title: "Landing zone hub and spoke en OVHcloud Public Cloud"
+description: "Despliegue una landing zone hub and spoke en producción en OVHcloud Public Cloud con un único vRack compartido y enrutamiento en tránsito: firewall HA, gobernanza, red privada, automatización IaC y gestión del ciclo de vida."
+lastUpdated: 2026-06-15
+---
+
+## Objetivo
+
+Esta guía acompaña a los arquitectos cloud en el despliegue de una landing zone hub and spoke en OVHcloud Public Cloud mediante un **único vRack compartido con enrutamiento en tránsito**, la topología hub and spoke más sencilla disponible en OVHcloud.
+
+Abarca la estructura de los proyectos, la gobernanza, la topología de red privada, la seguridad de red, el registro centralizado, el control de la facturación y la gestión del ciclo de vida de los spokes.
+
+**Esta guía explica cómo construir una landing zone hub and spoke en producción en OVHcloud Public Cloud, desde las primeras decisiones de arquitectura hasta las operaciones habituales.**
+
+:::tip ¿Necesita ayuda de expertos?
+La construcción de una landing zone hub and spoke es un proyecto complejo que involucra a varios equipos. [OVHcloud Professional Services](/links/professional-services) puede acompañarle en la revisión de la arquitectura, el despliegue asistido y la evaluación de la madurez operativa.
+:::
+
+## Requisitos
+
+- Una cuenta de OVHcloud activa con credenciales de API (Application Key, Application Secret, Consumer Key)
+- Acceso a Public Cloud con una cuota suficiente para crear proyectos, un vRack, instancias y una Floating IP
+- [OpenTofu](https://opentofu.org/) ≥ 1.11.4 instalado en su puesto de trabajo (HashiCorp Terraform no es compatible: el cifrado nativo del estado es una funcionalidad específica de OpenTofu)
+- Conocimientos básicos de los conceptos de red (CIDR, VLAN, enrutamiento)
+- Familiaridad con el [proveedor Terraform de OVHcloud](/guides/public-cloud/cross-functional/how-to-use-terraform)
+
+{/* CP-NAV-START:publiccloud-projects */}
+---
+
+### Acceso al área de cliente de OVHcloud
+
+- **Enlace directo:** <ManagerLink to="/#/pci/projects">Proyectos Public Cloud</ManagerLink>
+
+---
+{/* CP-NAV-END:publiccloud-projects */}
+
+## Procedimiento
+
+### 1. Landing zone y arquitectura hub and spoke
+
+Una **landing zone** es un entorno cloud preconfigurado que proporciona las bases de seguridad, gobernanza, red, identidad y auditabilidad que sus cargas de trabajo necesitan antes de su despliegue. Sin ella, las organizaciones se enfrentan a una deriva de configuración, vulnerabilidades de seguridad, costes descontrolados y una auditabilidad limitada.
+
+OVHcloud admite varias topologías de landing zone (plana, segmentada, hub and spoke). Para una presentación conceptual completa, consulte [Entender las landing zones](/guides/public-cloud/cross-functional/whats-is-landing-zone). Esta guía se centra en el **hub and spoke con un único vRack compartido**, donde todos los proyectos comparten una misma dorsal de red privada y enrutan la totalidad del tráfico a través de un firewall HA centralizado en el hub.
+
+En esta topología, cada componente tiene un rol distinto:
+
+| Componente | Rol |
+|-----------|------|
+| **Hub** | Punto de control y de salida centralizado. Aloja el único clúster firewall HA OPNsense, la pasarela de Internet y los servicios compartidos. Todo el tráfico de los spokes (norte-sur y este-oeste) transita por el hub. |
+| **Spoke** | Proyecto Public Cloud aislado para una carga de trabajo, un equipo o una unidad de negocio. Conectado al hub mediante un router OpenStack Neutron en la VLAN de tránsito compartida. Sin firewall local: el aislamiento se aplica íntegramente mediante las reglas del hub. |
+| **vRack compartido** | Dorsal layer-2 de OVHcloud única compartida entre todos los proyectos. Todas las VLAN viven en este mismo dominio L2: los identificadores VLAN deben ser globalmente únicos. |
+| **VLAN de tránsito** | La subred LAN del hub (VLAN 200, 192.168.10.0/24). Cada spoke conecta en ella un router Neutron con una IP única, estableciendo la ruta de enrutamiento hacia el firewall del hub. |
+
+```
+                Internet
+                    │
+                    ▼
+         [OVH Gateway — WAN]
+                    │
+   [Hub — OPNsense HA (active/passive CARP)]
+         ├── WAN  (VLAN 100, 10.1.0.0/24)
+         ├── HASYNC (VLAN 199, 10.0.254.0/30)
+         └── Transit/LAN (VLAN 200, 192.168.10.0/24)
+                    │
+          ─── Shared vRack ───
+               │           │
+  [Spoke A project]   [Spoke B project]
+  Neutron router       Neutron router
+  (192.168.10.10)      (192.168.10.20)
+  ├── App (VLAN 300)   ├── App (VLAN 400)
+  └── DB  (VLAN 301)   └── DB  (VLAN 401)
+      10.30.0.0/24         10.40.0.0/24
+```
+
+**Ejemplo recurrente — OrbitalEdge SAS:** Los ejemplos concretos de esta guía están extraídos de OrbitalEdge, una scale-up ficticia de 45 personas con sede en París que desarrolla una plataforma de edge computing para los operadores de constelaciones de satélites (flotas LEO, supervisión medioambiental). Despliegan cuatro spokes en la región EU-WEST-PAR (París): `constellation-dev`, `constellation-prod`, `signalvault-dev` y `signalvault-prod`. Sus cuatro equipos interactúan con la landing zone de la siguiente manera:
+
+| Equipo | Tamaño | Rol en la landing zone |
+|--------|--------|--------------------------|
+| Platform | 2 ingenieros | Despliega y opera el hub y los spokes mediante IaC |
+| FleetOS | 4 desarrolladores | Despliega Constellation Manager (Kubernetes) en los spokes `constellation-*` |
+| SignalVault | 3 ingenieros | Despliega workers de telemetría y accede a las bases de datos gestionadas en los spokes `signalvault-*` |
+| Security | 1 CISO | Audita las reglas del firewall y valida las solicitudes de apertura de red |
+
+La configuración IaC completa de OrbitalEdge —incluidos los archivos `terraform.tfvars` para los cuatro spokes— está disponible en `examples/orbital-edge` en el repositorio [hub-and-spoke-public-cloud](https://github.com/ovh/public-cloud-examples/tree/main/landing-zone).
+
+Planifique el espacio de direccionamiento completo antes de desplegar cualquier infraestructura. La VLAN de tránsito (200) y la subred (192.168.10.0/24) son fijas y compartidas entre todos los proyectos:
+
+| Segmento | VLAN | CIDR | Notas |
+|---------|------|------|-------|
+| Hub WAN | 100 | 10.1.0.0/24 | OVH Gateway para la salida a Internet |
+| Hub Transit/LAN | 200 | 192.168.10.0/24 | Compartido entre todos los proyectos — fijo |
+| Hub HASYNC | 199 | 10.0.254.0/30 | Replicación HA OPNsense únicamente |
+| IP de tránsito Spoke A | — | 192.168.10.10 | Única por spoke, fuera del pool DHCP (.100–.200) |
+| LAN App Spoke A | 300 | 10.30.0.0/24 | Cargas de trabajo |
+| LAN DB Spoke A | 301 | 10.30.1.0/24 | Cargas de trabajo |
+
+:::warning
+Todos los proyectos comparten el mismo vRack (dominio L2). **Los identificadores VLAN deben ser globalmente únicos** entre todos los proyectos: dos proyectos que utilicen el mismo identificador VLAN en el mismo vRack entrarán en colisión. **Los CIDR de IP también deben ser globalmente únicos** para el enrutamiento. La única excepción es la VLAN de tránsito 200 (192.168.10.0/24): todos los proyectos la referencian intencionadamente, utilizando cada spoke una IP distinta dentro de esta subred.
+
+:::
+
+
+:::info
+¿Busca una implementación IaC lista para usar? El proyecto de código abierto [hub-and-spoke-public-cloud](https://github.com/ovh/public-cloud-examples/tree/main/landing-zone) proporciona una referencia OpenTofu completa para esta arquitectura en `deployments/mono-vrack-lan-transit`.
+
+:::
+
+
+### 2. Principales ventajas y regiones
+
+#### 2.1 ¿Por qué el modelo hub and spoke?
+
+| Ventaja | Descripción |
+|----------|-------------|
+| **Seguridad** | Todo el tráfico norte-sur (spoke hacia Internet) y este-oeste (spoke hacia spoke) atraviesa el firewall OPNsense del hub. Un único punto de control para las reglas, el registro y la inspección. |
+| **Simplicidad** | Un único vRack compartido, un clúster firewall HA en el hub y routers OpenStack Neutron estándar en los spokes. Sin túneles IPsec, sin clúster firewall por spoke. |
+| **Aplicación de políticas** | La salida a Internet y el enrutamiento entre spokes están centralizados en el hub: un único lugar para gestionar y auditar las reglas. |
+| **Contención del radio de impacto** | Una vulneración en un spoke no puede alcanzar a los demás sin atravesar las reglas del firewall del hub. El alcance de un incidente queda limitado al spoke afectado. |
+| **Escalabilidad** | Las nuevas cargas de trabajo o equipos disponen de su propio spoke (proyecto + redes + router Neutron). El hub escala de forma independiente; añadir un spoke no afecta a los spokes existentes. |
+| **Soberanía** | Un operador europeo, la localización de los datos en la UE y un firewall autogestionado eliminan la dependencia de los servicios de seguridad gestionados por los hyperscalers estadounidenses. |
+
+:::info
+**Modelo de aislamiento:** El aislamiento este-oeste entre los spokes se aplica íntegramente mediante las reglas del firewall OPNsense en el hub. Todos los routers Neutron de los spokes son visibles en la VLAN de tránsito compartida: la comunicación entre spokes se bloquea mediante las reglas del hub, y no mediante una separación L2. Para las cargas de trabajo que requieren una separación criptográfica entre spokes (p. ej. PCI-DSS, entornos clasificados), considere la variante `multi-vrack-ipsec` (un vRack por proyecto, túneles IPsec entre el hub y los spokes).
+
+:::
+
+
+#### 2.2 Regiones disponibles
+
+Las regiones de OVHcloud Public Cloud cubren Europa, Norteamérica y Asia-Pacífico. El ejemplo orbital-edge se despliega en **EU-WEST-PAR** (París).
+
+| Zona | Regiones |
+|------|---------|
+| **Francia** | GRA (Gravelines), SBG (Estrasburgo), EU-WEST-PAR (París) |
+| **Europa** | DE1 (Fráncfort), IT1 / EU-SOUTH-MIL (Milán), WAW (Varsovia), UK1 (Londres) |
+| **Norteamérica** | BHS (Beauharnois, CA), US-EAST-VA (Virginia) |
+| **Asia-Pacífico** | SGP (Singapur), SYD (Sídney) |
+
+Para consultar la lista completa y actualizada, consulte la [página de disponibilidad de las regiones de OVHcloud Public Cloud](/links/public-cloud/regions-pci).
+
+La elección de su región influye en:
+
+- **La localización de los datos**: para el cumplimiento del RGPD/NIS2, elija regiones francesas o europeas continentales.
+- **La disponibilidad de los flavors de instancias**: no todos los flavors (`b3-16`, `b3-64`) están disponibles en cada región; compruébelo antes de aprovisionar.
+- **La latencia**: ubique conjuntamente el hub y todos los proyectos spokes en la misma región para minimizar la latencia de enrutamiento en la VLAN de tránsito.
+
+
+### 3. Gobernanza y gestión de accesos
+
+Para obtener una guía detallada sobre el IAM de OVHcloud, consulte [Proteger y estructurar sus proyectos Public Cloud](/guides/public-cloud/cross-functional/security-structure-best-practices).
+
+#### 3.1 Base de seguridad de la cuenta
+
+Antes de crear cualquier proyecto:
+
+- Active la **autenticación de doble factor (2FA)** en la cuenta raíz: área de cliente > iniciales arriba a la derecha > <code className="action">Seguridad</code>.
+- Añada una **dirección de correo electrónico de recuperación** (debe ser distinta de la dirección principal).
+- Defina una contraseña fuerte y única (consulte la [guía de gestión de contraseñas](/guides/account-and-service-management/account-information/manage-ovh-password)).
+
+#### 3.2 Usuarios locales, grupos y políticas RBAC
+
+Las políticas IAM se aprovisionan automáticamente mediante OpenTofu (`iam.tf`) en cada despliegue de spoke. Defina los grupos siguientes y asigne políticas con alcance acotado a cada proyecto Public Cloud:
+
+| Grupo | Proyectos | Acciones | Notas |
+|--------|---------|---------|-------|
+| `platform_admin` | Todos | `globalWriteAccess` | Equipo de infraestructura únicamente |
+| `{domain}_developer` | `{domain}_*_dev`, `{domain}_*_staging` | `globalWriteAccess` / `globalReadAccess` | Por dominio |
+| `{domain}_sre` | `{domain}_*_staging`, `{domain}_*_prod` | `globalWriteAccess` | Por dominio |
+| `auditor` | Todos | `globalReadAccess` | Equipo de conformidad/seguridad |
+
+En el ejemplo de OrbitalEdge, `iam.tf` crea y asigna automáticamente las políticas en cada `tofu apply`. Sin embargo, las propias cuentas de usuario locales deben crearse en el área de cliente de OVHcloud **antes** del primer `tofu apply`: constituyen un requisito, no un resultado: Alice y Baptiste (equipo Platform), Camille (FleetOS), Driss (SignalVault) y Elena (CISO).
+
+Para crear una política:
+
+1. Vaya a <code className="action">IAM</code> > <code className="action">Políticas</code> > <code className="action">Crear una política</code>.
+2. Asígnele un nombre siguiendo el modelo `{resource}-RO` o `{resource}-RW`.
+3. Asigne el grupo de destino, el tipo de producto (`Proyecto Public Cloud`), el recurso y el permiso.
+
+#### 3.3 Federación de identidad (opcional)
+
+Conecte su proveedor de identidad corporativo al IAM de OVHcloud para que los usuarios se autentiquen con sus credenciales existentes:
+
+- [AD FS (SAML)](/guides/account-and-service-management/account-information/ovhcloud-account-connect-saml-adfs)
+- [Microsoft Entra ID](/guides/account-and-service-management/account-information/ovhcloud-account-connect-saml-azure-ad)
+- [Okta](/guides/account-and-service-management/account-information/ovhcloud-account-connect-saml-okta)
+- [Google Workspace](/guides/account-and-service-management/account-information/ovhcloud-account-connect-saml-google-workspace)
+
+Los grupos definidos en su IdP se incluyen en la aserción SAML y se mapean a los grupos IAM de OVHcloud.
+
+#### 3.4 Cuentas de servicio para el IaC
+
+Cree una cuenta de servicio dedicada (y no su cuenta personal) para autenticar su herramienta IaC ante la API de OVHcloud. Otórguele los permisos mínimos necesarios:
+
+- Crear y gestionar proyectos Public Cloud
+- Crear y gestionar un vRack, conectar proyectos
+- Crear usuarios OpenStack en los proyectos
+
+Genere credenciales de API con el [generador de tokens de API de OVHcloud](https://api.ovh.com/createToken/?GET=/*&POST=/*&PUT=/*&DELETE=/*). Almacene la Application Key, la Application Secret y la Consumer Key de forma segura, nunca en el control de versiones.
+
+#### 3.5 Usuarios OpenStack por proyecto
+
+Los usuarios OpenStack se aprovisionan automáticamente mediante OpenTofu (`users.tf`), uno por proyecto. Como mínimo, cree usuarios con la siguiente distribución de roles:
+
+| Rol | Roles OpenStack asignados | Objetivo |
+|------|--------------------------|----------|
+| Operador IaC | `compute_operator`, `network_operator`, `network_security_operator`, `image_operator`, `volume_operator`, `key-manager_operator` | Acceso de aprovisionamiento completo para el IaC (redes, instancias, grupos de seguridad, volúmenes, imágenes) |
+| Operador runtime | `compute_operator` únicamente | Operaciones runtime restringidas (iniciar/detener instancias, leer los registros) |
+
+Esta separación impide que las cargas de trabajo runtime modifiquen accidentalmente las configuraciones de red o de seguridad. En el ejemplo orbital-edge, OpenTofu almacena las credenciales OpenStack generadas en el estado de Terraform; Alice las recupera tras el apply y las almacena en HashiCorp Vault.
+
+#### 3.6 Gobernanza de las credenciales IaC
+
+:::warning
+No incluya nunca en el control de versiones los archivos que contengan credenciales reales (archivos de variables, `.env`, secretos).
+
+:::
+
+
+Modelos recomendados:
+
+- **Desarrollo local**: conserve los archivos de variables fuera del repositorio o en una ruta ignorada por `.gitignore`.
+- **Pipelines CI/CD**: inyecte las credenciales como variables de entorno mediante el gestor de secretos de su pipeline (HashiCorp Vault, GitHub Secrets, GitLab CI Variables, etc.). En el ejemplo orbital-edge, Alice inyecta todos los secretos `TF_VAR_*` desde HashiCorp Vault antes de cada `tofu apply`.
+- **Estado remoto**: utilice un backend compatible con S3<sup>1</sup> (OVHcloud Object Storage) con el cifrado del lado del servidor o el cifrado nativo del estado activado. Aísle cada despliegue (hub, cada spoke) en su propio archivo de estado. OpenTofu ≥ 1.11.4 admite el cifrado nativo del estado con PBKDF2 + AES-GCM.
+
+
+### 4. Desplegar la arquitectura
+
+:::info
+Los pasos siguientes describen qué hay que aprovisionar y por qué. En el ejemplo orbital-edge, todos los pasos de esta sección están automatizados mediante OpenTofu: el Día-1 (`landing-zone/tofu apply`) despliega el proyecto hub, el vRack y el par HA OPNsense; el Día-2 (`spoke-template/tofu apply`) aprovisiona cada spoke y configura el enrutamiento del hub automáticamente. Consulte el proyecto de código abierto [hub-and-spoke-public-cloud](https://github.com/ovh/public-cloud-examples/tree/main/landing-zone) (`deployments/mono-vrack-lan-transit`).
+
+:::
+
+> Los pasos de las secciones 4.1–4.4 describen lo que `landing-zone/tofu apply` automatiza. Sígalos si prefiere desplegar sin IaC.
+
+#### 4.1 Crear los proyectos Public Cloud
+
+Cree como mínimo dos proyectos para empezar:
+
+- **Proyecto hub**: aloja el clúster firewall HA OPNsense, la pasarela de Internet y los servicios compartidos.
+- **Proyecto Spoke-QA**: un primer spoke para validar la topología antes de pasar a producción.
+
+Utilice una convención de nomenclatura coherente para permitir el alcance acotado de la gobernanza, el aislamiento de la facturación y la automatización; por ejemplo: `{dominio}_{aplicacion}_{entorno}` (p. ej. `infra_hub_prod`, `finance_invoicing_qa`). Cada proyecto tiene su propio límite de facturación, su propio perímetro de acceso y su propio conjunto de credenciales OpenStack. OrbitalEdge utiliza `hubonevrack-orb`, `constellation-dev`, `constellation-prod`, `signalvault-dev` y `signalvault-prod`, todos creados automáticamente mediante OpenTofu.
+
+:::info
+Tras la creación de un proyecto, OVHcloud requiere un breve plazo de propagación (normalmente 30 segundos) antes de que un vRack pueda conectarse a él correctamente. La implementación IaC de referencia incluye recursos `time_sleep` para gestionar esto automáticamente.
+
+:::
+
+
+#### 4.2 Crear el vRack compartido y conectar los proyectos a él
+
+Un [vRack](/guides/public-cloud/network-services/vrack) es una dorsal layer-2 privada de OVHcloud. En esta arquitectura, **se utiliza un único vRack compartido para todos los proyectos**: el hub y todos los spokes se conectan al mismo vRack. Esto es lo que hace posible el enrutamiento en tránsito: la LAN del hub y la interfaz de red de tránsito de cada spoke comparten el mismo segmento VLAN 200 a través del vRack.
+
+**Orden de conexión:**
+
+1. Cree **un vRack** para el conjunto de la landing zone.
+2. Conecte el proyecto hub al vRack.
+3. Conecte el proyecto spoke-QA al mismo vRack.
+4. Planifique y registre la tabla completa de VLAN y CIDR antes de crear cualquier red (consulte la sección 1). Las asignaciones de VLAN son prácticamente irreversibles: modificarlas posteriormente requiere reaprovisionar todas las redes afectadas.
+
+:::warning
+Todos los proyectos comparten el mismo dominio L2. No asigne nunca el mismo identificador VLAN a dos proyectos distintos. La única excepción es la VLAN 200 (tránsito), que todos los proyectos referencian por diseño.
+
+:::
+
+
+#### 4.3 Clúster firewall HA del hub y red de tránsito
+
+El clúster HA OPNsense del hub es el único firewall y punto de control del enrutamiento para el conjunto de la landing zone. Aprovisiónelo antes que cualquier spoke. En el ejemplo orbital-edge, la totalidad del hub —redes, par HA OPNsense, Floating IP, VIP CARP y HASYNC— se despliega automáticamente mediante `landing-zone/tofu apply` (de 5 a 8 minutos).
+
+1. **3 redes privadas** en el proyecto hub, cada una en una VLAN distinta:
+    - **Red WAN** (VLAN 100, 10.1.0.0/24): se conecta a la OVH Gateway para la salida a Internet/NAT.
+    - **Red Transit/LAN** (VLAN 200, 192.168.10.0/24): la subred de tránsito compartida. Todos los routers Neutron de los spokes se conectan aquí. La VIP CARP LAN OPNsense del hub (192.168.10.99) es la pasarela por defecto para todos los spokes.
+    - **Red HASYNC** (VLAN 199, 10.0.254.0/30): dedicada a la replicación del estado HA OPNsense (CARP/pfsync); ningún otro tráfico en esta VLAN.
+
+2. **OVH Gateway** en la red WAN: proporciona el NAT y el enrutamiento de Internet para todo el tráfico saliente de los spokes. Consulte la [guía Red privada con Gateway](/guides/public-cloud/network-services/create-private-network-gateway) para conocer los pasos de configuración.
+
+3. **Dos instancias OPNsense** (principal y secundaria): despliéguelas a partir de una imagen cloud-ready (p. ej. OPNsense 26.1-cloudready). Dimensionamiento mínimo recomendado: `b3-16` (4 vCPU / 16 GB de RAM). Utilice un grupo de servidores anti-afinidad para colocar las instancias principal y secundaria en hipervisores diferentes. Conecte cada instancia a las tres redes (WAN, Transit/LAN, HASYNC).
+
+4. **Floating IP**: conecte una Floating IP pública al puerto de la VIP CARP WAN. Es la única IP pública de toda la landing zone: acceso de gestión (SSH, interfaz web OPNsense en el puerto 8443) y salida a Internet para todos los spokes.
+
+5. **VIP CARP**: configure dos IP virtuales CARP:
+    - **VIP CARP WAN** (p. ej. 10.1.0.99): dirección de origen NAT para todo el tráfico saliente.
+    - **VIP CARP LAN (192.168.10.99)**: pasarela por defecto para cada router Neutron de spoke. Esta dirección debe permanecer estable durante las conmutaciones por error.
+
+6. **HASYNC y pfsync**: configure la sincronización HA OPNsense en la interfaz HASYNC para que el estado del firewall, las reglas y la configuración se repliquen automáticamente entre la instancia principal y la secundaria.
+
+:::warning
+La seguridad de los puertos OpenStack debe estar **desactivada** en las redes vRack que transportan tráfico CARP. La seguridad de los puertos filtra los ARP gratuitos, en los que CARP se basa para la conmutación por error de las VIP. Desactívela a nivel de la red:
+
+```bash
+openstack network set --disable-port-security <network_id>
+```
+
+La seguridad queda entonces aplicada íntegramente por OPNsense: asegúrese de que sus reglas de firewall estén establecidas antes de desactivar la seguridad de los puertos.
+
+:::
+
+
+#### 4.4 Base de seguridad
+
+Aplique los controles siguientes antes de exponer el hub a cualquier tráfico:
+
+**Grupo de seguridad OpenStack en el puerto WAN del hub**: restrinja el acceso entrante a la Floating IP:
+
+| Protocolo | Puerto(s) | Origen | Objetivo |
+|-----------|---------|--------|----------|
+| TCP | 22 | IP/CIDR admin únicamente | SSH hacia OPNsense |
+| TCP | 8443 | IP/CIDR admin únicamente | Interfaz web OPNsense |
+
+Cualquier otro tráfico entrante se bloquea a nivel de OpenStack antes de alcanzar OPNsense.
+
+**Claves SSH**: inyecte la clave pública SSH del operador en todas las instancias mediante cloud-init en el momento del aprovisionamiento. No utilice la autenticación SSH por contraseña.
+
+**Contraseña admin de OPNsense**: utilice una contraseña fuerte generada aleatoriamente. Transmítala en forma de hash bcrypt a cloud-init para que el texto en claro nunca aparezca en los metadatos de la instancia. Almacénela en su gestor de secretos, no en el control de versiones.
+
+**Archivos de estado IaC**: almacene el estado en un backend compatible con S3 (OVHcloud Object Storage) con cifrado del lado del servidor. Los archivos de estado pueden contener salidas sensibles (Floating IPs, claves de API, contraseñas).
+
+#### 4.5 Registrar los parámetros del hub para el onboarding de los spokes
+
+Una vez desplegado el hub, registre estos valores: cada spoke los necesitará:
+
+| Parámetro | Descripción | Ejemplo OrbitalEdge |
+|-----------|-------------|---------------------|
+| Floating IP del hub | Acceso de gestión SSH/HTTPS; también el endpoint de la API REST de OPNsense | `51.195.42.7` |
+| VIP CARP LAN del hub | Pasarela por defecto para todos los routers Neutron de los spokes | `192.168.10.99` |
+| CIDR LAN del hub | Subred de tránsito — compartida entre todos los proyectos | `192.168.10.0/24` |
+| Nombre del servicio vRack del hub | Necesario para conectar cada nuevo proyecto spoke al vRack compartido | `pn-123456` |
+| Credenciales de API OPNsense del hub | Par clave/secreto para el enrutamiento automatizado de los spokes mediante la API REST | Generados durante el despliegue; almacenar en Vault |
+
+Almacene esta información en el gestor de secretos compartido de su equipo o en un runbook seguro.
+
+
+### 5. Registro y supervisión
+
+#### 5.1 Recopilación centralizada de los registros
+
+Configure OPNsense para que transmita los syslog hacia OVHcloud **Logs Data Platform (LDP)**:
+
+1. En OPNsense: <code className="action">Sistema</code> > <code className="action">Archivos de registro</code> > <code className="action">Registro remoto</code>.
+2. Defina el destino syslog en su endpoint de entrada de LDP (UDP/TCP 514 o GELF).
+3. Active el registro para las reglas del firewall y los eventos del sistema.
+
+Siga la [guía de inicio rápido de LDP](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start) para aprovisionar su flujo de registros y su panel de Kibana/OpenSearch.
+
+Los servicios gestionados de OVHcloud (Managed Databases, Managed Kubernetes) también admiten la transmisión nativa de los registros hacia LDP; consulte [Transmitir registros desde los productos de OVHcloud hacia Logs Data Platform](/guides/manage-and-operate/iam/logs-forwarding).
+
+#### 5.2 Métricas y alertas
+
+Umbrales de alerta recomendados:
+
+| Alerta | Condición | Gravedad |
+|--------|-----------|----------|
+| Instancia hub inaccesible | La Floating IP no responde | Crítica |
+| CPU firewall > 80 % | Sostenido 5 min | Advertencia |
+| Intentos de conexión fallidos | > 10 en 5 min | Advertencia |
+| Retraso de replicación S3 | > 1 hora | Advertencia |
+
+
+### 6. Onboarding de un nuevo spoke
+
+:::info
+Cada spoke es un proyecto Public Cloud independiente conectado al vRack compartido. Tiene su propio límite de facturación, sus propios usuarios OpenStack y sus propias políticas IAM. No se necesita ningún clúster OPNsense, Floating IP ni OVH Gateway: todo el tráfico se enruta a través del hub.
+
+:::
+
+
+#### 6.1 Requisitos
+
+Antes de añadir un spoke, confirme que dispone de:
+
+- [ ] Hub desplegado y accesible por HTTPS en `https://<hub_floating_ip>:8443`
+- [ ] VIP CARP LAN del hub (192.168.10.99) y CIDR LAN del hub (192.168.10.0/24) anotados (sección 4.5)
+- [ ] Nombre del servicio vRack del hub anotado (sección 4.5)
+- [ ] Credenciales de API OPNsense del hub disponibles
+- [ ] Una IP de router de tránsito única asignada en la subred de tránsito, fuera del pool DHCP del hub (.100–.200) — p. ej. 192.168.10.10 para el primer spoke, 192.168.10.20 para el segundo
+- [ ] Identificadores VLAN y CIDR únicos asignados para todas las redes LAN del spoke (sección 1)
+
+#### 6.2 Aprovisionar los recursos del spoke
+
+> En el ejemplo de OrbitalEdge, `constellation-dev` es el primer spoke: IP del router de tránsito `192.168.10.10`, VLAN 300 (`10.30.0.0/24`) para su nivel de carga de trabajo Kubernetes. El spoke `signalvault-dev` añade dos redes LAN —app (VLAN 310, `10.31.0.0/24`) y data (VLAN 311, `10.31.1.0/24`)— con un único router Neutron en `192.168.10.11`. Todos los pasos siguientes están automatizados mediante `spoke-template/tofu apply`; Alice rellena los valores VLAN/CIDR en `terraform.tfvars` y ejecuta `tofu apply` (~3 minutos por spoke).
+
+> Los pasos siguientes describen lo que `spoke-template/tofu apply` automatiza. Sígalos si prefiere realizar el onboarding de los spokes sin IaC.
+
+Realice estos pasos en orden, esperando a que cada operación de la API de OVHcloud finalice antes de continuar:
+
+1. **Cree un proyecto Public Cloud** para el spoke (siga la convención de nomenclatura de la sección 4.1) — p. ej. `constellation-dev`.
+2. **Conecte el proyecto spoke al vRack compartido** utilizando el nombre del servicio vRack del hub (p. ej. `pn-123456`). Espere el plazo de propagación (30 segundos) antes de crear redes.
+3. **Cree la red de tránsito** en el proyecto spoke: VLAN 200, CIDR 192.168.10.0/24, **DHCP desactivado**, sin pasarela. Esto expone el segmento de tránsito del hub en el contexto OpenStack del spoke para que el router Neutron pueda conectarse a él.
+4. **Cree las redes LAN del spoke**: una red por nivel de carga de trabajo (app, db, etc.), cada una en una VLAN única con DHCP activado — p. ej. VLAN 300, `10.30.0.0/24`.
+5. **Cree un router OpenStack Neutron**:
+    - Conecte la red de tránsito con una **IP fija** a la IP del router de tránsito del spoke (p. ej. `192.168.10.10` para `constellation-dev`).
+    - Conecte cada subred LAN del spoke como interfaz interna.
+    - Defina la ruta por defecto: `0.0.0.0/0` mediante la VIP CARP LAN del hub (`192.168.10.99`).
+6. **Cree usuarios OpenStack** (operador IaC y operador runtime) para el proyecto spoke — creados automáticamente mediante OpenTofu (`users.tf`) en el ejemplo orbital-edge.
+
+#### 6.3 Configurar el enrutamiento en el lado del hub
+
+> Los pasos siguientes describen lo que `spoke-template/tofu apply` automatiza para el enrutamiento del lado del hub. Sígalos si no utiliza el IaC.
+
+Una vez que el router Neutron del spoke esté operativo, regístrelo en el OPNsense del hub mediante la API REST:
+
+**Añada una pasarela** que apunte a la IP del router de tránsito del spoke:
+
+```bash
+curl -ks -u <hub_api_key>:<hub_api_secret> \
+  -X POST https://<hub_floating_ip>:8443/api/routing/settings/add_gateway \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gateway_item": {
+      "name": "Spoke<N>TransitGW",
+      "interface": "lan",
+      "ipprotocol": "inet",
+      "gateway": "<spoke_transit_router_ip>"
+    }
+  }'
+
+# Aplicar la configuración de la pasarela
+curl -ks -u <hub_api_key>:<hub_api_secret> \
+  -X POST https://<hub_floating_ip>:8443/api/routing/settings/reconfigure
+```
+
+**Añada una ruta estática** para cada CIDR LAN del spoke:
+
+```bash
+curl -ks -u <hub_api_key>:<hub_api_secret> \
+  -X POST https://<hub_floating_ip>:8443/api/routes/routes/addroute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "route": {
+      "network": "<spoke_lan_cidr>",
+      "gateway": "Spoke<N>TransitGW",
+      "descr": "Spoke N LAN via transit"
+    }
+  }'
+
+# Aplicar la configuración de las rutas
+curl -ks -u <hub_api_key>:<hub_api_secret> \
+  -X POST https://<hub_floating_ip>:8443/api/routes/routes/reconfigure
+```
+
+:::info
+Si utiliza la implementación IaC de referencia (`spoke-template`), todos los pasos de enrutamiento del lado del hub están automatizados mediante el proveedor Terraform `restapi` y se ejecutan en el marco de `tofu apply`.
+
+:::
+
+
+#### 6.4 Verificar la conectividad
+
+Conéctese por SSH a la Floating IP del hub y confirme que el spoke es accesible:
+
+```bash
+# SSH hacia el hub
+ssh root@<hub_floating_ip>
+
+# Confirmar que la ruta hacia la LAN del spoke está presente
+ip route show | grep <spoke_lan_cidr>
+
+# Hacer ping a la IP de tránsito del router Neutron del spoke
+ping <spoke_transit_router_ip>
+
+# Hacer ping a una instancia en la LAN del spoke
+ping <spoke_instance_ip>
+```
+
+#### 6.5 ProxyJump para el acceso SSH a las instancias del spoke
+
+Las instancias de los spokes no tienen IP pública directa. Acceda a ellas mediante la Floating IP del hub:
+
+```bash
+# ~/.ssh/config
+Host hub
+  HostName <hub_floating_ip>
+  User root
+  IdentityFile ~/.ssh/id_rsa
+
+Host spoke-*.internal
+  User root
+  IdentityFile ~/.ssh/id_rsa
+  ProxyJump hub
+```
+
+```bash
+# Conexión directa a continuación:
+ssh spoke-app01.internal
+```
+
+Para un acceso auditado a gran escala, despliegue [OVHcloud Bastion](https://ovh.github.io/the-bastion/index.html) en una instancia dedicada del proyecto hub.
+
+#### 6.6 Lista de verificación del onboarding
+
+- [ ] Identificadores VLAN y CIDR registrados en el documento de diseño de red y asignados de forma única
+- [ ] IP del router de tránsito asignada — única dentro de 192.168.10.0/24, fuera del pool DHCP (.100–.200)
+- [ ] Proyecto spoke creado y conectado al vRack compartido
+- [ ] Red de tránsito (VLAN 200, DHCP desactivado) creada en el proyecto spoke
+- [ ] Redes LAN del spoke creadas con DHCP activado
+- [ ] Router Neutron creado con IP fija de tránsito e interfaces LAN
+- [ ] Ruta por defecto en el router Neutron definida en la VIP CARP LAN del hub (192.168.10.99)
+- [ ] Pasarela del hub (`Spoke<N>TransitGW`) añadida mediante la API OPNsense y reconfigurada
+- [ ] Rutas estáticas del hub añadidas para cada CIDR LAN del spoke y reconfiguradas
+- [ ] LAN del spoke accesible desde el hub mediante ping
+- [ ] Políticas IAM creadas para el proyecto spoke (grupos desarrolladores + SRE)
+- [ ] Usuarios OpenStack aprovisionados y credenciales distribuidas al equipo del spoke
+- [ ] Registros transmitidos hacia LDP
+- [ ] Acceso SSH mediante ProxyJump o Bastion configurado y probado
+
+
+### 7. Ciclo de vida — Escalado, evolución, eliminación
+
+#### 7.1 Escalado — adición de spokes
+
+Repita el proceso de onboarding (sección 6) para cada nuevo spoke. Asigne una IP de router de tránsito única e identificadores VLAN únicos desde su plan de red. Cada spoke es independiente: añadir un nuevo spoke no afecta a los spokes existentes y solo añade una pasarela y rutas estáticas en el OPNsense del hub.
+
+A medida que aumenta el número de spokes, supervise la CPU y el rendimiento del OPNsense del hub. El hub procesa todo el tráfico norte-sur y este-oeste de cada spoke: dimensiónelo en consecuencia (`b3-16` para la mayoría de los despliegues, `b3-64` para los entornos de alto tráfico o con numerosos spokes).
+
+Cuando OrbitalEdge necesitó un quinto spoke para el archivado de los datos históricos (`telemetry-archive-prod`), el proceso llevó menos de 30 minutos: reservar la IP de tránsito `192.168.10.30`, asignar la VLAN 510 (`10.51.0.0/24`) para el nivel app y la VLAN 511 (`10.51.1.0/24`) para el nivel data, copiar el directorio de la plantilla spoke, rellenar `terraform.tfvars` y ejecutar `tofu apply`. Los cuatro spokes existentes no se vieron afectados: ninguna interrupción del hub, ningún reinicio del firewall.
+
+#### 7.2 Eliminar un spoke
+
+> Los pasos siguientes describen lo que `tofu destroy` realiza durante la baja de un spoke. Sígalos si no utiliza el IaC.
+
+Dé de baja en el orden inverso al aprovisionamiento:
+
+1. **Elimine el enrutamiento del lado del hub**: en el OPNsense del hub, elimine las rutas estáticas de los CIDR LAN del spoke y la pasarela del spoke:
+    - <code className="action">Sistema</code> > <code className="action">Rutas</code>: elimine las rutas LAN del spoke y, a continuación, haga clic en <code className="action">Aplicar cambios</code>.
+    - <code className="action">Sistema</code> > <code className="action">Puertas de enlace</code>: elimine la pasarela de tránsito del spoke.
+    - O mediante API: `POST /routes/routes/delroute/{id}` y luego `POST /routes/routes/reconfigure`, y `POST /routing/settings/del_gateway/{id}` y luego `POST /routing/settings/reconfigure`.
+2. **Destruya los recursos del spoke**: elimine las interfaces del router Neutron y el router, las redes LAN, la red de tránsito y el proyecto Public Cloud. Si utiliza el IaC, ejecute una operación de destrucción limitada al estado del spoke.
+3. **Verifique en el hub**: confirme que no queda ningún objeto huérfano:
+    - <code className="action">Sistema</code> > <code className="action">Rutas</code>: rutas LAN del spoke eliminadas.
+    - <code className="action">Sistema</code> > <code className="action">Puertas de enlace</code>: pasarela del spoke eliminada.
+4. **Actualice el documento de diseño de red**: libere los identificadores VLAN y la IP de tránsito para su reutilización.
+
+#### 7.3 Actualizar OPNsense
+
+Las actualizaciones de OPNsense (parches de seguridad, versiones menores) siguen un procedimiento de conmutación por error CARP:
+
+1. Verifique que CARP está operativo: <code className="action">Interfaces</code> > <code className="action">IP virtuales</code> > <code className="action">Estado</code>.
+2. Ponga el nodo **secundario** en modo de mantenimiento CARP (degradar a BACKUP).
+3. Actualice el secundario: <code className="action">Sistema</code> > <code className="action">Firmware</code> > <code className="action">Actualizaciones</code>.
+4. Reinicie el secundario; verifique que se une a CARP como BACKUP.
+5. Realice una conmutación por error controlada: promueva temporalmente el secundario a MASTER.
+6. Actualice y reinicie el primario.
+7. Restaure los roles originales MASTER/BACKUP.
+
+:::warning
+Durante los pasos 3–4, todo el tráfico transita por el nodo primario. Todas las cargas de trabajo de los spokes dependen del hub para el acceso a Internet y el enrutamiento entre spokes: planifique el mantenimiento durante las ventanas de bajo tráfico.
+
+:::
+
+
+#### 7.4 Lista de verificación trimestral
+
+| Ámbito | Acción |
+|---------|--------|
+| IAM | Auditar los miembros de los grupos/usuarios; retirar a quienes se van; rotar las claves de API de las cuentas de servicio |
+| Reglas firewall | Revisar las reglas OPNsense; eliminar las reglas no utilizadas; validar que las IP de origen admin siguen siendo exactas |
+| Rutas hub | Listar las rutas estáticas en OPNsense; confirmar que todas las pasarelas de tránsito de los spokes están presentes y son correctas |
+| Estado IaC | Verificar que el estado remoto es accesible y está cifrado; probar una restauración; confirmar la ausencia de derivas de secretos |
+| Firmware OPNsense | Verificar los avisos de seguridad; planificar los parches (consulte el procedimiento CARP en la sección 7.3) |
+| Changelog OVHcloud | Revisar las nuevas funcionalidades (nuevas regiones, tipos de instancias, capacidades IAM) |
+| Costes | Revisar los gastos por proyecto; eliminar las Floating IPs, volúmenes e instancias no utilizados |
+| Registro | Verificar la tasa de ingesta de LDP; verificar el estado de la replicación S3; confirmar que las reglas de alerta se activan |
+
+
+### 8. Facturación, centros de costes y huella de carbono
+
+#### 8.1 Aislamiento de los costes por proyecto
+
+La facturación de OVHcloud Public Cloud está acotada por proyecto. Cada proyecto spoke le proporciona un límite de coste claro para un equipo, una aplicación o una unidad de negocio.
+
+Exporte los datos de costes mediante la API de OVHcloud:
+
+```bash
+# Listar el consumo de un proyecto
+curl -s -X GET "https://eu.api.ovh.com/v1/cloud/project/{project_id}/usage/current" \
+  -H "X-Ovh-Application: $OVH_APPLICATION_KEY" \
+  -H "X-Ovh-Consumer: $OVH_CONSUMER_KEY" \
+  -H "X-Ovh-Timestamp: $(date +%s)" \
+  -H "X-Ovh-Signature: $SIG"
+```
+
+Consulte la [guía de facturación de Public Cloud](/guides/public-cloud/cross-functional/analyze-billing) para conocer todos los detalles de la API y las opciones de exportación CSV.
+
+#### 8.2 Estrategia de etiquetas
+
+Etiquete todos los recursos de forma coherente en el momento del aprovisionamiento, por ejemplo:
+
+```hcl
+metadata = {
+  environment  = "prod"
+  owner        = "platform-team"
+  cost-centre  = "infra-shared"
+  project-id   = "hub"
+}
+```
+
+Las etiquetas permiten elaborar informes de asignación de costes, aplicar políticas de limpieza automatizadas y realizar auditorías de conformidad.
+
+#### 8.3 Alertas de presupuesto
+
+Configure umbrales de gasto en el área de cliente de OVHcloud:
+
+1. Vaya a <code className="action">Facturación</code> > <code className="action">Alertas de presupuesto</code>.
+2. Defina un umbral mensual por proyecto.
+3. Configure una notificación por correo electrónico o webhook cuando se alcance el 80 % y el 100 % del presupuesto.
+
+#### 8.4 Huella de carbono
+
+Los datacenters de OVHcloud en Europa (GRA, SBG, WAW, LIM) presentan algunas de las mejores medidas de Power Usage Effectiveness (PUE) del sector, con compromisos en materia de energía renovable en varios emplazamientos.
+
+Para minimizar su impacto de carbono:
+
+- Priorice las regiones europeas con fuentes de energía renovable declaradas.
+- Dimensione correctamente el hub: `b3-16` es suficiente para la mayoría de los despliegues; evite el sobredimensionamiento.
+- Utilice las políticas de ciclo de vida de Object Storage para trasladar los registros fríos al acceso poco frecuente y hacer expirar los datos temporales.
+- Dé de baja los spokes no utilizados en lugar de dejar funcionando una infraestructura inactiva.
+
+
+### 9. Conclusión
+
+El modelo hub and spoke con vRack único en OVHcloud Public Cloud ofrece a las organizaciones una landing zone lista para la producción, auditable y escalable. Un firewall HA OPNsense centralizado controla todo el tráfico saliente y entre spokes. Los proyectos spokes solo requieren routers OpenStack Neutron estándar —sin clúster firewall por spoke, sin túneles IPsec—, lo que la convierte en la topología hub and spoke más sencilla disponible en OVHcloud.
+
+El despliegue y la explotación de esta arquitectura requieren sólidas competencias cloud y de red, en particular la gestión del vRack y de las VLAN de OVHcloud, la operación de un clúster HA OPNsense y las prácticas de Infrastructure as Code. Se anima encarecidamente a los equipos que se inician en estas tecnologías a recurrir a los OVHcloud Professional Services para una revisión del diseño, un despliegue asistido o una evaluación de la madurez operativa antes de pasar a producción.
+
+[Solicitar un presupuesto a los OVHcloud Professional Services](/links/professional-services)
+
+
+## Más información
+
+- [Entender las landing zones](/guides/public-cloud/cross-functional/whats-is-landing-zone)
+- [Referencia de arquitectura — Construir una landing zone con OVHcloud Public Cloud](/guides/public-cloud/cross-functional/landing-zone-migration)
+- [Buenas prácticas para proteger y estructurar sus proyectos OVHcloud Public Cloud](/guides/public-cloud/cross-functional/security-structure-best-practices)
+- [Cómo utilizar Terraform con OVHcloud Public Cloud](/guides/public-cloud/cross-functional/how-to-use-terraform)
+- [Configurar el vRack para Public Cloud mediante la API de OVHcloud v6](/guides/public-cloud/network-services/vrack-apiv6)
+- [Primeros pasos con Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start)
+
+Interactúe con nuestra [comunidad de usuarios](/links/community).
+
+<sup>1</sup>: S3 es una marca comercial de Amazon Technologies, Inc. El servicio de OVHcloud no está patrocinado, avalado ni afiliado de ningún modo a Amazon Technologies, Inc.
