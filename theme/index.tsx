@@ -38,6 +38,7 @@ const LazySurveyWidget = lazy(() =>
 
 import { ELearningLayout } from 'theme/layouts/ELearningLayout';
 import { HomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
+import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
 
@@ -52,6 +53,12 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
   // If pageType is 'overview', use our custom OverviewLayout
   if (pageType === 'overview') {
     return <OverviewLayout {...props} />;
+  }
+
+  // If pageType is 'landing', use our custom LandingLayout (product/category
+  // landing pages: single H1, banner opt-in, overview-style footer, no outline)
+  if (pageType === 'landing') {
+    return <LandingLayout {...props} />;
   }
 
   // If pageType is 'elearning', use our custom ELearningLayout
@@ -146,6 +153,7 @@ export {
   ELearningLayout,
   FallbackHeading,
   HomeLayout,
+  LandingLayout,
   Layout,
   LlmsCopyButton,
   LlmsViewOptions,

@@ -1,12 +1,62 @@
 # Changelog
 
+## 2026.06.12
+
+### Features
+- **sidebar:** add clickable category landing pages (#190)
+
+### Fixes
+- move stray internal SEO report out of published docs tree (#189)
+
+### Documentation
+- 2 guides updated across fr
+
+## 2026.06.11.1
+
+### Fixes
+- **seo:** obfuscate example/localhost links + stop /{lang}/index on language switch (#185)
+- **opcp:** repair stray :w in heading and bump lastUpdated
+
+### Documentation
+- 201 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.11
+
+### Features
+- **network:** ne GS about gateway (#133)
+- **enteprise-file-storage:** update getting started with trident with service URN retrieval (#166)
+
+### Documentation
+- 1173 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.10
+
+### Fixes
+- **build:** use 301.map from plublic directory
+
+## 2026.06.09
+
+### Fixes
+- **chatbot:** point linkPolicy at localized legal-information page (#159)
+
+### Documentation
+- 149 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.08.1
+
+### Fixes
+- **domains/dns-dnssec:** remove .it unavailability notice
+
+### Documentation
+- 153 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.06.08
 
 ### Maintenance
 - **telecom:** standardize guides (legacy cleanup, links, structure)
 
 ### Documentation
-- 287 guides updated across de, en, es, fr, it, pl, pt
+- 413 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.06.04.1
 

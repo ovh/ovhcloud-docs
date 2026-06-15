@@ -129,11 +129,25 @@ const rootIndexHtml = `<!DOCTYPE html>
 fs.writeFileSync(path.join(DIST_DIR, 'index.html'), rootIndexHtml);
 console.log('   ✓ Created dist/index.html (redirects to /fr/)');
 
-// Also create 301.map if it doesn't exist
-const redirectMapPath = path.join(DIST_DIR, '301.map');
-if (!fs.existsSync(redirectMapPath)) {
-  fs.writeFileSync(redirectMapPath, '/ /fr/;\n');
-  console.log('   ✓ Created dist/301.map');
+// Copy the 301.map maintained in docs/public/ to the dist root so nginx can
+// read it. Rspress copies docs/public/* into each dist/{locale}/ root (not into
+// dist/{locale}/public/), so the canonical source is the first built locale's
+// dist root. Fall back to the shared public location.
+const redirectMapCandidates = [
+  path.join(DIST_DIR, builtLocales[0], '301.map'),
+  path.join(sharedPublic, '301.map'),
+];
+const redirectMapSrc = redirectMapCandidates.find((p) => fs.existsSync(p));
+const redirectMapDst = path.join(DIST_DIR, '301.map');
+
+if (redirectMapSrc) {
+  fs.copyFileSync(redirectMapSrc, redirectMapDst);
+  console.log(
+    `   ✓ Copied 301.map to dist root (from ${path.relative(ROOT_DIR, redirectMapSrc)})`,
+  );
+} else {
+  fs.writeFileSync(redirectMapDst, '/ /fr/;\n');
+  console.log('   ✓ Created default dist/301.map');
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 

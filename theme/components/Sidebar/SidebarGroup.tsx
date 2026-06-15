@@ -5,11 +5,7 @@ import type {
   SidebarSectionHeader as SidebarSectionHeaderType,
 } from '@rspress/core';
 import { useActiveMatcher } from '@rspress/core/runtime';
-import {
-  IconArrowRight as ArrowRight,
-  SvgWrapper,
-  useLinkNavigate,
-} from '@theme-original';
+import { IconArrowRight as ArrowRight, SvgWrapper } from '@theme-original';
 import clsx from 'clsx';
 import type React from 'react';
 import { SidebarDivider } from './SidebarDivider';
@@ -22,16 +18,29 @@ import {
   isSidebarSectionHeader,
 } from './utils';
 
-const CollapsibleIcon = ({ collapsed }: { collapsed: boolean }) => (
-  <div
+const CollapsibleIcon = ({
+  collapsed,
+  onClick,
+}: {
+  collapsed: boolean;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
+}) => (
+  <button
+    type="button"
+    aria-label={collapsed ? 'Expand' : 'Collapse'}
+    onClick={onClick}
     style={{
+      background: 'none',
+      border: 'none',
+      padding: 0,
+      display: 'flex',
       cursor: 'pointer',
       transition: 'transform 0.2s ease-out',
       transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
     }}
   >
     <SvgWrapper icon={ArrowRight} />
-  </div>
+  </button>
 );
 
 export interface SidebarGroupProps {
@@ -54,7 +63,6 @@ export interface SidebarGroupProps {
 export function SidebarGroup(props: SidebarGroupProps) {
   const activeMatcher = useActiveMatcher();
   const { item, depth, id, setSidebarData, className } = props;
-  const navigate = useLinkNavigate();
   const active = item.link && activeMatcher(item.link);
   const { collapsed = false, collapsible = true } =
     item as NormalizedSidebarGroup;
@@ -89,21 +97,34 @@ export function SidebarGroup(props: SidebarGroupProps) {
         className={clsx('rp-sidebar-group', className)}
         depth={depth}
         onClick={(e) => {
-          if (!active && item.link && !collapsed) {
-            navigate(item.link);
-            return;
-          }
+          // Linked category (has a landing page): let the underlying <Link>
+          // handle navigation. We only ensure the group expands — clicking the
+          // row never collapses it (the chevron does that). This gives the
+          // "navigate + keep expanded" behaviour for landing categories.
           if (item.link) {
-            e.stopPropagation();
-            navigate(item.link).then(() => {
-              collapsible && toggleCollapse();
-            });
+            if (collapsible && collapsed) {
+              toggleCollapse();
+            }
             return;
           }
+          // Container-only category: clicking the row toggles expand/collapse.
           e.stopPropagation();
           collapsible && toggleCollapse();
         }}
-        right={collapsible && <CollapsibleIcon collapsed={collapsed} />}
+        right={
+          collapsible && (
+            <CollapsibleIcon
+              collapsed={collapsed}
+              onClick={(e) => {
+                // The chevron is an independent collapse control: stop the
+                // click from triggering the row's <Link> navigation.
+                e.preventDefault();
+                e.stopPropagation();
+                toggleCollapse();
+              }}
+            />
+          )
+        }
       />
 
       <div
