@@ -156,7 +156,7 @@ export function ELearningCourseLayoutV2(props: ELearningCourseLayoutV2Props) {
 
               <aside className="rp-elearning-course-v2__right">
                 <h2 className="rp-elearning-course-v2__right-heading">
-                  Curriculum
+                  Details
                 </h2>
                 <ELearningCourseCurriculum items={curriculum} />
               </aside>
