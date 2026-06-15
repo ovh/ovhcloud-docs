@@ -21,6 +21,8 @@ export interface ELearningCourseOverviewProps {
   level?: string;
   /** Course language, shown as a badge next to the level. */
   language?: string;
+  /** Total course duration, shown as a badge next to the language. */
+  duration?: string;
   learn?: CourseLearnData;
   /** Embed URL for the course video (iframe src). */
   video?: string;
@@ -35,9 +37,13 @@ export function CourseDescription({
   description,
   level,
   language,
-}: Pick<ELearningCourseOverviewProps, 'description' | 'level' | 'language'>) {
+  duration,
+}: Pick<
+  ELearningCourseOverviewProps,
+  'description' | 'level' | 'language' | 'duration'
+>) {
   const t = useI18n();
-  if (!description && !level && !language) return null;
+  if (!description && !level && !language && !duration) return null;
   return (
     <section className="rp-elearning-course-overview__section">
       <h2 className="rp-elearning-course-overview__heading">
@@ -49,7 +55,7 @@ export function CourseDescription({
           {...renderHtmlOrText(description)}
         />
       )}
-      {(level || language) && (
+      {(level || language || duration) && (
         <p className="rp-elearning-course-overview__badges">
           {level && (
             <span className="rp-elearning-course-overview__badge-group">
@@ -68,6 +74,16 @@ export function CourseDescription({
               </span>
               <span className="rp-elearning-course-overview__badge">
                 {language}
+              </span>
+            </span>
+          )}
+          {duration && (
+            <span className="rp-elearning-course-overview__badge-group">
+              <span className="rp-elearning-course-overview__badge-label">
+                {t('elearningCourseDurationLabel')}
+              </span>
+              <span className="rp-elearning-course-overview__badge">
+                {duration}
               </span>
             </span>
           )}

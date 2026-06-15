@@ -149,6 +149,7 @@ export function ELearningCourseLayout(props: ELearningCourseLayoutProps) {
                   description={overview?.description}
                   level={overview?.level}
                   language={overview?.language}
+                  duration={overview?.duration}
                 />
                 <CourseLearn learn={overview?.learn} />
                 <CourseVideo video={overview?.video} />
