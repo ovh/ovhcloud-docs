@@ -29,13 +29,18 @@ export function ELearningCourses({
         <p className="rp-elearning-courses__description">{description}</p>
       )}
       <div className="rp-elearning-courses__grid">
-        {items.map((item) => (
+        {items.map((item) => {
+          // Internal path-page links (/guides/...) open in the same tab;
+          // any external URL (e.g. a direct platform link) opens in a new tab.
+          const isInternal = item.link.startsWith('/');
+          return (
           <a
             key={item.link}
             href={item.link}
             className="rp-elearning-courses__card"
-            target="_blank"
-            rel="noopener noreferrer"
+            {...(isInternal
+              ? {}
+              : { target: '_blank', rel: 'noopener noreferrer' })}
           >
             {item.level && (
               <div className="rp-elearning-courses__badge">{item.level}</div>
@@ -93,7 +98,8 @@ export function ELearningCourses({
               )}
             </div>
           </a>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
 import { ManagerLink } from '@components/ManagerLink';
+import { useI18n } from '@rspress/core/runtime';
 import { Button, renderHtmlOrText } from '@theme-original';
 import './index.scss';
 
@@ -99,6 +100,7 @@ export function ELearningCourseHeader({
   meta,
   cta,
 }: ELearningCourseHeaderProps) {
+  const t = useI18n();
   if (!title) return null;
 
   return (
@@ -108,7 +110,9 @@ export function ELearningCourseHeader({
       {meta && (
         <div className="rp-elearning-course-header__meta">
           {meta.modules != null && (
-            <MetaItem icon="modules">{meta.modules} Modules</MetaItem>
+            <MetaItem icon="modules">
+              {meta.modules} {t('elearningCourseModulesLabel')}
+            </MetaItem>
           )}
           {meta.level && <MetaItem icon="level">{meta.level}</MetaItem>}
           {meta.topic && <MetaItem icon="topic">{meta.topic}</MetaItem>}

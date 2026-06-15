@@ -1,3 +1,4 @@
+import { useI18n } from '@rspress/core/runtime';
 import { renderHtmlOrText } from '@theme-original';
 import './index.scss';
 
@@ -45,10 +46,11 @@ function LessonItem({ lesson }: { lesson: CurriculumLesson }) {
 export function ELearningCourseCurriculum({
   items,
 }: ELearningCourseCurriculumProps) {
+  const t = useI18n();
   if (!items || items.length === 0) {
     return (
       <p className="rp-elearning-course-curriculum__empty">
-        The detailed curriculum for this course is coming soon.
+        {t('elearningCourseCurriculumEmpty')}
       </p>
     );
   }

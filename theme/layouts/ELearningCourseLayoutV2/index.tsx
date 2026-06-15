@@ -122,6 +122,7 @@ export function ELearningCourseLayoutV2(props: ELearningCourseLayoutV2Props) {
     frontmatter as ELearningCourseFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useELearningCourseSidebarMenu();
+  const t = useI18n();
   usePageTitle(title);
 
   return (
@@ -149,6 +150,7 @@ export function ELearningCourseLayoutV2(props: ELearningCourseLayoutV2Props) {
                 <CourseDescription
                   description={overview?.description}
                   level={overview?.level}
+                  language={overview?.language}
                 />
                 <CourseLearn learn={overview?.learn} />
                 <CourseVideo video={overview?.video} />
@@ -156,7 +158,7 @@ export function ELearningCourseLayoutV2(props: ELearningCourseLayoutV2Props) {
 
               <aside className="rp-elearning-course-v2__right">
                 <h2 className="rp-elearning-course-v2__right-heading">
-                  Details
+                  {t('elearningCourseDetailsHeading')}
                 </h2>
                 <ELearningCourseCurriculum items={curriculum} />
               </aside>

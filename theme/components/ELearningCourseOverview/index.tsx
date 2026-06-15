@@ -1,3 +1,4 @@
+import { useI18n } from '@rspress/core/runtime';
 import { renderHtmlOrText } from '@theme-original';
 import './index.scss';
 
@@ -18,6 +19,8 @@ export interface ELearningCourseOverviewProps {
   description?: string;
   /** Certification level, shown as a distinctive badge under the description. */
   level?: string;
+  /** Course language, shown as a badge next to the level. */
+  language?: string;
   learn?: CourseLearnData;
   /** Embed URL for the course video (iframe src). */
   video?: string;
@@ -31,25 +34,43 @@ export interface ELearningCourseOverviewProps {
 export function CourseDescription({
   description,
   level,
-}: Pick<ELearningCourseOverviewProps, 'description' | 'level'>) {
-  if (!description && !level) return null;
+  language,
+}: Pick<ELearningCourseOverviewProps, 'description' | 'level' | 'language'>) {
+  const t = useI18n();
+  if (!description && !level && !language) return null;
   return (
     <section className="rp-elearning-course-overview__section">
-      <h2 className="rp-elearning-course-overview__heading">Description</h2>
+      <h2 className="rp-elearning-course-overview__heading">
+        {t('elearningCourseDescriptionHeading')}
+      </h2>
       {description && (
         <p
           className="rp-elearning-course-overview__description"
           {...renderHtmlOrText(description)}
         />
       )}
-      {level && (
-        <p className="rp-elearning-course-overview__level">
-          <span className="rp-elearning-course-overview__level-label">
-            Level:
-          </span>
-          <span className="rp-elearning-course-overview__level-badge">
-            {level}
-          </span>
+      {(level || language) && (
+        <p className="rp-elearning-course-overview__badges">
+          {level && (
+            <span className="rp-elearning-course-overview__badge-group">
+              <span className="rp-elearning-course-overview__badge-label">
+                {t('elearningCourseLevelLabel')}
+              </span>
+              <span className="rp-elearning-course-overview__badge">
+                {level}
+              </span>
+            </span>
+          )}
+          {language && (
+            <span className="rp-elearning-course-overview__badge-group">
+              <span className="rp-elearning-course-overview__badge-label">
+                {t('elearningCourseLanguageLabel')}
+              </span>
+              <span className="rp-elearning-course-overview__badge">
+                {language}
+              </span>
+            </span>
+          )}
         </p>
       )}
     </section>
