@@ -37,7 +37,6 @@ const LazySurveyWidget = lazy(() =>
 );
 
 import { ELearningCourseLayout } from 'theme/layouts/ELearningCourseLayout';
-import { ELearningCourseLayoutV2 } from 'theme/layouts/ELearningCourseLayoutV2';
 import { ELearningLayout } from 'theme/layouts/ELearningLayout';
 import { HomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
@@ -61,14 +60,9 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
     return <ELearningLayout {...props} />;
   }
 
-  // If pageType is 'elearning-course', use our custom course-detail layout
+  // If pageType is 'elearning-course', use our tab-less two-column course layout
   if (pageType === 'elearning-course') {
     return <ELearningCourseLayout {...props} />;
-  }
-
-  // Alternate tab-less, two-column course layout (variant under evaluation)
-  if (pageType === 'elearning-course-v2') {
-    return <ELearningCourseLayoutV2 {...props} />;
   }
 
   // If pageType is 'migration', use our custom MigrationLayout
@@ -156,7 +150,6 @@ export {
   DocLayout,
   EditLink,
   ELearningCourseLayout,
-  ELearningCourseLayoutV2,
   ELearningLayout,
   FallbackHeading,
   HomeLayout,

@@ -1,10 +1,5 @@
 import { useFrontmatter, useI18n } from '@rspress/core/runtime';
-import {
-  IconMenu,
-  PageTab,
-  PageTabs,
-  SvgWrapper,
-} from '@rspress/core/theme-original';
+import { IconMenu, SvgWrapper } from '@rspress/core/theme-original';
 import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +9,12 @@ import { ELearningCourseCurriculum } from 'theme/components/ELearningCourseCurri
 import type { ELearningCourseHeaderProps } from 'theme/components/ELearningCourseHeader';
 import { ELearningCourseHeader } from 'theme/components/ELearningCourseHeader';
 import type { ELearningCourseOverviewProps } from 'theme/components/ELearningCourseOverview';
-import { ELearningCourseOverview } from 'theme/components/ELearningCourseOverview';
+import {
+  CourseDescription,
+  CourseLearn,
+  CourseServices,
+  CourseVideo,
+} from 'theme/components/ELearningCourseOverview';
 import { Sidebar } from 'theme/components/Sidebar';
 import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
@@ -27,8 +27,7 @@ interface ELearningCourseFrontmatter {
   curriculum?: ELearningCourseCurriculumProps['items'];
 }
 
-// Mobile sidebar toggle — same pattern as the sibling custom layouts
-// (ELearningLayout / OverviewLayout / MigrationLayout).
+// Mobile sidebar toggle — same pattern as the sibling custom layouts.
 function useELearningCourseSidebarMenu() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const sidebarMenuRef = useRef<HTMLDivElement>(null);
@@ -103,15 +102,25 @@ export interface ELearningCourseLayoutProps {
   afterDocContent?: React.ReactNode;
 }
 
+/**
+ * Tab-less, two-column course layout.
+ *
+ * A single page rather than Overview / Curriculum tabs:
+ *   - left column: Description, What you will learn, Video
+ *   - right column: the full curriculum ("Details")
+ *   - OVHcloud Services spans full width below both columns
+ *
+ * The page-feedback widget and DocFooter are intentionally omitted on the
+ * course template.
+ */
 export function ELearningCourseLayout(props: ELearningCourseLayoutProps) {
-  // beforeDocFooter (the <PageFeedback /> widget) is intentionally not
-  // rendered on the course template — see the footer region below.
   const { afterDocFooter, beforeDocContent, afterDocContent } = props;
   const { frontmatter } = useFrontmatter();
   const { title, meta, cta, overview, curriculum } =
     frontmatter as ELearningCourseFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useELearningCourseSidebarMenu();
+  const t = useI18n();
   usePageTitle(title);
 
   return (
@@ -128,27 +137,34 @@ export function ELearningCourseLayout(props: ELearningCourseLayoutProps) {
         >
           <Sidebar />
         </aside>
-        <div className="rp-elearning-course-layout__content">
-          <main className="rp-elearning-course-layout__main">
+        <div className="rp-elearning-course__content">
+          <main className="rp-elearning-course__main">
             {beforeDocContent}
 
             <ELearningCourseHeader title={title} meta={meta} cta={cta} />
 
-            <PageTabs className="rp-elearning-course-layout__tabs">
-              <PageTab label="Overview">
-                <ELearningCourseOverview {...overview} />
-              </PageTab>
-              <PageTab label="Curriculum">
+            <div className="rp-elearning-course__columns">
+              <div className="rp-elearning-course__left">
+                <CourseDescription
+                  description={overview?.description}
+                  level={overview?.level}
+                  language={overview?.language}
+                />
+                <CourseLearn learn={overview?.learn} />
+                <CourseVideo video={overview?.video} />
+              </div>
+
+              <aside className="rp-elearning-course__right">
+                <h2 className="rp-elearning-course__right-heading">
+                  {t('elearningCourseDetailsHeading')}
+                </h2>
                 <ELearningCourseCurriculum items={curriculum} />
-              </PageTab>
-            </PageTabs>
+              </aside>
+            </div>
+
+            <CourseServices services={overview?.services} />
 
             {afterDocContent}
-
-            {/* The course template intentionally omits the page-feedback
-                widget ({beforeDocFooter} = <PageFeedback />) and the
-                <DocFooter /> "Edit this page" / prev-next nav — neither fits
-                a course landing page. */}
             {afterDocFooter}
           </main>
         </div>
