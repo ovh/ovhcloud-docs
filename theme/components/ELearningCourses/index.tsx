@@ -1,3 +1,4 @@
+import { useLocalizeHref } from 'theme/hooks/useLocalizedHref';
 import './index.scss';
 
 interface CourseItem {
@@ -20,6 +21,7 @@ export function ELearningCourses({
   description,
   items,
 }: ELearningCoursesProps) {
+  const localizeHref = useLocalizeHref();
   if (!items || items.length === 0) return null;
 
   return (
@@ -33,10 +35,14 @@ export function ELearningCourses({
           // Internal path-page links (/guides/...) open in the same tab;
           // any external URL (e.g. a direct platform link) opens in a new tab.
           const isInternal = item.link.startsWith('/');
+          // Internal links need the active locale prefix (e.g. /en/guides/...),
+          // otherwise they 404 on non-default locales. useLocalizeHref handles
+          // dev (/{lang}/) and prod (withBase) and leaves external URLs alone.
+          const href = isInternal ? localizeHref(item.link) : item.link;
           return (
           <a
             key={item.link}
-            href={item.link}
+            href={href}
             className="rp-elearning-courses__card"
             {...(isInternal
               ? {}
