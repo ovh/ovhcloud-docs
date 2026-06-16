@@ -318,7 +318,6 @@ Cells wrap automatically and the theme makes tables responsive, so a few guideli
 - Write naturally — cells wrap on their own. **Don't add `<br/>` just to force wrapping;** use it only for genuinely separate lines (e.g. several IP addresses in one cell).
 - **Long URLs and paths can't word-break and will widen the table.** Use link text — `[label](url)` — or a `/links/<key>` (see *Links*) instead of pasting a bare long URL.
 - **Never write a bare angle-bracket placeholder** like `<SID>` or `<region>` in a cell — MDX parses it as an unknown HTML tag and drops it. Backtick it (`` `<SID>` ``) or escape it (`&lt;SID&gt;`).
-- A cell can be forced onto one line with `<td className="nowrap">…</td>` (requires writing that cell as HTML) — rarely needed.
 
 **Format** — always include the header row; align columns with `:---` (left), `:---:` (center), `---:` (right). Prefer Markdown tables; reserve a raw HTML `<table>` for merged cells (`rowspan`/`colspan`) that Markdown can't express.
 
