@@ -27,14 +27,19 @@
  */
 import type { Root, RootContent } from 'mdast';
 import type { VFile } from 'vfile';
+import { PRODUCT_AVAILABILITY } from '../config/product-availability';
 
-const PRODUCT_TO_ZONES: Record<string, string[]> = {
-  'web-mx-plan': ['eu', 'ca', 'apac'], // available everywhere — no wrap needed
-  'web-zimbra': ['eu'],
-  'web-email-pro': ['eu'],
-  'web-exchange': ['eu', 'ca'],
-  'telecom-sms': ['eu'],
-};
+// Single in-repo source of truth for product→zone availability, shared with
+// the browser components (components/Api/productRegions.ts). Imported here so
+// CP-NAV gating stays in sync automatically — no duplicated hardcoded table.
+const PRODUCT_ZONES = PRODUCT_AVAILABILITY;
+
+// CP-NAV keys are universe-prefixed (e.g. "telecom-sms", "web-exchange"); the
+// availability matrix uses bare product keys ("sms", "exchange"). Strip the
+// leading universe segment to resolve. Unknown keys → undefined (no gating).
+function zonesForCpNavKey(cpNavKey: string): string[] | undefined {
+  return PRODUCT_ZONES[cpNavKey.replace(/^[^-]+-/, '')];
+}
 
 interface FlowExpressionNode {
   type: string;
@@ -188,7 +193,7 @@ function transformChildren(children: RootContent[]): {
       continue;
     }
 
-    const zones = PRODUCT_TO_ZONES[product];
+    const zones = zonesForCpNavKey(product);
     if (!zones || zones.length === 3) {
       // Unknown product or full zone coverage → no wrap needed.
       out.push(...collected);

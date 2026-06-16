@@ -1,6 +1,7 @@
 import { useI18n } from '@rspress/core/runtime';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRegion } from './RegionContext';
+import { regionsForPath } from './productRegions';
 import './index.css';
 
 const REGIONS = {
@@ -23,9 +24,17 @@ export default function Api({
   section,
   route,
   method = 'GET',
-  regions = ['eu', 'ca'],
+  regions: regionsProp,
 }: ApiProps) {
   const { region: globalRegion, setRegion } = useRegion();
+  // Default the offered regions to the product's commercial-zone availability
+  // (derived from the route, then the section); an explicit `regions` prop
+  // overrides it. Falls back to both regions when no zoned product matches.
+  const regions =
+    regionsProp ??
+    regionsForPath(route) ??
+    regionsForPath(section) ??
+    (['eu', 'ca'] as Region[]);
   const region = regions.includes(globalRegion) ? globalRegion : regions[0];
   const apiAnchor = `${method.toLocaleLowerCase()}-${route.replace(/\\?\{([^\\}]+)\\?\}/g, '-$1-')}`;
   const href = `${REGIONS[region].base}?section=${section}&branch=${version}#${apiAnchor}`;

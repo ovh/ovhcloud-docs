@@ -249,6 +249,21 @@ import { Tab, Tabs } from '@rspress/core/theme';
 </Tabs>
 ```
 
+**Tab selection syncs by default.** Tab blocks that share the same labels sync their selected tab and remember it across pages — so all "Via the OVHcloud Control Panel" / "Via the OVHcloud API" blocks (or `Linux` / `Windows`, etc.) switch together. This is automatic; you don't add anything.
+
+**Sequential "Step" tabs are never synced.** Numbered sets — `Step 1` / `Step 2` / `Step 3` (including branched ones like `Step 3 - IMAP` / `Step 3 - POP3`), `Option 1` / `Option 2`, `Étape 1…` — are detected automatically and kept independent, so picking a step in one block won't move another block (on the page or across navigation). No action needed.
+
+**Opting a block out of sync (`noSync`)** — for the rare *non-sequential* block that still shouldn't sync, add the `noSync` prop:
+
+```mdx
+<Tabs noSync>
+  <Tab label="Plan A">…</Tab>
+  <Tab label="Plan B">…</Tab>
+</Tabs>
+```
+
+(Detection and the `noSync` opt-out live in `theme/components/SyncedTabs/index.tsx`.)
+
 ### Images
 
 Inline images use the standard Markdown syntax with an absolute `/images/...` path:

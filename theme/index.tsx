@@ -36,8 +36,10 @@ const LazySurveyWidget = lazy(() =>
   })),
 );
 
+import { ELearningCourseLayout } from 'theme/layouts/ELearningCourseLayout';
 import { ELearningLayout } from 'theme/layouts/ELearningLayout';
 import { HomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
+import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
 
@@ -54,9 +56,20 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
     return <OverviewLayout {...props} />;
   }
 
+  // If pageType is 'landing', use our custom LandingLayout (product/category
+  // landing pages: single H1, banner opt-in, overview-style footer, no outline)
+  if (pageType === 'landing') {
+    return <LandingLayout {...props} />;
+  }
+
   // If pageType is 'elearning', use our custom ELearningLayout
   if (pageType === 'elearning') {
     return <ELearningLayout {...props} />;
+  }
+
+  // If pageType is 'elearning-course', use our tab-less two-column course layout
+  if (pageType === 'elearning-course') {
+    return <ELearningCourseLayout {...props} />;
   }
 
   // If pageType is 'migration', use our custom MigrationLayout
@@ -143,9 +156,11 @@ export { Tab, Tabs } from 'theme/components/SyncedTabs';
 export {
   DocLayout,
   EditLink,
+  ELearningCourseLayout,
   ELearningLayout,
   FallbackHeading,
   HomeLayout,
+  LandingLayout,
   Layout,
   LlmsCopyButton,
   LlmsViewOptions,
