@@ -361,7 +361,6 @@
                 + [Managing users on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-manage-users)
                 + [Creating a backup on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-create-backup)
                 + [Uploading a backup on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-upload-backup)
-                + [Enabling SFTP on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-enable-sftp)
             + [Deploy a game server](bare-metal-cloud-virtual-private-servers-game-panel-quick-start)
                 + [Deploy a 7 Days to Die server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-7-days-to-die)
                 + [Deploy an ARK Survival Evolved server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-ark)
