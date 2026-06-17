@@ -1921,7 +1921,7 @@
             + [Retrieving email headers](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-headers)
             + [Managing the storage space for an email account](web-cloud/email-and-collaborative-solutions/troubleshooting/email-manage-quota)
             + [Restoring deleted items from your email account](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-retention)
-        + [MX Plan](products/web-cloud-email-collaborative-solutions-mx-plan){landing=web-cloud/email-and-collaborative-solutions/mx-plan/overview}
+        + [MX Plan](products/web-cloud-email-collaborative-solutions-mx-plan){landing=web-cloud/email-and-collaborative-solutions/mx-plan/landing-page-mx-plan}
             + [Getting started](web-cloud-email-collaborative-solutions-mx-plan-getting-started)
                 + [Getting started with the MX Plan solution](web-cloud/email-and-collaborative-solutions/mx-plan/email-generalities)
                 + [Creating an email address with an MX Plan solution](web-cloud/email-and-collaborative-solutions/mx-plan/email-creation)
@@ -1949,7 +1949,7 @@
                 + [Configure your email account in Outlook for iOS](web-cloud/email-and-collaborative-solutions/mx-plan/email-outlook-app-ios)
             + [Adding your email account to an existing email service](web-cloud-email-collaborative-solutions-mx-plan-adding-email-address-on-existing-email-service)
                 + [Configuring an email account on the Gmail online interface](web-cloud/email-and-collaborative-solutions/mx-plan/how-to-configure-gmail)
-        + [Email Pro](products/web-cloud-email-collaborative-solutions-email-pro){landing=web-cloud/email-and-collaborative-solutions/email-pro/overview}
+        + [Email Pro](products/web-cloud-email-collaborative-solutions-email-pro){landing=web-cloud/email-and-collaborative-solutions/email-pro/landing-page-email-pro}
             + [Getting started](web-cloud-email-collaborative-solutions-email-pro-getting-started)
                 + [Configuring your Email Pro solution](web-cloud/email-and-collaborative-solutions/email-pro/first-config)
                 + [Managing the billing for your Email Pro accounts](web-cloud/email-and-collaborative-solutions/email-pro/manage-billing-emailpro)
@@ -1971,7 +1971,7 @@
                 + [Configuring an Email Pro account on the Gmail online interface](web-cloud/email-and-collaborative-solutions/email-pro/how-to-configure-gmail)
             + [Additional resources](web-cloud-email-collaborative-solutions-email-pro-additional-resources)
                 + [Email Pro - Responsibility model](web-cloud/email-and-collaborative-solutions/email-pro/responsibility-model)
-        + [Microsoft Exchange](products/web-cloud-email-collaborative-solutions-microsoft-exchange){landing=web-cloud/email-and-collaborative-solutions/microsoft-exchange/overview}
+        + [Microsoft Exchange](products/web-cloud-email-collaborative-solutions-microsoft-exchange){landing=web-cloud/email-and-collaborative-solutions/microsoft-exchange/landing-page-microsoft-exchange}
             + [Getting started](web-cloud-email-collaborative-solutions-microsoft-exchange-getting-started)
                 + [Getting started with the Hosted Exchange service](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-starting-hosted)
                 + [Getting started with the Private Exchange service](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-starting-private)
@@ -2007,7 +2007,7 @@
             + [Managing a group of Microsoft 365 OVHcloud licences](web-cloud/email-and-collaborative-solutions/microsoft-office/office365-csp1)
             + [Managing a group of OVHcloud Office 365 Reseller licences (CSP2)](web-cloud/email-and-collaborative-solutions/microsoft-office/office365-csp2)
             + [Using Remote Desktop with Microsoft 365 apps](web-cloud/email-and-collaborative-solutions/microsoft-office/office-proplus)
-        + [Zimbra](products/web-cloud-email-collaborative-solutions-zimbra){landing=web-cloud/email-and-collaborative-solutions/zimbra/overview}
+        + [Zimbra](products/web-cloud-email-collaborative-solutions-zimbra){landing=web-cloud/email-and-collaborative-solutions/zimbra/landing-page-zimbra}
             + [Getting started](web-cloud-email-collaborative-solutions-zimbra-getting-started)
                 + [Getting started on Zimbra](web-cloud/email-and-collaborative-solutions/zimbra/getting-started-zimbra)
                 + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra)
