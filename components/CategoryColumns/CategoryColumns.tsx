@@ -43,7 +43,7 @@ export function CategoryColumns({ categories }: CategoryColumnsProps) {
           {cat.title ? (
             <h3 className="rp-category-columns__heading">{cat.title}</h3>
           ) : (
-            <h3
+            <div
               className="rp-category-columns__heading rp-category-columns__heading--spacer"
               aria-hidden="true"
             />
