@@ -131,6 +131,8 @@ export default defineConfig({
       path.join(__dirname, 'components/Api/index.tsx'),
       path.join(__dirname, 'components/ManagerLink/ManagerLink.tsx'),
       path.join(__dirname, 'components/Tooltip/Tooltip.tsx'),
+      path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
+      path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
     ],
     link: {
       checkDeadLinks: true,

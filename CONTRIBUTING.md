@@ -249,6 +249,21 @@ import { Tab, Tabs } from '@rspress/core/theme';
 </Tabs>
 ```
 
+**Tab selection syncs by default.** Tab blocks that share the same labels sync their selected tab and remember it across pages — so all "Via the OVHcloud Control Panel" / "Via the OVHcloud API" blocks (or `Linux` / `Windows`, etc.) switch together. This is automatic; you don't add anything.
+
+**Sequential "Step" tabs are never synced.** Numbered sets — `Step 1` / `Step 2` / `Step 3` (including branched ones like `Step 3 - IMAP` / `Step 3 - POP3`), `Option 1` / `Option 2`, `Étape 1…` — are detected automatically and kept independent, so picking a step in one block won't move another block (on the page or across navigation). No action needed.
+
+**Opting a block out of sync (`noSync`)** — for the rare *non-sequential* block that still shouldn't sync, add the `noSync` prop:
+
+```mdx
+<Tabs noSync>
+  <Tab label="Plan A">…</Tab>
+  <Tab label="Plan B">…</Tab>
+</Tabs>
+```
+
+(Detection and the `noSync` opt-out live in `theme/components/SyncedTabs/index.tsx`.)
+
 ### Images
 
 Inline images use the standard Markdown syntax with an absolute `/images/...` path:
@@ -294,6 +309,17 @@ Standard GitHub-flavored Markdown tables work as-is:
 |---|---|
 | value | value |
 ```
+
+Cells wrap automatically and the theme makes tables responsive, so a few guidelines keep them readable on every screen:
+
+**Width** — prefer **≤4 columns**; they fit any screen. **6+ columns scroll horizontally on phones** (acceptable for reference tables, but check each column earns its place). For a genuinely wide table (**8+ columns**), **transpose** it (if it has few rows and many columns) or **split** it into smaller grouped tables. There is no mobile "card" layout — wide tables scroll horizontally by design (a matrix can't be stacked without losing the grid).
+
+**Cell content**
+- Write naturally — cells wrap on their own. **Don't add `<br/>` just to force wrapping;** use it only for genuinely separate lines (e.g. several IP addresses in one cell).
+- **Long URLs and paths can't word-break and will widen the table.** Use link text — `[label](url)` — or a `/links/<key>` (see *Links*) instead of pasting a bare long URL.
+- **Never write a bare angle-bracket placeholder** like `<SID>` or `<region>` in a cell — MDX parses it as an unknown HTML tag and drops it. Backtick it (`` `<SID>` ``) or escape it (`&lt;SID&gt;`).
+
+**Format** — always include the header row; align columns with `:---` (left), `:---:` (center), `---:` (right). Prefer Markdown tables; reserve a raw HTML `<table>` for merged cells (`rowspan`/`colspan`) that Markdown can't express.
 
 ### Code blocks
 

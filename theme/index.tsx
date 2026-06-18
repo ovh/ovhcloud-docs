@@ -36,8 +36,10 @@ const LazySurveyWidget = lazy(() =>
   })),
 );
 
+import { ELearningCourseLayout } from 'theme/layouts/ELearningCourseLayout';
 import { ELearningLayout } from 'theme/layouts/ELearningLayout';
 import { HomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
+import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
 
@@ -54,9 +56,20 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
     return <OverviewLayout {...props} />;
   }
 
+  // If pageType is 'landing', use our custom LandingLayout (product/category
+  // landing pages: single H1, banner opt-in, overview-style footer, no outline)
+  if (pageType === 'landing') {
+    return <LandingLayout {...props} />;
+  }
+
   // If pageType is 'elearning', use our custom ELearningLayout
   if (pageType === 'elearning') {
     return <ELearningLayout {...props} />;
+  }
+
+  // If pageType is 'elearning-course', use our tab-less two-column course layout
+  if (pageType === 'elearning-course') {
+    return <ELearningCourseLayout {...props} />;
   }
 
   // If pageType is 'migration', use our custom MigrationLayout
@@ -133,6 +146,8 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
 export * from '@rspress/core/theme-original';
 
 // Then override with custom components (must come AFTER wildcard export)
+const LlmsCopyButton = () => null;
+
 export { LastUpdated } from 'theme/components/LastUpdated';
 export { NavHamburger } from 'theme/components/NavHamburger';
 // Restore v1-style Tabs sync: derive a groupId from tab labels so selection
@@ -141,10 +156,13 @@ export { Tab, Tabs } from 'theme/components/SyncedTabs';
 export {
   DocLayout,
   EditLink,
+  ELearningCourseLayout,
   ELearningLayout,
   FallbackHeading,
   HomeLayout,
+  LandingLayout,
   Layout,
+  LlmsCopyButton,
   LlmsViewOptions,
   MigrationLayout,
   Nav,

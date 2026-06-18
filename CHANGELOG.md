@@ -1,5 +1,102 @@
 # Changelog
 
+## 2026.06.16.2
+
+### Fixes
+- **theme:** enable responsive table wrapping (#209)
+
+### Maintenance
+- **scripts:** update changelog commit message format
+
+## 2026.06.16.1
+
+### Features
+- **theme:** remove the Duration badge from e-learning course pages
+
+### Fixes
+- **mks:** grafana install typo (#193)
+- fix node upgrade informations in understanding-mks-architecture (#196)
+
+### Documentation
+- 77 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.16
+
+### Features
+- **e-learning:** course detail pages with region-aware CTAs, localized into 7 languages (#198)
+- **components:** product-aware region pickers (#191)
+
+### Documentation
+- 323 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.12
+
+### Features
+- **sidebar:** add clickable category landing pages (#190)
+
+### Fixes
+- **content:** repoint hub-spoke vRack APIv6 link to consolidated vrack guide (#194)
+- move stray internal SEO report out of published docs tree (#189)
+
+### Documentation
+- 9 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.11.1
+
+### Fixes
+- **seo:** obfuscate example/localhost links + stop /{lang}/index on language switch (#185)
+- **opcp:** repair stray :w in heading and bump lastUpdated
+
+### Documentation
+- 201 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.11
+
+### Features
+- **network:** ne GS about gateway (#133)
+- **enteprise-file-storage:** update getting started with trident with service URN retrieval (#166)
+
+### Documentation
+- 1173 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.10
+
+### Fixes
+- **build:** use 301.map from plublic directory
+
+## 2026.06.09
+
+### Fixes
+- **chatbot:** point linkPolicy at localized legal-information page (#159)
+
+### Documentation
+- 149 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.08.1
+
+### Fixes
+- **domains/dns-dnssec:** remove .it unavailability notice
+
+### Documentation
+- 153 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.08
+
+### Maintenance
+- **telecom:** standardize guides (legacy cleanup, links, structure)
+
+### Documentation
+- 413 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.04.1
+
+### Features
+- **web-cloud:** adapt guide content to commercial zones (EU/CA/APAC) - wave 2
+- **theme:** add llms options and pdf export
+
+### Documentation
+- 396 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.06.04
 
 ### Features

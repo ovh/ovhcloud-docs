@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useRegion } from '../Api/RegionContext';
+import { regionsForPath } from '../Api/productRegions';
 import '../Api/index.css'; // shared dropdown styles
 import './index.css';
 
@@ -39,17 +40,29 @@ const LANG_TO_SUBSIDIARY: Record<string, string> = {
 };
 
 interface ManagerLinkProps {
-  /** Path appended to the manager host. Should typically start with "/#/...". */
-  to: string;
+  /**
+   * Path appended to the manager host. Should typically start with "/#/...".
+   * Ignored when `urls` is provided.
+   */
+  to?: string;
   /** Link text */
   children: React.ReactNode;
   /**
    * If true (default), wrap target in the OVH auth flow with `ovhSubsidiary`.
    * Set false to link directly to the manager URL (skips signin redirection).
+   * Ignored when `urls` is provided (those are used verbatim).
    */
   authFlow?: boolean;
   /** Override available regions (default: ["eu", "ca"]) */
   regions?: Region[];
+  /**
+   * Per-region absolute URLs, used verbatim instead of building a manager
+   * host + path. For links that aren't Control Panel paths but still need the
+   * same region picker — e.g. a region-specific SSO/login endpoint. Keys are
+   * region codes; the selected region's URL opens on click. Falls back to the
+   * first allowed region's URL if the selected one is missing.
+   */
+  urls?: Partial<Record<Region, string>>;
 }
 
 function buildManagerUrl(
@@ -86,11 +99,18 @@ export function ManagerLink({
   to,
   children,
   authFlow = true,
-  regions = ['eu', 'ca'],
+  regions: regionsProp,
+  urls,
 }: ManagerLinkProps) {
   const { region: globalRegion, setRegion } = useRegion();
   const lang = useLang();
   const t = useI18n();
+
+  // Default the offered regions to the product's commercial-zone availability
+  // (derived from `to`); an explicit `regions` prop overrides it. Falls back to
+  // both regions when no zoned product matches the path.
+  const regions =
+    regionsProp ?? regionsForPath(to) ?? (['eu', 'ca'] as Region[]);
 
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
@@ -152,10 +172,16 @@ export function ManagerLink({
     (r: Region) => {
       setRegion(r);
       setOpen(false);
-      const url = buildManagerUrl(r, to, authFlow, lang);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      // When explicit per-region URLs are given, use them verbatim; otherwise
+      // build a Control Panel URL from the manager host + path.
+      const url = urls
+        ? (urls[r] ?? urls[regions[0]] ?? '')
+        : buildManagerUrl(r, to ?? '', authFlow, lang);
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     },
-    [setRegion, to, authFlow, lang],
+    [setRegion, to, authFlow, lang, urls, regions],
   );
 
   const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
@@ -244,6 +270,21 @@ export function ManagerLink({
       })}
     </div>
   );
+
+  // Single region (e.g. an EU-only product like SMS): link directly to that
+  // manager, with no region picker.
+  if (regions.length === 1) {
+    return (
+      <a
+        className="ovh-manager-link__trigger"
+        href={buildManagerUrl(regions[0], to, authFlow, lang)}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  }
 
   return (
     <>
