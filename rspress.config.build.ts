@@ -131,6 +131,7 @@ export default defineConfig({
       path.join(BASE_DIR, 'components/Tooltip/Tooltip.tsx'),
       path.join(BASE_DIR, 'components/CardGrid/CardGrid.tsx'),
       path.join(BASE_DIR, 'components/CategoryColumns/CategoryColumns.tsx'),
+      path.join(BASE_DIR, 'components/Banner/Banner.tsx'),
     ],
     link: {
       checkDeadLinks: true,
