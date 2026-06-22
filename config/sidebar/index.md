@@ -2005,6 +2005,7 @@
                 + [Configuring an Exchange account on Android via the Gmail app](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-android)
             + [Troubleshooting](web-cloud-email-collaborative-solutions-microsoft-exchange-troubleshooting)
                 + [Using Exchange error diagnostics](web-cloud/email-and-collaborative-solutions/microsoft-exchange/diagnostic-advanced)
+                + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365)
                 + [Exchange - How to manage logs](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-manage-logs)
         + [Microsoft Office](web-cloud-email-collaborative-solutions-microsoft-office)
             + [Managing a group of Microsoft 365 OVHcloud licences](web-cloud/email-and-collaborative-solutions/microsoft-office/office365-csp1)
