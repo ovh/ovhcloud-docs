@@ -1080,8 +1080,6 @@
             + [Overview](public-cloud/containers-orchestration/managed-private-registry/overview)
             + [Getting started](public-cloud-containers-orchestration-managed-private-registry-getting-started)
                 + [Creating a private registry](public-cloud/containers-orchestration/managed-private-registry/creation)
-                + [Creating a private registry (Harbor) through Terraform](public-cloud/containers-orchestration/managed-private-registry/creation-via-terraform)
-                + [Creating a private registry with Pulumi](public-cloud/containers-orchestration/managed-private-registry/creation-with-pulumi)
                 + [Creating and using a Docker image stored in an OVHcloud Managed Private Registry](public-cloud/containers-orchestration/managed-private-registry/create-private-image)
                 + [Connecting to the UI](public-cloud/containers-orchestration/managed-private-registry/connect-to-ui)
                 + [Managing users and projects](public-cloud/containers-orchestration/managed-private-registry/managing-users-projects)
