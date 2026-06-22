@@ -1,4 +1,5 @@
 import { useI18n } from '@rspress/core/runtime';
+import { useZone } from '@components/Zone';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRegion } from './RegionContext';
 import { regionsForPath } from './productRegions';
@@ -27,6 +28,7 @@ export default function Api({
   regions: regionsProp,
 }: ApiProps) {
   const { region: globalRegion, setRegion } = useRegion();
+  const { isSet: zoneChosen } = useZone();
   // Default the offered regions to the product's commercial-zone availability
   // (derived from the route, then the section); an explicit `regions` prop
   // overrides it. Falls back to both regions when no zoned product matches.
@@ -109,7 +111,7 @@ export default function Api({
 
   return (
     <div className="ovh-api-main">
-      {regions.length > 1 && (
+      {regions.length > 1 && !zoneChosen && (
         <div className="ovh-api-dropdown" ref={wrapperRef}>
           <button
             type="button"
@@ -196,7 +198,7 @@ export default function Api({
         </div>
       )}
       <a target="_blank" href={href} rel="noopener noreferrer">
-        {regions.length === 1 && (
+        {(regions.length === 1 || zoneChosen) && (
           <span className="ovh-api-flag">{REGIONS[region].flag}</span>
         )}
         <span className={`ovh-api-verb ovh-api-verb-${method}`}>{method}</span>
