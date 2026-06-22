@@ -776,7 +776,7 @@
         + [Troubleshooting](public-cloud-compute-Troubleshooting)
             + [Forensics: How to deal with Public Cloud instances](public-cloud/compute/forensics)
             + [Repairing the GRUB bootloader](public-cloud/compute/repairing-the-grub-bootloader)
-            + [Resizing the file system in FreeBSD 12](public-cloud/compute/resize-freebsd-file-system-after-install)
+            + [Resizing the file system in FreeBSD](public-cloud/compute/resize-freebsd-file-system-after-install)
             + [How to retrieve databases in rescue mode](bare-metal-cloud/dedicated-servers/restore-bdd-rescue)
             + [Public Cloud FAQ - Change of monthly billing method](public-cloud/compute/faq-change-of-monthly-billing-method)
             + [Understanding OpenStack API logs](public-cloud/compute/openstack-api-logs)
