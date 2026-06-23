@@ -83,6 +83,21 @@ export default defineConfig({
       // components/Analytics) to guarantee React hydration completes first.
       tags: [
         {
+          // Trailing-slash normalization — mirrors rspress.config.build.ts.
+          // Strips a trailing slash from locale-prefixed paths and replace()s
+          // to the canonical no-slash URL before React mounts (no 404 flash).
+          // Excludes `/` and bare locale roots (`/fr/`, `/en/`, …).
+          tag: 'script',
+          head: true,
+          append: false,
+          children: [
+            '(function(){var p=location.pathname;',
+            "if(/^\\/(fr|en|de|es|it|pl|pt)\\/.+\\/$/.test(p)){",
+            'location.replace(p.replace(/\\/+$/,"")+location.search+location.hash);',
+            '}})();',
+          ].join(''),
+        },
+        {
           tag: 'script',
           head: true,
           append: true,

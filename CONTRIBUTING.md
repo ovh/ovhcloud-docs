@@ -310,6 +310,17 @@ Standard GitHub-flavored Markdown tables work as-is:
 | value | value |
 ```
 
+Cells wrap automatically and the theme makes tables responsive, so a few guidelines keep them readable on every screen:
+
+**Width** — prefer **≤4 columns**; they fit any screen. **6+ columns scroll horizontally on phones** (acceptable for reference tables, but check each column earns its place). For a genuinely wide table (**8+ columns**), **transpose** it (if it has few rows and many columns) or **split** it into smaller grouped tables. There is no mobile "card" layout — wide tables scroll horizontally by design (a matrix can't be stacked without losing the grid).
+
+**Cell content**
+- Write naturally — cells wrap on their own. **Don't add `<br/>` just to force wrapping;** use it only for genuinely separate lines (e.g. several IP addresses in one cell).
+- **Long URLs and paths can't word-break and will widen the table.** Use link text — `[label](url)` — or a `/links/<key>` (see *Links*) instead of pasting a bare long URL.
+- **Never write a bare angle-bracket placeholder** like `<SID>` or `<region>` in a cell — MDX parses it as an unknown HTML tag and drops it. Backtick it (`` `<SID>` ``) or escape it (`&lt;SID&gt;`).
+
+**Format** — always include the header row; align columns with `:---` (left), `:---:` (center), `---:` (right). Prefer Markdown tables; reserve a raw HTML `<table>` for merged cells (`rowspan`/`colspan`) that Markdown can't express.
+
 ### Code blocks
 
 Same triple-backtick syntax as before, with language tags. Common languages used across the repo: `bash`, `console`, `json`, `yaml`, `ini`, `sql`, `python`, `go`, `javascript`, `typescript`, `dockerfile`, `nginx`, `apache`, `terraform`. Avoid `markdown` and `mdx` — they disable Shiki's lazy loading and slow the dev server.

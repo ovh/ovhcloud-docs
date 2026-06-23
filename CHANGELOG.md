@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026.06.23
+
+### Features
+- **File sto:** add OVH CLI (#228)
+
+### Fixes
+- **docs:** normalize community links (bm-vps)
+- **docs:** normalize community links (bm-sd)
+- **build:** strip trailing slash client-side, no 404 flash
+- **docs:** normalize community links (storage-backup-2)
+- **docs:** normalize community links (storage-backup-1)
+- **components:** hide zone switcher while AI assistant drawer is open (#242)
+- replace raw URLs with existing /links references in web-cloud guides (#240)
+- **docs:** normalize community links (account-service)
+- **email/exchange:** zone Exchange server hostname (ex.mail.ovh.ca) in config guides (#235)
+- **docs:** normalize community links (network)
+- **docs:** normalize community links (manage-and-operate)
+- docs /links for support, partner and community links for webhosting, domains, managed hosting, video center, ssl, billing (#226)
+- **theme:** enable responsive embedded videos (#219)
+
+### Maintenance
+- **build:** preload critical CSS and woff2 fonts on every page
+
+### Documentation
+- 3946 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.16.2
+
+### Fixes
+- **theme:** enable responsive table wrapping (#209)
+
+### Maintenance
+- **scripts:** update changelog commit message format
+
 ## 2026.06.16.1
 
 ### Features
