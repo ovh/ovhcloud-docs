@@ -1773,7 +1773,7 @@
                 + [Retrieving the backup of a Web Hosting plan’s database](web-cloud/web-hosting/sql-database-export)
                 + [Recovering a deleted database backup](web-cloud/web-hosting/sql-recovering-deleted-db-backup)
                 + [How to identify your database server](web-cloud/web-hosting/sql-find-server)
-            + [FTP and SSH](web-cloud-hosting-configuration-ftp-and-ssh)
+            + [FTP and SSH](web-cloud-hosting-configuration-ftp-and-ssh){landing=web-cloud/web-hosting/landing-page-ftp-ssh}
                 + [Tutorial - Using FileZilla with your OVHcloud hosting](web-cloud/web-hosting/ftp-filezilla-user-guide)
                 + [Web Hosting - How to manage FTP users](web-cloud/web-hosting/ftp-manage-users)
                 + [Logging in to your Web Hosting plan’s storage space](web-cloud/web-hosting/ftp-connection)
