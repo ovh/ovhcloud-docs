@@ -1832,7 +1832,7 @@
                 + [Installing Grav manually](web-cloud/web-hosting/cms-manual-installation-grav)
                 + [Installing Typo3 manually](web-cloud/web-hosting/cms-manual-installation-typo3)
                 + [Installing SPIP manually](web-cloud/web-hosting/cms-manual-installation-spip)
-        + [Security](web-cloud-hosting-security)
+        + [Security](web-cloud-hosting-security){landing=web-cloud/web-hosting/landing-page-security}
             + [Optimising the security of your website](web-cloud/web-hosting/secure-your-website)
             + [Activating the application firewall](web-cloud/web-hosting/multisites-activating-application-firewall)
             + [Managing SSL certificates on a Web Hosting plan](web-cloud/web-hosting/ssl-on-webhosting)
