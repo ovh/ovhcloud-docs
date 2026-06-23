@@ -1841,7 +1841,7 @@
             + [Web Hosting - Activating an EV SSL certificate](web-cloud/web-hosting/ssl-ev)
             + [Web Hosting - Installing a custom SSL certificate](web-cloud/web-hosting/ssl-custom)
             + [Avoiding the common pitfalls of making your website secure with SSL](web-cloud/web-hosting/ssl-avoid-common-pitfalls-of-making-website-secure)
-        + [Troubleshooting](web-cloud-hosting-troubleshooting)
+        + [Troubleshooting](web-cloud-hosting-troubleshooting){landing=web-cloud/web-hosting/landing-page-diagnostic}
             + [Use cases - What to do if your Website is hacked](web-cloud/web-hosting/cms-what-to-do-if-your-site-is-hacked)
             + [Information - HTTP2 rapid reset vulnerability](web-cloud/web-hosting/info-http2-rapidreset)
             + [What do I do if my website is down?](web-cloud/web-hosting/diagnostic-website-not-accessible)
