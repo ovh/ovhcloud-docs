@@ -72,6 +72,40 @@ const excludedLocales = allLocales
   .filter((l) => !devLocales.includes(l.lang))
   .map((l) => l.lang);
 
+// Dev performance: optionally scope dev to a single route subtree.
+// Rspress v2 inlines the page-data (frontmatter + toc + metadata) of EVERY
+// route into one virtual chunk that the client must load before any page
+// renders. With ~1635 routes/locale that chunk is ~10MB+ and exceeds the
+// browser's chunkLoadingTimeout → blank page. Restricting the scanned routes
+// shrinks that chunk to the subtree you are working on.
+//
+//   DEV_PATH=web-cloud/web-hosting pnpm dev    # only that product
+//   DEV_PATH=web-cloud pnpm dev                # the whole universe
+//
+// The value is a path under `docs/{locale}/guides/`. When unset, the full
+// tree is served (original behaviour). Has no effect on production builds.
+//
+// NOTE: rspress's `route.exclude` does NOT honour `!`-negation re-includes,
+// so we cannot say "exclude everything, then add back X". Instead we exclude
+// the SIBLINGS at every level of the target path, which leaves the target
+// subtree (and the locale's index pages) as the only thing scanned.
+const devPath = (process.env.DEV_PATH || '').replace(/^\/+|\/+$/g, '');
+const pathExcludes = devPath
+  ? activeLocales.flatMap((l) => {
+      const segments = devPath.split('/');
+      // At each level, exclude that level's contents but keep the branch that
+      // leads to the target. e.g. for guides/web-cloud/web-hosting:
+      //   {l}/guides/*  except web-cloud   → exclude {l}/guides/!(web-cloud)
+      //   {l}/guides/web-cloud/* except web-hosting → !(web-hosting)
+      const excludes = [`${l.lang}/guides/!(${segments[0]})/**`];
+      for (let i = 1; i < segments.length; i++) {
+        const prefix = segments.slice(0, i).join('/');
+        excludes.push(`${l.lang}/guides/${prefix}/!(${segments[i]})/**`);
+      }
+      return excludes;
+    })
+  : [];
+
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
   plugins: [pluginLastUpdatedFromCache()],
@@ -176,7 +210,7 @@ export default defineConfig({
 
   route: {
     cleanUrls: true,
-    exclude: excludedLocales.map((l) => `${l}/**/*`),
+    exclude: [...excludedLocales.map((l) => `${l}/**/*`), ...pathExcludes],
   },
   ssg: { experimentalWorker: true },
   llms: true,
