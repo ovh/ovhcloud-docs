@@ -1803,7 +1803,7 @@
             + [Tutorial - Installation and configuration of Cecil, a static site generator (SSG) in PHP](web-cloud/web-hosting/static-website-installation-cecil)
             + [Tutorial - Add dynamic content to a static web page generated with Cecil](web-cloud/web-hosting/static-website-installation-cecil-api-call)
             + [Installing Composer on a Web Hosting plan](web-cloud/web-hosting/composer-install-composer)
-            + [Tutorials - WordPress](web-cloud-hosting-tutorials-wordpress)
+            + [Tutorials - WordPress](web-cloud-hosting-tutorials-wordpress){landing=web-cloud/web-hosting/landing-page-wordpress}
                 + [Tutorial - First steps with Wordpress](web-cloud/web-hosting/wordpress-first-steps)
                 + [Tutorial - Backing up your WordPress website](web-cloud/web-hosting/how-to-backup-your-wordpress)
                 + [Tutorial - Using the htaccess file with WordPress](web-cloud/web-hosting/htaccess-how-to-protect-wordpress)
