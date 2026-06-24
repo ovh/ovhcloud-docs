@@ -1790,7 +1790,7 @@
                 + [Setting up your website with 1-click modules](web-cloud/web-hosting/cms-install-1-click-modules)
                 + [How to change the admin password of my CMS](web-cloud/web-hosting/cms-update-password-admin)
                 + [How to manage your 1-click module](web-cloud/web-hosting/cms-manage-1-click-module)
-        + [Migration](web-cloud-hosting-migration)
+        + [Migration](web-cloud-hosting-migration){landing=web-cloud/web-hosting/landing-page-migration}
             + [How to migrate a website from a web hosting plan to a VPS](web-cloud/web-hosting/migrate-website-to-vps)
             + [Importing a backup into a Web Hosting plan database](web-cloud/web-hosting/sql-importing-mysql-database)
             + [Exporting a website](web-cloud/web-hosting/exporter-son-site-web)
