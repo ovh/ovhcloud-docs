@@ -1822,7 +1822,7 @@
                 + [Tutorial - Rewrite the URL for accessing your website using mod_rewrite via the .htaccess file](web-cloud/web-hosting/htaccess-url-rewriting-using-mod-rewrite)
                 + [Blocking a specific IP address from accessing your website](web-cloud/web-hosting/htaccess-how-to-block-a-specific-ip-address-from-accessing-your-website)
                 + [Using .htaccess for advanced purposes](web-cloud/web-hosting/htaccess-what-else-can-you-do)
-            + [CMS](web-cloud-hosting-tutorials-cms)
+            + [CMS](web-cloud-hosting-tutorials-cms){landing=web-cloud/web-hosting/landing-page-cms-tutorials}
                 + [Installing a CMS manually on your Web Hosting plan](web-cloud/web-hosting/cms-manual-installation)
                 + [Installing WordPress manually](web-cloud/web-hosting/cms-manual-installation-wordpress)
                 + [Installing Joomla! manually](web-cloud/web-hosting/cms-manual-installation-joomla)
