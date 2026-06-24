@@ -2618,6 +2618,7 @@
         + [Getting started](manage-operate-user-getting-started)
             + [Presentation of identities that can interact within an OVHcloud account](manage-and-operate/iam/identities-management)
             + [Managing local users](account-and-service-management/account-information/ovhcloud-users-management)
+            + [How to configure a Personal Access Token (PAT)](manage-and-operate/iam/configure-personal-access-token-pat)
             + [Manage a service account with OVHcloud API](manage-and-operate/api/manage-service-account)
         + [Federation](manage-operate-user-federation)
             + [Enabling Active Directory Federation Services (AD FS) SSO connections with your OVHcloud account](account-and-service-management/account-information/ovhcloud-account-connect-saml-adfs)
