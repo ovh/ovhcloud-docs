@@ -1766,7 +1766,7 @@
             + [Optimising your website’s performance](web-cloud/web-hosting/optimise-your-website-performance)
             + [Using automated tasks on a Web Hosting plan](web-cloud/web-hosting/cron-tasks)*
             + [How to create and manage a Web application via the OVHcloud public API](web-cloud/web-hosting/api-webhosting)
-            + [Databases](web-cloud-hosting-configuration-databases)
+            + [Databases](web-cloud-hosting-configuration-databases){landing=web-cloud/web-hosting/landing-page-databases}
                 + [Creating and managing a database in your Web Hosting plan](web-cloud/web-hosting/sql-create-database)
                 + [Changing the password for a Web Hosting plan’s database](web-cloud/web-hosting/sql-change-password)
                 + [Duplicating the contents of one database to another](web-cloud/web-hosting/copy-database)
