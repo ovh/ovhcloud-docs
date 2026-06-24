@@ -1786,7 +1786,7 @@
                 + [Tutorial - How to use PuTTY for SSH connections and authentication](web-cloud/web-hosting/ssh-using-putty-on-windows)
                 + [Using SVN](web-cloud/web-hosting/svn)
                 + [Web Hosting - Copy files using the SCP command](web-cloud/web-hosting/using-scp-command)
-            + [CMS](web-cloud-hosting-configuration-cms)
+            + [CMS](web-cloud-hosting-configuration-cms){landing=web-cloud/web-hosting/landing-page-cms}
                 + [Setting up your website with 1-click modules](web-cloud/web-hosting/cms-install-1-click-modules)
                 + [How to change the admin password of my CMS](web-cloud/web-hosting/cms-update-password-admin)
                 + [How to manage your 1-click module](web-cloud/web-hosting/cms-manage-1-click-module)
