@@ -1817,7 +1817,7 @@
                 + [Installer Etherpad sur son hébergement Cloud Web](web-cloud/web-hosting/install-etherpad)
                 + [Comment installer Django CMS sur son hébergement Cloud Web](web-cloud/web-hosting/install-django-cms-on-cloud-web)
                 + [Installer Camaleon CMS sur son hébergement Cloud Web](web-cloud/web-hosting/install-camaleon)
-            + [Redirection and authentication](web-cloud-hosting-tutorials-redirection-and-authentication)
+            + [Redirection and authentication](web-cloud-hosting-tutorials-redirection-and-authentication){landing=web-cloud/web-hosting/landing-page-redirection-authentication}
                 + [Protecting your website's administration interface with a .htaccess file](web-cloud/web-hosting/htaccess-protect-directory-by-password)
                 + [Tutorial - Rewrite the URL for accessing your website using mod_rewrite via the .htaccess file](web-cloud/web-hosting/htaccess-url-rewriting-using-mod-rewrite)
                 + [Blocking a specific IP address from accessing your website](web-cloud/web-hosting/htaccess-how-to-block-a-specific-ip-address-from-accessing-your-website)
