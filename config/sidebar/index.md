@@ -2182,8 +2182,7 @@
                     + [Envoyer des Fax via l’imprimante virtuelle EcoFax - Mac OS X](web-cloud/phone-and-fax/fax/send-fax-ecofax-macos)
                     + [Envoyer des Fax via l’imprimante virtuelle EcoFax- Windows](web-cloud/phone-and-fax/fax/send-fax-ecofax-windows)
                     + [Comment résilier un service VoIP ou une ligne Fax](web-cloud/phone-and-fax/voip/resilier-services-voip)
-    + [SMS](products/web-cloud-messaging-sms)
-        + [Overview](web-cloud/messaging/sms/overview)
+    + [SMS](products/web-cloud-messaging-sms){landing=web-cloud/messaging/sms/landing-page-sms}
         + [Getting started](web-cloud-messaging-sms-getting-started)
             + [FAQ SMS OVHcloud](web-cloud/messaging/sms/faq-sms)
             + [Launching your first SMS campaign](web-cloud/messaging/sms/ma-premiere-campagne-sms)
