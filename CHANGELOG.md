@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.06.25
+
+### Features
+- **build:** add DEV_PATH to scope dev server to a route subtree (#271)
+- landing pages for web hosting tutorials sections (#286)
+- add Web Hosting configuration landing page in all locales (#285)
+
+### Documentation
+- 21 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.06.24.1
 
 ### Fixes

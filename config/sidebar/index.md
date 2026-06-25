@@ -1749,7 +1749,7 @@
             + [Activating email addresses included in your Web Hosting plan](web-cloud/web-hosting/activate-email-hosting)
             + [Web Hosting - How to find your cluster and/or filer](web-cloud/web-hosting/how-to-know-cluster-and-filer)
             + [How to find the name of your web hosting offer](web-cloud/web-hosting/retrieve-web-hosting-name-offer)
-        + [Configuration](products/web-cloud-hosting-configuration)
+        + [Configuration](products/web-cloud-hosting-configuration){landing=web-cloud/web-hosting/landing-page-configuration}
             + [Hosting multiple websites on your Web Hosting plan](web-cloud/web-hosting/multisites-configure-multisite)
             + [Configuring and using Git with an OVHcloud web hosting plan](web-cloud/web-hosting/git-integration-webhosting)
             + [Web Hosting - Modifying a domain name already associated to a hosting plan](web-cloud/web-hosting/multisites-modify-domain)
@@ -1797,7 +1797,7 @@
             + [Migrating your website and emails to OVHcloud](web-cloud/web-hosting/hosting-migrating-to-ovh)
             + [Migrate your Xara website to OVHcloud](web-cloud/web-hosting/migrate-xara-website-to-ovh)
             + [Migrate your WordPress website to OVHcloud](web-cloud/web-hosting/migrate-wordpress-website-to-ovh)
-        + [Tutorials](products/web-cloud-hosting-tutorials)
+        + [Tutorials](products/web-cloud-hosting-tutorials){landing=web-cloud/web-hosting/landing-page-tutorials}
             + [Tutorial - Creating your personal webpage at OVHcloud](web-cloud/web-hosting/create-your-personal-webpage)
             + [Use cases - How to change the domain of an existing website](web-cloud/web-hosting/how-to-change-the-domain-name-of-an-existing-website)
             + [Tutorial - Installation and configuration of Cecil, a static site generator (SSG) in PHP](web-cloud/web-hosting/static-website-installation-cecil)
@@ -1817,7 +1817,7 @@
                 + [Installer Etherpad sur son hébergement Cloud Web](web-cloud/web-hosting/install-etherpad)
                 + [Comment installer Django CMS sur son hébergement Cloud Web](web-cloud/web-hosting/install-django-cms-on-cloud-web)
                 + [Installer Camaleon CMS sur son hébergement Cloud Web](web-cloud/web-hosting/install-camaleon)
-            + [Redirection and authentication](web-cloud-hosting-tutorials-redirection-and-authentication)
+            + [Redirection and authentication](web-cloud-hosting-tutorials-redirection-and-authentication){landing=web-cloud/web-hosting/landing-page-redirection-authentication}
                 + [Protecting your website's administration interface with a .htaccess file](web-cloud/web-hosting/htaccess-protect-directory-by-password)
                 + [Tutorial - Rewrite the URL for accessing your website using mod_rewrite via the .htaccess file](web-cloud/web-hosting/htaccess-url-rewriting-using-mod-rewrite)
                 + [Blocking a specific IP address from accessing your website](web-cloud/web-hosting/htaccess-how-to-block-a-specific-ip-address-from-accessing-your-website)
@@ -2618,6 +2618,7 @@
         + [Getting started](manage-operate-user-getting-started)
             + [Presentation of identities that can interact within an OVHcloud account](manage-and-operate/iam/identities-management)
             + [Managing local users](account-and-service-management/account-information/ovhcloud-users-management)
+            + [How to configure a Personal Access Token (PAT)](manage-and-operate/iam/configure-personal-access-token-pat)
             + [Managing OVHcloud service accounts](manage-and-operate/api/manage-service-account)
         + [Federation](manage-operate-user-federation)
             + [Enabling Active Directory Federation Services (AD FS) SSO connections with your OVHcloud account](account-and-service-management/account-information/ovhcloud-account-connect-saml-adfs)
