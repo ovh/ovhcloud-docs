@@ -49,6 +49,24 @@ export default defineConfig({
       // injection from useEffect guarantees React has hydrated first.
       tags: [
         {
+          // Trailing-slash normalization (runs before paint, no flash).
+          // Rspress cleanUrls emits flat files (foo.html), so the static
+          // server returns 404.html for `/<locale>/.../foo/`; the SPA router
+          // then renders the real content but leaves the slash in the URL,
+          // producing a visible "404 flash". Strip the slash synchronously in
+          // <head> and replace() to the canonical no-slash URL before React
+          // mounts. Excludes `/` and bare locale roots (`/fr/`, `/en/`, …).
+          tag: 'script',
+          head: true,
+          append: false,
+          children: [
+            '(function(){var p=location.pathname;',
+            "if(/^\\/(fr|en|de|es|it|pl|pt)\\/.+\\/$/.test(p)){",
+            'location.replace(p.replace(/\\/+$/,"")+location.search+location.hash);',
+            '}})();',
+          ].join(''),
+        },
+        {
           tag: 'script',
           head: true,
           append: true,
@@ -75,6 +93,18 @@ export default defineConfig({
       sourceMap: {
         js: false,
         css: false,
+      },
+    },
+    performance: {
+      // SEO/Core Web Vitals: emit <link rel="preload"> for the critical CSS
+      // bundle and the Source Sans Pro woff2 fonts on every generated page, so
+      // the browser fetches them earlier. Rsbuild's resource-hints plugin reads
+      // the real (hashed, per-locale) asset graph, sets as="style"/as="font" and
+      // adds crossorigin on fonts automatically — no hardcoded hrefs to rot on
+      // the next build. Scoped to css + woff2 only to avoid over-preloading JS.
+      preload: {
+        type: 'all-chunks',
+        include: [/\.css$/, /\.woff2$/],
       },
     },
   },

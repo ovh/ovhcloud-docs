@@ -1,5 +1,66 @@
 # Changelog
 
+## 2026.06.25
+
+### Features
+- **build:** add DEV_PATH to scope dev server to a route subtree (#271)
+- landing pages for web hosting tutorials sections (#286)
+- add Web Hosting configuration landing page in all locales (#285)
+
+### Documentation
+- 21 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.24.1
+
+### Fixes
+- **i18n:** resolve leftover French residue outside web-cloud (#278)
+- **docs:** normalize community links (pcc nutanix)
+- **i18n:** translate leftover French residue in web-cloud guides (#275)
+
+### Documentation
+- 418 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.24
+
+### Features
+- add Web Hosting diagnostic landing page in all locales (#254)
+- add Web Hosting security landing page in all locales (#259)
+
+### Documentation
+- 77 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.06.23
+
+### Features
+- **fsaas:** new guide about external provisionner (#169)
+- **File sto:** add OVH CLI (#228)
+
+### Fixes
+- **components:** make <Api> region picker usable in tabs and after zone selection
+- **docs:** normalize community links (pci network-cross)
+- **docs:** normalize community links (pci compute)
+- **docs:** normalize community links (pci databases)
+- **docs:** normalize community links (pci containers-orchestration)
+- **docs:** normalize community links (bm-vps)
+- **docs:** normalize community links (bm-sd)
+- **build:** strip trailing slash client-side, no 404 flash
+- **docs:** normalize community links (storage-backup-2)
+- **docs:** normalize community links (storage-backup-1)
+- **components:** hide zone switcher while AI assistant drawer is open (#242)
+- replace raw URLs with existing /links references in web-cloud guides (#240)
+- **docs:** normalize community links (account-service)
+- **email/exchange:** zone Exchange server hostname (ex.mail.ovh.ca) in config guides (#235)
+- **docs:** normalize community links (network)
+- **docs:** normalize community links (manage-and-operate)
+- docs /links for support, partner and community links for webhosting, domains, managed hosting, video center, ssl, billing (#226)
+- **theme:** enable responsive embedded videos (#219)
+
+### Maintenance
+- **build:** preload critical CSS and woff2 fonts on every page
+
+### Documentation
+- 5806 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.06.16.2
 
 ### Fixes

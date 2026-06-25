@@ -422,7 +422,10 @@ Guide titles shown in the sidebar are read from each MDX file's frontmatter, **n
 pnpm install
 pnpm dev                       # defaults to fr + en
 DEV_LOCALES=en pnpm dev        # English only (faster)
+DEV_PATH=web-cloud/web-hosting pnpm dev   # scope to one subtree (fallback if dev shows a blank page)
 ```
+
+> Blank page on every route? See [README → Scoping to a route subtree (`DEV_PATH`)](README.md#scoping-to-a-route-subtree-dev_path--blank-page-fallback).
 
 1. Create or edit `.mdx` files under `docs/{locale}/guides/...` for each locale you're shipping.
 2. Drop new images under `docs/public/images/{universe}/{product}/{guide-slug}/`.
