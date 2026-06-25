@@ -373,6 +373,7 @@
                 + [Deploy a TeamSpeak 3 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-teamspeak-3)
                 + [Deploy a Valheim server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-valheim)
             + [Customize your gaming experience](bare-metal-cloud-virtual-private-servers-game-panel-customisation)
+                + [Edit Counter-Strike 2 server configuration on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-edit-cs2-config)
                 + [Edit Minecraft server configuration on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-edit-minecraft-config)
                 + [Install mods and plugins on your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-plugins)
                 + [Uploading a custom world to your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-upload-minecraft-world)
