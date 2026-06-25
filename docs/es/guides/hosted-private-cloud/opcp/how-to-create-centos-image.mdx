@@ -1,0 +1,279 @@
+---
+title: Building CentOS Stream images with Disk Image Builder for OPCP
+description: Find out how to build custom CentOS Stream 8 and 9 OpenStack images with diskimage-builder (DiB) for On-Prem Cloud Platform
+lastUpdated: 2026-06-25
+---
+
+## Objective
+
+[Disk Image Builder](https://opendev.org/openstack/diskimage-builder) (DiB) is the OpenStack tool used to build custom operating system disk images. This guide shows how to build **CentOS Stream 8** and **CentOS Stream 9** images that are ready to be imported into OpenStack Glance and used on your On-Prem Cloud Platform (OPCP).
+
+**This guide explains how to install DiB, prepare custom elements that work around two known CentOS issues, and run the build for both CentOS Stream 8 and CentOS Stream 9.**
+
+For a different example using Debian and Ansible-based customization, see [Building a custom Debian image for OPCP](/guides/hosted-private-cloud/opcp/how-to-create-debian-image).
+
+:::info
+In this guide we use **Debian 12** as the build host to produce **CentOS** images, but you can use another Linux distribution (adjustments may be required). You can also adapt the paths and commands shown here to match your needs.
+:::
+
+## Requirements
+
+- Root permissions on the build host
+- At least 10 GB of free disk space
+- A Debian 12 (or compatible) Linux environment to run the build from
+- Access to the internet to download packages and the upstream CentOS mirrors
+
+## Instructions
+
+### Step 1: Install the build requirements
+
+Install the components required by DiB to build CentOS, Debian and Ubuntu based images:
+
+```bash
+apt update
+apt install -y \
+  dosfstools \
+  python3 \
+  python3-venv \
+  python3-pip \
+  virtualenv \
+  kpartx \
+  debootstrap \
+  lvm2 \
+  squashfs-tools \
+  git \
+  qemu-utils \
+  curl
+```
+
+:::info
+`git` is needed to clone the DiB repository, `qemu-utils` provides the `qemu-img` tooling used to handle `qcow2` images (and to test the result), and `curl` is used to download packages and mirror content during the build.
+:::
+
+### Step 2: Install Disk Image Builder
+
+Create and activate a Python virtual environment:
+
+```bash
+virtualenv ~/env-diskimage-builder
+source ~/env-diskimage-builder/bin/activate
+```
+
+Clone the DiB repository on a specific tag and install it. In this example we use version `3.36.0`:
+
+```bash
+git clone --depth 1 --branch 3.36.0 https://opendev.org/openstack/diskimage-builder ~/diskimage-builder
+pip install -e ~/diskimage-builder
+```
+
+Check that `disk-image-create` is available:
+
+```bash
+disk-image-create --version
+```
+
+### Step 3: Create the folder tree
+
+Create the working directories used by the build:
+
+```bash
+mkdir -p ~/dib                  # main folder
+mkdir -p ~/dib/tmp-build-dir    # temporary folder used during the build
+mkdir -p ~/dib/elements         # folder storing the custom elements used by DiB
+mkdir -p ~/dib/env              # folder storing the custom variables per OS distribution
+```
+
+### Step 4: Define the custom elements
+
+CentOS builds require two custom elements that work around current limitations of the upstream DiB elements.
+
+#### Custom element: `block-device-efi-custom`
+
+The default `block-device-efi` element creates an ESP (EFI System Partition) that is larger than needed. Create a custom element based on it and resize the partition from 550 MiB to 512 MiB:
+
+```bash
+cp -pR ~/diskimage-builder/diskimage_builder/elements/block-device-efi ~/dib/elements/block-device-efi-custom
+sed -i -e 's/550/512/' ~/dib/elements/block-device-efi-custom/block-device-default.yaml
+```
+
+#### Custom element: `centos-custom`
+
+The default `centos` element has some issues that are not fixed yet. Create a custom element based on it to apply the required hotfixes:
+
+```bash
+cp -pR ~/diskimage-builder/diskimage_builder/elements/centos ~/dib/elements/centos-custom
+
+sed -i -e '/\/bin\/bash/a exit 0' \
+  ~/dib/elements/centos-custom/post-install.d/03-reset-bls-entries
+
+sed -i \
+  -e 's/centos.repo/*.repo/' \
+  -e 's/centos-addons.repo/*.repo/' \
+  -e 's/CentOS-Stream-BaseOS.repo/*.repo/' \
+  -e 's/CentOS-Stream-AppStream.repo/*.repo/' \
+  -e 's/CentOS-Stream-Extras.repo/*.repo/' \
+  -e 's/CentOS-Stream-PowerTools.repo/*.repo/' \
+  -e 's/CentOS-Linux-BaseOS.repo/*.repo/' \
+  -e 's/CentOS-Linux-AppStream.repo/*.repo/' \
+  -e 's/CentOS-Linux-Extras.repo/*.repo/' \
+  -e 's/CentOS-Linux-PowerTools.repo/*.repo/' \
+  -e 's/CentOS-Linux-Plus.repo/*.repo/' \
+  ~/dib/elements/centos-custom/pre-install.d/00-02-set-centos-mirror
+```
+
+### Step 5: Build a CentOS Stream 8 image
+
+:::info
+Depending on the `cloud-init` configuration and the OS version, the default user may be `centos` or `cloud-user`.
+:::
+
+#### Create the environment variables
+
+```bash
+mkdir -p ~/dib/env/centos8
+
+cat <<EOF > ~/dib/env/centos8/main.env
+export DIB_CLOUD_INIT_DATASOURCES="ConfigDrive, OpenStack"
+export DIB_GRUB_TIMEOUT=10
+export DIB_DISTRIBUTION_MIRROR=http://vault.centos.org/centos
+export DIB_RELEASE=8-stream
+export DIB_BOOTLOADER_DEFAULT_CMDLINE="nofb nomodeset gfxpayload=text rd.auto"
+export DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG="
+- name: crypt
+  packages:
+    - cryptsetup
+- name: lvm
+  packages:
+    - lvm2
+- name: mdadm
+  packages:
+    - mdadm
+"
+EOF
+```
+
+#### Run the build
+
+Unset any previously defined variable, source the environment file, then run the build:
+
+```bash
+unset DIB_CLOUD_INIT_DATASOURCES
+unset DIB_GRUB_TIMEOUT
+unset DIB_DISTRIBUTION_MIRROR
+unset DIB_RELEASE
+unset DIB_BOOTLOADER_DEFAULT_CMDLINE
+unset DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG
+
+source ~/dib/env/centos8/main.env
+
+cd ~/dib
+
+export TMPDIR="$(pwd)/tmp-build-dir"
+export ELEMENTS_PATH="$(pwd)/elements"
+
+disk-image-create --no-tmpfs -t qcow2 --image-size 16GB \
+  dracut-regenerate block-device-efi-custom bootloader \
+  cloud-init-datasources centos-custom \
+  -o my-centos8-image
+```
+
+Once the build completes, check the output files:
+
+```bash
+ls my-centos8-image*
+```
+
+```console
+my-centos8-image.qcow2
+
+my-centos8-image.d:
+dib-manifests
+```
+
+### Step 6: Build a CentOS Stream 9 image
+
+:::info
+Depending on the `cloud-init` configuration and the OS version, the default user may be `centos` or `cloud-user`.
+:::
+
+#### Create the environment variables
+
+```bash
+mkdir -p ~/dib/env/centos9
+
+cat <<EOF > ~/dib/env/centos9/main.env
+export DIB_GRUB_TIMEOUT=10
+export DIB_CLOUD_INIT_DATASOURCES="ConfigDrive, OpenStack"
+export DIB_RELEASE=9-stream
+export DIB_BOOTLOADER_DEFAULT_CMDLINE="nofb nomodeset gfxpayload=text rd.auto"
+EOF
+```
+
+#### Run the build
+
+```bash
+unset DIB_CLOUD_INIT_DATASOURCES
+unset DIB_GRUB_TIMEOUT
+unset DIB_DISTRIBUTION_MIRROR
+unset DIB_RELEASE
+unset DIB_BOOTLOADER_DEFAULT_CMDLINE
+unset DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG
+
+source ~/dib/env/centos9/main.env
+
+cd ~/dib
+
+export TMPDIR="$(pwd)/tmp-build-dir"
+export ELEMENTS_PATH="$(pwd)/elements"
+
+disk-image-create --no-tmpfs -t qcow2 --image-size 16GB \
+  dracut-regenerate block-device-efi-custom bootloader \
+  cloud-init-datasources centos-custom \
+  -o my-centos9-image
+```
+
+Once the build completes, check the output files:
+
+```bash
+ls my-centos9-image*
+```
+
+```console
+my-centos9-image.qcow2
+
+my-centos9-image.d:
+dib-manifests
+```
+
+### Step 7 (optional): Test the image locally
+
+Before uploading the image, you can boot it locally with QEMU to make sure it starts correctly:
+
+```bash
+qemu-system-x86_64 -enable-kvm \
+  -m 2048 \
+  -drive file=my-centos9-image.qcow2,if=virtio,format=qcow2
+```
+
+### Step 8: Upload the image to OpenStack
+
+Import the generated `qcow2` image into Glance:
+
+```bash
+openstack image create \
+  --disk-format qcow2 \
+  --container-format bare \
+  --file my-centos9-image.qcow2 \
+  my-centos9-image
+```
+
+You can now create a Bare Metal (Ironic) or Compute (Nova) instance from the newly created image.
+
+## Go further
+
+- [Building a custom Debian image for OPCP](/guides/hosted-private-cloud/opcp/how-to-create-debian-image)
+- [Disk Image Builder documentation](https://docs.openstack.org/diskimage-builder/latest/)
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts to assist you on the specific use case of your project.
+
+Join our [community of users](/links/community).
