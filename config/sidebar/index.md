@@ -1749,7 +1749,7 @@
             + [Activating email addresses included in your Web Hosting plan](web-cloud/web-hosting/activate-email-hosting)
             + [Web Hosting - How to find your cluster and/or filer](web-cloud/web-hosting/how-to-know-cluster-and-filer)
             + [How to find the name of your web hosting offer](web-cloud/web-hosting/retrieve-web-hosting-name-offer)
-        + [Configuration](products/web-cloud-hosting-configuration)
+        + [Configuration](products/web-cloud-hosting-configuration){landing=web-cloud/web-hosting/landing-page-configuration}
             + [Hosting multiple websites on your Web Hosting plan](web-cloud/web-hosting/multisites-configure-multisite)
             + [Configuring and using Git with an OVHcloud web hosting plan](web-cloud/web-hosting/git-integration-webhosting)
             + [Web Hosting - Modifying a domain name already associated to a hosting plan](web-cloud/web-hosting/multisites-modify-domain)
