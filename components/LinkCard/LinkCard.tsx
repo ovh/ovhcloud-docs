@@ -16,12 +16,22 @@ interface LinkCardProps {
    */
   description?: React.ReactNode;
   /**
+   * Optional icon rendered above the title (e.g. a <ProblemIcon />).
+   */
+  icon?: React.ReactNode;
+  /**
    * The style of the link card.
    */
   style?: React.CSSProperties;
 }
 
-export function LinkCard({ href, title, description, style }: LinkCardProps) {
+export function LinkCard({
+  href,
+  title,
+  description,
+  icon,
+  style,
+}: LinkCardProps) {
   const localizeHref = useLocalizeHref();
   const isExternal = href.startsWith('http://') || href.startsWith('https://');
   const resolvedHref = isExternal ? href : localizeHref(href);
@@ -29,10 +39,15 @@ export function LinkCard({ href, title, description, style }: LinkCardProps) {
   return (
     <a
       href={resolvedHref}
-      className="link-card"
+      className={icon ? 'link-card link-card--with-icon' : 'link-card'}
       style={style}
       {...(isExternal && { target: '_blank', rel: 'noopener noreferrer' })}
     >
+      {icon && (
+        <span className="link-card__icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
       <div className="link-card__content">
         <h3 className="link-card__title">
           {title}

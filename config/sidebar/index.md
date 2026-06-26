@@ -1947,7 +1947,7 @@
             + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
             + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
             + [Migrating your email account from one OVHcloud email platform to another](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
-        + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting)
+        + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
             + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced)
             + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam)
             + [Retrieving email headers](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-headers)
