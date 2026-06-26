@@ -550,8 +550,7 @@
             + [How to back up a Bare Metal Pod SecNumCloud instance](hosted-private-cloud/baremetal-pod/bmpod-secnumcloud-backup-instance)
         + [Security](hosted-private-cloud-baremetal-pod-security)
             + [IAM Rights Management - Bare Metal Pod SecNumCloud](hosted-private-cloud/baremetal-pod/snc-iam-manage)
-    + [On-Prem Cloud Platform](products/hosted-private-cloud-hosted-private-cloud-opcp)
-        + [Overview](hosted-private-cloud/opcp/overview)
+    + [On-Prem Cloud Platform](products/hosted-private-cloud-hosted-private-cloud-opcp){landing=hosted-private-cloud/opcp/landing-page-opcp}
         + [Getting started](hosted-private-cloud-hosted-private-cloud-opcp-getting-started)
             + [Network integration and connectivity for OPCP](hosted-private-cloud/opcp/opcp-network-architecture)
             + [Technical prerequisites for deployment](hosted-private-cloud/opcp/opcp-prerequisites)
