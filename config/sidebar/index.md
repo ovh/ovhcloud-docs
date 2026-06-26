@@ -2031,8 +2031,7 @@
                 + [Configuring your ActiveSync Zimbra account in Outlook for Android](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-outlook-app-android)
                 + [Configuring your ActiveSync Zimbra account in Gmail for Android](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-gmail-app-android)
     + [Internet](products/web-cloud-internet)
-        + [Internet access](products/web-cloud-internet-internet-access)
-            + [Overview](web-cloud/internet/internet-access/overview)
+        + [Internet access](products/web-cloud-internet-internet-access){landing=web-cloud/internet/internet-access/landing-page-internet-access}
             + [Key concepts](web-cloud-internet-internet-access-key-concepts)
                 + [La desserte interne](web-cloud/internet/internet-access/la-desserte-interne)
                 + [Comprendre le cycle de vie des commandes FTTE et FTTO](web-cloud/internet/internet-access/cycle-de-vie-des-commandes-ftte-ftto)
