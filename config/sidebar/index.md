@@ -2071,8 +2071,7 @@
                 + [Vérifier si son lien xDSL est saturé](web-cloud/internet/internet-access/verifier-lien-xdsl-sature)
                 + [Vérifier la stabilité de son accès OVHcloud via les logs radius](web-cloud/internet/internet-access/verifier-stabilite-acces)
                 + [Activer une alerte de monitoring](web-cloud/internet/internet-access/monitoring)
-        + [OverTheBox](products/web-cloud-internet-overthebox)
-            + [Overview](web-cloud/internet/overthebox/overview)
+        + [OverTheBox](products/web-cloud-internet-overthebox){landing=web-cloud/internet/overthebox/landing-page-overthebox}
             + [Getting started](web-cloud-internet-overthebox-getting-started)
                 + [Premiers pas avec OverTheBox](web-cloud/internet/overthebox/start-with-overthebox)
                 + [Comment installer OverTheBox ?](web-cloud/internet/overthebox/plus-itv2-installation)
