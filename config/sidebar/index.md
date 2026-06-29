@@ -356,8 +356,9 @@
         + [Game Panel](bare-metal-cloud-virtual-private-servers-game-panel){landing=bare-metal-cloud/virtual-private-servers/game-panel-landing}
             + [Manage your Game Panel](bare-metal-cloud-virtual-private-servers-game-panel-general)
                 + [Choose a VPS plan for your game server](bare-metal-cloud/virtual-private-servers/game-panel-choose-vps)
-                + [Getting started with the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-getting-started)
+                + [Install the Game Panel on a VPS](bare-metal-cloud/virtual-private-servers/game-panel-install-on-vps)
                 + [Log in to the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-log-in)
+                + [Getting started with the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-getting-started)
                 + [Managing users on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-manage-users)
                 + [How to use the Game Panel File Manager](bare-metal-cloud/virtual-private-servers/game-panel-file-manager)
                 + [How to create and restore backups on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-backups)
@@ -368,6 +369,7 @@
                 + [Deploy a Counter-Strike 2 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-cs2)
                 + [Deploy a DayZ server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-dayz)
                 + [Deploy a Garrys Mod server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-garrys-mod)
+                + [Deploy a Hytale server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-hytale)
                 + [Deploy a Minecraft server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-minecraft)
                 + [Deploy a Team Fortress 2 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-tf2)
                 + [Deploy a TeamSpeak 3 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-teamspeak-3)
