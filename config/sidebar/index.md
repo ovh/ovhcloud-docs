@@ -59,6 +59,8 @@
             + [Managing OVHcloud bills](account-and-service-management/managing-billing-payments-and-services/invoice-management)
             + [Purchase Order (PO)](account-and-service-management/managing-billing-payments-and-services/purchase-order)
             + [Payer une commande en tant qu’administration publique](account-and-service-management/managing-billing-payments-and-services/public-administration)
+            + [Correcting a bank details error](account-and-service-management/managing-billing-payments-and-services/correct-bank-details-error)
+            + [Mettre à jour votre taux de TVA](account-and-service-management/managing-billing-payments-and-services/update-vat-rate)
             + [Hosted Private Cloud](account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments-hosted-private-cloud)
                 + [Hosted Private Cloud billing information](account-and-service-management/managing-billing-payments-and-services/facturation-private-cloud)
             + [AI Notebooks](account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments-ai-notebooks)
@@ -550,8 +552,7 @@
             + [How to back up a Bare Metal Pod SecNumCloud instance](hosted-private-cloud/baremetal-pod/bmpod-secnumcloud-backup-instance)
         + [Security](hosted-private-cloud-baremetal-pod-security)
             + [IAM Rights Management - Bare Metal Pod SecNumCloud](hosted-private-cloud/baremetal-pod/snc-iam-manage)
-    + [On-Prem Cloud Platform](products/hosted-private-cloud-hosted-private-cloud-opcp)
-        + [Overview](hosted-private-cloud/opcp/overview)
+    + [On-Prem Cloud Platform](products/hosted-private-cloud-hosted-private-cloud-opcp){landing=hosted-private-cloud/opcp/landing-page-opcp}
         + [Getting started](hosted-private-cloud-hosted-private-cloud-opcp-getting-started)
             + [Network integration and connectivity for OPCP](hosted-private-cloud/opcp/opcp-network-architecture)
             + [Technical prerequisites for deployment](hosted-private-cloud/opcp/opcp-prerequisites)
@@ -1737,7 +1738,7 @@
                 + [Tutorial - Using Zonemaster](web-cloud/domains/dns-zonemaster)
     + [Web Hosting](products/web-cloud-hosting)
         + [Overview](web-cloud/web-hosting/overview)
-        + [Getting started](web-cloud-hosting-getting-started)
+        + [Getting started](web-cloud-hosting-getting-started){landing=web-cloud/web-hosting/landing-page-getting-started}
             + [Activating the 100M free hosting plan](web-cloud/web-hosting/activate-start10m)
             + [Getting started with an Individual or Business Web Hosting plan](web-cloud/web-hosting/web-hosting-getting-started)
             + [Getting started with a Cloud Web hosting plan](web-cloud/web-hosting/getting-started-cloud-web)
@@ -2031,8 +2032,7 @@
                 + [Configuring your ActiveSync Zimbra account in Outlook for Android](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-outlook-app-android)
                 + [Configuring your ActiveSync Zimbra account in Gmail for Android](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-gmail-app-android)
     + [Internet](products/web-cloud-internet)
-        + [Internet access](products/web-cloud-internet-internet-access)
-            + [Overview](web-cloud/internet/internet-access/overview)
+        + [Internet access](products/web-cloud-internet-internet-access){landing=web-cloud/internet/internet-access/landing-page-internet-access}
             + [Key concepts](web-cloud-internet-internet-access-key-concepts)
                 + [La desserte interne](web-cloud/internet/internet-access/la-desserte-interne)
                 + [Comprendre le cycle de vie des commandes FTTE et FTTO](web-cloud/internet/internet-access/cycle-de-vie-des-commandes-ftte-ftto)
@@ -2182,8 +2182,7 @@
                     + [Envoyer des Fax via l’imprimante virtuelle EcoFax - Mac OS X](web-cloud/phone-and-fax/fax/send-fax-ecofax-macos)
                     + [Envoyer des Fax via l’imprimante virtuelle EcoFax- Windows](web-cloud/phone-and-fax/fax/send-fax-ecofax-windows)
                     + [Comment résilier un service VoIP ou une ligne Fax](web-cloud/phone-and-fax/voip/resilier-services-voip)
-    + [SMS](products/web-cloud-messaging-sms)
-        + [Overview](web-cloud/messaging/sms/overview)
+    + [SMS](products/web-cloud-messaging-sms){landing=web-cloud/messaging/sms/landing-page-sms}
         + [Getting started](web-cloud-messaging-sms-getting-started)
             + [FAQ SMS OVHcloud](web-cloud/messaging/sms/faq-sms)
             + [Launching your first SMS campaign](web-cloud/messaging/sms/ma-premiere-campagne-sms)

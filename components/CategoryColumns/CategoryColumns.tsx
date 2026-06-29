@@ -1,9 +1,16 @@
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { useZone, type Zone } from '../Zone/ZoneContext';
 import './CategoryColumns.css';
 
 interface CategoryItem {
   title: string;
   link?: string;
+  /**
+   * Commercial zones this item is available in. Omit to show everywhere.
+   * An item whose zones exclude the active zone is filtered out (no link,
+   * no placeholder) — same semantics as the <Region> component.
+   */
+  zones?: Zone[];
 }
 
 interface Category {
@@ -31,14 +38,25 @@ const isExternal = (href: string) =>
  */
 export function CategoryColumns({ categories }: CategoryColumnsProps) {
   const localizeHref = useLocalizeHref();
+  const { effectiveZone } = useZone();
 
-  if (!categories || categories.length === 0) {
+  // Filter items by active zone, then drop categories left with no items.
+  const visibleCategories = (categories ?? [])
+    .map((cat) => ({
+      ...cat,
+      items: cat.items.filter(
+        (item) => !item.zones || item.zones.includes(effectiveZone),
+      ),
+    }))
+    .filter((cat) => cat.items.length > 0);
+
+  if (visibleCategories.length === 0) {
     return null;
   }
 
   return (
     <div className="rp-category-columns">
-      {categories.map((cat) => (
+      {visibleCategories.map((cat) => (
         <section className="rp-category-columns__col" key={cat.title}>
           <h3 className="rp-category-columns__heading">{cat.title}</h3>
           <ul className="rp-category-columns__list">
