@@ -1,0 +1,126 @@
+---
+title: "Comment activer la sauvegarde des fichiers de configuration"
+excerpt: "Découvrez comment activer et configurer la sauvegarde des fichiers de configuration"
+lastUpdated: 2026-11-12
+---
+
+# Comment activer la sauvegarde des fichiers de configuration
+
+:::warning
+La sauvegarde des fichiers de configuration est disponible à partir d'OPCP v3.2 et versions ultérieures.
+:::
+
+## Objectif
+
+Ce guide explique comment configurer des sauvegardes et des snapshots automatisés des fichiers de configuration et d'etcd de la plateforme **OVHcloud On-Prem Cloud Platform (OPCP)** vers un bucket S3 externe.
+
+## Prérequis
+
+- Disposer d'un accès au nœud contrôleur via SSH avec un utilisateur autorisé à utiliser `sudo` pour `opcp-cli`.
+- Disposer d'un [bucket S3 avec des identifiants créés](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage). Assurez-vous qu'il ne s'agit pas du même bucket que celui des sauvegardes Velero.
+
+## En pratique
+
+Les sauvegardes des fichiers de configuration et les snapshots etcd sont activés par défaut.
+
+Assurez-vous que la valeur `config_backups_encryption_secret` est définie dans le fichier de secrets à l'aide de `opcp-cli secrets passwords --edit`, afin de chiffrer correctement vos sauvegardes. Vous devez également vous assurer que les identifiants S3 sont renseignés dans les secrets : `backup_access_key_id` et `backup_secret_access_key`.
+
+:::info
+Conservez votre mot de passe de chiffrement dans un endroit sûr. Vous en aurez besoin pour restaurer les fichiers de configuration.
+:::
+
+Vous pouvez désactiver la sauvegarde des fichiers de configuration en définissant `backups.controller_fs.resources.opcp-config.enabled` sur `false` à l'aide de `opcp-cli config edit`.
+
+Pour désactiver la sauvegarde des snapshots etcd, définissez `backups.controller_fs.resources.etcd-snapshots.enabled` sur `false`.
+
+Vous pouvez désactiver complètement les sauvegardes du système de fichiers en définissant `backups.controller_fs.enabled` sur `false`.
+
+:::warning
+Si vous désactivez les sauvegardes par défaut du système de fichiers, vous rencontrerez des difficultés pour restaurer votre OPCP en cas de reprise après sinistre.
+:::
+
+Après avoir défini ces paramètres, vous devez exécuter `opcp-cli deploy --system` pour appliquer les modifications de configuration.
+
+## Aller plus loin
+
+Vous pouvez également ajouter d'autres sauvegardes du système de fichiers local, en ajoutant une nouvelle clé à la configuration `backups.controller_fs` :
+
+```yaml
+---
+backups:
+  controller_fs:
+    resources:
+      my-backup:
+        enabled: true # Champ obligatoire.
+        src: # Champ obligatoire. Les sources de la sauvegarde. Vous pouvez en indiquer plusieurs ici.
+          - "/path/to/backup-source"
+        s3_bucket: "%{stage}-%{env}-my-bucket" # Champ obligatoire. Indiquez ici le bucket de votre choix, avec un préfixe optionnel à la fin.
+        # s3_url: "" # indiquez une URL S3 personnalisée si nécessaire
+        calendar: "*-*-* 02:00:00" # Planification au format d'un timer systemd. Facultatif, valeur par défaut si vide.
+        retention: "3m" # Conserver les sauvegardes des trois derniers mois. Facultatif, valeur par défaut si vide.
+        s3_access_key_id: "{{ backup_access_key_id }}" # Ajoutez ici une clé d'accès S3 personnalisée si nécessaire. Facultatif, valeur par défaut si vide.
+        s3_secret_access_key: "{{ backup_secret_access_key }}" # Ajoutez ici une clé secrète S3 personnalisée si nécessaire. Facultatif, valeur par défaut si vide.
+        pre_scripts: [] # Facultatif
+        password_command: "/usr/local/bin/sops decrypt --extract '[\\\"stringData\\\"][\\\"config_backups_encryption_secret\\\"]' /opt/opcp/secrets/controller/common-secret.yaml" # Conservez cette valeur, sauf si vous souhaitez utiliser un autre secret de chiffrement. Facultatif, valeur par défaut si vide.
+        additional_env: # Vous pouvez ajouter ici des variables d'environnement supplémentaires pour la commande de mot de passe de chiffrement. Facultatif, valeur par défaut si vide.
+          SOPS_AGE_KEY_FILE: "/opt/opcp/secrets/opcp-age-key.pem"
+```
+
+Pour définir les valeurs par défaut, modifiez la configuration OPCP afin qu'elle contienne un bloc semblable à celui-ci :
+
+```yaml
+backups:
+  controller_fs:
+    defaults:
+      calendar: "*-*-* 02:00:00" # Ajustez l'heure de création des sauvegardes. Format d'un timer systemd.
+      retention: "3m" # Conserver les sauvegardes des trois derniers mois
+      s3_access_key_id: "{{ backup_access_key_id }}" # Conservez la clé d'accès dans les secrets et référencez-la uniquement ici.
+      s3_secret_access_key: "{{ backup_secret_access_key }}" # Conservez la clé secrète dans les secrets et référencez-la uniquement ici.
+      pre_scripts: [] # Ajoutez vos pre_scripts personnalisés.
+      password_command: "/usr/local/bin/sops decrypt --extract '[\\\"stringData\\\"][\\\"config_backups_encryption_secret\\\"]' /opt/opcp/secrets/controller/common-secret.yaml" # Ajustez pour une commande de mot de passe personnalisée.
+      additional_env: # Ne modifiez que si nécessaire.
+        SOPS_AGE_KEY_FILE: "/opt/opcp/secrets/opcp-age-key.pem"
+```
+
+Les sauvegardes des fichiers de configuration sont réalisées à l'aide de [`restic`](https://restic.net/). Consultez [la documentation](https://restic.readthedocs.io/en/stable/) pour un aperçu complet des possibilités offertes.
+
+### Sécurité
+
+Nous vous recommandons d'utiliser un utilisateur disposant uniquement des permissions `read` et `write` sur votre bucket grâce à la [gestion avancée des accès aux ressources](/guides/storage-and-backup/object-storage/s3-identity-and-access-management#gestion-avancée-des-accès-aux-ressources). Vous vous assurez ainsi de ne pas pouvoir supprimer accidentellement des sauvegardes depuis cette machine.
+
+Voici un exemple d'ACL :
+
+```json
+{
+  "Statement":[{
+    "Sid": "RWContainer",
+    "Effect": "Allow",
+    "Action":["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:ListMultipartUploadParts", "s3:ListBucketMultipartUploads", "s3:AbortMultipartUpload", "s3:GetBucketLocation"],
+    "Resource":["arn:aws:s3:::<bucket_name>", "arn:aws:s3:::<bucket_name>/*"]
+  }]
+}
+```
+
+Pour vous prémunir efficacement contre la perte de vos snapshots due à un rançongiciel (ransomware), activez le [versioning](/guides/storage-and-backup/object-storage/s3-versioning).
+
+:::warning
+Si vous accordez un accès limité aux permissions `read` et `write` (sans droit de suppression des fichiers), vous devez effectuer le nettoyage avec d'autres identifiants, idéalement depuis un hôte distinct, inaccessible depuis OPCP. Définissez également la clé `retention` sur `false`.
+:::
+
+### Nettoyer les snapshots
+
+Mettez en place une tâche périodique pour nettoyer les snapshots à l'aide de `restic forget` et `restic prune`. Idéalement, cette opération est effectuée sur une machine distincte avec une paire d'identifiants distincte.
+
+Pour plus d'informations, consultez la [page consacrée à la suppression des snapshots dans la documentation restic](https://restic.readthedocs.io/en/stable/060_forget.html).
+
+### Clés de chiffrement supplémentaires
+
+Pour faciliter la restauration des sauvegardes, vous pouvez configurer des clés de chiffrement supplémentaires pour vos sauvegardes. Utilisez `restic key add` pour cela.
+
+Pour plus d'informations, consultez [la documentation restic sur le chiffrement](https://restic.readthedocs.io/en/stable/070_encryption.html).
+
+### Restaurer les fichiers de configuration
+
+Pour restaurer vos fichiers de configuration à partir de la sauvegarde, utilisez `restic restore <snapshot-id> --target /opt/opcp/config`.
+
+Pour plus d'informations sur les procédures de restauration, consultez [la documentation restic sur les restaurations](https://restic.readthedocs.io/en/stable/050_restore.html).
