@@ -1,5 +1,6 @@
 import { useLang } from '@rspress/core/runtime';
 import type { CSSProperties } from 'react';
+import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
 import './WebmailOffers.css';
 
 const MailIcon = () => (
@@ -25,6 +26,7 @@ interface CardDef {
   tech: string;
   accent: string;
   offers: string[];
+  href: string;
 }
 
 // Offer → webmail mapping, per the email FAQ. MX Plan appears under all three
@@ -36,18 +38,21 @@ const CARDS: CardDef[] = [
     tech: 'Zimbra',
     accent: '#e8884a',
     offers: ['Zimbra', 'MX Plan'],
+    href: '/guides/web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra',
   },
   {
     key: 'roundcube',
     tech: 'Roundcube',
     accent: '#9ca3af',
     offers: ['MX Plan'],
+    href: '/guides/web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube',
   },
   {
     key: 'owa',
     tech: 'Outlook Web App (OWA)',
     accent: '#6696e7',
     offers: ['MX Plan', 'Email Pro', 'Exchange'],
+    href: '/guides/web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/email-owa',
   },
 ];
 
@@ -155,19 +160,26 @@ const STRINGS: Record<string, Strings> = {
 export function WebmailOffers() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  const localizeHref = useLocalizeHref();
   return (
-    <div className="webmail-offers" role="img" aria-label={t.ariaLabel}>
+    <div className="webmail-offers">
       <div className="webmail-offers__grid">
         {CARDS.map((c) => (
-          <div
+          <a
             className="webmail-offers__card"
             key={c.key}
+            href={localizeHref(c.href)}
             style={{ '--wo-accent': c.accent } as CSSProperties}
           >
             <span className="webmail-offers__badge">
               <MailIcon />
             </span>
-            <p className="webmail-offers__tech">{c.tech}</p>
+            <p className="webmail-offers__tech">
+              {c.tech}
+              <span className="webmail-offers__arrow" aria-hidden="true">
+                →
+              </span>
+            </p>
             <p className="webmail-offers__tagline">{t.taglines[c.key]}</p>
             <span className="webmail-offers__offers-label">
               {t.offersLabel}
@@ -179,7 +191,7 @@ export function WebmailOffers() {
                 </span>
               ))}
             </div>
-          </div>
+          </a>
         ))}
       </div>
       <p className="webmail-offers__note">{t.note}</p>
