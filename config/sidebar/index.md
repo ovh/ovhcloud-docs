@@ -1909,14 +1909,14 @@
             + [Using email aliases and redirections](web-cloud/email-and-collaborative-solutions/common-email-features/feature-redirections)
             + [Deleting an email account](web-cloud/email-and-collaborative-solutions/common-email-features/delete-email-account)
         + [Webmail](web-cloud-email-collaborative-solutions-webmail){landing=web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/landing-page-webmail}
-            + [Using the Outlook Web App (OWA) webmail](web-cloud-email-collaborative-solutions-using-outlook-web-access-owa)
+            + [Outlook Web Application (OWA)](web-cloud-email-collaborative-solutions-using-outlook-web-access-owa)
                 + [Using the Outlook Web App (OWA) with an OVHcloud email account](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/email-owa)
                 + [Creating inbox rules in OWA](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/creating-inbox-rules-in-owa-mx-plan)
                 + [Creating automatic replies in OWA](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/owa-automatic-replies)
                 + [Sharing folders in OWA](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/owa-directory-sharing)
                 + [Sharing calendars in OWA](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/owa-calendar-sharing)
-            + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra)
-            + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube)
+            + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra){label=Webmail Zimbra}
+            + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube){label=Webmail Roundcube}
         + [Migrating](web-cloud-email-collaborative-solutions-migration)
             + [Migrating an MX Plan email account to an Email Pro or Exchange account](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
             + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)

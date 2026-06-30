@@ -374,15 +374,27 @@ export function parseIndexMd(
     const indent = Math.floor(leadingSpaces / 4);
     let stripped = line.replace(/^\s*\+\s+/, '');
 
-    // Extract an optional trailing `{landing=<slug>}` marker before parsing the
-    // `[label](ref)` so it doesn't pollute the label/ref. Only meaningful on
-    // product/section lines (groups); ignored on guide leaves.
-    let landing: string | undefined;
-    const landingMatch = stripped.match(/\s*\{landing=([^}]+)\}\s*$/);
-    if (landingMatch) {
-      landing = landingMatch[1].trim();
-      stripped = stripped.slice(0, landingMatch.index).trimEnd();
+    // Extract optional trailing `{key=value}` markers before parsing the
+    // `[label](ref)` so they don't pollute the label/ref. Order-independent;
+    // multiple markers on one line are supported.
+    //   - `{landing=<slug>}` : turns a product/section into a clickable group.
+    //   - `{label=<text>}`   : overrides the sidebar label of a guide leaf,
+    //                          independently of the guide's frontmatter title
+    //                          (verbatim, applied to every locale). Lets the
+    //                          sidebar rename an entry without touching the
+    //                          guide or adding a wrapper category.
+    const markers: Record<string, string> = {};
+    const markerRe = /\s*\{([a-zA-Z]+)=([^}]+)\}\s*$/;
+    let markerMatch = stripped.match(markerRe);
+    while (markerMatch !== null) {
+      markers[markerMatch[1]] = markerMatch[2].trim();
+      stripped = stripped
+        .slice(0, markerMatch.index ?? stripped.length)
+        .trimEnd();
+      markerMatch = stripped.match(markerRe);
     }
+    const landing: string | undefined = markers.landing;
+    const labelOverride: string | undefined = markers.label;
 
     const linkMatch = stripped.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     const label = linkMatch ? linkMatch[1] : stripped.trim();
@@ -417,11 +429,14 @@ export function parseIndexMd(
         continue;
       }
 
-      // Resolve locale-specific title from MDX frontmatter
-      // Overview pages use a translated "Overview" label instead of the
-      // frontmatter title (which duplicates the parent product name)
+      // Resolve the sidebar label, in priority order:
+      //   1. an explicit `{label=…}` marker (verbatim, wins over everything)
+      //   2. the translated "Overview" label for `/overview` leaves
+      //   3. the target guide's locale-specific frontmatter title
       let guideText = label;
-      if ((ref as string).endsWith('/overview') && locale) {
+      if (labelOverride) {
+        guideText = labelOverride;
+      } else if ((ref as string).endsWith('/overview') && locale) {
         guideText = OVERVIEW_TRANSLATIONS[locale as Locale] ?? 'Overview';
       } else if (docsDir && locale) {
         const mdxBasePath = path.join(docsDir, locale, link.slice(1));

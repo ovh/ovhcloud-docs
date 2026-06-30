@@ -1913,7 +1913,7 @@
             + [Managing the security policy of an email service](web-cloud/email-and-collaborative-solutions/common-email-features/security-policy)
             + [Using email aliases and redirections](web-cloud/email-and-collaborative-solutions/common-email-features/feature-redirections)
             + [Deleting an email account](web-cloud/email-and-collaborative-solutions/common-email-features/email-reset-account)
-        + [Using the Outlook Web App (OWA) webmail](web-cloud-email-collaborative-solutions-using-outlook-web-access-owa)
+        + [Outlook Web Application (OWA)](web-cloud-email-collaborative-solutions-using-outlook-web-access-owa)
             + [Using the Outlook Web App (OWA) with an OVHcloud email account](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/email-owa)
             + [Creating inbox rules in OWA](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/creating-inbox-rules-in-owa-mx-plan)
             + [Creating automatic replies in OWA](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/owa-automatic-replies)
