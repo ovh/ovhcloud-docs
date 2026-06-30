@@ -1894,6 +1894,7 @@
             + [Web Cloud Databases - Modifying a user's rights](web-cloud/databases/db-modify-users-rights)
             + [Connecting to a database on your database server](web-cloud/databases/db-connecting-database-server)
             + [Configuring your database server](web-cloud/databases/db-configure-optimise-database-server)
+            + [Enabling PostgreSQL extensions](web-cloud/databases/db-enable-postgresql-extensions)
             + [Web Cloud Databases - How to retrieve logs](web-cloud/databases/db-retrieve-logs)
             + [How to detach your Web Cloud Databases solution from web hosting](web-cloud/databases/db-detach-from-web-hosting)
         + [Migration](web-cloud-clouddb-migration)
