@@ -78,22 +78,52 @@ function defaultRoot(): string {
 
 /**
  * Collect guide leaves under a node, depth-first, in document order, tagging each
- * with the label of its nearest enclosing section/product group (used to build a
- * nested PDF outline: section → guide → guide-sections).
+ * with the nearest enclosing section/product group — both its EN label and its ref
+ * (the ref lets us translate the section title per-locale via i18n.json).
  */
 function collectGuideRefs(
   node: RawNode,
-  out: Array<{ ref: string; section: string | null }>,
+  out: Array<{
+    ref: string;
+    section: string | null;
+    sectionRef: string | null;
+  }>,
   section: string | null,
+  sectionRef: string | null,
 ): void {
   for (const child of node.children) {
     if (child.kind === 'guide' && child.ref) {
-      out.push({ ref: child.ref, section });
+      out.push({ ref: child.ref, section, sectionRef });
     } else {
-      // Descend; this group's label becomes the section for its descendants.
-      collectGuideRefs(child, out, child.label);
+      // Descend; this group's label/ref becomes the section for its descendants.
+      collectGuideRefs(child, out, child.label, child.ref);
     }
   }
+}
+
+/**
+ * Translate a section label for a locale via the sidebar i18n table, mirroring the
+ * production parser: the key is `sidebar.gen.<camelCase(ref)>` (ref stripped of a
+ * leading `products/`). Falls back to the EN label when there's no translation.
+ */
+function translateSection(
+  sectionRef: string | null,
+  enLabel: string | null,
+  locale: Locale,
+  i18n: Record<string, Record<string, string>>,
+): string | null {
+  if (!enLabel) return null;
+  if (locale === 'en' || !sectionRef) return enLabel;
+  const bare = sectionRef.replace(/^products\//, '');
+  const camel = bare
+    .split('-')
+    .map((w, i) =>
+      i === 0
+        ? w.toLowerCase()
+        : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+    )
+    .join('');
+  return i18n[`sidebar.gen.${camel}`]?.[locale] ?? enLabel;
 }
 
 /**
@@ -133,12 +163,26 @@ export function resolveProduct(
 
   // DFS collect, then dedupe by ref (cross-listed guides appear once per product;
   // a guide under a *different* product still appears in that product's PDF).
-  const rawRefs: Array<{ ref: string; section: string | null }> = [];
-  collectGuideRefs(productNode, rawRefs, null);
+  const rawRefs: Array<{
+    ref: string;
+    section: string | null;
+    sectionRef: string | null;
+  }> = [];
+  collectGuideRefs(productNode, rawRefs, null, null);
+
+  // Sidebar section titles are stored EN-only in index.md; their per-locale labels
+  // live in i18n.json under `sidebar.gen.*`. Load it so non-EN PDFs get translated
+  // section dividers (matching the live sidebar).
+  let i18n: Record<string, Record<string, string>> = {};
+  try {
+    i18n = JSON.parse(fs.readFileSync(path.join(root, 'i18n.json'), 'utf-8'));
+  } catch {
+    // No i18n table available — sections fall back to their EN labels.
+  }
 
   const seen = new Set<string>();
   const guides: ResolvedGuide[] = [];
-  for (const { ref, section } of rawRefs) {
+  for (const { ref, section, sectionRef } of rawRefs) {
     if (seen.has(ref)) continue;
     seen.add(ref);
 
@@ -158,7 +202,7 @@ export function resolveProduct(
     guides.push({
       ref,
       label: guideNode?.label ?? ref,
-      section,
+      section: translateSection(sectionRef, section, locale, i18n),
       builtMdPath,
       sourcePath,
     });
