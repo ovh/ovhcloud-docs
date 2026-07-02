@@ -61,7 +61,7 @@ export default defineConfig({
           append: false,
           children: [
             '(function(){var p=location.pathname;',
-            "if(/^\\/(fr|en|de|es|it|pl|pt)\\/.+\\/$/.test(p)){",
+            'if(/^\\/(fr|en|de|es|it|pl|pt)\\/.+\\/$/.test(p)){',
             'location.replace(p.replace(/\\/+$/,"")+location.search+location.hash);',
             '}})();',
           ].join(''),

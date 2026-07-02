@@ -1,5 +1,5 @@
-import type { BannerDef } from './types';
 import { siretFr } from './banners/siret-fr';
+import type { BannerDef } from './types';
 
 /**
  * Registry of all manually-triggered banners, keyed by the `kind` used in MDX:

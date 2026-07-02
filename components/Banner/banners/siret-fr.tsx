@@ -19,8 +19,8 @@ export const siretFr: BannerDef = {
       >
         numéro SIRET
       </a>{' '}
-      dans les informations de votre compte : à partir du 1er septembre 2026,
-      il est nécessaire pour votre facturation et vos démarches administratives.
+      dans les informations de votre compte : à partir du 1er septembre 2026, il
+      est nécessaire pour votre facturation et vos démarches administratives.
     </>
   ),
   cta: {

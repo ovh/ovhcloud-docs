@@ -1762,8 +1762,7 @@
                 + [Securing your domain name with DNSSEC](web-cloud/domains/dns-dnssec)
             + [Tutorials](web-cloud-domains-dns-tutorials)
                 + [Tutorial - Using Zonemaster](web-cloud/domains/dns-zonemaster)
-    + [Web Hosting](products/web-cloud-hosting)
-        + [Overview](web-cloud/web-hosting/overview)
+    + [Web Hosting](products/web-cloud-hosting){landing=web-cloud/web-hosting/landing-page-web-hosting}
         + [Getting started](web-cloud-hosting-getting-started){landing=web-cloud/web-hosting/landing-page-getting-started}
             + [Activating the 100M free hosting plan](web-cloud/web-hosting/activate-start10m)
             + [Getting started with an Individual or Business Web Hosting plan](web-cloud/web-hosting/web-hosting-getting-started)

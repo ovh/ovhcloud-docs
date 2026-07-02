@@ -1,3 +1,4 @@
+import { ProductBanner } from '@components/ProductBanner';
 import { useFrontmatter, useI18n } from '@rspress/core/runtime';
 import { DocContent, getCustomMDXComponent } from '@rspress/core/theme';
 import { DocFooter, IconMenu, SvgWrapper } from '@rspress/core/theme-original';
@@ -5,7 +6,6 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ProductBanner } from '@components/ProductBanner';
 import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { Sidebar } from 'theme/components/Sidebar';
@@ -163,10 +163,7 @@ export function LandingLayout(props: LandingLayoutProps) {
                 isOverviewPage suppresses the fallback auto-H1 (the banner /
                 landing header is our single H1). */}
             <div className="rp-landing-layout__body rp-doc rspress-doc">
-              <DocContent
-                components={getCustomMDXComponent()}
-                isOverviewPage
-              />
+              <DocContent components={getCustomMDXComponent()} isOverviewPage />
             </div>
 
             {/* Reused overview footer */}

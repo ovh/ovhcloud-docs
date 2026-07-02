@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.07.02
+
+### Features
+- add Web Hosting product landing page (replaces overview) (#326)
+- bump packages
+
+### Documentation
+- 49 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.07.01
 
 ### Fixes

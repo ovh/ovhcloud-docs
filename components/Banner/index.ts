@@ -1,1 +1,1 @@
-export { default, Banner } from './Banner';
+export { Banner, default } from './Banner';

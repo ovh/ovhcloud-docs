@@ -1,3 +1,4 @@
+import { useZone } from '@components/Zone';
 import { useI18n, useLang } from '@rspress/core/runtime';
 import {
   useCallback,
@@ -7,9 +8,8 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useZone } from '@components/Zone';
-import { useRegion } from '../Api/RegionContext';
 import { regionsForPath } from '../Api/productRegions';
+import { useRegion } from '../Api/RegionContext';
 import '../Api/index.css'; // shared dropdown styles
 import './index.css';
 

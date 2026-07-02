@@ -1,2 +1,5 @@
-export { ClientLink, type MailClient } from './ClientLink';
-export { ClientLink as default } from './ClientLink';
+export {
+  ClientLink,
+  ClientLink as default,
+  type MailClient,
+} from './ClientLink';
