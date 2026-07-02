@@ -1912,7 +1912,7 @@
             + [Getting started with the Web Cloud Databases service](web-cloud/databases/db-getting-started)
             + [Getting started with MySQL and MariaDB](web-cloud/databases/db-getting-started-mysql-mariadb)
             + [Getting started with PostgreSQL](web-cloud/databases/db-getting-started-postgresql)
-        + [Configuration](web-cloud-clouddb-configuration){landing=web-cloud/databases/landing-page-configuration}
+        + [Configuration](web-cloud-clouddb-configuration)
             + [Web Cloud Databases - How to authorize an IP address?](web-cloud/databases/db-authorise-ip-mask)
             + [Creating databases and users on your database server](web-cloud/databases/db-create-databases-users)
             + [Web Cloud Databases - Modifying a user's rights](web-cloud/databases/db-modify-users-rights)
