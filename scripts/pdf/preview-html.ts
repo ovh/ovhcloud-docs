@@ -338,6 +338,35 @@ const bundleTitle =
     ? frontmatterTitle(bundleGuides[0].sourcePath, bundleRef)
     : bundleRef;
 
+// Generation date shown on the cover, so a maintainer can compare it against the
+// latest guide changes and tell at a glance whether the PDF needs regenerating.
+// Formatted in the document's own locale (e.g. "2 juillet 2026" for fr).
+const localeTag =
+  {
+    en: 'en-GB',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    es: 'es-ES',
+    it: 'it-IT',
+    pl: 'pl-PL',
+    pt: 'pt-PT',
+  }[locale] ?? 'en-GB';
+const generatedDate = new Date().toLocaleDateString(localeTag, {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+const generatedLabel =
+  {
+    en: 'Generated on',
+    fr: 'Généré le',
+    de: 'Erstellt am',
+    es: 'Generado el',
+    it: 'Generato il',
+    pl: 'Wygenerowano',
+    pt: 'Gerado a',
+  }[locale] ?? 'Generated on';
+
 // Cover logo: the only logo SVG ships white-filled; recolor to OVHcloud blue and
 // inline as a data URI so the large cover logo stays crisp (vector) regardless of
 // the file://-vs-http serving mode. Falls back to the PNG path if the SVG is gone.
@@ -430,6 +459,7 @@ ${css}
   white-space: nowrap;
 }
 .book-cover .book-title { font-size: 32pt; font-weight: 700; color:#000e9c; margin:.2em 0 0; }
+.book-cover .cover-date { font-size: 11pt; color:#6b7888; margin-top: 1em; }
 
 /* ---- Table of Contents (dotted leaders + page numbers, AWS-style) ---- */
 .toc { break-after: page; }
@@ -579,6 +609,7 @@ code.action { background:#eef1ff; color:#000e9c; padding:.05em .35em; border-rad
       <span class="kicker">Documentation</span>
     </div>
     <div class="book-title">${bundleTitle}</div>
+    <div class="cover-date">${generatedLabel} ${generatedDate}</div>
   </div>
   <div class="cover-legal">© ${new Date().getFullYear()} OVHcloud. All rights reserved.</div>
 </div>

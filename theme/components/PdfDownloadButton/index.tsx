@@ -33,12 +33,25 @@ const PdfIcon = () => (
 );
 
 /**
+ * Which locales have a committed PDF, per bundle-ref. The PDFs live in
+ * `docs/public/pdfs/<locale>/<bundle-ref>.pdf` and are served at `/pdfs/...`.
+ *
+ * A landing page in a locale WITHOUT its own PDF (e.g. the de/es/it/pl/pt OPCP
+ * pages, which are symlinks to EN) falls back to the EN PDF rather than 404-ing —
+ * consistent with those pages already showing EN content. Keep this in sync when
+ * adding a product or a locale.
+ */
+const PDF_LOCALES: Record<string, string[]> = {
+  'hosted-private-cloud-hosted-private-cloud-opcp': ['en', 'fr'],
+};
+
+/**
  * Product-level PDF download (AWS-style "whole product as one PDF").
  *
  * A page opts in by declaring `pdf: <bundle-ref>` in its frontmatter (typically a
- * product/section overview page). The bundle-ref names a group node in
- * `config/sidebar/index.md`; the build (`pnpm build:pdfs`) renders that node's
- * landing page + all descendant guides into `/pdfs/<locale>/<bundle-ref>.pdf`.
+ * product/section landing page). The bundle-ref names a group node in
+ * `config/sidebar/index.md`; the referenced PDF bundles that node's landing page
+ * plus all descendant guides.
  *
  * Renders nothing on pages without a `pdf:` frontmatter key — so the button is
  * scoped to product/landing pages only, never every guide.
@@ -52,7 +65,10 @@ export function PdfDownloadButton() {
     typeof frontmatter?.pdf === 'string' ? frontmatter.pdf : null;
   if (!bundleRef) return null;
 
-  const href = `/pdfs/${lang}/${bundleRef}.pdf`;
+  // Use the current locale's PDF when it exists, else fall back to EN.
+  const available = PDF_LOCALES[bundleRef] ?? ['en'];
+  const pdfLocale = available.includes(lang) ? lang : 'en';
+  const href = `/pdfs/${pdfLocale}/${bundleRef}.pdf`;
 
   return (
     <a
