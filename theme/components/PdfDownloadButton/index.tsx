@@ -68,7 +68,10 @@ export function PdfDownloadButton() {
   // Use the current locale's PDF when it exists, else fall back to EN.
   const available = PDF_LOCALES[bundleRef] ?? ['en'];
   const pdfLocale = available.includes(lang) ? lang : 'en';
-  const href = `/pdfs/${pdfLocale}/${bundleRef}.pdf`;
+  // The site is served under a per-locale path prefix (/en/, /fr/…), and
+  // docs/public/ is copied into each locale's output — so the file lives at
+  // /<page-locale>/pdfs/<pdf-locale>/<ref>.pdf, not at the site root.
+  const href = `/${lang}/pdfs/${pdfLocale}/${bundleRef}.pdf`;
 
   return (
     <a
