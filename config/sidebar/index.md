@@ -1908,13 +1908,12 @@
         + [Getting started](web-cloud-ssl-gateway-getting-started)
             + [Order an SSL Gateway](web-cloud/ssl-gateway/order)
             + [Using the SSL Gateway](web-cloud/ssl-gateway/use)
-    + [Web Cloud Databases](products/web-cloud-clouddb)
-        + [Overview](web-cloud/databases/overview)
-        + [Getting started](web-cloud-clouddb-getting-started)
+    + [Web Cloud Databases](products/web-cloud-clouddb){landing=web-cloud/databases/landing-page-databases}
+        + [Getting started](web-cloud-clouddb-getting-started){landing=web-cloud/databases/landing-page-getting-started}
             + [Getting started with the Web Cloud Databases service](web-cloud/databases/db-getting-started)
             + [Getting started with MySQL and MariaDB](web-cloud/databases/db-getting-started-mysql-mariadb)
             + [Getting started with PostgreSQL](web-cloud/databases/db-getting-started-postgresql)
-        + [Configuration](web-cloud-clouddb-configuration)
+        + [Configuration](web-cloud-clouddb-configuration){landing=web-cloud/databases/landing-page-configuration}
             + [Web Cloud Databases - How to authorize an IP address?](web-cloud/databases/db-authorise-ip-mask)
             + [Creating databases and users on your database server](web-cloud/databases/db-create-databases-users)
             + [Web Cloud Databases - Modifying a user's rights](web-cloud/databases/db-modify-users-rights)
@@ -1923,7 +1922,7 @@
             + [Enabling PostgreSQL extensions](web-cloud/databases/db-enable-postgresql-extensions)
             + [Web Cloud Databases - How to retrieve logs](web-cloud/databases/db-retrieve-logs)
             + [How to detach your Web Cloud Databases solution from web hosting](web-cloud/databases/db-detach-from-web-hosting)
-        + [Migration](web-cloud-clouddb-migration)
+        + [Migration](web-cloud-clouddb-migration){landing=web-cloud/databases/landing-page-migration}
             + [Backing up and exporting a database of your database server](web-cloud/databases/db-backup-export-database-server)
             + [Restoring and importing a database to your database server](web-cloud/databases/db-restore-import-database)
         + [Additional resources](web-cloud-clouddb-additional-resources)
