@@ -108,6 +108,34 @@ for (const locale of builtLocales) {
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
 // ============================================================================
+// 1.6 PROMOTE PRODUCT PDFS TO ROOT
+// ============================================================================
+// Rspress copies docs/public/pdfs/ into each dist/<locale>/pdfs/. Move one copy to
+// the shared dist/pdfs/ (served at /pdfs/…) and drop the per-locale duplicates, so
+// the PdfDownloadButton can link to a single root path regardless of page locale —
+// same pattern as images above.
+console.log('\n1.6️⃣ Promoting product PDFs to root...');
+sectionStart = Date.now();
+
+const sourcePdfs = path.join(DIST_DIR, builtLocales[0], 'pdfs');
+const sharedPdfs = path.join(DIST_DIR, 'pdfs');
+
+if (fs.existsSync(sourcePdfs) && !fs.existsSync(sharedPdfs)) {
+  fs.renameSync(sourcePdfs, sharedPdfs);
+  console.log(`   ✓ Moved ${builtLocales[0]}/pdfs -> dist/pdfs`);
+}
+
+// Remove the duplicate pdfs/ folders from every locale.
+for (const locale of builtLocales) {
+  const localePdfs = path.join(DIST_DIR, locale, 'pdfs');
+  if (fs.existsSync(localePdfs)) {
+    fs.rmSync(localePdfs, { recursive: true, force: true });
+    console.log(`   ✓ Removed ${locale}/pdfs (duplicate)`);
+  }
+}
+console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
+
+// ============================================================================
 // 2. CREATE ROOT REDIRECT
 // ============================================================================
 console.log('\n2️⃣  Creating root redirect...');
