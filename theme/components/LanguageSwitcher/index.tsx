@@ -3,6 +3,14 @@ import { useEffect, useState } from 'react';
 import { useLocaleAvailability } from 'theme/hooks/useLocaleAvailability';
 import './index.scss';
 
+// Build-time flag injected via source.define (see rspress.config*.ts). True for
+// single-locale regions (e.g. US) served at the domain root, where there is no
+// language to switch to and no /{locale}/ URL segment to parse. `typeof` guards
+// against builds that don't define it (it is safe on undeclared globals).
+declare const __SINGLE_LOCALE__: boolean | undefined;
+const SINGLE_LOCALE =
+  typeof __SINGLE_LOCALE__ !== 'undefined' && __SINGLE_LOCALE__ === true;
+
 const LOCALES = [
   { code: 'fr', label: 'Français', flag: '🇫🇷' },
   { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -49,6 +57,9 @@ export function LanguageSwitcher() {
   };
 
   const currentLocaleData = LOCALES.find((l) => l.code === currentLocale);
+
+  // Single-locale regions (e.g. US) have nothing to switch — render nothing.
+  if (SINGLE_LOCALE) return null;
 
   return (
     <div className="language-switcher">

@@ -13,6 +13,7 @@ import { defineConfig } from '@rspress/core';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
+import { regionConfig } from './config/regions';
 import type { Locale } from './config/shared';
 import { locales } from './config/shared';
 import { sidebar } from './config/sidebar';
@@ -25,7 +26,7 @@ import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
-const locale = process.env.LOCALE || 'fr';
+const locale = process.env.LOCALE || regionConfig.defaultLocale;
 const BASE_DIR = process.cwd();
 
 // Map the 2-letter site locale → the CMP's BCP-47 locale (window.__cmpConfig.locale).
@@ -76,22 +77,38 @@ const CMP_CONFIG = {
   scripts: CMP_SCRIPTS,
 };
 
+// Single-locale regions (e.g. US) are served at the domain root (no /{locale}/
+// prefix) and built straight into dist/; multi-locale regions keep the
+// /{locale}/ prefix and the dist/{locale}/ layout.
+const base = regionConfig.localePrefix ? `/${locale}/` : '/';
+const outDir = regionConfig.localePrefix
+  ? path.join(BASE_DIR, 'dist', locale)
+  : path.join(BASE_DIR, 'dist');
+// Only expose this region's locales to the language switcher.
+const regionLocales = locales.filter((l) =>
+  (regionConfig.locales as readonly string[]).includes(l.lang),
+);
+
 export default defineConfig({
-  root: path.join(BASE_DIR, 'docs', locale),
-  base: `/${locale}/`,
+  root: path.join(BASE_DIR, regionConfig.contentDir, locale),
+  base,
   // Absolute origin used by Rspress to emit fully-qualified URLs. Without it,
   // llms.txt / llms-full.txt and the per-page `.md` links are relative
   // (`/en/guides/….md`), which is useless for the external LLM crawlers those
   // files exist for. It also makes the AI-agent hint injected below the H1
   // (LlmsHint, active because `llms: true`) point at absolute URLs.
-  // Keep in sync with SITE_URL in scripts/combine-builds.ts and the same
-  // constant in theme/components/SEOHead.
-  siteOrigin: 'https://docs.ovhcloud.com',
-  outDir: path.join(BASE_DIR, 'dist', locale),
-  publicDir: path.join(BASE_DIR, 'docs', 'public'),
+  // Region-scoped: `scripts/combine-builds.ts` reads the same
+  // `regionConfig.siteUrl` for its sitemaps. `theme/components/SEOHead` still
+  // hardcodes the EU origin — it runs in the browser and cannot read
+  // `config/regions`, so it needs a `source.define` to follow (see below).
+  siteOrigin: regionConfig.siteUrl,
+  outDir,
+  // Region-scoped. Both regions currently resolve to the same assets:
+  // `docs-us/public` is a symlink to `../docs/public`.
+  publicDir: path.join(BASE_DIR, regionConfig.contentDir, 'public'),
 
-  // All locales included for language switcher functionality
-  locales: [...locales],
+  // Locales included for language switcher functionality (region-scoped)
+  locales: [...regionLocales],
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
@@ -169,6 +186,13 @@ export default defineConfig({
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
+        // Hide the language switcher on single-locale regions (e.g. US).
+        __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
+        // Region values consumed by theme/components/SEOHead, which runs in the
+        // browser and cannot import config/regions. Without these, the US build
+        // would emit canonical/hreflang pointing at the EU origin.
+        __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
+        __LOCALES__: JSON.stringify(regionConfig.locales),
       },
     },
     resolve: {
@@ -280,7 +304,7 @@ export default defineConfig({
     // See node_modules/@rspress/core/dist/theme/logic/useRedirect4FirstVisit.js
     localeRedirect: 'never',
     editLink: {
-      docRepoBaseUrl: `https://github.com/ovh/ovhcloud-docs/tree/develop/docs/${locale}`,
+      docRepoBaseUrl: `https://github.com/ovh/ovhcloud-docs/tree/develop/${regionConfig.repoSubdir}/${locale}`,
     },
     nav: nav as Parameters<typeof defineConfig>[0]['themeConfig']['nav'],
     sidebar,
@@ -292,8 +316,7 @@ export default defineConfig({
       },
     ],
     footer: {
-      message:
-        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>',
+      message: `<div><a href="${regionConfig.corporateUrl}" target="_blank" rel="nofollow">${regionConfig.copyright}</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>`,
     },
   },
 });

@@ -8,7 +8,8 @@
  * the filter pills, and records which products belong to which universe so the
  * product pills can narrow to the selected universe.
  *
- * Source of truth: config/sidebar/index.md (the navigation tree) for structure
+ * Source of truth: config/sidebar/<regionConfig.sidebarIndex> (the navigation
+ * tree) for structure
  * + slugs, and i18n.json for the localized labels (keyed by the same
  * `sidebar.gen.*` keys Rspress uses to render the sidebar). Emitting this at
  * build time keeps the client bundle free of the parser and index.md.
@@ -20,14 +21,17 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { regionConfig } from '../config/regions';
+import type { Locale } from '../config/shared';
 import { parseIndexMd } from '../config/sidebar/parser';
 
-const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
-type Locale = (typeof LOCALES)[number];
+// Region-scoped: the taxonomy must describe the tree the region actually
+// serves. Mirrors config/sidebar/index.ts, which reads the same three fields.
+const LOCALES = regionConfig.locales;
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const SIDEBAR_DIR = path.join(ROOT, 'config/sidebar');
-const DOCS_DIR = path.join(ROOT, 'docs');
+const DOCS_DIR = path.join(ROOT, regionConfig.contentDir);
 const OUT = path.join(ROOT, 'theme/data/search-taxonomy.ts');
 
 // Minimal shape of the parsed sidebar nodes we traverse.
@@ -76,7 +80,7 @@ interface Taxonomy {
 
 function buildForLocale(locale: Locale): Taxonomy {
   const { universes: tree } = parseIndexMd(
-    path.join(SIDEBAR_DIR, 'index.md'),
+    path.join(SIDEBAR_DIR, regionConfig.sidebarIndex),
     DOCS_DIR,
     locale,
   ) as unknown as { universes: Node[] };
@@ -134,7 +138,12 @@ export const SEARCH_TAXONOMY: Record<string, SearchTaxonomy> = `;
 
 fs.writeFileSync(OUT, header + JSON.stringify(taxonomy, null, 2) + ';\n');
 
-const en = taxonomy.en;
+// Summary locale: keep 'en' when the region serves it (unchanged output for
+// EU), else fall back to the region's default.
+const summaryLocale = (LOCALES as readonly string[]).includes('en')
+  ? 'en'
+  : regionConfig.defaultLocale;
+const en = taxonomy[summaryLocale];
 console.log(
   `✓ search-taxonomy.ts: ${en.universes.length} universes, ` +
     `${Object.values(en.products).reduce((n, p) => n + p.length, 0)} products (en)`,

@@ -1,0 +1,338 @@
+---
+title: "Object Storage - Encrypt your server-side objects with SSE-C or SSE-OMK"
+description: "OVHcloud S3™-compatible\\ Object Storage supports two server-side encryption (SSE) methods to protect your objects at rest:"
+zendesk_id: 10694235769747
+zendesk_hash: a28f6bcd5f3aac89
+content_hash: 23bac159ed581d0a
+updated: 2026-08-03
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+# Object Storage - Encrypt your server-side objects with SSE-C or SSE-OMK
+
+OVHcloud S3™-compatible\* Object Storage supports two server-side encryption (SSE) methods to protect your objects at rest:
+
+- **SSE-C (Server-Side Encryption with Customer Keys)**: You supply a 256-bit AES key with every request. You retain full control over keys, but you are responsible for storing and rotating them.
+- **SSE-OMK (Server-Side Encryption with OVHcloud-Managed Keys)**: OVHcloud automatically generates and manages a unique encryption key per object. No key management required.
+- A third option, **Client-Side Encryption (CSE)**, lets you encrypt data before sending it to Object Storage. This guide includes CSE in the comparison table below but does not cover its implementation in detail.
+
+:::warning
+
+**NOTE:** Object Storage does **not** store your SSE-C encryption key. If you lose it, the encrypted object cannot be recovered — the only option is to delete it.
+
+:::
+
+ 
+
+### Choosing a method
+
+|                       | SSE-C             | SSE-OMK  | CSE               |
+| --------------------- | ----------------- | -------- | ----------------- |
+| Who manages keys      | You (per request) | OVHcloud | You (client-side) |
+| Key control           | Full              | None     | Full              |
+| Management overhead   | Medium            | None     | High              |
+| Transparent downloads | No                | Yes      | No                |
+| Additional cost       | None              | None     | None              |
+
+Use **SSE-C** when compliance or audit requirements mandate exclusive key ownership. Use **SSE-OMK** for transparent, zero-effort encryption.
+
+ 
+
+## Requirements
+
+- An Object Storage bucket (see our [Getting Started with Object Storage](https://support.us.ovhcloud.com/hc/en-us/articles/4603838122643) guide)
+- A user with the required access rights on the bucket
+- AWS CLI installed and configured
+
+#### OVHcloud Control Panel Access
+
+- **Direct link:** [Public Cloud Projects](https://manager.us.ovhcloud.com/#/public-cloud/pci/projects)
+- **Navigation path:** `Public Cloud` > Select your project
+
+ 
+
+## Instructions
+
+### SSE-C — Server-Side Encryption with Client Encryption Keys
+
+When you upload an object with SSE-C, Object Storage applies AES-256 encryption using the key you provide. To retrieve the object later, you must supply the same key; Object Storage verifies it before decrypting.
+
+Each request requires three headers
+
+| Name                       | Description                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `--sse-customer-algorithm` | Encryption algorithm. Must be `AES256`*.*                                        |
+| `--sse-customer-key`       | Base64-encoded 256-bit (32-byte) encryption key.                                 |
+| `--sse-customer-key-md5`   | Base64-encoded 128-bit MD5 digest of the raw key (integrity check per RFC 1321). |
+
+ 
+
+#### Generating an encryption key
+
+```bash
+secret=$(openssl rand 32)
+encKey=$(echo -n "$secret" | base64)
+md5Key=$(echo -n "$secret" | openssl dgst -md5 -binary | base64)
+```
+
+ 
+
+#### Uploading an object
+
+```bash
+aws s3api put-object \
+  --body <file_path> \
+  --bucket <bucket_name> \
+  --key <object_key> \
+  --sse-customer-algorithm AES256 \
+  --sse-customer-key "$encKey" \
+  --sse-customer-key-md5 "$md5Key"
+```
+
+ 
+
+#### Downloading an object
+
+```bash
+$ aws s3api get-object \
+  --bucket <bucket_name> \
+  --key <object_key> \
+  --sse-customer-algorithm AES256 \
+  --sse-customer-key "$encKey" \
+  --sse-customer-key-md5 "$md5Key" \
+  <destination_file_path>
+```
+
+Omitting the encryption headers returns a `400 Bad Request` error.
+
+ 
+
+#### Retrieving object metadata
+
+```bash
+$ aws s3api head-object \
+  --bucket <bucket_name> \
+  --key <object_key> \
+  --sse-customer-algorithm AES256 \
+  --sse-customer-key "$encKey" \
+  --sse-customer-key-md5 "$md5Key"
+```
+
+Example output:
+
+```json
+{
+    "LastModified": "Tue, 19 Apr 2022 09:38:47 GMT",
+    "ContentLength": 111,
+    "ETag": "\"272913026300e7ae9b5e2d51f138e674\"",
+    "VersionId": "1650376416551536",
+    "ContentType": "binary/octet-stream",
+    "Metadata": {},
+    "StorageClass": "STANDARD"
+}
+```
+
+Without encryption headers, you will get a `400 Bad Request` error.
+
+ 
+
+#### Deleting an encrypted object
+
+Deletion does not require encryption headers:
+
+```bash
+$ aws s3 rm s3://<bucket_name>/<object_key>
+```
+
+ 
+
+#### Presigned URLs
+
+Presigned URLs support SSE-C with the following requirements:
+
+- When generating the URL, include `x-amz-server-side-encryption-customer-algorithm` header in the signature calculation.
+- When using the URL, the client must supply all three SSE-C headers.
+
+:::info
+
+SSE-C presigned URLs can only be used programmatically; browser-based access is not supported, as SSE-C headers cannot be sent from a browser.
+
+:::
+
+ 
+
+### SSE-OMK — Server-Side Encryption with OVHcloud-Managed Keys
+
+SSE-OMK encrypts objects automatically at rest. OVHcloud derives a unique key per object (combining a per-bucket master key with a random salt), so each object is protected individually with no management overhead on your part. Downloads are fully transparent; no encryption headers are needed.
+
+ 
+
+#### Advantages
+
+- **Simplified key management:** OVHcloud handles key generation, storage, and rotation. No administrative overhead or key rotation schedules for your team.
+- **Per-object isolation:** Each object is encrypted with its own derived key, so a potential key compromise affects only that object, not your entire bucket.
+- **Transparency access:** Encrypted objects behave exaclty like unencrypted ones; no changes to your application or workflows.
+
+ 
+
+#### Uploading an object
+
+```bash
+aws s3api put-object \
+  --bucket <bucket_name> \
+  --key <object_key> \
+  --body <file_path> \
+  --server-side-encryption AES256 \
+  --endpoint-url https://s3.<region>.io.cloud.ovh.us
+```
+
+ 
+
+#### Downloading an object
+
+No encryption headers are needed because decryption is handled automatically server-side:
+
+```bash
+aws s3api get-object \
+  --bucket <bucket_name> \
+  --key <object_key> \
+  <destination_file_path> \
+  --endpoint-url https://s3.<region>.io.cloud.ovh.us
+```
+
+:::warning
+
+Do not include SSE-C headers when downloading an SSE-OMK object; this will return a `400 Bad Request` error.
+
+:::
+
+ 
+
+#### Enabling SSE-OMK on a bucket
+
+Once enabled, all subsequent uploads are encrypted automatically. Existing objects are unaffected; you will need to re-upload them to encrypt retroactively.
+
+:::info
+
+To enable SSE-OMK at bucket creation, see our [Getting started with Object Storage](https://support.us.ovhcloud.com/hc/en-us/articles/4603838122643) guide.
+
+:::
+
+<Tabs>
+
+<Tab label="Via AWS S3api">
+
+```bash
+aws s3api put-bucket-encryption \
+  --bucket <bucket_name> \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' \
+  --endpoint-url https://s3.<region>.io.cloud.ovh.us
+```
+
+</Tab>
+
+<Tab label="Via the OVHcloud Control Panel">
+
+From the [OVHcloud Control Panel](https://manager.us.ovhcloud.com/), navigate to your bucket via the `Public Cloud` and `Object Storage` menus and click the name of your bucket.
+
+In the **Encryption** panel, click `⚙️ Enable`.
+
+![objectStorage\_container\_dashboard-disabled.PNG](/images/storage-and-backup/object-storage/object-storage-encrypt-your-server-side-objects-with-sse-c-or-sse-omk/49033064822163.png)
+
+In the pop-up window, click `Confirm`.
+
+![objectStorage\_enableEncryption.png](/images/storage-and-backup/object-storage/object-storage-encrypt-your-server-side-objects-with-sse-c-or-sse-omk/45254976254611.png)
+
+</Tab>
+
+</Tabs>
+
+ 
+
+#### Verifying bucket encryption
+
+<Tabs>
+
+<Tab label="Via the AWS S3api">
+
+```bash
+aws s3api get-bucket-encryption \
+  --bucket <bucket_name> \
+  --endpoint-url https://s3.<region>.io.cloud.ovh.us
+```
+
+</Tab>
+
+<Tab label="Via the OVHcloud Control Panel">
+
+Look in the **Encryption** panel of the bucket. There you will find the `Enabled` or `Disabled` indicator.\
+![objectStorage\_container\_dashboard-enabled.PNG](/images/storage-and-backup/object-storage/object-storage-encrypt-your-server-side-objects-with-sse-c-or-sse-omk/45254976246163.png)
+
+</Tab>
+
+</Tabs>
+
+ 
+
+#### Deleting an encrypted object
+
+Deletion works the same as for unencrypted objects:
+
+```bash
+aws s3 rm s3://<bucket_name>/<object_key>
+```
+
+ 
+
+#### Considerations
+
+- **Encryption overhead**: SSE-OMK adds a negligible latency overhead for most workloads. To minimize it, use a bucket region geographically close to your application.
+- **Key visibility**: You cannot inspect, rotate, or audit the encryption keys directly. If your compliance framework requires key ownership or audit trails, use SEE-C instead.
+- **In-depth defense**: SSE-OMK protects data at rest, but does not replace access control. Pair it with strict IAM policies and access logging to monitor and restrict who can read your objects.
+
+:::info
+
+There are no additional fees for using SSE-C or SSE-OMK encryption.
+
+:::
+
+ 
+
+### Recommended use cases
+
+**CSE (Client-Side Encryption)**
+
+- Ideal for organizations with very high security requirements, requiring encryption keys to remain under exclusive control.
+- Suitable for highly regulated industries, such as finance or healthcare.
+
+**SSE-C (Server-Side Encryption with Customer Keys)**
+
+- Suited to organizations that need to audit or rotate their own keys but want to delegate the encryption workload to the server
+- Use when compliance mandates key ownership without the full complexity of client-side encryption.
+
+**SSE-OMK (Server-Side Encryption with OVHcloud-Managed Keys)**
+
+- Best for teas that want robust encryption without the operational burden of key management.
+- Ideal when simplicity and speed of deployment are priorities and there are no key-ownership compliance requirements.
+
+ 
+
+## Troubleshooting
+
+| Symptom                               | Likely cause                            | Resolution                                                                    |
+| ------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| `400 Bad Request` on SSE-C download   | Missing or incorrect encryption headers | Include all three `--sse-customer-*` headers with the same key used to upload |
+| `400 Bad Request` on SSE-OMK download | SSE-C headers included by mistake       | Remove all `--sse-customer-*` headers                                         |
+| Cannot retrieve SSE-C object          | Encryption key lost                     | Recovery is impossible — delete the object                                    |
+| Latency increase                      | Encryption/decryption overhead          | Use a region geographically close to your bucket to reduce latency            |
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Object Storage support guides](https://support.us.ovhcloud.com/hc/en-us/sections/23498311424275-Object-Storage) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](https://us.ovhcloud.com/support/professional-services/) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+\*S3 is a trademark filed by Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.
