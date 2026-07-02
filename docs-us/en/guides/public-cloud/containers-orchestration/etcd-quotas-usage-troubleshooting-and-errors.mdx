@@ -1,0 +1,196 @@
+---
+title: "ETCD Quotas, Usage, Troubleshooting, and Errors"
+description: "Learn how to view your usage and quota, troubleshoot, and resolve errors."
+zendesk_id: 13974526423059
+zendesk_hash: 8adc479512e57d70
+content_hash: 6addcf91c4a35a01
+updated: 2024-10-17
+---
+
+import Api from '@components/Api';
+
+# ETCD Quotas, Usage, Troubleshooting, and Errors
+
+**Learn how to view your usage and quota, troubleshoot, and resolve errors.**
+
+ETCD is one of the major components of a Kubernetes cluster. It’s a distributed key-value database that allows you to store and replicate cluster states.
+
+![etcd1.png](/images/public-cloud/containers-orchestration/etcd-quotas-usage-troubleshooting-and-errors/13974984326803.png)
+
+At some point during the life of your Managed Kubernetes cluster, you may encounter one of the following errors that prevent you from altering resources:
+
+```
+rpc error: code = Unknown desc = ETCD storage quota exceeded
+rpc error: code = Unknown desc = quota computation: etcdserver: not capable
+rpc error: code = Unknown desc = The OVHcloud storage quota has been reached
+```
+
+ 
+
+## Requirements
+
+- An OVHcloud Managed Kubernetes cluster
+- The [kubectl](https://kubernetes.io/docs/reference/kubectl/overview/) command-line tool installed
+
+ 
+
+## Instructions
+
+### Background
+
+Each Kubernetes cluster has a dedicated quota on ETCD storage usage, calculated through the following formula:
+
+```
+Quota = 10MB + (25MB per node)* (capped to 400MB)
+```
+
+For example, a cluster with 3 `b2-7` servers has a quota of **85 MB**.
+
+To check your current ETCD quota and usage, you can query the OVHcloud API.
+
+<Api version="v1" section="/cloud/project" method="GET" route={"/cloud/project/\{serviceName\}/kube/\{kubeID\}/metrics/etcdUsage"} regions={["us"]} />
+
+**Result:**
+
+```
+{
+  "quota": 89128960,
+  "usage": 2604349
+}
+```
+
+:::info
+
+ETCD quota and usage result are in bytes.
+
+:::
+
+Using this API endpoint, you can view the ETCD usage and quota and anticipate a possible issue.
+
+The quota can thus be increased by adding nodes, but will never be decreased (even if all nodes are removed) to prevent data loss.\
+The error mentioned above states that the cluster’s ETCD storage usage has exceeded the quota.
+
+**To resolve the situation, you need to delete resources created in excess.**
+
+ 
+
+### Most common case: misconfigured cert-manager
+
+Most users install cert-manager through Helm and then move on a bit hastily.
+
+The most common cases of ETCD quota issues come from a bad configuration of [cert-manager](https://cert-manager.io/docs/), making it continuously create `certificaterequest` resources.
+
+This behavior will fill the ETCD with resources until the quota is reached.
+
+To verify if you are in this situation, you can get the number of `certificaterequest` and `order.acme` resources:
+
+```
+kubectl get certificaterequest.cert-manager.io -A | wc -l
+kubectl get order.acme.cert-manager.io -A | wc -l
+```
+
+If you have a huge number (hundreds or more) of those resources requests, you have found the root cause.
+
+To resolve the situation, we propose the following method:
+
+- Stopping cert-manager
+
+```
+kubectl -n <your_cert_manager_namespace> scale deployment --replicas 0 cert-manager
+```
+
+- Flushing all `certificaterequest` and `order.acme` resources
+
+```
+kubectl delete certificaterequest.cert-manager.io -A --all
+kubectl delete order.acme.cert-manager.io -A --all
+```
+
+- Updating cert-manager
+
+There is no generic way to do this, but if you use Helm we recommend you use it for the update: [Cert Manager official documentation](https://cert-manager.io/docs/installation/kubernetes/)
+
+- Fixing the issue
+
+We recommend you take the following steps to troubleshoot your cert-manager and to ensure that everything is correctly configured: [Acme troubleshoot](https://cert-manager.io/docs/faq/acme/)
+
+- Starting cert-manager
+
+ 
+
+### Other cases
+
+If cert-manager is not the root cause, you should turn to the other running operators that create Kubernetes resources.\
+We have found that the following resources can sometimes be generated continuously by existing operators:
+
+- `backups.velero.io`
+
+```
+kubectl get backups.velero.io -A | wc -l
+```
+
+- `podvolumebackups.velero.io`\<--new version
+
+```
+kubectl get podvolumebackups.velero.io -A | wc -l
+```
+
+- `ingress.networking.k8s.io`
+
+```
+kubectl get ingress.networking.k8s.io -A | wc -l
+```
+
+- `ingress.extensions`
+
+```
+kubectl get ingress.extensions -A | wc -l
+```
+
+- `authrequests.dex.coreos.com`
+
+```
+kubectl get authrequests.dex.coreos.com -A | wc -l
+```
+
+- `reportchangerequest.kyverno.io`
+
+```
+kubectl get reportchangerequest.kyverno.io -A | wc -l
+```
+
+If that still does not cover your case, you can use a tool like [ketall](https://github.com/corneliusweig/ketall) to easily list and count resources in your cluster. Then you should delete the resources in excess and fix the process responsible for their creation.
+
+ 
+
+## Counting all resources
+
+If you still need to check all resources as you do not know what consumes etcd quotas, you can run this snippet. You will need the `count` plugin for `kubectl`. See [installation](https://github.com/chenjiandongx/kubectl-count#-installation) instructions.
+
+```
+kubectl count -A $(kubectl api-resources --verbs=list -o name | tr '\n' ',')
++-----------+---------------------------------------+--------------------------------+-------+
+| Namespace |             GroupVersion              |              Kind              | Count |
++-----------+---------------------------------------+--------------------------------+-------+
+|           | v1                                    | ComponentStatus                |     3 |
++-----------+                                       +--------------------------------+-------+
+|           |                                       | ConfigMap                      |    78 |
++-----------+                                       +--------------------------------+-------+
+|           |                                       | Endpoints                      |    44 |
++-----------+                                       +                                +       +
+|           |                                       |                                |       |
++-----------+                                       +--------------------------------+-------+
+|           |                                       | Event                          |    40 |
++-----------+---------------------------------------+                                +       +
+|           | events.k8s.io/v1                      |                                |       |
++-----------+---------------------------------------+--------------------------------+-------+
+...
+```
+
+Running the command may take several seconds, depending on your Kubernetes cluster usage.
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Managed Kubernetes support guides](https://support.us.ovhcloud.com/hc/en-us/categories/1500000438761-Managed-Kubernetes) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).

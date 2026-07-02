@@ -1,0 +1,227 @@
+---
+title: "Pushing Logs from Software - Apache"
+description: "This guide will present you with three non-intrusive ways to send logs to the Logs Data platform:"
+zendesk_id: 28673418080147
+zendesk_hash: 47e7c3e069e144b9
+content_hash: 2ea0006b946cc70d
+updated: 2024-08-07
+---
+
+# Pushing Logs from Software - Apache
+
+**This guide will present you with three non-intrusive ways to send logs to the Logs Data platform:**
+
+- **ask Apache to pipe log entries directly to the platform.**
+- **use [syslog-ng](https://syslog-ng.org/) to parse and send all of your logs**
+- **setup [filebeat](https://www.elastic.co/beats/filebeat/) with the Apache module**
+
+Apache access logs are very valuable. They show the activity of your visitors, page delivery time, code results, user agents that accessed your websites, etc. Logs Data Platform helps you to fully analyze this key information.
+
+The default Apache log line looks like this:
+
+```text
+51.255.160.250 - - [23/Jan/2016:19:33:03 +0100] "GET / HTTP/1.1" 200 14211 "-" "Mozilla/5.0 (Windows; U; Windows NT 5.0; en-US; rv:1.7.12) Gecko/20050915 Firefox/1.0.7"
+```
+
+This line already gives a lot of information but it can be difficult to extract really useful data from plain text logs. There are many ways to export your Apache logs: logstash, beats, graylog-collector, syslog-ng, rsyslog, gelf, or apache module.
+
+ 
+
+## Requirements
+
+- the openssl package (as we are using it to send the logs securely)
+- [an activated Logs Data Platform account](https://us.ovhcloud.com/logs-data-platform/)
+- [at least one Stream and its token](https://support.us.ovhcloud.com/hc/en-us/articles/28017122298771)
+
+ 
+
+## Instructions
+
+### Use Apache to send logs directly
+
+:::warning
+
+**NOTE:** The following procedure has the advantage of a quick setup but is **NOT recommended** at all in production as it can block the Apache process in the case of heavy traffic. In production, please use a non-blocking solution like the second solution in this guide, or this one: [Pushing Logs with a Forwarder - Filebeat (Linux)](https://support.us.ovhcloud.com/hc/en-us/articles/28589772732179).
+
+:::
+
+ 
+
+#### Global Apache configuration
+
+First, we will configure Apache2 to send all Virtual Hosts logs to one stream.
+
+**NOTE:** If you have any log related configuration in your virtual hosts, you must remove them or head to the next section to add a specific virtual host configuration.
+
+We use the CustomLog format directive to transform Apache logs in LTSV format and ship them to the Logs Data Platform with the proper OVHcloud token. Note that three fields are mandatory with the LTSV format; host, message, and time (in the RFC 3339 format). Refer to the examples below to learn how to fill in these fields. Please create the file **/etc/httpd/conf-enabled/ldp.conf** or **/etc/apache2/conf-enabled/ldp.conf** (it depends on your distribution) and insert the following:
+
+```
+ LogFormat "X-OVH-TOKEN:XXXXXXXXXXX\tdomain:%V\thost:%h\tserver:%A\ttime:%{sec}t\tident:%l\tuser:%u\tmethod:%m\tpath:%U%q\tprotocol:%H\tstatus_int:%>s\tsize_int:%b\treferer:%{Referer}i\tagent:%{User-Agent}i\tresponse_time_int:%D\tcookie:%{cookie}i\tset_cookie:%{Set-Cookie}o\tmessage:%h %l %u %t \"%r\" %>s %b\n" combined_ltsv
+ CustomLog "|/usr/bin/openssl s_client -connect <your_cluster>.logs.ovh.com:12201" combined_ltsv
+ ErrorLog syslog:local1
+```
+
+If you want to send your logs to an additional stream, you would need to repeat this snippet and change the LogFormat name **combined\_ltsv** of your new snippet to a new name.
+
+Note that you will have to replace the address and the port of `<your_cluster>.logs.ovh.com` with the one you have been assigned to (check the **Home** page to retrieve it). Ensure that the full path of openssl is correct for your system or it won't work. Also ensure that your `X-OVH-TOKEN` is properly written. This tutorial only covers how to send your access logs to the Logs Data platform. To send your Error logs, [you should configure your syslog template to send logs to Logs Data platform](https://support.us.ovhcloud.com/hc/en-us/articles/28660150590867). Finally, check that you don't use any CustomLog option in your VirtualHost configuration since the VirtualHost configuration has precedence over global configuration.
+
+You also need to modify the `/etc/httpd/sites-enabled/000-default.conf`  or `/etc/apache2/sites-enabled/000-default.conf` file to ensure that the **ErrorLog** and **CustomLog** lines (shown below in yellow) are commented out:
+
+```
+<VirtualHost *:80>
+# The ServerName directive sets the request scheme, hostname and port that
+# the server uses to identify itself. This is used when creating
+# redirection URLs. In the context of virtual hosts, the ServerName
+# specifies what hostname must appear in the request's Host: header to
+# match this virtual host. For the default virtual host (this file) this
+# value is not decisive as it is used as a last resort host regardless.
+# However, you must set it for any further virtual host explicitly.
+#ServerName www.example.com
+
+ServerAdmin webmaster@localhost
+DocumentRoot /var/www/html
+
+# Available loglevels: trace8, ..., trace1, debug, info, notice, warn,
+# error, crit, alert, emerg.
+# It is also possible to configure the loglevel for particular
+# modules, e.g.
+#LogLevel info ssl:warn
+
+#ErrorLog ${APACHE_LOG_DIR}/error.log
+#CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+# For most configuration files from conf-available/, which are
+# enabled or disabled at a global level, it is possible to
+# include a line for only one particular virtual host. For example the
+# following line enables the CGI configuration for this host only
+# after it has been globally disabled with "a2disconf".
+#Include conf-available/serve-cgi-bin.conf
+</VirtualHost>
+```
+
+ 
+
+#### VirtualHost configuration
+
+If you want to only send logs from a specific VirtualHost, or send specific information about one VirtualHost, use this configuration to send logs to Logs Data platform:
+
+```
+<VirtualHost *:80>
+   ServerName www.example.com
+   ServerAlias example.com
+   DocumentRoot /var/www/www.example.com
+
+   LogLevel warn
+   ErrorLog /var/log/httpd/www.example.com_error.log
+   CustomLog /var/log/httpd/www.example.com_access.log combined
+   CustomLog "|/usr/bin/openssl s_client -connect <your_cluster>.logs.ovh.com:12201" "X-OVH-TOKEN:XXXXXXXXXXXXXX\tdomain:%V\thost:%h\tserver:%A\tident:%l\tuser:%u\ttime:%{sec}t\tmethod:%m\tpath:%U%q\tprotocol:%H\tstatus_int:%>s\tsize_int:%b\treferer:%{Referer}i\tagent:%{User-Agent}i\tresponse_time_int:%D\tcookie:%{cookie}i\tset_cookie:%{Set-Cookie}o\tmessage:%h %l %u %t \"%r\" %>s %b\n"
+   ErrorLog syslog:local1
+</VirtualHost>
+```
+
+This is what you see on Graylog when you send your logs. The logs are already nicely parsed and you can immediately launch specific searches on them:
+
+![operate\_LDP\_ingest\_apache01\*.png](/images/manage-and-operate/observability/pushing-logs-from-software-apache/31934657902227.png)
+
+ 
+
+### Using a syslog-ng template
+
+If you already have syslog-ng on your host and you want to leverage its features (log rotation, automatic reconnection, multiple destinations). Here are the configuration snippets allowing you to use this software.
+
+#### Apache configuration
+
+The configuration is pretty similar to the one used in the first part of this document. The only change is the path of the log file.
+
+```
+ LogFormat "X-OVH-TOKEN:XXXXXXXXXXX\tdomain:%V\thost:%h\tserver:%A\ttime:%{sec}t\tident:%l\tuser:%u\tmethod:%m\tpath:%U%q\tprotocol:%H\tstatus_int:%>s\tsize_int:%b\treferer:%{Referer}i\tagent:%{User-Agent}i\tresponse_time_int:%D\tcookie:%{cookie}i\tset_cookie:%{Set-Cookie}o\tmessage:%h %l %u %t \"%r\" %>s %b\n" combined_ltsv
+ CustomLog /var/log/httpd/access.log combined_ltsv
+ ErrorLog syslog:local1
+```
+
+ 
+
+#### Syslog-ng configuration
+
+To keep things brief, this extract has only the parts relevant to the access log file. [The syslog-ng tutorial](https://support.us.ovhcloud.com/hc/en-us/articles/28660150590867) covers the configuration for any syslog file (like the error log file). This configuration is only valid for syslog-ng 3.8+.
+
+```text
+ source s_apache {
+     file("/var/log/httpd/access.log" flags(no-parse));
+ };
+
+ template t_apache_access_log {
+     template("type:apache-access.log\tX-OVH-TOKEN:XXXXXXXXXXXXXXXX\ttime:${APACHE.TIMESTAMP}\thost:${HOST}\tremote_ip:${APACHE.CLIENT_IP}\trequest:${APACHE.REQUEST_URL}\tstatus_code:${APACHE.REQUEST_STATUS}\treponse_size:${APACHE.CONTENT_LENGTH}\treferer:${APACHE.REFERER}\tuser_agent:${APACHE.USER_AGENT}\tmessage:${MSG}\n");
+     template_escape(no);
+ };
+
+ destination dt_apache_access_ldp {
+     tcp("XXX.logs.ovh.com"
+         port(12201)
+         tls(ca_dir("/etc/ssl/certs"))
+         ts_format("rfc3339") template(t_apache_access_log)
+         keep-alive(yes)
+         so_keepalive(yes)
+         log-fifo-size(30000)
+     );
+ };
+
+ parser p_apache {
+     csv-parser(columns("APACHE.CLIENT_IP", "APACHE.IDENT_NAME", "APACHE.USER_NAME",
+ "APACHE.TIMESTAMP", "APACHE.REQUEST_URL", "APACHE.REQUEST_STATUS",
+ "APACHE.CONTENT_LENGTH", "APACHE.REFERER", "APACHE.USER_AGENT")
+     flags(escape-double-char,strip-whitespace)
+     delimiters(" ")
+     quote-pairs('""[]')
+     );
+ };
+
+ log {
+     source(s_apache);
+     parser(p_apache);
+     destination(dt_apache_access_ldp);
+ };
+```
+
+ 
+
+### Apache logs format
+
+If you want to use your own log format and include some useful information here is a cheat sheet for you (note that the labels follow [the field naming conventions](https://support.us.ovhcloud.com/hc/en-us/articles/28131111525907)).
+
+The full list of logs formats that can be used in Apache is described here [mod\_log\_config.html](http://httpd.apache.org/docs/current/en/mod/mod_log_config.html).
+
+| Recommended Label      | About                                                                                                                             | Format String of Apache mod\_log\_config              | Format String of nginx log format |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------- |
+| time                   | Time the request was received                                                                                                     | `%t`                                                  | $time\_local                      |
+| host                   | Remote host                                                                                                                       | `%h`                                                  | $remote\_addr                     |
+| forwardedfor           | X-Forwarded-For header                                                                                                            | `%{X-Forwarded-For}i`                                 | $http\_x\_forwarded\_for          |
+| ident                  | Remote logname                                                                                                                    | `%l`                                                  |                                   |
+| user                   | Remote user                                                                                                                       | `%u`                                                  | $remote\_user                     |
+| req                    | First line of request                                                                                                             | `%r`                                                  | $request                          |
+| method                 | Request method                                                                                                                    | `%m`                                                  | $request\_method                  |
+| uri                    | Request URI                                                                                                                       | `%U%q`                                                | $request\_uri                     |
+| protocol               | Requested Protocol (usually "HTTP/1.0" or "HTTP/1.1")                                                                             | `%H`                                                  | $server\_protocol                 |
+| status                 | Status code                                                                                                                       | `%>s`                                                 | $status                           |
+| size\_int              | Size of response in bytes, excluding HTTP headers.                                                                                | `%B` (or '%b' for compatibility with combined format) | $body\_bytes\_sent                |
+| reqsize\_int           | Bytes received, including request and headers.                                                                                    | `%I` (mod\_log\_io required)                          | $request\_length                  |
+| referer                | Referer header                                                                                                                    | `%{Referer}i`                                         | $http\_referer                    |
+| ua                     | User-Agent header                                                                                                                 | `%{User-agent}i`                                      | $http\_user\_agent                |
+| vhost                  | Host header                                                                                                                       | `%{Host}i`                                            | $host                             |
+| reqtime\_microsec\_int | The time taken to serve the request, in microseconds                                                                              | `%D`                                                  |                                   |
+| reqtime\_int           | The time taken to serve the request, in seconds                                                                                   | `%T`                                                  | $request\_time                    |
+| cache                  | X-Cache header                                                                                                                    | `%{X-Cache}o`                                         | $upstream\_http\_x\_cache         |
+| runtime\_num           | Execution time for processing some request, e.g. X-Runtime header for application server or processing time of SQL for DB server. | `%{X-Runtime}o`                                       | $upstream\_http\_x\_runtime       |
+| apptime\_num           | Response time from the upstream server                                                                                            | -                                                     | $upstream\_response\_time         |
+
+ 
+
+### Using Filebeat
+
+The latest releases of **Filebeat** have a dedicated module for **Apache2**. This solution is ready-to-use to configure and is more production-ready. The complete procedure of its installation is described [on this page](https://support.us.ovhcloud.com/hc/en-us/articles/29190025605139) in the Apache logs use case.
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Logs Data Platform support guides](https://support.us.ovhcloud.com/hc/en-us/sections/27230973429523-Logs-Data-Platform) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).

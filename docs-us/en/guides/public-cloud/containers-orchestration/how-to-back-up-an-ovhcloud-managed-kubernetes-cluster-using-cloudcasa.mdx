@@ -1,0 +1,266 @@
+---
+title: "How to Back Up an OVHcloud Managed Kubernetes Cluster Using CloudCasa"
+description: "In this quick start guide, you will learn how to deploy CloudCasa to your OVHcloud Managed Kubernetes cluster, create backup policies, define schedules, run bac"
+zendesk_id: 13970866427283
+zendesk_hash: f068f8781328f96f
+content_hash: 023dc7a5468db842
+updated: 2023-02-17
+---
+
+# How to Back Up an OVHcloud Managed Kubernetes Cluster Using CloudCasa
+
+## Objective
+
+In this quick start guide, you will learn how to deploy CloudCasa to your OVHcloud Managed Kubernetes cluster, create backup policies, define schedules, run backups, and run restores.
+
+[CloudCasa™ by Catalogic](https://cloudcasa.io/) is a powerful and easy-to-use Kubernetes and cloud database backup service for DevOps and IT Ops teams. With CloudCasa, you do not need to be a storage or data protection expert to back up and restore your Kubernetes clusters. CloudCasa helps you with the arduous work of protecting your cluster resources and persistent data from human error, security breaches, and service failures to provide the business continuity and compliance that your business requires.
+
+Setup and configuration of CloudCasa for your OVHcloud Managed Kubernetes cluster is a simple, six step procedure:
+
+1. Setting up a CloudCasa account and deploying the CloudCasa agent
+2. Create a dummy application
+3. Configure the volume snapshot class
+4. Set up a backup policy
+5. Define and run a backup
+6. Run a restore operation for the dummy application
+
+## Before you begin
+
+This tutorial assumes that you already have a working OVHcloud Managed Kubernetes cluster, and some basic knowledge of how to operate it. If you want to learn more about these topics, please check out the [deploying a Hello World application](https://support.us.ovhcloud.com/hc/en-us/articles/1500004771762) guide.
+
+The kubectl tool must be installed and configured. You will need cluster administrative access to install the CloudCasa agent on your cluster. While registering your cluster in the user interface (UI), each cluster will be given a unique YAML file to be applied to your cluster. You have to allow outgoing network access from your cluster to the CloudCasa service (agent.cloudcasa.io) on port 443 (this port is open by default).
+
+## Instructions
+
+### Step 1 – Set up a CloudCasa account and deploy the CloudCasa agent
+
+Navigate to [cloudcasa.io/signup](https://cloudcasa.io/kubernetes-backup/) to sign up for a free account by providing the usual details. Then sign in to your account after verifying the registered email address, which will take you to the CloudCasa dashboard.
+
+This guide is based on the CloudCasa version as of October 11, 2022.
+
+![cloudcasa1.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971209925139.png)
+
+After logging into CloudCasa, navigate to the `Protection` tab > `Clusters` > `Overview` and click on the `Add cluster` button at the top right.
+
+![cloudcasa2.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971210067475.png)
+
+Provide the cluster name and description. Then click the `Save` button.
+
+![cloudcasa3.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971226964371.png)
+
+This will display a kubectl command to run, which will install the CloudCasa agent.
+
+![cloudcasa4.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971210202771.png)
+
+Run the kubectl command on your cluster and confirm that the registered Kubernetes cluster moves into the Active state in the CloudCasa UI. This should take no more than a couple of minutes. Your CloudCasa agent has now successfully been deployed.
+
+![cloudcasa5.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227036307.png)
+
+### Step 2 – Create a dummy application
+
+Start by creating an example deployment in a new namespace `ovhcloud-and-cloudcasa-test`:
+
+```
+kubectl create namespace ovhcloud-and-cloudcasa-test
+```
+
+Then apply the following configuration using:
+
+```
+kubectl create -f <path to .yaml> 
+```
+
+```
+apiVersion: v1 
+kind: PersistentVolumeClaim 
+metadata: 
+  name: mypvc 
+  namespace: ovhcloud-and-cloudcasa-test 
+spec: 
+  storageClassName: csi-cinder-classic 
+  accessModes: 
+    - ReadWriteOnce 
+  resources: 
+    requests: 
+      storage: 2Gi 
+--- 
+apiVersion: apps/v1 
+kind: Deployment 
+metadata: 
+  name: myapp-deployment 
+  namespace: ovhcloud-and-cloudcasa-test 
+spec: 
+  replicas: 1 
+  selector: 
+    matchLabels: 
+      app: myapp 
+  template: 
+    metadata: 
+      labels: 
+        app: myapp 
+    spec: 
+      containers: 
+      - name: date 
+        image: debian:9-slim 
+        command: ["/bin/sh","-c"] 
+        args: ["while true; do /bin/date | /usr/bin/tee -a /mnt/date ; /bin/sleep 5; done"] 
+        volumeMounts: 
+          - mountPath: /mnt 
+            name: data-mount 
+      - name: sidecar 
+        image: debian:9-slim 
+        command: ["/bin/sh","-c"] 
+        args: ["/bin/sleep 3600"] 
+        securityContext: 
+          privileged: true 
+        volumeMounts: 
+          - mountPath: /mnt 
+            name: data-mount 
+      volumes: 
+      - name: data-mount 
+        persistentVolumeClaim: 
+          claimName: mypvc 
+```
+
+This deployment creates a pod with two containers. The date container will simply append the date to stdout and /mnt/date every five seconds:
+
+```
+kubectl -n ovhcloud-and-cloudcasa-test exec myapp-deployment-<pod-name> -c date -- cat /mnt/date 
+```
+
+![cloudcasa6.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227092243.png)
+
+The sidecar container mounts in the PVC under /mnt and then lies dormant. This container will be used during the snapshot process to quiesce the filesystem so a consistent snapshot can be taken. It serves no other purpose. Notice how this container must have the privileged flag set to true. This is necessary in order to run the `fsfreeze` command.
+
+### Step 3 – Configure the volume snapshot class
+
+Delete the CloudCasa volume snapshot class:
+
+```
+kubectl delete volumesnapshotclass cloudcasa-cinder-csi-openstack-org 
+```
+
+Edit the `volumesnapshotclass`:
+
+```
+kubectl edit volumesnapshotclass csi-cinder-snapclass-in-use-v1 
+```
+
+Edit this VSC to make the following changes. Add the following label:
+
+```
+velero.io/csi-volumesnapshot-class: "true" 
+Ensure that DeletionPolicy is set to Retain.  
+```
+
+Here is a `volumesnapshotclass` example configuration:
+
+```
+# Please edit the object below. Lines beginning with a '#' will be ignored, 
+# and an empty file will abort the edit. If an error occurs while saving this file will be 
+# reopened with the relevant failures. 
+# 
+apiVersion: snapshot.storage.k8s.io/v1 
+deletionPolicy: Retain 
+driver: cinder.csi.openstack.org 
+kind: VolumeSnapshotClass 
+metadata: 
+  creationTimestamp: "2022-09-29T13:41:28Z" 
+  generation: 2 
+  labels: 
+    velero.io/csi-volumesnapshot-class: "true" 
+  name: csi-cinder-snapclass-in-use-v1 
+  resourceVersion: "3694783821" 
+  uid: 2040b84b-b10a-46fe-8d30-2507a12edd58 
+parameters: 
+  force-create: "true" 
+```
+
+### Step 4 – Set up a backup policy
+
+A backup policy allows you to define when backups under the policy will run and for how long they will be retained. You can have multiple schedules with different retention times in one policy. For example, a policy may specify the creation of hourly backups that are retained for seven days, and daily backups that are retained for 30 days.
+
+Navigate to the `Policies` tab via `Configuration` > `Protection` > `Policies`. Create a Policy by clicking on the `Add policy` button. Provide the required information, and then click on the `Create policy` button.
+
+![cloudcasa7.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971210409619.png)
+
+### Step 5 – Define and run a backup
+
+Navigate to the `Dashboard` tab. Click on `Define backup`. Provide a Backup Name and select the Cluster for which you are defining a backup.
+
+Select either Full Cluster, a Specific Namespace, or provide a Label selector (Optional). If backing up a specific namespace, enter the name of the namespace you want to protect.
+
+![cloudcasa8.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227206803.png)
+
+For the backup operation, choose whether to snapshot your PVs. Then select one of the two available options:
+
+- Snapshot only
+- Snapshot and copy
+
+The “Snapshot and copy” option is only available with a paid subscription.
+
+If you want to run pre- and post-backup commands to enable application consistent backups, select `Enable App Hooks` and enter the appropriate pre- and post-backup app hook definitions. You will need to have defined custom hooks under Configuration/App Hooks to quiesce the application and filesystem. This isn’t necessary for all applications. If you need assistance with these, use the in-product chat or get in contact with casa\@cloudcasa.io.
+
+On the next page, enable `Run now` to run the Backup operation immediately and provide Retention days (the retention period is just for this ad-hoc run). Click on the `Create` button. This will create a Backup definition.
+
+Navigate to the `Dashboard` tab and find the Clusters > Backups that you want to run. Click the `Run now` button on its line. You will see the job running in the dashboard’s Activity tab. Verify that it completes successfully.
+
+![cloudcasa9.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971210530451.png)
+
+### Step 6 – Run a restore operation for the dummy application
+
+Let’s set up a disaster recovery scenario by deleting our dummy application and the associated namespace:
+
+```
+kubectl delete -n ovhcloud-and-cloudcasa-test deployments.apps myapp-deployment 
+
+kubectl delete namespaces ovhcloud-and-cloudcasa-test 
+```
+
+Now let’s recover our dummy application. Go back to the Clusters > Backups on the `Dashboard`, and click the `Restore` icon next to your backup definition in the list.
+
+When the restore page opens, select a specific recovery point by choosing it from the list of available recovery points. Then, click the `Next` button.
+
+![cloudcasa10.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227332243.png)
+
+On the next page, you can choose whether to restore all namespaces in the backup or only selected namespaces. If you choose the latter, a list of namespaces will be displayed from which you can select the namespace(s) for which the restore operation will be performed. Remember that only namespaces included in the backup will be shown.
+
+For the demo, we will recover the full `ovhcloud-and-cloudcasa-test` namespace. We also support the recovery of specific resource types and utilizing post-restore scripts for the recovery via enabling app hooks.
+
+![cloudcasa11.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227440019.png)
+
+Note that existing namespaces cannot be overwritten so, if you want to restore an existing namespace to a cluster, you need to delete the old one first. You can also rename namespaces when restoring (later).
+
+You can add labels to be used to select resources for restore as well. These are key: value pairs, and will not be validated by the UI. We can add them one at a time or add multiple pairs at once, separated by spaces.
+
+Finally, we need to choose whether or not to restore PV snapshots. If you toggle off the “Exclude persistent volumes” option, PVs will be restored using the snapshots or copies associated with the recovery point you’ve selected.
+
+Remember that if you have selected specific namespaces or labels for restore, only PVs in the namespaces or with the labels you’ve selected will be restored.
+
+On the next page, you will be presented with destination options.
+
+![cloudcasa12.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971210634259.png)
+
+The system will also save the job under its name so that you can modify and run it again later.
+
+On the next step, you can choose an alternate cluster to restore to. By default, the restore will go to the original cluster. You can choose to rename restored namespaces by adding a prefix and/or suffix and change the storage classes if desired.
+
+Remember that all the restored namespaces will have these prefixes or suffixes added, so if you want to rename only specific namespaces, you should run multiple restores and select those namespaces explicitly.
+
+Finally, provide the restore job with a name. Click the `Restore` button and CloudCasa will do the rest! You can watch the progress of the restore job in the progress pane. You can also edit and re-run it, if you wish, under the cluster’s `Restore` tab.
+
+![cloudcasa13.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971210818707.png)
+
+![cloudcasa14.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227596051.png)
+
+Confirm that the application is back up and running.
+
+![cloudcasa15.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227675155.png)
+
+Finally, let’s view the contents of the `/mnt/date` in the application’s pod. You can see the 14 minute gap here, which aligns with the snapshot time of 12:40 and the restore time of 12:54.
+
+![cloudcasa16.png](/images/public-cloud/containers-orchestration/how-to-back-up-an-ovhcloud-managed-kubernetes-cluster-using-cloudcasa/13971227724563.png)
+
+## Recap
+
+Congratulations, you are done! That’s all there is to it! Now you can sit back and relax, knowing that you can now take ad-hoc or scheduled backups and perform restores of your OVHcloud Managed Kubernetes clusters, namespaces, and applications using CloudCasa.

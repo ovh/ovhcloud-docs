@@ -16,6 +16,7 @@ import { generateCpNavRules } from './config/cpnav-rules';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
+import { regionConfig } from './config/regions';
 import type { Locale } from './config/shared';
 import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
@@ -74,9 +75,17 @@ const allLocales = [
   },
 ] as const;
 
-const devLocales = (process.env.DEV_LOCALES || 'fr,en').split(',');
-const activeLocales = allLocales.filter((l) => devLocales.includes(l.lang));
-const excludedLocales = allLocales
+// Restrict to the active region's locales (config/regions.ts). EU keeps the
+// historical fr+en dev default; a single-locale region defaults to its locale.
+const regionLocales = allLocales.filter((l) =>
+  (regionConfig.locales as readonly string[]).includes(l.lang),
+);
+const devLocaleDefault = regionConfig.localePrefix
+  ? 'fr,en'
+  : regionConfig.defaultLocale;
+const devLocales = (process.env.DEV_LOCALES || devLocaleDefault).split(',');
+const activeLocales = regionLocales.filter((l) => devLocales.includes(l.lang));
+const excludedLocales = regionLocales
   .filter((l) => !devLocales.includes(l.lang))
   .map((l) => l.lang);
 
@@ -115,7 +124,7 @@ const pathExcludes = devPath
   : [];
 
 export default defineConfig({
-  root: path.join(__dirname, 'docs'),
+  root: path.join(__dirname, regionConfig.contentDir),
   plugins: [
     pluginLastUpdatedFromFrontmatter(),
     // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
@@ -183,6 +192,13 @@ export default defineConfig({
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
+        // Hide the language switcher on single-locale regions (e.g. US).
+        __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
+        // Mirrors rspress.config.build.ts — consumed by
+        // theme/components/SEOHead. Uses the region's full locale list, not the
+        // DEV_LOCALES subset, so dev matches the production markup.
+        __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
+        __LOCALES__: JSON.stringify(regionConfig.locales),
       },
     },
     resolve: {
@@ -306,8 +322,7 @@ export default defineConfig({
       },
     ],
     footer: {
-      message:
-        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>',
+      message: `<div><a href="${regionConfig.corporateUrl}" target="_blank" rel="nofollow">${regionConfig.copyright}</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>`,
     },
   },
 });

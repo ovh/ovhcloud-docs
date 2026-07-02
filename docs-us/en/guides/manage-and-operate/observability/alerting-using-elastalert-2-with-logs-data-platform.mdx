@@ -1,0 +1,257 @@
+---
+title: "Alerting - Using ElastAlert 2 with Logs Data Platform"
+description: "ElastAlert 2 is an alerting framework originally designed by Yelp. It can detect anomalies, spikes, or other patterns of interest. It is production-ready and is"
+zendesk_id: 29195819909267
+zendesk_hash: f453accd1286cd65
+content_hash: affdb3b3a40784ab
+updated: 2024-08-07
+---
+
+# Alerting - Using ElastAlert 2 with Logs Data Platform
+
+[ElastAlert 2](https://github.com/jertel/elastalert) is an alerting framework originally designed by Yelp. It can detect anomalies, spikes, or other patterns of interest. It is production-ready and is a well-known standard of alerting in the Elasticsearch/OpenSearch ecosystem. Their motto is: "If you can see it in your dashboards, ElastAlert 2 can alert on it." In this document, you will learn how to deploy this component on Logs Data Platform thanks to its compatibility with OpenSearch through [aliases](https://support.us.ovhcloud.com/hc/en-us/articles/29156743808403) and [indexes](https://support.us.ovhcloud.com/hc/en-us/articles/28358839730323). Logs Data Platform also allows you to host ElastAlert meta-indices on Logs Data Platform.
+
+ 
+
+## Requirements
+
+- [an activated Logs Data Platform account](https://us.ovhcloud.com/logs-data-platform/)
+- a machine on which you will deploy ElastAlert 2
+- dome data on an alias or an index
+
+ 
+
+## Preparation
+
+To deploy ElastAlert, you must have data for which you can receive alerts. If you only have Graylog stream, you can use aliases to enable the OpenSearch API on your stream data. Here is how:
+
+1. Log in to the [OVHcloud Control Panel](https://us.ovhcloud.com/manager/) and access your Logs Data Platform service.
+
+2. In the **Alias** tab, click on the `+ Add an alias` button.
+
+3. Choose a name and define a description for your alias.
+
+4. Save the entry by clicking the `Save` button.
+
+   ![operate\_LDP\_vqe\_useOpenSearchAPI02.png](/images/manage-and-operate/observability/alerting-using-elastalert-2-with-logs-data-platform/32090531388691.png)
+
+5) Once the alias has been created, use the *more options* `...` button to the right and select `Attach content to the alias` option.
+
+   ![operate\_LDP\_vqe\_useOpenSearchAPI03\*.png](/images/manage-and-operate/observability/alerting-using-elastalert-2-with-logs-data-platform/32090531397651.png)
+
+6. Define the Graylog streams you want to associate with your alias.
+
+If you only have [indices](https://support.us.ovhcloud.com/hc/en-us/articles/29215655915923), you can use them directly in the ElastAlert configuration.
+
+ 
+
+## Instructions
+
+ElastAlert configuration consists of three steps:
+
+1. [Installing ElastAlert and its metadata indices.](#installation)
+2. [Configuring the main configuration file.](#elastalert-configuration-file)
+3. [Configuring the alert rules.](#rules-configuration)
+
+### Installation
+
+Installing ElastAlert can be done in different ways as described in their [documentation](https://elastalert2.readthedocs.io/en/latest/elastalert.html#running-elastalert). You can either use the docker image or install the Python 3 packages. Check that your Python version is compatible with ElastAlert 2 and that you have met all [requirements](https://elastalert2.readthedocs.io/en/latest/running_elastalert.html#requirements) before attempting installation.
+
+You can either install the latest stable release of ElastAlert 2 using pip...
+
+```console
+$ pip install elastalert2
+```
+
+Or you can clone the Jertel ElastAlert repository for the most recent changes:
+
+```console
+$ git clone https://github.com/jertel/elastalert2.git
+```
+
+And then install the module:
+
+```console
+$ pip install "setuptools>=11.3"
+```
+
+```console
+$ python setup.py install
+```
+
+If there is any error about any missing packages, install them manually. For example:
+
+```console
+$ pip install setuptools_rust
+```
+
+The next step is to configure ElastAlert meta-indices using the provided tool **elastalert-create-index**. ElastAlert needs **5** indices to operate:
+
+- The **generic** index containing all active alerts.
+- The **status** index containing the queries run to trigger the alerts.
+- The **error** index with all the errors encountered.
+- The **silence** index indicating if a recurring alert should be triggered or silenced.
+- The **past** index with all the alerts triggered and closed.
+
+The following command will create the indices on Logs Data Platform directly from OpenSearch API.
+
+```console
+$ elastalert-create-index --host <ldp-cluster>.logs.ovh.com --port 9200 --username <username> --password <password> --ssl --index <username>-i-<suffix>
+```
+
+You should pay attention to the following points:
+
+- The `<ldp-cluster>` must be the one assigned to you (find on the Logs Data Platform **Home** page in the OVHcloud Control Panel).
+- `<username>` is the username used to connect to the API or to the Logs Data Platform interfaces (Graylog or OpenSearch Dashboards).
+- `<password>` is the associated password. You can use [tokens](https://support.us.ovhcloud.com/hc/en-us/articles/29230043669395)**&#xA0;**&#x69;n place of the username/password couple for your credentials.
+- The `--index` is the most important here since you **must** follow the index naming convention of Logs Data Platform. Use the presented form `<username>-i-` as a base name for your meta-indices. `<suffix>` can be personalized to any alphanumeric characters.
+
+This command will prompt you with different questions:
+
+```console
+Verify TLS certificates? t/f: t
+Enter optional OpenSearch URL prefix (prepends a string to the URL of every request):
+Name of existing index to copy? (Default None)
+Reading Elastic 8 index mappings:
+Reading index mapping 'es_mappings/8/silence.json'
+Reading index mapping 'es_mappings/8/elastalert_status.json'
+Reading index mapping 'es_mappings/8/elastalert.json'
+Reading index mapping 'es_mappings/8/past_elastalert.json'
+Reading index mapping 'es_mappings/8/elastalert_error.json'
+New index logs-**-*****-i-***** created
+Done!
+```
+
+This will then create five indices and place the mapping on them. All you need after is to create the ElastAlert configuration file and some rules.
+
+ 
+
+### ElastAlert 2 configuration file
+
+Create a configuration directory (for example **/opt/elastalert/**) and a rule directory before continuing (such a&#x73;**&#x20;/opt/elastalert/rules**). This rule directory will be used in the configuration below.
+
+Here is a sample config.yml file you can use for your configuration directory:
+
+```yaml
+rules_folder: /opt/elastalert/rules
+run_every:
+  minutes: 5
+buffer_time:
+  hours: 6
+es_host: <ldp-cluster>.logs.ovh.com
+es_port: 9200
+use_ssl: True
+verify_certs: True
+es_username: <username>
+es_password: <password>
+writeback_index: <username>-i-<suffix>
+alert_time_limit:
+  days: 2
+```
+
+You can find all the available options [here](https://elastalert2.readthedocs.io/en/latest/running_elastalert.html#downloading-and-configuring).
+
+- **rules\_folder** is where ElastAlert will load rule configuration files from. It will attempt to load every .yaml file in the folder. Without any valid rules in this folder, ElastAlert will not start.
+- **run\_every** is how often ElastAlert will query OpenSearch.
+- **buffer\_time** is the size of the query window, stretching backward from the time each query is run.
+- **es\_host** is the address of an OpenSearch cluster where ElastAlert will store data about its state, queries run, alerts, and errors. Each rule may also use a different OpenSearch host to query against.
+- **es\_port** is the port corresponding to es\_host.
+- **use\_ssl**: whether or not to connect to es\_host using TLS. TLS is mandatory in our platform.
+- **verify\_certs** whether or not to verify TLS certificates. Our platform uses certificates validated by most operating systems and browsers.
+- **es\_username** is the username used to connect to OpenSearch APIs.
+- **es\_password** is the password used to connect to OpenSearch APIs. Remember that you can use tokens in place of these credentials.
+- **writeback\_index** is the name of the index in which ElastAlert will store data. Use the same name you used to configure indices with `elastalert-create-index`.
+- **alert\_time\_limit** is the retry window for failed alerts.
+
+ 
+
+### Rules configuration
+
+In this example, we will create a [frequency.yml](https://elastalert2.readthedocs.io/en/latest/ruletypes.html#frequency) rule which will send a email if the field **user** with the value **Oles** appears more than **3** times in less than **4 hours** and use the debug logger **debug**.
+
+```yaml
+name: Example frequency rule
+
+# (Required)
+# Type of alert.
+# the frequency rule type alerts when num_events events occur with timeframe time
+type: frequency
+
+# (Required)
+# Index to search, wildcard supported
+index:  <index-or-alias-to-check>
+
+# (Required, frequency specific)
+# Alert when this many documents matching the query occur within a timeframe
+num_events: 3
+
+# (Required, frequency specific)
+# num_events must occur within this amount of time to trigger an alert
+timeframe:
+  hours: 4
+
+timestamp_field: timestamp
+timestamp_type: custom
+timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
+timestamp_format_expr:  'ts[:23]'
+timestamp_to_datetime_format_expr: 'ts[:23]'
+
+# (Required)
+# A list of OpenSearch filters used for find events
+# These filters are joined with AND and nested in a filtered query
+# For more info: https://opensearch.org/docs/latest/opensearch/query-dsl/index/
+filter:
+- term:
+    user: "Oles"
+
+# (Required)
+# The alert is used when a match is found
+alert:
+- "debug"
+```
+
+We won't detail all the parameters since most of them are self-explanatory. However, please pay attention to the **index** parameter. This index or alias is the one containing the logs or documents you want to be alerted from.
+
+It's also important to customize the timestamp parameters according to the timestamp of your logs or documents. Here we customize a **custom** timestamp on the **timestamp\_field** `timestamp` with the format used in the logs pipeline `%Y-%m-%d %H:%M:%S.%f`. Because this format can have more than three extra numbers, we need to truncate them using the **timestamp\_format\_expr** option. Note that Elastalert does not support nanoseconds, this is why the option **timestamp\_to\_datetime\_format\_expr** cuts the timestamp string to 23 characters, so it can be parsed.
+
+ 
+
+## Launch ElastAlert
+
+To launch ElastAlert, use the following command:
+
+```console
+$ elastalert --config config.yml --debug
+```
+
+To test your alert you can use the following curl command sending logs to our [OpenSearch endpoint](https://support.us.ovhcloud.com/hc/en-us/articles/28358839730323):
+
+```console
+$ curl -H 'Content-Type: application/json' -u '<username>:<password>' -XPOST https://<ldp-cluster>.logs.ovh.com:9200/ldp-logs/_doc -d '{ "X-OVH-TOKEN" : "stream-token>" , "test_field" : "OVHcloud" , "user": "Oles", "short_message" : "Hello OpenSearch input", "host" : "OVHcloud_elastalert" }'
+```
+
+If you send this event more than three times, the ElastAlert process will print the triggered alert.
+
+```console
+user01@test:~/rules$ elastalert --config config.yml --debug
+INFO:elastalert:Note: In debug mode, alerts will be logged to console but NOT actually sent.
+To send them but remain verbose, use --verbose instead.
+INFO:elastalert:Note: In debug mode, alerts will be logged to console but NOT actually sent.
+To send them but remain verbose, use --verbose instead.
+INFO:elastalert:1 rules loaded
+INFO:elastalert:Starting up
+INFO:elastalert:Disabled rules are: []
+INFO:elastalert:Sleeping for 299.999899 seconds
+INFO:elastalert:Queried rule Example frequency rule from 2024-08-06 04:03 EDT to 2024-08-06 10:03 EDT: 16 / 16 hits
+INFO:elastalert:Skipping writing to ES: {'exponent': 0, 'rule_name': 'Example frequency rule', '@timestamp': '2024-08-06T14:03:25.155726Z', 'until': '2024-08-06T14:04:25.155713Z'}
+INFO:elastalert:Alert for Example frequency rule at 2024-08-06T13:46:26.335Z:
+INFO:elastalert:Example frequency rule
+```
+
+ElastAlert has a lot of integrations for alerting including Email, JIRA, OpsGenie, SNS, HipChat, Slack, MS Teams, PagerDuty, Zabbix, custom commands, and [many more](https://elastalert2.readthedocs.io/en/latest/ruletypes.html#alerts).
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Logs Data Platform support guides](https://support.us.ovhcloud.com/hc/en-us/sections/27230973429523-Logs-Data-Platform) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
