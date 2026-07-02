@@ -1,4 +1,4 @@
-import { useI18n } from '@rspress/core/runtime';
+import { useFrontmatter, useI18n, useLang } from '@rspress/core/runtime';
 import './index.scss';
 
 const PdfIcon = () => (
@@ -32,18 +32,40 @@ const PdfIcon = () => (
   </svg>
 );
 
+/**
+ * Product-level PDF download (AWS-style "whole product as one PDF").
+ *
+ * A page opts in by declaring `pdf: <bundle-ref>` in its frontmatter (typically a
+ * product/section overview page). The bundle-ref names a group node in
+ * `config/sidebar/index.md`; the build (`pnpm build:pdfs`) renders that node's
+ * landing page + all descendant guides into `/pdfs/<locale>/<bundle-ref>.pdf`.
+ *
+ * Renders nothing on pages without a `pdf:` frontmatter key — so the button is
+ * scoped to product/landing pages only, never every guide.
+ */
 export function PdfDownloadButton() {
   const t = useI18n();
+  const lang = useLang();
+  const { frontmatter } = useFrontmatter();
+
+  const bundleRef =
+    typeof frontmatter?.pdf === 'string' ? frontmatter.pdf : null;
+  if (!bundleRef) return null;
+
+  const href = `/pdfs/${lang}/${bundleRef}.pdf`;
 
   return (
-    <button
-      type="button"
+    <a
       className="rp-llms-button"
       title={t('pdfButton.title')}
-      onClick={() => window.print()}
+      href={href}
+      // No `download` attr → the browser opens the PDF inline in its built-in
+      // viewer (AWS-style) instead of forcing a save. Opens in a new tab.
+      target="_blank"
+      rel="noopener noreferrer"
     >
       <PdfIcon />
       <span>{t('pdfButton.label')}</span>
-    </button>
+    </a>
   );
 }
