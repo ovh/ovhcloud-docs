@@ -1,0 +1,124 @@
+---
+title: "Logs Data Platform - Mutualized Inputs (OpenSearch API)"
+description: "OpenSearch is the star component of our platform, making it possible to use OpenSearch indexes to store your documents. The OpenSearch indexes are quite flexibl"
+zendesk_id: 28358839730323
+zendesk_hash: 532dbc6e4d233231
+content_hash: 3d612fd8cefb72c1
+updated: 2024-07-23
+---
+
+# Logs Data Platform - Mutualized Inputs (OpenSearch API)
+
+OpenSearch is the star component of our platform, making it possible to use [OpenSearch indexes](https://support.us.ovhcloud.com/hc/en-us/articles/29215655915923) to store your documents. The OpenSearch indexes are quite flexible, but they are not part of the log pipeline. If you want to also use [WebSocket live-tail](https://support.us.ovhcloud.com/hc/en-us/articles/29185555454739), the [Alerting system](https://support.us.ovhcloud.com/hc/en-us/articles/29190025605139), or the [Cold Storage](https://support.us.ovhcloud.com/hc/en-us/articles/29221962816403) feature, and have automatic retention management, then you will need to use the log pipeline. Thanks to our OpenSearch log endpoint, it shall enable you to send logs using the HTTP OpenSearch API. Moreover, the endpoint supports [OpenSearch Ingest](https://opensearch.org/docs/latest/opensearch/rest-api/ingest-apis/index/), meaning you can use advanced processing on your logs before they are sent in the pipeline. There is no additional cost for this feature, all you need is a [stream](https://support.us.ovhcloud.com/hc/en-us/articles/28017122298771).
+
+ 
+
+## OpenSearch endpoint
+
+The OpenSearch endpoint is a dedicated index where you can send a JSON document. The port used is the **9200**, the same HTTP port used for all other OpenSearch APIs of Logs Data Platform. The only fields needed are the **X-OVH-TOKEN** and an extra field (any custom field). Don't hesitate to go to the [Quick Start documentation](https://support.us.ovhcloud.com/hc/en-us/articles/28017122298771) if you are not familiar with this concept. This document log will be transformed into a valid GELF log and any missing field will be filled automatically. To respect the GELF convention, you can also use all the [GELF format reserved fields](https://docs.graylog.org/docs/gelf). Here is one example of the minimal message you can send:
+
+```
+$ curl -H 'Content-Type: application/json' -u '<user>:<password>' -XPOST https://<ldp-cluster>.logs.ovh.com:9200/ldp-logs/_doc -d '{ "X-OVH-TOKEN" : "7f00cc33-1a7a-4464-830f-91be90dcc880" , "test_field" : "OVHcloud"}'
+```
+
+Replace the `<user>`, `<password>`, and `<ldp-cluster>` with your Logs Data Platform username, password, and cluster. You can also use [tokens](https://support.us.ovhcloud.com/hc/en-us/articles/29230043669395) in place of your credentials. Sending this payload will result in this log:
+
+![operate\_LDP\_ingest\_openstack01.png](/images/manage-and-operate/observability/logs-data-platform-mutualized-inputs-opensearch-api/28358880573459.png)
+
+The system automatically set the timestamp at the date when the log was received and added the field **test\_field** to the log message. Source was set to **unknown** and the message to `-`. Note that the payload follows the JSON specification (and not the GELF one). The system will still recognize any reserved field used by the [GELF specification](https://docs.graylog.org/docs/gelf). Here is another example:
+
+```
+$ curl -H 'Content-Type: application/json' -u '<user>:<password>' -XPOST https://<ldp-cluster>.logs.ovh.com:9200/ldp-logs/_doc -d '{ "X-OVH-TOKEN" : "7f00cc33-1a7a-4464-830f-91be90dcc880" , "test_field" : "OVHcloud" , "short_message" : "Hello OS input", "host" : "OVHcloud_doc" }'
+```
+
+This will create the following log:
+
+![operate\_LDP\_ingest\_openstack02.png](/images/manage-and-operate/observability/logs-data-platform-mutualized-inputs-opensearch-api/28358880582419.png)
+
+The system used the reserved fields associated with GELF to create the message and the source fields.
+
+Logs Data Platform will also detect any typed field in the original data and convert them accordingly to our [field naming convention](https://support.us.ovhcloud.com/hc/en-us/articles/28131111525907). This last example illustrates it:
+
+```
+$ curl -H 'Content-Type: application/json' -u '<user>:<password>' -XPOST https://<ldp-cluster>.logs.ovh.com:9200/ldp-logs/_doc -d '{ "X-OVH-TOKEN" : "7f00cc33-1a7a-4464-830f-91be90dcc880" , "test_field" : "OVHcloud" , "short_message" : "Hello OS input", "host" : "OVHcloud_doc", "numeric_field" : 43.5 }'
+```
+
+The numeric field **numeric\_field** will be detected as a number and will be suffixed to follow our naming conventions.
+
+![operate\_LDP\_ingest\_openstack03.png](/images/manage-and-operate/observability/logs-data-platform-mutualized-inputs-opensearch-api/28358863137811.png)
+
+The OpenSearch input will also flatten any sub-object or array sent through it and also supports ingest pipelines that are used, for example, with [Filebeat integrations](https://support.us.ovhcloud.com/hc/en-us/articles/28589772732179).
+
+ 
+
+## Use case: Vector
+
+[Vector](https://vector.dev/) is a fast and lightweight log forwarder written in Rust. This software is quite similar to [Logstash](https://support.us.ovhcloud.com/hc/en-us/articles/28293932467219) or [Fluent Bit](https://support.us.ovhcloud.com/hc/en-us/articles/28808528791699). It takes logs from a source, transforms them, and sends them in a format compatible with the configured output module.
+
+Vector configuration file:
+
+```
+[sources.journald]
+type = "journald" # required
+
+[transforms.token]
+#This VRL transform add the token
+type = "remap"
+inputs = ["journald"]
+source = '''
+."X-OVH-TOKEN" = "<stream-token>"
+'''
+
+[sinks.ldp]
+type = "elasticsearch" # required
+inputs = ["token"] # required
+mode = "bulk"
+api_version = "v7"
+compression = "gzip" # optional, default is none
+healthcheck = true # required
+endpoint = "https://<ldp-cluster>.logs.ovh.com:9200" # required
+bulk.index = "ldp-logs" # required
+auth.strategy = "basic"
+auth.user = "<username>"
+auth.password = "<password>"
+```
+
+The vector integrations are numerous with more than 20 sources, more than 25 transforms, and 30 sinks supported. It supports OpenSearch as a sink thanks to its Elasticsearch compatibility. We will use the simplest configuration to make it work from a **journald** source to our OpenSearch endpoint. Don't hesitate to check the [documentation](https://vector.dev/docs/about/what-is-vector/) to explore all the possibilities.
+
+Here is the explanation of this configuration.
+
+The source part of the TOML configuration file configures the [journald](https://vector.dev/docs/reference/configuration/sources/journald/) source. By default this source will use the `/var/lib/vector` directory to store its data. To configure the `/var/lib/vector` directory:
+
+```
+sudo mkdir -p /var/lib/vector
+sudo chown <default-user>:<default-user> /var/lib/vector
+```
+
+The transform configuration part relates to the [remap](https://vector.dev/docs/reference/configuration/transforms/remap/) transform. The purpose of the "token" transform is to add the token stream value. It takes logs from the **inputs** named journald and adds a **X-OVH-TOKEN** value. This token value can be found in the *more options* `...` menu on the stream page in the Logs Data Platform area of the OVHcloud Control Panel. Replace the example token with the token value of your stream.
+
+The final part is the [Elasticsearch sink](https://vector.dev/docs/reference/configuration/sinks/elasticsearch/). It takes data from the previous **inputs** token and sets up several config points:
+
+- gzip is supported on our endpoint, so it's activated with the **compression** configuration.
+- **healthcheck** is also supported and allows you to be sure that the platform is alive and well.
+- the **endpoint** configuration must be replaced with your assigned cluster.
+- the **bulk.index** must be set to "ldp-logs," our special OpenSearch logs index.
+- the **auth.strategy** must be set to "basic."
+- **auth.user** and **auth.password** must be set to the username of the Logs Data Platform account and its associated password. Note that you can use [tokens](https://support.us.ovhcloud.com/hc/en-us/articles/29230043669395) in place of your credentials.
+
+To use this configuration file, specify it with the --config flag when starting Vector:
+
+```
+vector --config /home/<default-user>/vector.toml
+```
+
+Once configured and launched you will immediately see this type of logs in Graylog:
+
+![operate\_LDP\_ingest\_openstack04.png](/images/manage-and-operate/observability/logs-data-platform-mutualized-inputs-opensearch-api/28358880608915.png)
+
+The logs from journald arrived fully parsed and ready to be explored. Use different sources and transforms to send your application logs to Logs Data Platform.
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Logs Data Platform support guides](https://support.us.ovhcloud.com/hc/en-us/sections/27230973429523-Logs-Data-Platform) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).

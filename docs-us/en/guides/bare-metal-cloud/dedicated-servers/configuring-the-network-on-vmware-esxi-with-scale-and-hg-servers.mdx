@@ -1,0 +1,325 @@
+---
+title: "Configuring the network on VMware ESXi with SCALE and HG servers"
+description: "Learn how to configure the network on VMware ESXi."
+zendesk_id: 4408274864659
+zendesk_hash: b454119636f5540d
+content_hash: a0b9d3b9792876ff
+updated: 2026-02-26
+---
+
+# Configuring the network on VMware ESXi with SCALE and HG servers
+
+**Learn how to configure the network on VMware ESXi.**
+
+On the High Grade & SCALE ranges, it is not possible to manage additional IPs in *bridged* mode (via virtual MACs). Configuring additional IPs in routed mode or via the vRack is necessary.
+
+:::info
+
+To date, the documentation only covers the solution via the vRack.
+
+:::
+
+:::warning
+
+**NOTE:** Since September 15, 2025, OVHcloud has provided an ESXi 8 installation template for its dedicated servers.
+
+:::
+
+ 
+
+## Requirements
+
+- A public block of IP addresses in your account, with a minimum of four addresses
+- Your chosen private IP address range
+- A vRack-compatible [dedicated server](https://us.ovhcloud.com/bare-metal/) connected to the appropriate vRack
+- A [vRack](https://us.ovhcloud.com/network/vrack/) service activated in your account
+- Access to the [OVHcloud Control Panel](https://us.ovhcloud.com/manager/)
+
+ 
+
+## Instructions
+
+:::warning
+
+**NOTE:** On these server ranges, there are four network cards. The first two are for the public, and the last two are for the private network. To get all the bandwidth, aggregates must be created.
+
+:::
+
+:::warning
+
+**NOTE:&#x20;**&#x54;here's currently a known issue with the ESXi graphical user interface; performing these steps in the interface will result in a non-working configuration. It is necessary to apply this configuration using the command line interface in SSH.
+
+:::
+
+### Identify your vNICs
+
+You will need to identify which NICs are public and which are private to complete the later steps in this guide. You will need to follow the next step in command mode (shell).
+
+:::info
+
+The values supplied in these commands (i.e. vmnic0, vmnic1, etc.) will vary, but you should get similar outputs to what is shown below.
+
+:::
+
+To begin, use the following command:
+
+```
+[root@ns1011868:~] esxcli network nic list
+```
+
+In the output displayed, focus on the NICs with a **Link Status** of "Up" and their **MAC addresses**, as shown in the example below.
+
+![configESXiScaleHG01x.PNG](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17350705964179.png)
+
+Navigate to your [OVHcloud Control Panel](https://manager.us.ovhcloud.com/).
+
+1. Select `Bare Metal Cloud`.
+2. Click on the `Dedicated Servers menu`.
+3. Select your server.
+4. Click the `Network Interfaces` tab.
+
+![configESXiScaleHG02.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17350545743891.png)
+
+At the bottom of this screen, look at the list of Network Interfaces, focusing on the **Type** and **MAC Address** columns.
+
+![configESXiScaleHG03.PNG](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17350481915795.png)
+
+Compare these MAC addresses to those in the output in the previous step to determine which two NICs are public and which two are private.
+
+In the examples in this guide:
+
+- the public interfaces are `vmnic0` and `vmnic5`;
+- the private interfaces are on `vmnic3` and `vmnic4`.
+
+![configESXiScaleHG04.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17350545758611.png)
+
+ 
+
+### Additional IP via vRack
+
+:::warning
+
+**NOTE:** The limit on public bandwidth capacity in every location is set to 5Gbps (egress, per region, per vRack network).
+
+:::
+
+#### Original configuration
+
+Use the following command to see the current status of your vSwitch
+
+```
+[root@ns1017852:~] esxcli network vswitch standard list
+```
+
+The output will show one of your public NICs in the **Uplinks** line.
+
+![configESXiScaleHG05.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17351235700627.png)
+
+#### Explanations
+
+You need to:
+
+1. Create the aggregate on the public vSwitch
+2. Create the vSwitch for the vRack
+3. Create a port group for the new vSwitch for vRack
+4. Create a VMKernal NIC
+5. Change the NIC teaming Load balancing setting
+6. Create VMs using the new port group as the network interface
+
+ 
+
+#### Configure ESXi
+
+:::info
+
+You will need to follow the next steps in command mode (shell) instead of the ESXi GUI.
+
+:::
+
+1. Create the aggregate in LACP mode on the vSwitch that carries the public interfaces.
+
+   Use the following commands:
+
+   ```
+   [root@ns1011868:~] esxcli network vswitch standard uplink add --uplink-name=vmnic5 --vswitch-name=vSwitch0
+   [root@ns1011868:~] esxcli network vswitch standard policy failover set -l iphash -v vSwitch0
+   [root@ns1011868:~] esxcli network vswitch standard policy failover get -v vSwitch0
+   ```
+
+   The output should show both of your public NICs in the **Standby Adapters** line.
+
+   ![configESXiScaleHG06.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17352110961683.png)
+
+   Then use the following commands:
+
+   ```
+   [root@ns1011868:~] esxcli network vswitch standard policy failover set -a vmnic0 -v vSwitch0
+   [root@ns1011868:~] esxcli network vswitch standard policy failover get -v vSwitch0
+   ```
+
+   The output should show one of the public NICs as **Active**.
+
+   ![configESXiScaleHG07.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17353908563731.png)
+
+2. Create vSwitch and vRack aggregation on private interfaces.
+
+   Use the following commands:
+
+   ```
+   [root@ns1011868:~] esxcli network vswitch standard add --vswitch-name=vRackvSwitch
+   [root@ns1011868:~] esxcli network vswitch standard uplink add --uplink-name=vmnic3 --vswitch-name=vRackvSwitch
+   [root@ns1011868:~] esxcli network vswitch standard uplink add --uplink-name=vmnic4 --vswitch-name=vRackvSwitch
+   [root@ns1011868:~] esxcli network vswitch standard policy failover set -l iphash -v vRackvSwitch
+   [root@ns1011868:~] esxcli network vswitch standard policy failover get -v vRackvSwitch
+   ```
+
+   The output will show your private NICs as **Standby Adapters**:
+
+   ![configESXiScaleHG08.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17354679154835.png)
+
+3. Create a port group for the new “vRackvSwitch” vSwitch.
+
+   Use the following command:
+
+   ```
+   [root@ns1011868:~] esxcli network vswitch standard portgroup add --portgroup-name=portgroupvRackvSwitch --vswitch-name=vRackvSwitch
+   ```
+
+4. Create VMKernal NIC with the following settings:
+
+   - **Port group**: portgroupvRackvSwitch
+   - **MTU:** 9000
+   - **IP version:** IPv4 and IPv6
+
+   Configure your private IP in the **IPv4 settings** area.
+
+   ![](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/49428577913619.png)
+
+5. Open the settings for your vRack vSwitch. In the **NIC teaming** section, change the **Load balancing** setting to `Route based on IP hash`.
+
+   ![](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/49428584825363.png)
+
+   :::info
+
+   You can also configure your Linux distribution to use Jumbo frames within the vRack. Jumbo frames are Ethernet frames with more than 1500 bytes of payload, and they can carry up to 9000 bytes of payload. Using them minimizes routing processing time and, in the case of vRack, optimizes traffic.
+
+   - Check the MTU
+
+     ```
+     ip link show | grep mtu
+     ```
+
+   - Set your MTU size to 9000
+
+     ```
+     ip link set <interface name> mtu 9000
+     ```
+
+   - Apply the changes
+
+     Edit the `/etc/network/interface` file and add the following lines (according to your situation) to it:
+
+     **For a DHCP-managed interface**
+
+     ```
+     Auto <interface name>
+
+     Iface <interface name> inet dhcp
+
+       Pre-up /sbin/ip link set dev <interface name> up mtu 9000
+     ```
+
+     **For a fixed IP interface**
+
+     ```
+     Auto <interface name> iface <interface name> inet static mtu 9000
+     ```
+
+   :::
+
+6. Configure the VM.
+
+   The VMs must have the new `portgroupvRackvSwitch` port group in the network interface.
+
+   ![esxibridge4.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/4408548831763.png)
+
+   From the [OVHcloud Control Panel](https://us.ovhcloud.com/manager/#/hub), click `Network` and `vRack private network`.
+
+   ![configESXiScaleHG09.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17378923984531.png)
+
+   Move your IP range to your vRack.
+
+   ![configESXiScaleHG10.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17379040865811.png)
+
+   Once completed, it should look like this.
+
+   ![configESXiScaleHG11.png](/images/bare-metal-cloud/dedicated-servers/configuring-the-network-on-vmware-esxi-with-scale-and-hg-servers/17379001976723.png)
+
+ 
+
+#### Configure a usable IP address
+
+In the case of vRack, the first address and the last two addresses in a given IP block are always reserved for the network address, its gateway, and its *broadcast* address respectively. This means that the first usable address is the second address in the block, as shown below:
+
+```
+46.105.135.96 # Reserved: network address
+46.105.135.97 # First usable IP
+46.105.135.98
+46.105.135.99
+46.105.135.100
+46.105.135.101
+46.105.135.102
+46.105.135.103
+46.105.135.104
+46.105.135.105
+46.105.135.106
+46.105.135.107
+46.105.135.108
+46.105.135.109 # Last usable IP
+46.105.135.110 # Reserved: network gateway
+46.105.135.111 # Reserved: network broadcast
+```
+
+To configure the first usable IP address, you must edit the network configuration file as shown below. In this example, we use a subnet mask of **255.255.255.240**.
+
+The subnet mask used in this example is appropriate for our IP block. Your subnet mask may differ depending on the size of your block.
+
+:::warning
+
+**NOTE:** When you purchase your IP block, you will receive an email notifying you of the subnet mask to use.
+
+:::
+
+Additionally, in this example we are using `ens18` for our interface name in this example. To check the name of your interface, use the `ip add` command.
+
+You can learn more about configuring an Additional IP in a vRack in our [dedicated guide](https://support.us.ovhcloud.com/hc/en-us/articles/4403594838803).
+
+ 
+
+#### Configuration example of a client VM on Debian
+
+File contents `/etc/network/interfaces`:
+
+```
+auto lo ens18
+iface lo inet loopback
+iface ens18 inet static
+    address 46.105.135.97
+    netmask 255.255.255.240
+    gateway 46.105.135.110
+```
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Dedicated Servers](https://support.us.ovhcloud.com/hc/en-us/categories/115000423390-Dedicated-Servers) support guides or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
+
+:::info
+
+**Article Contributor(s):**
+
+- Suhail R
+- Ashley Osei
+
+:::

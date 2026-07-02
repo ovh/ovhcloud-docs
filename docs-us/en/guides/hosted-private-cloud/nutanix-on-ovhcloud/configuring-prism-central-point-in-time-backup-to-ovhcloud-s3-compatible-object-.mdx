@@ -1,0 +1,245 @@
+---
+title: "Configuring Prism Central point-in-time backup to OVHcloud S3™-compatible Object Storage"
+description: "This documentation describes how to protect, back up, and restore a Prism Central instance using the Point-in-Time Backup feature to OVHcloud S3™-compatible Obj"
+zendesk_id: 49591636684563
+zendesk_hash: 1db8b0c0f5a319f3
+content_hash: daa3f7f88d14568e
+updated: 2026-04-07
+---
+
+# Configuring Prism Central point-in-time backup to OVHcloud S3™-compatible Object Storage
+
+This documentation describes how to **protect, back up, and restore a Prism Central instance** using the **Point-in-Time Backup** feature to **OVHcloud S3™-compatible Object Storage**.
+
+The solution relies on:
+
+- A **secure OVHcloud S3**[**™\***](#go-further)**&#x20;bucket** (Object Lock, versioning, lifecycle).
+- An **automated periodic backup** of the Prism Central configuration.
+- A **full restoration** is possible in case of a major incident.
+
+ 
+
+### Overview & benefits
+
+#### Main features
+
+- Point-in-Time backup of Prism Central to an OVHcloud S3™ bucket.
+- Automatic creation of **periodic restore points (RPO)**.
+- Full restoration from Prism Element.
+- Centralized management from **Prism Central**.
+
+ 
+
+#### Benefits
+
+- Strong protection of critical Nutanix management data.
+- Backup externalization outside the cluster.
+- Data compliance and immutability.
+- Simplicity of operation and administration.
+
+ 
+
+## Requirements
+
+- Access to the [OVHcloud Control Panel](https://manager.us.ovhcloud.com/)
+- **Prism Central** version pc.7.5 or later
+- **Prism Element** must be operational
+
+ 
+
+## Instructions
+
+### Preparing the environment
+
+#### Creating the Object Storage container (bucket)
+
+To create the container, you must first create a Public Cloud project. Refer to our guide: [Creating your first OVHcloud Public Cloud project](https://support.us.ovhcloud.com/hc/en-us/articles/360002245784).
+
+Navigate to the [Public Cloud universe](https://manager.us.ovhcloud.com/#/public-cloud/pci/projects/), choose your project, select `Object Storage`, and then `Create an object container`.
+
+On the following page:
+
+1. **Name:** i.e., `prism-central-backup`
+2. **Type:** `S3-compatible API`
+3. **Location:** Choose the 1-AZ region that is **the same** as that of your cluster.
+
+![objectStorage\_createContainer-1.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/49593272140435.png)
+
+4. **Version management:** `Enable`
+
+5. **Object lock:** `Enable`
+
+6. **User:** Add an existing user or create a user, e.g., `admin-mst`
+
+   :::info
+
+   If you create a new user, note the **Access key** and **Secret key** in the pop-up that will appear.
+
+   ![objectStorage\_newUser-credentials.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/49593272145299.png)
+
+   :::
+
+7. **Encrypt your data:** `No encryption`
+
+![objectStorage\_MST-features.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/49593272150675.png)
+
+Once the container is created, select the `General information` tab, and then click `Configure retention →` in the **Object Lock** panel.
+
+![objectStoage\_MSTbucket\_general-information.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/49593642781587.png)
+
+Choose the following configurations:
+
+1. **Default retention:** `Enabled`
+2. **Retention mode:** `Compliance`
+3. **Retention period:** `31 days`
+
+![objectStorage\_MST\_objectLock-config.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/49593642783635.png)
+
+ 
+
+#### Configuring the "bucket lifecycle"
+
+:::warning
+
+**NOTE:** You can learn more about configuring the bucket lifecycle and delete markers in these guides:
+
+- [Object Storage - Getting started with versioning](https://support.us.ovhcloud.com/hc/en-us/articles/31431459806355)
+- [Object Storage - Smart storage management with lifecycle rules](https://support.us.ovhcloud.com/hc/en-us/articles/42696002771859)
+
+:::
+
+- Expire current objects version after: 31 days.
+- Expire previous/noncurrent objects version after: 1 day.
+- Delete expired delete markers: 1 day.
+- Delete expired failed/incomplete multipart uploads: 1 day.
+
+Install and configure the AWS CLI client. Refer to our guide: [Getting Started with Object Storage](https://support.us.ovhcloud.com/hc/en-us/articles/4603838122643).
+
+Run this command by customizing the variables `BUCKET_NAME`, `ENDPOINT_URL`, and `PROFILE`:
+
+```
+BUCKET_NAME='prism-central-backup'
+ENDPOINT_URL='https://s3.us-east-va.io.cloud.ovh.us/'
+PROFILE='us-east-va'
+
+aws s3api put-bucket-lifecycle-configuration \
+  --bucket ${BUCKET_NAME} \
+  --lifecycle-configuration '{
+    "Rules": [
+      {
+        "ID": "ExpireCurrentVersions",
+        "Status": "Enabled",
+        "Expiration": {
+          "Days": 31
+        },
+        "Filter": {}
+      },
+      {
+        "ID": "ExpireNoncurrentVersions",
+        "Status": "Enabled",
+        "NoncurrentVersionExpiration": {
+          "NoncurrentDays": 1
+        },
+        "Filter": {}
+      },
+      {
+        "ID": "DeleteExpiredDeleteMarkers",
+        "Status": "Enabled",
+        "Expiration": {
+          "ExpiredObjectDeleteMarker": true
+        },
+        "Filter": {}
+      },
+      {
+        "ID": "AbortIncompleteMultipartUpload",
+        "Status": "Enabled",
+        "AbortIncompleteMultipartUpload": {
+          "DaysAfterInitiation": 1
+        },
+        "Filter": {}
+      }
+    ]
+  }' \
+  --endpoint-url ${ENDPOINT_URL} \
+  --profile ${PROFILE}
+```
+
+ 
+
+### Procedure – Configuring Prism Central point-in-time backup
+
+#### Accessing the configuration
+
+From the **Prism Central** web console, navigate to `Infrastructure` > `⚙️ Prism Central Settings` > `Prism Central Backups`.
+
+Select the `Point-in-Time Backup` tab and click `Protect Now`.
+
+![prism\_backupSettings\_point-in-time.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/50605724871315.png)
+
+The system supports **only one Point-in-Time backup target at a time**.
+
+If a Point-in-Time backup is already configured, the `Protect Now` button does not appear.
+
+ 
+
+#### Configuring the backup target
+
+The **Protect Prism Central** window appears and indicates:
+
+- The services whose data is backed up.
+- The services not backed up.
+
+For the detailed list, refer to:
+
+- *Supported Services for PCBR*.
+- *Unsupported Services for PCBR – Implementation Considerations and Limitations*.
+
+Click on `Continue`, then fill in the following parameters:
+
+- **Endpoint Type**: `Other S3 Compliant Object Store`.
+- **Region:** Enter the region of your Object Storage bucket.
+- **IP Address or Host Name (HTTPS Only)**: `s3.<region>.io.cloud.ovh.us`
+- **Bucket Name**: Name of the bucket.
+
+![prism\_configure-PIT-backup-1.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/50605709998995.png)
+
+Scroll down and fill in the remaining fields:
+
+- **Access Key**: Access key.
+
+- **Secret Access Key**: Secret key.
+
+- **Restore Point Objects (RPO)**: Frequency of creation of restore points (in hours).
+
+  - The **first restore point is created immediately**.
+  - Supported values are: `1, 2, 4, 6, 8, 12, or 24 hours`.
+  - Up to **30 days of restore points** are retained for Prism Central restoration.
+
+Click on `Proceed`.
+
+![prism\_configure-PIT-backup-2.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-prism-central-point-in-time-backup-to-ovhcloud-s3-compatible-object-/50605710003091.png)
+
+ 
+
+#### Synchronization and backup status
+
+The system synchronizes Prism Central configuration data to the S3™ bucket.
+
+- **During synchronization:** The displayed status is `Sync in progress` in the *Prism Central Backups* dashboard.
+- **After synchronization:** The status changes to `Synced`, and the date and time of the last synchronization are displayed.
+
+The first backup starts immediately after validating the S3™ target and lasts **at least 15 minutes**.
+
+- After the first backup: Synchronizations continue automatically, and restore points are created according to the configured RPO cycle.
+
+ 
+
+## Go further
+
+[Nutanix official documentation](https://portal.nutanix.com/page/documents/details?targetId=Prism-Central-Guide-vpc_7_5:mul-configuring-pointintime-backup-to-generic-s3-compliant-t.html)
+
+For more information and tutorials, please see our other [Nutanix](https://support.us.ovhcloud.com/hc/en-us/sections/19306730639635-Nutanix) or [Hosted Private Cloud](https://support.us.ovhcloud.com/hc/en-us/categories/115000423450-Hosted-Private-Cloud) guides. You can also explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](https://us.ovhcloud.com/support/professional-services/) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+\*S3 is a trademark filed by Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.

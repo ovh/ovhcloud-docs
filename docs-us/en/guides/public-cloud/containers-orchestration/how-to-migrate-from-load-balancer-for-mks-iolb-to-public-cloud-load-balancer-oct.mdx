@@ -1,0 +1,293 @@
+---
+title: "How to migrate from Load Balancer for MKS (IOLB) to Public Cloud Load Balancer (Octavia)"
+description: "Learn how to migrate from an existing Load Balancer for Managed Kubernetes to a Public Cloud Load Balancer."
+zendesk_id: 38910745064211
+zendesk_hash: 775df8a6a0d3d82a
+content_hash: b574afad784bfbce
+updated: 2025-10-08
+---
+
+# How to migrate from Load Balancer for MKS (IOLB) to Public Cloud Load Balancer (Octavia)
+
+**Learn how to migrate from an existing Load Balancer for Managed Kubernetes to a Public Cloud Load Balancer.**
+
+[Public Cloud Load Balancer](https://us.ovhcloud.com/public-cloud/load-balancer/) is the default Load Balancer for MKS clusters using Kubernetes version 1.31 or later.
+
+[Load Balancer for Managed Kubernetes](https://us.ovhcloud.com/public-cloud/load-balancer-kubernetes/) is deprecated for MKS clusters using Kubernetes version 1.32 or later.
+
+This guide explains the steps required to make this transition safely, minimizing service interruptions. Finally, it provides recommendations on DNS management, particularly reducing the TTL to optimize the propagation of changes and ensure a smooth migration.
+
+:::warning
+
+**NOTE:** Since the *Load Balancer for Kubernetes* and *Public Cloud Load Balancer* do not use the same solution for Public IP allocation, it is **not possible** to keep the existing public IP of your Load Balancer for Kubernetes. Changing the Load Balancer class of your Service will lead to the creation of a new Load Balancer and the allocation of a new Public IP (Floating IP).
+
+Pricing for the new Load Balancer differs from the Load Balancer for Managed Kubernetes, and the Public IP will be charged separately according to Floating IP pricing. [See pricing details here](https://us.ovhcloud.com/public-cloud/prices/).
+
+:::
+
+ 
+
+## Comparison
+
+Below is a comparison between Load Balancer for Kubernetes and Public Cloud Load Balancer, highlighting their key differences and capabilities. Public Cloud Load Balancer introduces several sizes/flavors, you can find the detailed specifications on the [Public Cloud Load Balancer page](https://us.ovhcloud.com/public-cloud/load-balancer/).
+
+|                                        | Load Balancer for Managed Kubernetes | Public Cloud Load Balancer |
+| -------------------------------------- | ------------------------------------ | -------------------------- |
+| Maximum concurrent active sessions     | 10,000                               | up to 20,000               |
+| Maximum number of HTTP requests/second | 2,000                                | Up to 80,000               |
+| Bandwidth                              | 200 Mbit/s                           | up to 4 Gbit/s (up/down)   |
+| Supported protocol                     | TCP                                  | TCP/UCP/SCTP               |
+| Supported load balancing layers        | L4                                   | L4/L7                      |
+| Capacity to export metrics and logs    | No                                   | Yes                        |
+| Private to private scenario            | No                                   | Yes                        |
+| Floating IP                            | No                                   | Yes                        |
+
+ 
+
+## Annotations
+
+Below is a comparison of existing annotations supported on Load Balancer for Managed Kubernetes and their equivalent on Public Cloud Load Balancer.
+
+:::warning
+
+**NOTE:** If you are using legacy annotations from Load Balancer for Managed Kubernetes, you must update them to the new format supported by Public Cloud Load Balancer during migration.
+
+Some annotations have been **deprecated** and need to be replaced to ensure full compatibility.
+
+:::
+
+You can find full details on the official documentation pages:
+
+- [Load Balancer for Managed Kubernetes annotations](https://support.us.ovhcloud.com/hc/en-us/articles/33380894927891#supported-annotations-anchor)
+- [Public Cloud Load Balancer annotations](https://support.us.ovhcloud.com/hc/en-us/articles/32583163140755#supported-annotations-features)
+
+| Load Balancer for Managed Kubernetes                                                                              | Public Cloud Load Balancer                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `service.beta.kubernetes.io/ovh-loadbalancer-proxy-protocol` Supported values: - v1 - v2 - v2-ssl - v2-ssl-cn     | `loadbalancer.openstack.org/proxy-protocol` Supported values: - v1, true: enable the ProxyProtocol version 1 - v2: enable the ProxyProtocol version 2   |
+| `service.beta.kubernetes.io/ovh-loadbalancer-allowed-sources` --> DEPRECATED\*\*                                  | No annotation. IP restriction is defined using `.spec.loadBalancerSourceRanges`                                                                         |
+| `service.beta.kubernetes.io/ovh-loadbalancer-balance` Supported values: - first - leastconn - roundrobin - source | `loadbalancer.openstack.org/lb-method` Supported values: - ROUND\_ROBIN - LEAST\_CONNECTIONS - SOURCE\_IP                                               |
+
+ 
+
+## Migration of your Load Balancer
+
+:::warning
+
+**NOTE:** Starting from MKS cluster using Kubernetes version **1.31**, any cluster upgrade attempt will be blocked if a service of type Load Balancer relying on Load Balancer for Managed Kubernetes (IOLB) is still present in the cluster.
+
+**Action required**: Before upgrading, you **MUST** change your services into a Public Cloud Load Balancer (Octavia) by following the steps described in this guide.
+
+If you attempt to upgrade without first migrating, an error will be returned, preventing the upgrade.
+
+:::
+
+There are two methods to move from a Load Balancer for Managed Kubernetes to a Public Cloud Load Balancer, you can either **[Migrate](#migration)** or **[Replace](#replacement)** your Load Balancer.
+
+Your existing Load Balancer Service using Load Balancer for Managed Kubernetes should have the following annotation:
+
+```yaml
+annotations:
+  loadbalancer.ovhcloud.com/class: "iolb"
+```
+
+**WARNING:** Each of the two methods described below ([migration](#migration) or [replacement](#replacement)) requires a DNS switch for which a DNS propagation of 24 to 48 hours is required **before** performing the migration.
+
+Therefore, please **read the entire guide** (and especially the "How to perform a DNS switch" section) before you proceed with the steps below.
+
+ 
+
+### Migration
+
+Migrating from an existing Load Balancer for Kubernetes to a Public Cloud Load Balancer involves creating a new Load Balancer service using Public Cloud Load Balancer with the same label selector to expose your application. For a short period of time, your application will be accessible using both Load Balancers.
+
+At this time you can perform a DNS switch and then delete the old Load Balancer.
+
+To migrate from an existing Load Balancer for Kubernetes to a Public Cloud Load Balancer, follow these steps:
+
+ 
+
+#### Step 1 - Create a new Load Balancer service
+
+You need to create a new Load Balancer service using the Public Cloud Load Balancer while keeping the existing one active:
+
+- Ensure that the new service has the same labelSelector as the old one so that it exposes the same application.
+- You can set the annotation `loadbalancer.ovhcloud.com/class: "octavia"` for Kubernetes version 1.30 (or earlier). Public Cloud Load Balancer Octavia will be the default load balancer for Kubernetes version 1.31 (or later).
+
+**labelSelector**:
+
+```yaml
+spec:
+  selector:
+    app: my-app
+```
+
+**annotations**:
+
+```yaml
+annotations:
+  loadbalancer.ovhcloud.com/class: "octavia" # if your cluster <1.31
+  loadbalancer.ovhcloud.com/flavor: "small" # Available values: small (default) | medium | large | xl
+  loadbalancer.openstack.org/timeout-client-data: 180000 # The default value (in milliseconds) on the iolb solution, can be customized
+  loadbalancer.openstack.org/timeout-member-connect: 20000 # The default value (in milliseconds) on the iolb solution, can be customized
+  loadbalancer.openstack.org/timeout-member-data: 180000 # The default value (in milliseconds) on the iolb solution, can be customized
+```
+
+Apply the new service with:
+
+```yaml
+kubectl apply -f your-service-manifest.yaml
+```
+
+This will create a new Public Cloud Load Balancer with a new public IP.
+
+ 
+
+#### Step 2 - Test Application access
+
+Once the new Load Balancer is created, get the Public IPs of both services:
+
+```yaml
+kubectl get svc -o wide
+```
+
+You should see two Load Balancer services pointing to the same application with different Public IPs.
+
+Test accessibility via both IPs:
+
+```yaml
+curl http://<OLD_LOADBALANCER_IP>
+curl http://<NEW_LOADBALANCER_IP>
+```
+
+Both should return a successful response from your application.
+
+ 
+
+#### Step 3 - Perform a DNS switch
+
+To perform a DNS switch, refer to the [How to perform a DNS switch?](#how-to-perform-a-dns-switch) part of this guide.
+
+ 
+
+#### Step 4 - Remove the Load Balancer service for Kubernetes (a.k.a. IOLB)
+
+Once you confirm that traffic is flowing through the new Load Balancer and the old one is no longer needed, remove the old Load Balancer service by deleting it:
+
+```yaml
+kubectl delete svc old-loadbalancer-service
+```
+
+ 
+
+### Replacement
+
+Replacing an existing Load Balancer for Managed Kubernetes with a Public Cloud Load Balancer involves modifying the existing service and changing the loadbalancer class from `iolb` to `octavia`. This will lead to Kubernetes reconciling the loadbalancer class by deleting the old one and creating a new loadbalancer.
+
+Once the new Load Balancer delivered, you can perform a DNS switch using the new public IP.
+
+:::warning
+
+**NOTE:** Please note that during the deletion and creation process, your service will not be accessible.
+
+You can reduce this impact by lowering your DNS TTL duration, please refer to the [How to perform a DNS switch?](#how-to-perform-a-dns-switch) part of this guide.
+
+:::
+
+ 
+
+#### Step 1 - Edit your Service to change the Load Balancer class to 'octavia'
+
+:::warning
+
+**NOTE:** The old Load Balancer and its IP address will be deleted **permanently**, making services unreachable. Perform the DNS switch immediately with the new provided IP.
+
+:::
+
+```yaml
+annotations:
+  loadbalancer.ovhcloud.com/class: "octavia" // not required for clusters running kubernetes version 1.31 or later, you can just remove the annotation.
+```
+
+Apply the service update using:
+
+```yaml
+kubectl apply -f your-service-manifest.yaml
+```
+
+ 
+
+#### Step 2 - Perform a DNS switch
+
+To perform a DNS switch, follow the steps right below.
+
+ 
+
+## How to perform a DNS switch?
+
+### Check the current TTL
+
+By default, DNS servers cache the IP address of a domain for a period defined by the TTL (Time-To-Live).
+
+A TTL that is too long can slow down the transition by forcing some users to wait several hours before accessing the new Load Balancer. To avoid this, we recommend temporarily reducing the TTL before updating the IP.
+
+Before changing the TTL, it is important to know its current value. To do this, run the following command in a terminal:
+
+```bash
+dig yourdomain.com +noall +answer
+
+yourdomain.com.             600     IN      A       17*.***.**.*4
+```
+
+Here, 600 corresponds to the TTL in seconds (approximately 10 minutes). This means that the DNS servers keep this IP in cache for this length of time before checking for an update.
+
+ 
+
+### Lower the TTL before migration
+
+To lower the TTL, follow these steps:
+
+- Access your DNS management console.
+- Find the A record (or CNAME) associated with your domain.
+- Change the TTL of your A or CNAME record by reducing it to 300 seconds (5 minutes).
+- Wait 24 to 48 hours for this new TTL to propagate.
+
+:::info
+
+Why waiting? Because DNS servers must first clear their caches before adopting the new TTL.
+
+:::
+
+ 
+
+### Update the Load Balancer IP
+
+Once the TTL reduction has been propagated:
+
+- Replace the old IP with the one of the new Load Balancer in your DNS record.
+- Thanks to the short TTL value, users will quickly see the update.
+- Check that the change is effective using the same `dig` command used previously. You should see the new IP address displayed in the command output.
+
+ 
+
+### Restore TTL after migration
+
+Once the transition has been validated and the old Load Balancer disconnected, reconfigure the TTL with a higher value.
+
+ 
+
+## Other resources
+
+- [Exposing applications using services of Load Balancer type](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/expose-applications-using-loadbalancer-type-service.md)
+- [Using Octavia Ingress Controller](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/octavia-ingress-controller/using-octavia-ingress-controller.md)
+- [OVHcloud Load Balancer concepts](https://support.us.ovhcloud.com/hc/en-us/articles/21133261407251)
+- [How to monitor your Public Cloud Load Balancer with Prometheus](https://support.us.ovhcloud.com/hc/en-us/articles/26358387002515)
+
+ 
+
+## Go further
+
+- Visit the [Github examples repository](https://github.com/ovh/public-cloud-databases-examples/).
+
+For more information and tutorials, please see our other [Managed Kubernetes](https://support.us.ovhcloud.com/hc/en-us/sections/23483177420819-Managed-Kubernetes-K8s) or [Platform as a Service](https://support.us.ovhcloud.com/hc/en-us/categories/1500000438761-Platform-as-a-Service) guides. You can also explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](https://us.ovhcloud.com/support/professional-services/) to get a quote and ask our Professional Services experts for a custom analysis of your project.

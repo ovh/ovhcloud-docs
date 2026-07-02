@@ -14,6 +14,11 @@ import './index.css';
 const REGIONS = {
   eu: { flag: '🇪🇺', label: 'EU', base: 'https://api.eu.ovhcloud.com/console/' },
   ca: { flag: '🇨🇦', label: 'CA', base: 'https://api.ca.ovhcloud.com/console/' },
+  // The US subsidiary has its own console. Purely additive: nothing selects
+  // `us` unless a page passes `regions={["us"]}` explicitly — `regionsForPath`
+  // never returns it and the fallback stays ['eu', 'ca'] — so EU pages are
+  // unaffected. The US import emits that prop on every <Api> it generates.
+  us: { flag: '🇺🇸', label: 'US', base: 'https://api.us.ovhcloud.com/console/' },
 } as const;
 
 type Region = keyof typeof REGIONS;

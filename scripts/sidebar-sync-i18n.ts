@@ -38,6 +38,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { regionConfig } from '../config/regions';
 import { parseIndexMd } from '../config/sidebar/parser';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -45,7 +46,12 @@ const __dirname = path.dirname(__filename);
 
 const ROOT = path.resolve(__dirname, '..');
 const I18N_PATH = path.join(ROOT, 'i18n.json');
-const INDEX_MD_PATH = path.join(ROOT, 'config/sidebar/index.md');
+// Sidebar source for the active region (index.md for EU, index-us.md for US)
+const INDEX_MD_PATH = path.join(
+  ROOT,
+  'config/sidebar',
+  regionConfig.sidebarIndex,
+);
 
 const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
 
@@ -63,10 +69,18 @@ function main() {
   );
 
   // 1. Detect obsolete keys (in i18n.json but no longer referenced by index.md).
+  //    i18n.json is shared across regions, so obsolete detection only makes
+  //    sense for the primary region (EU) whose index.md owns the full key set.
+  //    A secondary region (e.g. US, with its own index-us.md) only seeds the
+  //    keys it needs and never prunes — otherwise every EU key would look
+  //    "obsolete" from the US run's perspective.
+  const isPrimaryRegion = regionConfig.localePrefix;
   const existingGenKeys = Object.keys(i18n).filter((k) =>
     k.startsWith('sidebar.gen.'),
   );
-  const obsoleteKeys = existingGenKeys.filter((k) => !expectedKeys.has(k));
+  const obsoleteKeys = isPrimaryRegion
+    ? existingGenKeys.filter((k) => !expectedKeys.has(k))
+    : [];
 
   // 2. Seed new keys (in index.md but not yet in i18n.json). Existing keys
   //    are intentionally left alone — preserving any curated translations.

@@ -12,6 +12,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { regionConfig } from '../config/regions';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,10 +69,13 @@ async function findOrphans() {
   const sidebarLinks = extractLinks(sidebar);
   console.log(`Found ${sidebarLinks.size} unique links in sidebar config`);
 
-  // Find all MDX files in docs/fr (reference locale)
-  const docsDir = path.join(ROOT_DIR, 'docs', 'fr');
+  // Find all MDX files in the active region's reference locale tree
+  const refLocale = regionConfig.defaultLocale;
+  const docsDir = path.join(ROOT_DIR, regionConfig.contentDir, refLocale);
   const mdxFiles = findMdxFiles(docsDir);
-  console.log(`Found ${mdxFiles.length} MDX files in docs/fr`);
+  console.log(
+    `Found ${mdxFiles.length} MDX files in ${regionConfig.contentDir}/${refLocale}`,
+  );
 
   // Convert file paths to route paths and find orphans
   // docs/fr/guides/public-cloud/compute/overview.mdx -> /guides/public-cloud/compute/overview

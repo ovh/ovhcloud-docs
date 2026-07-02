@@ -1,0 +1,716 @@
+---
+title: "Using a custom gateway on an OVHcloud Managed Kubernetes cluster"
+description: "In this tutorial, we are going to use a custom gateway deployed in vRack with a Managed Kubernetes cluster."
+zendesk_id: 45970845937427
+zendesk_hash: c42738f842f4e7f1
+content_hash: da433209fb69634b
+updated: 2026-02-27
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+# Using a custom gateway on an OVHcloud Managed Kubernetes cluster
+
+In this tutorial, we are going to use a custom gateway deployed in vRack with a Managed Kubernetes cluster.
+
+Why?
+
+By default, in a Kubernetes cluster, the Pods you deploy take the Node's output IP. So we have as many output IPs as Nodes. This can be a problem when you are in a situation where you need to manage a whitelist and you have a cluster with AutoScaling (creating and deleting Nodes on the fly).
+
+One solution is to use a custom gateway, which will allow you to have a single output IP (your gateway).
+
+You will:
+
+- create a private network
+- create subnets
+- create an OpenStack router (in every region) and link them to the external provider network and the subnets
+- create an OVHcloud Managed Kubernetes cluster with the private gateway
+- test the Pod's output IP
+
+At the end of this tutorial, you should have the following flow:
+
+![diagram\_kubernetes\_customGateway.png](/images/public-cloud/containers-orchestration/using-a-custom-gateway-on-an-ovhcloud-managed-kubernetes-cluster/46257519012755.png)
+
+:::info
+
+In this tutorial, we guide you on how to create a private network in two regions, but you can use only one region if you want.
+
+:::
+
+ 
+
+## Requirements
+
+- A [Public Cloud project](https://support.us.ovhcloud.com/hc/en-us/articles/360002245784) in your OVHcloud account
+- The [OpenStack API CLI](https://support.us.ovhcloud.com/hc/en-us/articles/1500009262762) installed
+- Being familiar with the [OVHcloud API](https://support.us.ovhcloud.com/hc/en-us/articles/360018130839)
+- Being familiar with [Terraform](https://support.us.ovhcloud.com/hc/en-us/articles/15974268257299), if you wish to use it
+- The JSON parser tool [jq](https://stedolan.github.io/jq/) installed
+
+ 
+
+## Initialization
+
+To set up a functional environment, you have to load the OpenStack and the OVHcloud API credentials. To help you, we also created several useful scripts and templates.
+
+First, create a `utils` folder in your environment/local machine. Then, download the [ovhAPI.sh](https://github.com/ovh/docs/blob/develop/pages/public_cloud/containers_orchestration/managed_kubernetes/vrack-k8s-custom-gateway/utils/ovhAPI.sh) script into it.
+
+And then add execution rights to the `ovhAPI.sh` script:
+
+```bash
+chmod +x utils/ovhAPI.sh
+```
+
+You have to load the content of the given **utils/openrc** file to manage OpenStack, and variables contained in the **utils/ovhAPI.properties** file to manage the OVHcloud API.
+
+Create the **utils/openrc**, or download it from your OpenStack provider. It must be like:
+
+```bash
+export OS_AUTH_URL=https://auth.cloud.ovh.us/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_USER_DOMAIN_NAME=${OS_USER_DOMAIN_NAME:-"Default"}
+export OS_PROJECT_DOMAIN_NAME=${OS_PROJECT_DOMAIN_NAME:-"Default"}
+export OS_TENANT_ID=xxxxxxxxxxxxxxxxxxxxx
+export OS_TENANT_NAME="xxxxxxxxxxxxxxxxxx"
+export OS_USERNAME="user-xxxxxxxxxxxxx"
+export OS_PASSWORD="xxxxxxxxxxxxxxxxxx"
+export OS_REGION_NAME="xxxx"
+if [ -z "$OS_REGION_NAME" ]; then unset OS_REGION_NAME; fi
+```
+
+Create the **utils/ovhAPI.properties** with your generated keys and secret:
+
+```bash
+OVH_API_URL="https://api.us.ovhcloud.com/1.0"
+OVH_ENDPOINT="ovh-us"
+OVH_APPLICATION_KEY="xxxxxxxxxxxxxxxxx"
+OVH_APPLICATION_SECRET="xxxxxxxxxxxxxxxxx"
+OVH_CONSUMER_KEY="xxxxxxxxxxxxxxxxxxxxx"
+```
+
+You should have a `utils` folder with three files:
+
+```bash
+.
+└── utils
+    ├── openrc
+    ├── ovhAPI.properties
+    └── ovhAPI.sh
+```
+
+Load variables:
+
+```bash
+. utils/openrc
+. utils/ovhAPI.properties
+```
+
+Get your OpenStack Tenant ID and store it in the serviceName variable.
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+export serviceName=$(utils/ovhAPI.sh GET /cloud/project/$OS_TENANT_ID | jq -r .description) && echo $serviceName
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+You should have a result like this:
+
+```
+$ export serviceName=$(utils/ovhAPI.sh GET /cloud/project/$OS_TENANT_ID | jq -r .description) && echo $serviceName
+EXAMPLE
+```
+
+ 
+
+## Create Private Network
+
+:::info
+
+**Important:** Assuming that your PCI project is added to your [vRack](https://support.us.ovhcloud.com/hc/en-us/articles/360002093130).
+
+:::
+
+We are using the OVHcloud API to create the private network. For this tutorial, we are using the two regions US-EAST-VA-1 and US-WEST-OR-1.
+
+Create a folder `tpl` next to `utils` folder and create inside the **data-pvnw\.json** file with the following content:
+
+```json
+{
+"name": "demo-pvnw",
+"vlanId": 20,
+"regions": ["US-EAST-VA-1","US-WEST-OR-1"]
+}
+```
+
+Create the private network named `demo-pvnw` in `US-EAST-VA-1` and `US-WEST-OR-1` regions and get the VLAN ID.
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+export vlanId="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/network/private "$(cat tpl/data-pvnw.json)" | jq -r .id)" && echo $vlanId
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/network/private"} regions={["us"]} />
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/network/private"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+You should have a result like this:
+
+```
+$ export vlanId="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/network/private "$(cat tpl/data-pvnw.json)" | jq -r .id)" && echo $vlanId
+pn-1083678_20
+```
+
+At this point, your private network is created, and its ID is `pn-1083678_20`.
+
+ 
+
+## Create subnets
+
+For this tutorial, we are splitting a /24 subnet to obtain two /25 subnets.
+
+Ref: https\://www\.davidc.net/sites/default/subnets/subnets.html
+
+| Name     | Region       | CIDR Address     | Gateway       | DHCP Range                  | Broadcast     |
+| -------- | ------------ | ---------------- | ------------- | --------------------------- | ------------- |
+| Subnet 1 | US-EAST-VA-1 | 192.168.0.0/25   | 192.168.0.1   | 192.168.0.2-192.168.0.126   | 192.168.0.127 |
+| Subnet 2 | US-WEST-OR-1 | 192.168.0.128/25 | 192.168.0.129 | 192.168.0.130-192.168.0.254 | 192.168.0.255 |
+
+Create these two data files in the `tpl` folder:
+
+**data-subnetUS-EAST-VA-1.json** file:
+
+```json
+{
+"start": "192.168.0.2",
+"end": "192.168.0.126",
+"region": "US-EAST-VA-1",
+"dhcp": false,
+"network": "192.168.0.0/25",
+"noGateway": false
+}
+```
+
+**data-subnetUS-WEST-OR-1.json** file:
+
+```json
+{
+"start": "192.168.0.130",
+"end": "192.168.0.254",
+"region": "US-WEST-OR-1",
+"dhcp": false,
+"network": "192.168.0.128/25",
+"noGateway": false
+}
+```
+
+:::warning
+
+**NOTE:** To be clear, the parameter `"noGateway": false` means `"Gateway": true`. We want the subnet to explicitly use the first IP address of the CIDR range.
+
+:::
+
+Then create subnets with appropriate routes, and finally get IDs (subnUS-EAST-VA-1 & subnUS-WEST-OR-1):
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+export subnUS-EAST-VA-1="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/network/private/$vlanId/subnet "$(cat tpl/data-subnetUS-EAST-VA-1.json)" | jq -r .id)" && echo $subnUS-EAST-VA-1
+
+export subnUS-WEST-OR-1="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/network/private/$vlanId/subnet "$(cat tpl/data-subnetUS-WEST-OR-1.json)" | jq -r .id)" && echo $subnUS-WEST-OR-1
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/network/private/\{networkId\}/subnet"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+You should have a result like this:
+
+```
+$ export subnUS-EAST-VA-1="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/network/private/$vlanId/subnet "$(cat tpl/data-subnetUS-EAST-VA-1.json)" | jq -r .id)" && echo $subnUS-EAST-VA-1
+668fd889-5477-445b-b4e1-b30432e39045
+
+$ export subnUS-WEST-OR-1="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/network/private/$vlanId/subnet "$(cat tpl/data-subnetUS-WEST-OR-1.json)" | jq -r .id)" && echo $subnUS-WEST-OR-1
+e76f2b49-2b9f-4248-98ae-179d596d6e45
+```
+
+:::info
+
+For now, it's not possible to add routes to the subnet via the API, so we must use the OpenStack CLI instead.
+
+:::
+
+```bash
+openstack --os-region-name=US-EAST-VA-1 subnet set ${subnUS-EAST-VA-1} --host-route destination=192.168.0.0/25,gateway=192.168.0.1
+
+openstack --os-region-name=US-WEST-OR-1 subnet set ${subnUS-WEST-OR-1} --host-route destination=192.168.0.128/25,gateway=192.168.0.129
+```
+
+ 
+
+## OpenStack router
+
+### Create the routers
+
+We can create OpenStack virtual routers. To do this, we need to use the OpenStack CLI. Create routers and get their IDs (rtrUS-EAST-VA-1Id & rtrUS-WEST-OR-1Id):
+
+```bash
+export rtrUS-EAST-VA-1Id="$(openstack --os-region-name=US-EAST-VA-1 router create rtr-US-EAST-VA-1 -f json | jq -r .id)" && echo $rtrUS-EAST-VA-1Id
+export rtrUS-WEST-OR-1Id="$(openstack --os-region-name=US-WEST-OR-1 router create rtr-US-WEST-OR-1 -f json | jq -r .id)" && echo $rtrUS-WEST-OR-1Id
+```
+
+You should have a result like this:
+
+```
+$ export rtrUS-EAST-VA-1Id="$(openstack --os-region-name=US-EAST-VA-1 router create rtr-US-EAST-VA-1 -f json | jq -r .id)" && echo $rtrUS-EAST-VA-1Id
+26bf99c8-d6fa-4c5a-9d42-1358776ee0a2
+
+$ export rtrUS-WEST-OR-1Id="$(openstack --os-region-name=US-WEST-OR-1 router create rtr-US-WEST-OR-1 -f json | jq -r .id)" && echo $rtrUS-WEST-OR-1Id
+ResourceNotFound: 404: Client Error for url: https://network.compute.US-WEST-OR-1.cloud.ovh.net/v2.0/routers, The resource could not be found.
+```
+
+:::info
+
+For the moment, you can only create a virtual router in the US-EAST-VA-1 and US-WEST-OR-1 regions, but this feature will be released in other regions in the coming weeks and months.
+
+:::
+
+Now, you can display the information of your new virtual router on US-EAST-VA-1 to display its IP:
+
+```
+$ openstack --os-region-name=US-EAST-VA-1 router show $rtrUS-EAST-VA-1Id -c id -c name -c status -c created_at -c external_gateway_info
++-----------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Field                 | Value                                                                                                                                                                                                                                                                                     |
++-----------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| created_at            | 2022-07-25T07:32:06Z                                                                                                                                                                                                                                                                      |
+| external_gateway_info | {"network_id": "b2c02fdc-ffdf-40f6-9722-533bd7058c06", "external_fixed_ips": [{"subnet_id": "0f11270c-1113-4d4f-98de-eba83445d962", "ip_address": "141.94.209.244"}, {"subnet_id": "4aa6cac1-d5cd-4e25-b14b-7573aeabcab1", "ip_address": "2001:41d0:304:400::917"}], "enable_snat": true} |
+| id                    | 26bf99c8-d6fa-4c5a-9d42-1358776ee0a2                                                                                                                                                                                                                                                      |
+| name                  | rtr-US-EAST-VA-1                                                                                                                                                                                                                                                                                  |
+| status                | ACTIVE                                                                                                                                                                                                                                                                                    |
++-----------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+As you can see, in this example, the IP of the gateway will be `141.94.209.244`.
+
+ 
+
+### Link the router to the external provider network
+
+First, get the regional external network ID (extNwUS-EAST-VA-1Id & extNwUS-WEST-OR-1Id), then link the router to it:
+
+```bash
+# US-EAST-VA-1
+export extNwUS-EAST-VA-1Id="$(openstack --os-region-name=US-EAST-VA-1 network list -f json | jq -r '.[] | select(.Name=="Ext-Net") | .ID')" && echo $extNwUS-EAST-VA-1Id
+openstack --os-region-name=US-EAST-VA-1 router set $rtrUS-EAST-VA-1Id --external-gateway $extNwUS-EAST-VA-1Id
+# US-WEST-OR-1
+export extNwUS-WEST-OR-1Id="$(openstack --os-region-name=US-WEST-OR-1 network list -f json | jq -r '.[] | select(.Name=="Ext-Net") | .ID')" && echo $extNwUS-WEST-OR-1Id
+openstack --os-region-name=US-WEST-OR-1 router set $rtrUS-WEST-OR-1Id --external-gateway $extNwUS-WEST-OR-1Id
+```
+
+You should have a result like this:
+
+```
+$ export extNwUS-EAST-VA-1Id="$(openstack --os-region-name=US-EAST-VA-1 network list -f json | jq -r '.[] | select(.Name=="Ext-Net") | .ID')" && echo $extNwUS-EAST-VA-1Id
+b2c02fdc-ffdf-40f6-9722-533bd7058c06
+$ openstack --os-region-name=US-EAST-VA-1 router set $rtrUS-EAST-VA-1Id --external-gateway $extNwUS-EAST-VA-1Id
+
+$ export extNwUS-WEST-OR-1Id="$(openstack --os-region-name=US-WEST-OR-1 network list -f json | jq -r '.[] | select(.Name=="Ext-Net") | .ID')" && echo $extNwUS-WEST-OR-1Id
+bcf59eb2-9d83-41cc-b4f5-0435ed594833
+$ openstack --os-region-name=US-WEST-OR-1 router set $rtrUS-WEST-OR-1Id --external-gateway $extNwUS-WEST-OR-1Id
+```
+
+ 
+
+### Link the router to the subnet
+
+Do the same with the regional subnets:
+
+```bash
+# US-EAST-VA-1
+openstack --os-region-name=US-EAST-VA-1 router add subnet $rtrUS-EAST-VA-1Id $subnUS-EAST-VA-1
+# US-WEST-OR-1
+openstack --os-region-name=US-WEST-OR-1 router add subnet $rtrUS-WEST-OR-1Id $subnUS-WEST-OR-1
+```
+
+ 
+
+## Create a Kubernetes cluster with private gateway
+
+Now the network is ready. Create an OVHcloud Managed Kubernetes cluster, specifying the use of the gateway defined on each subnet.
+
+:::warning
+
+**NOTE:** Until the end of this tutorial, we are only using the `US-EAST-VA-1` region, but you can repeat the exact same steps to create a cluster on the `US-WEST-OR-1` region.
+
+:::
+
+:::info
+
+In this guide we defined `1.34` version for the Kubernetes cluster but you can use another supported version.
+
+:::
+
+First, get the private network IDs (pvnwUS-EAST-VA-1Id & pvnwUS-WEST-OR-1Id), then create the OVHcloud Managed Kubernetes Cluster, and finally get the cluster ID (kubeId):
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+Create a **tpl/data-kube.json.tpl** file as data and add the right parameters. The files should be like:
+
+```json
+{
+"region": "US-EAST-VA-1",
+"name": "demo",
+"version": "1.34",
+"nodepool": {
+  "flavorName": "b2-7",
+  "antiAffinity": false,
+  "monthlyBilled": false,
+  "autoscale": false,
+  "desiredNodes": 3
+},
+"privateNetworkId": "@privateNetworkId@",
+"privateNetworkConfiguration" :{
+      "privateNetworkRoutingAsDefault": true,
+      "defaultVrackGateway": "192.168.0.1"
+}
+}
+```
+
+```bash
+# Get the US-EAST-VA-1 private network Id
+export pvnwUS-EAST-VA-1Id="$(utils/ovhAPI.sh GET /cloud/project/$OS_TENANT_ID/network/private/${vlanId} | jq '.regions[] | select(.region=="US-EAST-VA-1")' | jq -r .openstackId)" && echo $pvnwUS-EAST-VA-1Id
+# Create the kube payload file
+cat tpl/data-kube.json.tpl | sed -e "s|@privateNetworkId@|$pvnwUS-EAST-VA-1Id|g" > tpl/data-kube.json
+# Create the kube cluster
+export kubeId="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/kube "$(cat tpl/data-kube.json)" | jq -r .id)" && echo $kubeId
+```
+
+You should have a result like this:
+
+```
+$ export pvnwUS-EAST-VA-1Id="$(utils/ovhAPI.sh GET /cloud/project/$OS_TENANT_ID/network/private/${vlanId} | jq '.regions[] | select(.region=="US-EAST-VA-1")' | jq -r .openstackId)" && echo >> $pvnwUS-EAST-VA-1Id
+d9775b7c-c267-44b4-b758-6e827b0a69bb
+
+$ cat tpl/data-kube.json.tpl | sed -e "s|@privateNetworkId@|$pvnwUS-EAST-VA-1Id|g" > tpl/data-kube.json
+
+$ cat tpl/data-kube.json
+{
+  "region": "US-EAST-VA-1",
+  "name": "demo",
+  "version": "1.34",
+  "nodepool": {
+    "flavorName": "b2-7",
+    "antiAffinity": false,
+    "monthlyBilled": false,
+    "autoscale": false,
+    "desiredNodes": 3
+  },
+  "privateNetworkId": "d9775b7c-c267-44b4-b758-6e827b0a69bb",
+  "privateNetworkConfiguration" :{
+        "privateNetworkRoutingAsDefault": true,
+        "defaultVrackGateway": "192.168.0.1"
+  }
+}
+
+$ export kubeId="$(utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/kube "$(cat tpl/data-kube.json)" | jq -r .id)" && echo $kubeId
+6bc9c71a-e570-4ed6-848b-de212fbab7da
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/network/private/\{networkId\}"} regions={["us"]} />
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/kube"} regions={["us"]} />
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/kube"} regions={["us"]} />
+
+</Tab>
+
+<Tab label="OVHcloud Control Panel">
+
+Log in to the [OVHcloud Control Panel](https://us.ovhcloud.com/manager/), go to the `Public Cloud` section and select the Public Cloud project concerned.
+
+Access the administration UI for your OVHcloud Managed Kubernetes clusters by clicking on `Managed Kubernetes Service` in the left-hand menu:
+
+![MKS\_order\_privateNetwork-2.png](/images/public-cloud/containers-orchestration/using-a-custom-gateway-on-an-ovhcloud-managed-kubernetes-cluster/46257514065811.png)
+
+</Tab>
+
+<Tab label="Terraform">
+
+:::info
+
+You can create your networks and subnets using Terraform by following [this guide](https://support.us.ovhcloud.com/hc/en-us/articles/18534335915667).
+
+:::
+
+You need to create a file, let's name it `kubernetes-cluster-test.tf` with this content:
+
+```python
+# Create your Kubernetes cluster
+resource "ovh_cloud_project_kube" "cluster_terraform" {
+  service_name  = "my_service_name" # Replace with your OVHcloud project ID
+  name          = "cluster_terraform"
+  region        = "US-EAST-VA-1"
+
+  private_network_id = "my_private_network_id" # Replace with your private network id
+  private_network_configuration {
+    private_network_routing_as_default = true
+    default_vrack_gateway              = "192.168.0.1"
+  }
+}
+
+# Create your node pool and assign it to your cluster
+resource "ovh_cloud_project_kube_nodepool" "node_pool" {
+  service_name  = "my_service_name" # Replace with your OVHcloud project ID
+  kube_id       = ovh_cloud_project_kube.cluster_terraform.id
+  name          = "node-pool-terraform"
+  flavor_name   = "b3-8" # Replace with the desired instance flavour 
+  desired_nodes = 3
+  max_nodes     = 3
+  min_nodes     = 3
+}
+```
+
+You can create your resources by entering the following command:
+
+```
+terraform apply
+```
+
+</Tab>
+
+</Tabs>
+
+Now wait until your OVHcloud Managed Kubernetes cluster is READY.
+
+For that, you can check its status in the OVHcloud Control Panel:
+
+Log in to the [OVHcloud Control Panel](https://us.ovhcloud.com/manager/), go to the `Public Cloud` section and select the Public Cloud project concerned.
+
+Access the administration UI for your OVHcloud Managed Kubernetes clusters by clicking on `Managed Kubernetes Service` in the left-hand menu.
+
+As you can see, your new cluster is attached to `demo-pvnw` network.
+
+When your cluster's status is `OK`, you can go to the next section.
+
+![MKS\_clusterList.png](/images/public-cloud/containers-orchestration/using-a-custom-gateway-on-an-ovhcloud-managed-kubernetes-cluster/49228936272403.png)
+
+ 
+
+## Get Kubeconfig file
+
+To proceed with the freshly created Kubernetes cluster, you must get the Kubeconfig file.
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+utils/ovhAPI.sh POST /cloud/project/$OS_TENANT_ID/kube/$kubeId/kubeconfig | jq -r .content > kubeconfig-demo
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/kubeconfig"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+To use this kubeconfig file and access your cluster, you can follow our [configuring kubectl](https://support.us.ovhcloud.com/hc/en-us/articles/1500005047721) tutorial, or simply add the `--kubeconfig` flag in your `kubectl` commands.
+
+ 
+
+## Test
+
+List the running nodes in your cluster:
+
+```bash
+kubectl --kubeconfig=kubeconfig-demo get no -o wide
+```
+
+You should obtain a result like this:
+
+```
+$ kubectl --kubeconfig=kubeconfig-demo get no -o wide
+NAME                                         STATUS   ROLES    AGE   VERSION   INTERNAL-IP    EXTERNAL-IP      OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+nodepool-8f0b4d98-874a-4cfd-b8-node-c74f26   Ready    <none>   56m   v1.34.0   192.168.0.71   141.94.215.23    Ubuntu 18.04.6 LTS   4.15.0-189-generic   containerd://1.4.6
+nodepool-8f0b4d98-874a-4cfd-b8-node-c9bf60   Ready    <none>   57m   v1.34.0   192.168.0.96   141.94.208.78    Ubuntu 18.04.6 LTS   4.15.0-189-generic   containerd://1.4.6
+nodepool-8f0b4d98-874a-4cfd-b8-node-e666f5   Ready    <none>   56m   v1.34.0   192.168.0.31   141.94.212.214   Ubuntu 18.04.6 LTS   4.15.0-189-generic   containerd://1.4.6
+```
+
+Now test the cluster by running a simple container that requests its published IP address.
+
+```bash
+kubectl --kubeconfig=kubeconfig-demo run --image=debian debian -it -- bash
+apt update
+apt install -y curl
+curl ifconfig.me
+```
+
+You should obtain a result like this:
+
+```
+$ kubectl --kubeconfig=kubeconfig-demo run --image=debian debian  -it -- bash
+If you don't see a command prompt, try pressing enter.
+root@debian:/# apt update
+Get:1 http://deb.debian.org/debian bullseye InRelease [116 kB]
+Get:2 http://deb.debian.org/debian-security bullseye-security InRelease [48.4 kB]
+Get:3 http://deb.debian.org/debian bullseye-updates InRelease [44.1 kB]
+Get:4 http://deb.debian.org/debian bullseye/main amd64 Packages [8182 kB]
+Get:5 http://deb.debian.org/debian-security bullseye-security/main amd64 Packages [167 kB]
+Get:6 http://deb.debian.org/debian bullseye-updates/main amd64 Packages [2592 B]
+...
+
+root@debian:/# apt install -y curl
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  ca-certificates libbrotli1 libcurl4 libldap-2.4-2 libldap-common libnghttp2-14 libpsl5 librtmp1 libsasl2-2 libsasl2-modules libsasl2-modules-db libssh2-1 openssl publicsuffix
+Suggested packages:
+...
+
+root@debian:/# curl ifconfig.me
+141.94.209.244
+```
+
+The IP address of our Pod is indeed that of our gateway!
+
+ 
+
+## Cleanup
+
+To delete created resources, please follow these instructions:
+
+### Kubernetes cluster
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+utils/ovhAPI.sh DELETE /cloud/project/$OS_TENANT_ID/kube/$kubeId
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+ 
+
+### Routers
+
+To delete an OpenStack router, you must first remove the linked ports.
+
+```bash
+# Get the routers subnets attached ports Ids
+export portIdUS-EAST-VA-1="$(openstack --os-region-name=US-EAST-VA-1 port list | grep -w "192.168.0.1" | awk '{print $2}')" && echo $portIdUS-EAST-VA-1
+export portIdUS-WEST-OR-1="$(openstack --os-region-name=US-WEST-OR-1 port list | grep -w "192.168.0.129" | awk '{print $2}')" && echo $portIdUS-WEST-OR-1
+# Get the routers Ids
+export rtrIdUS-EAST-VA-1="$(openstack --os-region-name=US-EAST-VA-1 router list -f json | jq -r '.[] | select(.Name=="rtr-US-EAST-VA-1") | .ID')" && echo $rtrIdUS-EAST-VA-1
+export rtrIdUS-WEST-OR-1="$(openstack --os-region-name=US-WEST-OR-1 router list -f json | jq -r '.[] | select(.Name=="rtr-US-WEST-OR-1") | .ID')" && echo $rtrIdUS-WEST-OR-1
+# Remove ports from routers
+openstack --os-region-name=US-EAST-VA-1 router remove port $rtrIdUS-EAST-VA-1 $portIdUS-EAST-VA-1
+openstack --os-region-name=US-WEST-OR-1 router remove port $rtrIdUS-WEST-OR-1 $portIdUS-WEST-OR-1
+# Delete routers
+openstack router delete rtr-US-EAST-VA-1
+openstack router delete rtr-US-WEST-OR-1
+```
+
+ 
+
+### Subnets
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+utils/ovhAPI.sh DELETE /cloud/project/$OS_TENANT_ID/network/private/$vlanId/subnet/$subnUS-EAST-VA-1
+utils/ovhAPI.sh DELETE /cloud/project/$OS_TENANT_ID/network/private/$vlanId/subnet/$subnUS-WEST-OR-1
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/network/private/\{networkId\}/subnet/\{subnetId\}"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+ 
+
+### Private Network
+
+<Tabs>
+
+<Tab label="OpenStack CLI">
+
+```bash
+utils/ovhAPI.sh DELETE /cloud/project/$OS_TENANT_ID/network/private/$vlanId
+```
+
+</Tab>
+
+<Tab label="API">
+
+<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/network/private/\{networkId\}/region/\{region\}"} regions={["us"]} />
+
+</Tab>
+
+</Tabs>
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Managed Kubernetes](https://support.us.ovhcloud.com/hc/en-us/sections/23483177420819-Managed-Kubernetes-K8s) or [Platform as a Service](https://support.us.ovhcloud.com/hc/en-us/categories/1500000438761-Platform-as-a-Service) guides. You can also explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](https://us.ovhcloud.com/support/professional-services/) to get a quote and ask our Professional Services experts for a custom analysis of your project.

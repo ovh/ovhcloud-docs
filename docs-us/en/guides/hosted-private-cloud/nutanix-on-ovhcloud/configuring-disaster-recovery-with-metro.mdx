@@ -1,0 +1,1331 @@
+---
+title: "Configuring Disaster Recovery with Metro"
+description: "Learn about Metro Availability, which provides an automated disaster recovery plan."
+zendesk_id: 18719035778323
+zendesk_hash: 962b778a11926eb3
+content_hash: 2b7749c4bc0d310a
+updated: 2026-06-15
+---
+
+# Configuring Disaster Recovery with Metro
+
+**Learn about Metro Availability, which provides an automated disaster recovery plan.**
+
+:::warning
+
+**NOTE:** OVHcloud provides services for which you are responsible for their configuration and management. You are therefore responsible for their proper functioning.\
+\
+This tutorial is designed to help you as much as possible with common tasks. If you are having difficulty performing these actions, please contact a specialized service provider. OVHcloud cannot provide you with technical support in this regard.
+
+:::
+
+ 
+
+## Requirements
+
+- Access to the [OVHcloud Control Panel](https://us.ovhcloud.com/manager/#/hub)
+- Access to your clusters via Prism Central
+- You need to have three Nutanix clusters within the OVHcloud infrastructure with **Pro** or **Ultimate** packs if you have an OVHcloud packaged service on both clusters in the P.R.A. These three clusters will need to be at remote sites for maximum security.
+- You must have less than 5 ms of latency between the two replicated clusters. Please note that latency is not covered by SLAs.
+
+ 
+
+## Introduction
+
+We will set up a two-way disaster recovery plan between two clusters with this hardware:
+
+- A Nutanix cluster in Datacenter 1, with virtual machines replicated in Datacenter 2.
+- A Nutanix cluster in Datacenter 2, with virtual machines replicated in Datacenter 1.
+- A Nutanix cluster in Datacenter 3, with Prism Central to serve as a witness in the disaster recovery plan.
+
+We will only use one vRack, which will contain:
+
+- The three Nutanix clusters.
+- Load balancers.
+- Additional IP addresses on the **rtvRack**.
+
+Below is the diagram showing the three sites:
+
+![metro01-noborder.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18721190138643.png)
+
+## Instructions
+
+[Step 1 Configuration](#1)
+
+     [Step 1.1 Interconnection of the three clusters](#1.1)
+
+     [Step 1.2 Delete the Prism Central records for the Datacenter 1 and Datacenter 2 clusters](#1.2)
+
+     [Step 1.3 Register both clusters on Prism Central in Datacenter 3](#1.3)
+
+     [Step 1.4 Adding IP Addresses for iSCSI Connections on All Three Clusters](#1.4)
+
+     [Step 1.5 Creating two Storage Containers](#1.5)
+
+     [Step 1.6 Move virtual machines to the Storage Container](#1.6)
+
+     [Step 1.7 Creation of a category to be used when implementing the P.R.A.](#1.7)
+
+     [Step 1.8 Add virtual machines in categories](#1.8)
+
+     [Step 1.9 Setting up synchronous replications between Datacenter 1 and Datacenter 2](#1.9)
+
+     [Step 1.10 Create Subnets for Disaster Recovery Plan](#1.10)
+
+     [Step 1.11 Implementation of disaster recovery plans](#1.11)
+
+[Step 2 Validate Disaster Recovery Plan](#2)
+
+     [Step 2.1 Monitoring the Disaster Recovery Plan](#2.1)
+
+     [Step 2.2 Live migration of virtual machines from Datacenter 1 to Datacenter 2](#2.2)
+
+     [Step 2.3 Operations after a migration](#2.3)
+
+     [Step 2.4 Execute the Disaster Recovery Plan in Real Condition](#2.4)
+
+We will implement this disaster recovery plan step by step.
+
+The cluster configuration information used in our guide is as follows:
+
+- Datacenter 1 cluster:
+
+  - Server 1: VM address **CVM** `192.168.0.21`, hypervisor IP address **AHV** `192.168.0.1`.
+  - Server 2: VM address **CVM** `192.168.0.22`, hypervisor IP address **AHV** `192.168.0.2`.
+  - Server 3: VM address **CVM** `192.168.0.23`, hypervisor IP address **AHV** `192.168.0.3`.
+  - Prism Element virtual address: `192.168.0.100`.
+  - Prism Element iSCSI address: `192.168.0.102`.
+  - Prism Central IP address: `192.168.0.101`.
+  - Gateway: `192.168.3.254`.
+  - Mask: `255.255.252.0`
+  - Cluster version: `6.5`
+
+- Datacenter 2 cluster:
+
+  - Server 1: VM address **CVM** `192.168.1.21`, hypervisor IP address **AHV** `192.168.1.1`.
+  - Server 2: VM address **CVM** `192.168.1.22`, hypervisor IP address **AHV** `192.168.1.2`.
+  - Server 3: VM address **CVM** `192.168.1.23`, hypervisor IP address **AHV** `192.168.1.3`.
+  - Prism Element virtual address: `192.168.1.100`.
+  - Prism Element iSCSI address: `192.168.1.102`.
+  - Prism Central IP address: `192.168.1.101`.
+  - Gateway: `192.168.3.254`.
+  - Mask: `255.255.252.0`
+  - Cluster version: `6.5`.
+
+- Datacenter 3 Cluster:
+
+  - Server 1: VM address **CVM** `192.168.2.21`, hypervisor IP address **AHV** `192.168.2.1`.
+  - Server 2: VM address **CVM** `192.168.2.22`, hypervisor IP address **AHV** `192.168.2.2`.
+  - Server 3: VM address **CVM** `192.168.2.23`, hypervisor IP address **AHV** `192.168.2.3`.
+  - Prism Element virtual address: `192.168.2.101`.
+  - Prism Element iSCSI address: `192.168.2.102`.
+  - Prism Central IP address: `192.168.2.100`.
+  - Gateway: `192.168.3.254`.
+  - Mask: `255.255.252.0`
+  - Cluster version: `6.5`.
+
+In addition to this guide, you can use these documents:
+
+- [Nutanix hyperconvergence](https://support.us.ovhcloud.com/hc/en-us/articles/16044245989523)
+- [advanced tools](https://support.us.ovhcloud.com/hc/en-us/articles/17268631052051)
+
+ 
+
+### Step 1 - Configuration
+
+#### Step 1.1 - Interconnection of the three clusters
+
+The first step is to interconnect the three clusters on the same OVHcloud vRack.
+
+Use this guide to connect your clusters: [Interconnect clusters through the vRack](https://support.us.ovhcloud.com/hc/en-us/articles/18689639847187). To connect the three clusters, use the instructions provided in the guide:
+
+- Datacenter 1 clusters in the vRack dedicated to Datacenter 3.
+- Datacenter 3 clusters in the vRack dedicated to Datacenter 2.
+
+When you have finished configuring your vRack, you will have these elements in your vRack:
+
+- 9 dedicated servers (3 per cluster)
+- 3 public IP addresses
+- 3 Load Balancers
+
+The three clusters are currently accessible from the Prism Central URL of each cluster.
+
+ 
+
+#### Step 1.2 - Delete the Prism Central records for the Datacenter 1 and Datacenter 2 clusters
+
+To implement a disaster recovery plan solution with **Metro Availability**, a cluster witness is required to automate tasks in the event of one of the clusters becoming unavailable. The cluster witness is located on a Prism Central virtual machine.
+
+The Datacenter 3 cluster will host the Prism Central virtual machine for the three clusters, and serve as a cluster witness for the disaster recovery plan between Datacenter  1 and Datacenter 2.
+
+##### **Disabling Prism Central on the Datacenter 1 cluster**
+
+Connect via SSH to the Prism Element cluster in Datacenter 1 :
+
+```
+ssh nutanix@private_ip_address_prism_element_Roubaix
+Enter Prism Element password
+```
+
+Run this command to remove Prism Element from the Prism Central configuration:
+
+```
+ncli multicluster remove-from-multicluster external-ip-address-or-svm-ips=private_ip_address_central_roubaix\
+username=admin password=pwd_pe_Roubaix force=true
+```
+
+This message appears when disconnecting from Prism Central.
+
+```
+Cluster unregistration is currently in progress. This operation may take a while.
+```
+
+Enter this command:
+
+```
+ncli cluster info
+```
+
+:::warning
+
+**NOTE:** the value of the **Cluster UUID** that must have this form **xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx**.
+
+:::
+
+Disconnect from Prism Element and connect via SSH on the Prism Central virtual machine in Datacenter 1.
+
+```
+ssh nutanix@private_ip_address_prism_central_roubaix
+Enter Prism Central password
+```
+
+Enter this command:
+
+```
+python /home/nutanix/bin/unregistration_cleanup.py cluster_uuid_prism_element_Roubaix
+```
+
+##### **Disabling Prism Central on the Datacenter 2 cluster**
+
+Log in to the Prism Element cluster in Datacenter 2 via SSH.
+
+```
+ssh nutanix@private_ip_address_prism_element_Gravelines
+Enter Prism Element password
+```
+
+Enter this command:
+
+```
+ncli multicluster remove-from-multicluster external-ip-address-or-svm-ips=private_ip_address_prism_central_Gravelines\
+username=admin password=pwd_pe_Gravelines force=true
+```
+
+This message appears when disconnecting from Prism Central.
+
+```
+Cluster unregistration is currently in progress. This operation may take a while.
+```
+
+Enter this command:
+
+```
+ncli cluster info
+```
+
+Note the value of **Cluster UID** that should be in this form **xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx**
+
+Disconnect from Prism Element and connect via SSH on the Prism Central virtual machine in Datacenter 2.
+
+```
+ssh nutanix@private_ip_address_prism_central_Gravelines
+enter Prism Central password
+python /home/nutanix/bin/unregistration_cleanup.py cluster_uuid_prism_element_Gravelines
+```
+
+ 
+
+#### Step 1.3 - Registration of the two clusters on the Prism Central in Datacenter 3
+
+Log in to the Prism Element in Datacenter 1 via SSH:
+
+```
+ssh nutanix@private_ip_address_prism_element_Roubaix
+enter Prism Element password
+```
+
+Run this command:
+
+```
+ncli multicluster register-to-prism-central username=admin password=passwod_admin\ external-ip-address-or-svm-ips=private_ip_address_prism_central_Erith
+```
+
+This message appears:
+
+```
+Cluster registration is currently in progress. This operation may take a while.
+```
+
+Wait and enter this command:
+
+```
+ncli multicluster get-cluster-state
+```
+
+If the cluster is connected to Prism Central in Datacenter 3, you will see this information:
+
+```
+Registered Cluster Count: 1
+
+    Cluster Id                : xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    Cluster Name              : Prism-Central-Erith-FQDN
+    Is Multicluster           : true
+    Controller VM IP Addre... : [private_ip_address_prism_central_Erith]
+    External or Masqueradi... :
+    Cluster FQDN              :
+    Controller VM NAT IP A... :
+    Marked for Removal        : false
+    Remote Connection Exists  : true
+```
+
+Log in to Prism Element in Datacenter 2 via SSH:
+
+```
+ssh nutanix@adresse_ip_prism_element_Gravelines
+Enter Prism Element password from Gravelines
+```
+
+Run this command:
+
+```
+ncli multicluster register-to-prism-central username=admin password=passwod_admin_Erith external-ip-address-or-svm-ips=private_ip_address_central_Erith
+```
+
+This message appears:
+
+```
+Cluster registration is currently in progress. This operation may take a while.
+```
+
+Wait and enter this command:
+
+```
+ncli multicluster get-cluster-state
+```
+
+If the cluster is connected to Prism Central in Datacenter 3, you will see this information:
+
+```
+Registered Cluster Count: 1
+
+    Cluster Id                : xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    Cluster Name              : Prism-Central-Erith-FQDN
+    Is Multicluster           : true
+    Controller VM IP Addre... : [private_ip_address_prism_central_Erith]
+    External or Masqueradi... :
+    Cluster FQDN              :
+    Controller VM NAT IP A... :
+    Marked for Removal        : false
+    Remote Connection Exists  : true
+```
+
+From a web browser, log in to the URL from Prism-Central to Datacenter 3, you will see the three clusters.
+
+![metro03.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18721389627667.png)
+
+ 
+
+The Prism Central virtual machines in Datacenter 2 and Datacenter 1 are no longer being used. You can stop them.
+
+In the main menu, click `VMs` in the **Compute & Storage** submenu.
+
+![metro04.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18721389630611.png)
+
+ 
+
+Select the Prism Central virtual machines in Datacenter 2 and Datacenter 1 and click `Guest Shutdown` from the `Actions` menu.
+
+![metro05.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18721389634579.png)
+
+ 
+
+#### Step 1.4 - Verifying IP Addresses for iSCSI Connections on All Three Clusters 
+
+From the Prism Central dashboard, click the link to the `Datacenter 3 cluster`.
+
+![metro06.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723707761555.png)
+
+ 
+
+On the Prism Element dashboard, click the `cluster name` in the top left-hand corner.
+
+![metro07.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723718336531.png)
+
+ 
+
+Scroll down the window, verify the IP address under **ISCSI Data Services IP**, and click `Save`. 
+
+![metro08.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723707770259.png)
+
+ 
+
+From the Prism Central dashboard, click the link to the "Datacenter 2 cluster".
+
+![metro09.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723707773587.png)
+
+ 
+
+On the Prism Element dashboard, click "the cluster name" in the top left-hand corner.
+
+![metro10.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723718341779.png)
+
+ 
+
+Scroll down the window, verify the IP address under **ISCSI Data Services IP**, and click `Save`. 
+
+![metro11.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723718342931.png)
+
+ 
+
+From the Prism Central dashboard, click on the link to the "Datacenter 1 cluster".
+
+![metro12.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723707789075.png)
+
+ 
+
+On the Prism Element dashboard, click the "cluster name" in the top left-hand corner.
+
+![metro13.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723718348307.png)
+
+ 
+
+Scroll down the window, verify the IP address under **ISCSI Data Services IP**, and click `Save`. 
+
+![metro14.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18723718350739.png)
+
+ 
+
+#### Step 1.5 - Creating Two Storage Containers
+
+We will create two Storage Containers with the same name, one in Datacenter 1 and the other in Datacenter 2.
+
+From the Prism Element main menu, click `Storage Containers` in the `Compute & Storage` submenu.
+
+![metro15.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724069583507.png)
+
+ 
+
+Click `Create Storage Container`.
+
+![metro16.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724040279059.png)
+
+ 
+
+Type `UsedForDR` in **Name**, choose the Datacenter 1 `cluster` in **Cluster**, and click `Create`.
+
+![metro17.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724069594643.png)
+
+ 
+
+Click `Create Storage Container`.
+
+![metro18.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724040288531.png)
+
+ 
+
+Type `UsedForDR` in **Name**, choose th&#x65;**&#x20;Datacenter 2 cluster** in `Cluster`, and click `Create`.
+
+![metro19.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724040290067.png)
+
+ 
+
+In the list of `Storage Containers`, you will see two Storage Containers with the same name. One on the Datacenter 1 cluster and the other on the Datacenter 2 cluster.
+
+![metro20.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724040293651.png)
+
+ 
+
+#### Step 1.6 - Moving virtual machines to the Storage Container
+
+We will move the virtual machine storage to the `Storage Container` we have created.
+
+Connect via SSH on the Prism Element of the Datacenter 1 cluster:
+
+```
+ssh nutanix@private_ip_address_Prism_element_Datacenter1
+Enter the Nutanix account password of Prism Element
+```
+
+Run this command for each VM we will move to the `Storage Container`, replacing **vmname** with the name of the virtual machine (in our disaster recovery plan, we have two virtual machines in Datacenter1, one on Windows and one on Linux).
+
+```
+acli vm.update_container vmname container=UsedForDR
+Enter the Nutanix account password of Prism Element
+```
+
+Log in to the Prism Element of the Datacenter 2 cluster via SSH:
+
+```
+ssh nutanix@private_ip_address_Prism_element_Gravelines
+Enter the Nutanix account password of Prism Element
+```
+
+Execute this command for each VM that we will move to the `Storage Container`, replacing **vmname** with the name of the virtual machine (in our disaster recovery plan, we have three virtual machines in Datacenter 2, one on Windows, another on Linux, and the gateway that gives access to the Internet).
+
+```
+acli vm.update_container vmname container=UsedForDR
+Enter the Nutanix account password of Prism Element
+```
+
+ 
+
+#### Step 1.7 - Creation of a category to be used when implementing the P.R.A.
+
+We will create a category with two values in Prism Central to assign the virtual machines involved in replication.
+
+Scroll through the main menu, click `Categories` in the `Administration` submenu.
+
+![metro21.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724179989011.png)
+
+ 
+
+Click `New Category`.
+
+![metro22.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724179991187.png)
+
+ 
+
+Type `Protected VM` in **Name**, add the `<DATACENTER 1>` and `<DATACENTER 2>` values in **Values**, and click on the next button `Save`.
+
+![metro23.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724175275667.png)
+
+ 
+
+The category appears in the list and is ready to use.
+
+![metro24.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724179996051.png)
+
+ 
+
+#### Step 1.8 - Adding virtual machines in categories
+
+We will assign two virtual machines on the Datacenter 1 cluster in one category and three virtual machines on the Datacenter 2 cluster in another category.
+
+From the Prism Central main menu, click `VMs` in the `Compute & Storage` submenu.
+
+![metro25.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725018996883.png)
+
+ 
+
+**Select the two virtual machines** in Datacenter 1 on the left, then on the `Actions` menu, and click `Manage Categories`.
+
+![metro26.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724996472595.png)
+
+ 
+
+Add the category `ProtectedVM: <DATACENTER 1>`, then click `Save`.
+
+![metro27.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019006995.png)
+
+ 
+
+Select `the three virtual machines` in Datacenter 2 on the left, then `Actions`, and click `Manage Categories`.
+
+![metro28.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724996476691.png)
+
+ 
+
+Add the category `ProtectedVM: <DATACENTER 2>`, then click `Save`.
+
+![metro29.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019016467.png)
+
+ 
+
+#### Step 1.9 - Setting up synchronous replications between Datacenter 1 and Datacenter 2
+
+Synchronous replication allows permanent replication with 0 seconds of data loss.
+
+##### **Replication setup between Datacenter 1 and Datacenter 2**
+
+On the Prism Central main menu, click `Protection Policies` in the `Data Protection` submenu.
+
+![metro30.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019021075.png)
+
+ 
+
+Click `Create Protection Policy`.
+
+![metro31.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724996487955.png)
+
+ 
+
+Type `<DATACENTER 1>-TO-<DATACENTER 2>` in **Policy name**, keep `Local AZ`, and click `Select Cluster` in **Primary Location**.
+
+![metro32.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019028755.png)
+
+ 
+
+Choose the Datacenter 1 cluster and click `Save`.
+
+![metro33.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019032851.png)
+
+ 
+
+In the **Disaster Recovery** message, click `Enable`.
+
+![metro34.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019037843.png)
+
+ 
+
+The system checks that everything is correct before enabling **Disaster Recovery**.
+
+![metro35.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019039507.png)
+
+ 
+
+Once the checks are complete, click `Enable` to enable the **Disaster Recovery** option.
+
+![metro36.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724996512531.png)
+
+ 
+
+Click `Enable` again.
+
+![metro37.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019043859.png)
+
+ 
+
+Your **Disaster Recovery** option is being activated.
+
+Keep `Local AZ`, select the cluster in **Recovery Location**, and click `Save`.
+
+![metro38.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18724996515475.png)
+
+ 
+
+Click `+ Add Schedule`.
+
+![metro39.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725019055379.png)
+
+ 
+
+Choose `Synchronous` for **Protection Type** and `Automatic` for **Failure Detection Mode**. Then click `Save Schedule`.
+
+![metro40.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725497272211.png)
+
+ 
+
+Click `Next`.
+
+![metro41.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725468873619.png)
+
+ 
+
+Select the category `ProtectedVM : <DATACENTER 1>` and click `Add`.
+
+![metro42.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725468876179.png)
+
+ 
+
+Click `Create`.
+
+![metro43.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725497281939.png)
+
+ 
+
+Virtual machines in Datacenter 1 are now replicated to Datacenter 2. You must wait for the first full replication to have permanent replication.
+
+![metro44.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725468879507.png)
+
+ 
+
+##### **Replication setup between Datacenter 2 and Datacenter 1**
+
+Replication can be two-way. We will now create a replication from Datacenter 2 to Datacenter 1.
+
+Click `Create Protection Policy`.
+
+![metro45.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725497288595.png)
+
+ 
+
+Choose as name `<DATACENTER 2>-TO-<DATACENTER 1>` in **Policy Name**, keep `Local AZ`, and choose Datacenter 2 cluster in **Primary Location**. Then click `Save`.
+
+![metro46.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725468885779.png)
+
+ 
+
+Keep **Local AZ**, select the Datacenter 1 cluster, and click `Save`.
+
+![metro47.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725804072851.png)
+
+ 
+
+Click `+ Add Schedule`.
+
+![metro48.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725826270227.png)
+
+ 
+
+Choose `Synchronous` for **Protection Type** and `Automatic` for **Failure Detection Mode**. Then click `Save Schedule`.
+
+![metro49.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725826277011.png)
+
+ 
+
+Click `Next`.
+
+![metro50.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725804076819.png)
+
+ 
+
+Select the category `ProtectedVM: <DATACENTER 2>` and click `Add`.
+
+![metro51.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725826279187.png)
+
+ 
+
+Click `Create`.
+
+![metro52.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725804090387.png)
+
+ 
+
+A second protection strategy is in place.
+
+![metro53.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725804093075.png)
+
+ 
+
+#### Step 1.10 - Create Subnets for Disaster Recovery Plan
+
+We will create subnets that will be used to test disaster recovery plans.
+
+For each existing subnet, a test network is required. On the two clusters of the Disaster Recovery Plan, we have three production subnets.
+
+- **based** on VLAN 0.
+- **infrastructure** on VLAN 1.
+- **production** on VLAN 2.
+
+We will therefore create three additional subnets on the Datacenter 2 and Datacenter 1 clusters with these names:
+
+- **testing** on VLAN 100.
+- **testinfra** on VLAN 101.
+- **production** on VLAN 102.
+
+Use this guide to create VLANs on your Nutanix clusters: [isolate production management machines](https://support.us.ovhcloud.com/hc/en-us/articles/18834562808595).
+
+In the Prism Central `Subnets` dashboard, you will see six new subnets.
+
+![metro54.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18725953869331.png)
+
+ 
+
+#### Step 1.11 - Implementation of disaster recovery plans
+
+Now that the replications and subnets are in place, we will implement automated or manual disaster recovery plans on demand to:
+
+- migrate virtual machines on the fly between the two clusters
+- Test that replication is working properly
+- Automatically restart the VMs that are members of the P.R.A. in the event of a failure of one of two clusters.
+
+##### **Creation of a disaster recovery plan for the Datacenter 1 cluster**
+
+In the main menu of Prism Central, click `Recovery Plans` in the `Data Protection` submenu.
+
+![metro55.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726022484371.png)
+
+ 
+
+Click on `Enable Disaster Recovery` on the left.
+
+![metro56.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726369627155.png)
+
+ 
+
+Normally, the recovery plan must be activated as indicated with the message **Disaster Recovery enabled**. Click on the right to close this window.
+
+![metro57.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726363931539.png)
+
+ 
+
+Click `Create New Recovery Plan`.
+
+![metro58.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726363938323.png)
+
+Choose this information:
+
+- **Recovery Plan Name**: `Recovery VM from <DATACENTER 1> to <DATACENTER 2>`.
+
+- **Primary Location**: `Local AZ`.
+
+- **Primary Cluster**: `cluster in Datacenter 1`.
+
+- **Recovery Location**: `Local AZ`.
+
+- **Recovery Cluster**: `cluster in Datacenter 2`.
+
+- **Failure Execution Mode**: `Automatic`.
+
+- **Execute failover after disconnectivity of**: `30 seconds`.
+
+Then click `Next`.
+
+![metro59.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726369645075.png)
+
+ 
+
+Click `+ Add VM(s)`.
+
+![metro60.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726416550675.png)
+
+ 
+
+Select both virtual machines and click `Add`.
+
+![metro61.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726519004435.png)
+
+ 
+
+Click `Next`.
+
+![metro62.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726475133331.png)
+
+ 
+
+Click `OK. Got it`.
+
+![metro63.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726475134995.png)
+
+ 
+
+Click `Stretch networks`.
+
+![metro64.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726573347859.png)
+
+ 
+
+Click `Proceed`.
+
+![metro65.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726583385747.png)
+
+ 
+
+Choose the VLANs that will be used during the IP like this:
+
+- **Primary**
+
+  - **Production** `production`
+  - **Test Failback**: `testproduction`
+
+- **Recovery**
+
+  - **Production**: `production`
+  - **Test Failback**: `testproduction`
+
+Then click `Done`.
+
+![metro66.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18726583387539.png)
+
+ 
+
+##### **Creation of a disaster recovery plan for the Datacenter 1 cluster**
+
+The Disaster Recovery Plan has been created for the Datacenter 1 site. Click `Create Recovery Plan` to create the Datacenter 2 Disaster Recovery Plan.
+
+![metro67.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632478867.png)
+
+Choose this information:
+
+- **Recovery Plan Name**: `Recovery VM from <DATACENTER 2> to <DATACENTER 1>`.
+
+- **Primary Location**: `Local AZ`.
+
+- **Primary Cluster**: `cluster in Datacenter 2`.
+
+- **Recovery Location**: `Local AZ`.
+
+- **Recovery Cluster**: `cluster in Datacenter 1`.
+
+- **Failure Execution Mode**: `Automatic`.
+
+- **Execute failover after disconnectivity of**: `30 seconds`.
+
+Then click `Next`.
+
+![metro68.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729611098899.png)
+
+ 
+
+Click `+ Add VM(s)`.
+
+![metro69.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729611099795.png)
+
+ 
+
+Select the three virtual machines and click `Add`.
+
+![metro70.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632486803.png)
+
+ 
+
+Click `Next`.
+
+![metro71.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632490003.png)
+
+ 
+
+Click `Stretch networks`.
+
+![metro72.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632491539.png)
+
+ 
+
+Click `Proceed`.
+
+![metro73.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729611112595.png)
+
+Choose this information:
+
+- **Primary**
+
+  - **Production**: `basis`
+  - **Failback** test: `test`
+
+- **Recovery**
+
+  - **Production**: `basis`
+  - **Failback** test: `test`
+
+Then click `+ Add Network Mapping`.
+
+![metro74.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632495635.png)
+
+Choose this information:
+
+- **Primary**
+
+  - **Production** `infra`
+  - **Test Failback**: `testinfra`
+
+- **Recovery**
+
+  - **Production**: `infra`
+  - **Test Failback**: `testinfra`
+
+Then click `+ Add Network Mapping`.
+
+![metro75.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632497043.png)
+
+Choose this information:
+
+- **Primary**
+
+  - **Production**: `production`
+  - **Test Failback**: `testproduction`
+
+- **Recovery**
+
+  - **Production**: `production`
+  - **Test Failback**: `testproduction`
+
+Then click `Done`.
+
+![metro76.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18729632501523.png)
+
+:::info
+
+Three networks have been added to this disaster recovery plan because the Gateway virtual machine uses these three networks.
+
+:::
+
+Both disaster recovery plans are in production.
+
+![metro77.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730039741843.png)
+
+ 
+
+### Step 2 - Validate Disaster Recovery Plan
+
+#### Step 2.1 - Monitoring the Disaster Recovery Plan
+
+##### **Using the Commit to Disaster Recovery Plan Option**
+
+You can validate the disaster recovery plan via Prism Central.
+
+Click on the `Recovery VM from Datacenter 1` to validate and test.
+
+![metro78.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730442905619.png)
+
+ 
+
+Click `Validate`.
+
+![metro79.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730442907411.png)
+
+ 
+
+Select the Datacenter 1 cluster for **Entity Failing Over From** and the Datacenter 2 cluster for **Entity Failing Over To**. Then click `Proceed`.
+
+![metro80.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730442908435.png)
+
+ 
+
+The recovery plan has been validated. Click `Close`.
+
+![metro81.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730471150611.png)
+
+ 
+
+##### **Test Disaster Recovery Plan**
+
+We can test the disaster recovery plan without impacting production. The test creates virtual machines with different names on the destination cluster in the VLANs created earlier.
+
+Click `Test`.
+
+![metro82.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730471152915.png)
+
+ 
+
+Select the Datacenter 1 cluster for **Entity Failing Over From** and the Datacenter 2 cluster for **Entity Failing Over To**. Then click `Test`.
+
+![metro83.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730471154707.png)
+
+:::info
+
+Make sure you have the right licenses if you have chosen the Nutanix on OVHcloud packaged service. You need to have signed up for the **Pro** or **Ultimate** packs for the Datacenter 1 and Datacenter 2 clusters.
+
+:::
+
+Click `Execute Anyway`.
+
+![metro84.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730442919315.png)
+
+ 
+
+Go to the VM dashboard in Prism Central and you will see the test virtual machines that are created with the replicated data.
+
+![metro85.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730442920595.png)
+
+ 
+
+Return to your recovery plan and click `Clean-up test entities` to remove the test virtual machines.
+
+![metro86.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730471159571.png)
+
+ 
+
+Click `Clean Up`.
+
+![metro87.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730471160851.png)
+
+ 
+
+#### Step 2.2 - Live migration of Datacenter 1 virtual machines in Datacenter 2
+
+On a fully operational infrastructure, it is possible to move virtual machines from one cluster to another without any service downtime.
+
+Go to a virtual machine in Datacenter 1 that is part of the recovery plan. We will ping the OVHcloud DNS server **213.186.33.99**.
+
+![metro88.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730528437011.png)
+
+ 
+
+Return to your recovery plan and open the `More` menu, then click `Failover`.
+
+![metro89.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18730551289235.png)
+
+ 
+
+Choose `Planned Failover`, then select the `Live Migrate Entities` box.
+
+Select the Datacenter 1 cluster for **Entity Failing Over From** and the Datacenter 2 cluster for **Entity Failing Over To**.
+
+Then click `Failover`.
+
+![metro90.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543861011.png)
+
+ 
+
+Type `Failover` and click `Failover`.
+
+![metro91.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543868563.png)
+
+ 
+
+Hot migration is in progress.
+
+![metro92.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523395347.png)
+
+ 
+
+The migration was completed successfully without any service downtime.
+
+![metro93.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543875731.png)
+
+ 
+
+You can go back to the virtual machine and see that the ping continues to work even if the virtual machine has been moved from one cluster to another.
+
+![metro94.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523404691.png)
+
+ 
+
+#### Step 2.3 - Operations after a hot migration
+
+After a migration, it is necessary to reverse the replication and operation of the disaster recovery plan.
+
+##### **Reverse Replication**
+
+On the Prism Central main menu, click `Protections Policies` in the `Data Protection` submenu.
+
+![metro95.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543886483.png)
+
+ 
+
+Click on the protection plan named `<DATACENTER 1> TO <DATACENTER 2>`.
+
+![metro96.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543890707.png)
+
+ 
+
+Click `Update`.
+
+![metro97.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523421075.png)
+
+ 
+
+Position the mouse below the Datacenter 1 cluster name in **Primary Location** and click `Edit`.
+
+![metro98.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543904915.png)
+
+ 
+
+Check the `<DATACENTER 2>` cluster instead of the Datacenter 1 cluster.
+
+![metro99.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543915411.png)
+
+ 
+
+Click `Save`.
+
+![metro100.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543921427.png)
+
+ 
+
+Click `Update Location`.
+
+![metro101.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523437331.png)
+
+ 
+
+Position the mouse below the Datacenter 2 cluster name in **Recovery Location** and click `Edit`.
+
+![metro102.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523439251.png)
+
+ 
+
+Select the `<DATACENTER 1>` cluster instead of the Datacenter 2 cluster.
+
+![metro103.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523445523.png)
+
+ 
+
+Click `Save`.
+
+![metro104.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543944979.png)
+
+ 
+
+Click `Update Location`.
+
+![metro105.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543948435.png)
+
+ 
+
+Click `Next`.
+
+![metro106.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543956115.png)
+
+ 
+
+Click `Update`.
+
+![metro107.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543963667.png)
+
+ 
+
+Replication is reversed, click the button to close the protection plan.
+
+##### **Disaster Recovery Plan Reverse**
+
+In the main menu of Prism Central, click `Recovery Plans` in the `Data Protection` submenu.
+
+![metro108.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523489427.png)
+
+ 
+
+Click `Recovery VM from <DATACENTER 1> to <DATACENTER 2>`.
+
+![metro109.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523495827.png)
+
+ 
+
+On the `More` menu, click `Update`.
+
+![metro110.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523501331.png)
+
+ 
+
+In **locations**, put the Datacenter 2 cluster in **Primary Clusters** and the Datacenter 1 cluster in **Recovery Clusters** and then click `Next`.
+
+![metro111.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523507347.png)
+
+ 
+
+Click `Proceed`.
+
+![metro112.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731543998867.png)
+
+ 
+
+Click `Next`.
+
+![metro113.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523525907.png)
+
+Choose this information:
+
+- **Primary**
+
+  - **Production**: `production`
+  - **Test Failback**: `testproduction`
+
+- **Recovery**
+
+  - **Production**: `production`
+  - **Test Failback**: `testproduction`
+
+Click `Done`.
+
+![metro114.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523530515.png)
+
+:::info
+
+Replication and recovery plans were reversed following a migration of virtual machines from Datacenter 1 to Datacenter 2.\
+\
+To return to the original state, you need to perform a hot migration again and reverse replication and the disaster recovery plan. You can use this part of the guide if your disaster recovery plan is triggered because a cluster is unavailable.
+
+:::
+
+ 
+
+#### Step 2.4 - Execute the Disaster Recovery Plan in Real Condition
+
+We will simulate a total loss of connection to Datacenter 2 where three virtual machines are located in the disaster recovery plan (the Internet gateway and two other virtual machines).
+
+Log in to the command line and ping the public address of the gateway.
+
+```
+## Ping from a remote linux console
+ping xx.xx.xx.xx
+Reply from xx.xx.xx.xx: bytes=32 time=21ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=21ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=23ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=20ms TTL=58
+```
+
+Leave the ping command to run continuously and return to Prism Central.
+
+In the main menu, click `VMs` in the `Compute & Storage` submenu.
+
+![metro115.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731544018835.png)
+
+ 
+
+The three virtual machines in the disaster recovery plan are functional.
+
+![metro116.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731544022803.png)
+
+All three nodes in the Datacenter 2 cluster will be disconnected.
+
+:::info
+
+The disconnection is done by deleting the three nodes of the Datacenter 2 cluster from the vRack.
+
+:::
+
+Return to the console that is pinging to the gateway, and you will see a connection loss.
+
+```
+Reply from xx.xx.xx.xx: bytes=32 time=20ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=21ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=20ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=20ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=20ms TTL=58
+Request timed out.
+Request timed out.
+Request timed out.
+Request timed out.
+```
+
+In Prism Central, click the top right on the `tasks` to display the task launch, including **Recovery plan execute**.
+
+![metro117.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523548563.png)
+
+:::warning
+
+**NOTE:** In the event of an incident on an entire cluster (there are not enough nodes to function or a network outage), the virtual machines that are part of the IP and that are on this cluster will be started on the other cluster. The RPO (Recovery Point Objective) is 0 seconds, which means that no data loss will be reported.\
+\
+However, it will take a while for the virtual machines to reboot on the other cluster. In this guide, three virtual machines are restarted on the remote cluster. It will take you 4 minutes to start the virtual machines. This time can be measured by regularly running tests on disaster recovery plans.
+
+:::
+
+Go back to the text console and you will see that the ping works again.
+
+```
+Request timed out.
+Reply from xx.xx.xx.xx: bytes=32 time=20ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=19ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=18ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=18ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=19ms TTL=58
+Reply from xx.xx.xx.xx: bytes=32 time=19ms TTL=58
+```
+
+Go to Prism Central in the virtual machine management, you will see the three virtual machines of the recovery plan in duplicate. They are marked as started, but in reality, only the ones restarted in Datacenter 1 are working.
+
+![metro118.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523554195.png)
+
+We will reconnect the three nodes in the vRack to return to normal mode.
+
+After the recovery, the virtual machines on the original cluster are still visible but are turned off. You can delete or keep them if problems occur on the VMs that are being rebooted.
+
+![metro119.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731544036627.png)
+
+ 
+
+You can view the history of **Disaster Recovery** actions in Prism Central.
+
+Click the button in the top right-hand corner to go to the Prism Central configuration.
+
+![metro120.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731544040979.png)
+
+ 
+
+Left-click `Witness` and click `View Usage History`.
+
+![metro121.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731523573907.png)
+
+ 
+
+The list of events appears, click `Close` to close.
+
+![metro122.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/configuring-disaster-recovery-with-metro/18731544048403.png)
+
+ 
+
+[]()
+
+## Go further
+
+For more information and tutorials, please see our other [Nutanix support guides](https://support.us.ovhcloud.com/hc/en-us/sections/19306730639635-Nutanix) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).

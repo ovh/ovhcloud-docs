@@ -1,0 +1,492 @@
+---
+title: "Replacing OVHgateway"
+description: "NOTE: OVHcloud provides services for which you are responsible for their configuration and management. You are therefore responsible for their proper functionin"
+zendesk_id: 18875377642387
+zendesk_hash: a15ede606c5f7da9
+content_hash: 8f44fdc0c101f775
+updated: 2026-06-15
+---
+
+# Replacing OVHgateway
+
+:::warning
+
+**NOTE:** OVHcloud provides services for which you are responsible for their configuration and management. You are therefore responsible for their proper functioning.\
+\
+This tutorial is designed to help you as much as possible with common tasks. If you are having difficulty performing these actions, please contact a specialized service provider. OVHcloud cannot provide you with technical support in this regard.
+
+:::
+
+ 
+
+## Requirements
+
+- One Nutanix cluster provided by OVHcloud
+- Access to the [OVHcloud Control Panel](https://manager.us.ovhcloud.com/manager/)
+- Access to your clusters via Prism Central
+
+ 
+
+## Instructions
+
+The OVHgateway uses two network cards by default:
+
+- One on VLAN 0 (base) connected to the internet with an additional OVHcloud IP address.
+- One on VLAN 1 (infra) connected to the local administration network with a range of IP addresses, in this example in 192.168.10.0/24.
+
+In our guide, we will replace this gateway with the network operating system **pfSense Community edition** without software support.
+
+:::info
+
+It is entirely possible to use this guide to install other network operating systems compatible with AHV.
+
+:::
+
+ 
+
+### Download sources for pfSense installation
+
+Download an ISO image for the **pfSense** installation from this link: [Downloading pfSense](https://www.pfsense.org/download/).
+
+Using [this documentation](https://support.us.ovhcloud.com/hc/en-us/articles/16864667698451), add the **pfSense ISO** image to your Nutanix cluster.
+
+ 
+
+### Create the GW-PFSENSE virtual machine
+
+In **Prism Central**, navigate to `Infrastructure` > `Compute` > `VMs` > `Create VM`.
+
+<details>
+<summary>Click here for the full VM specifications.</summary>
+
+Create a virtual machine with these settings:
+
+- **Name**: `GW-PFSENSE`
+
+- **vCPU(s)**: `2`
+
+- **Number Of Cores Per vCPU**: `1`
+
+- **Memory**: `4 GB`
+
+- **Boot Configuration:** `Legacy BIOS`
+
+- **Disk (1)**
+
+  - **Type**: `CD-ROM`
+  - **Operation**: `Clone from image`
+    - **Image**: Your pfSense ISO file
+  - **Bus Type**: `SATA`
+
+- **Disk (2)**
+
+  - **Type**: `DISK`
+  - **Operation**: `Allocate on Storage Container`
+  - **Bus Type**: `SCSI`
+  - **Storage Container**: Select an Object Storage container with at least 100 GB of storage space.
+
+- **Network**: two network cards
+
+  - `VLAN 0 (base)`
+  - `VLAN 1 (infra)`
+
+You can use [our guide on virtual machine management](https://support.us.ovhcloud.com/hc/en-us/articles/16885296986899) to create this virtual machine.
+
+![prism\_pfSense-gateway\_createVM.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421899539.png)
+
+</details>
+
+ 
+
+### Shut down the OVHgateway virtual machine
+
+To avoid duplicate IP addresses on the network, stop the **OVHgateway** virtual machine before starting the new virtual machine on **pfSense**.
+
+<details>
+<summary>Click here for full instructions.</summary>
+
+In **Prism Central**, navigate to `Infrastructure` > `Compute` > `VMs`.
+
+Click on the `OVHgateway` virtual machine.
+
+![prism\_VMs\_OVHgateway.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421901843.png)
+
+From the `Power Operations` menu, select `Guest Shutdown`.
+
+![prism\_VMs\_OVHgateway\_shutdown.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414488083.png)
+
+</details>
+
+ 
+
+### Retrieve the public address in the OVHcloud Control Panel
+
+Retrieve information about the OVHcloud gateway network settings.
+
+Log in to the [OVHcloud Control Panel](https://manager.us.ovhcloud.com/), select your Nutanix cluster, and find the information in the `IPFO` field.
+
+![manager\_nutanix\_generalInformationTab-3.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414491027.png)
+
+**IPFO** is a range of four addresses. The first and last are reserved, the third is on OVHcloud hardware and serves as an **Internet** gateway. The only usable IP address is the second address in the range.
+
+During installation, we will reuse this information to assign it to the new **GW-PFSENSE virtual machine**.
+
+```
+XX.XX.XX.N Reserved network address that appears on the OVHcloud client site
+XX.XX.XX.N+1 IP address to be assigned to the GW-PFSENSE virtual machine WAN interface
+XX.XX.XX.N+2 Address to be used as a gateway on the GW-PFSENSE VM WAN interface
+XX.XX.XX.N+3 Reserved broadcast IP address
+```
+
+For example, if the **IPFO** address displayed on the client site is 198.51.100.0/30, use:
+
+- **198.51.100.1** for the **WAN** interface address.
+- **198.51.100.2** for the gateway on the **WAN** interface.
+
+ 
+
+### Start the GW-PFSENSE virtual machine
+
+Power on the GW-PFSENSE VM and launch the console.
+
+<details>
+<summary>Click here for full instructions.</summary>
+
+Go back to virtual machine management in **Prism Central** and click on `GW-PFSENSE`.
+
+![prism\_VMs\_GW-PFSENSE.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414492435.png)
+
+From the `Power Operations` menu, select `Power On`.
+
+![prism\_VMs\_GW-PFSENSE\_power-on.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421910675.png)
+
+Once the VM is powered on, click `Launch Console`.
+
+![prism\_VMs\_GW-PFSENSE\_menu-bar.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414497299.png)
+
+</details>
+
+ 
+
+### Install pfSense
+
+:::warning
+
+**NOTE:** These images and instructions are specific to the pfSense `ISO`. See the [pfSense official documentation](https://docs.netgate.com/pfsense/en/latest/install/install-walkthrough.html) for more information.
+
+:::
+
+<details>
+<summary>Click here for full installation instructions.</summary>
+
+#### Accept the license information
+
+Review the pfSense license information and press the `Enter` key to accept it.
+
+ 
+
+#### Welcome
+
+Choose `Install`, switch to `OK` with the `Tab` key, and press `Enter`.
+
+![pfsense\_installation\_1.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414502163.png)
+
+ 
+
+#### Network Installation
+
+Choose `OK` by pressing `Enter`.
+
+![pfsense\_installation\_2.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421921683.png)
+
+ 
+
+#### WAN Interface Assignment and Configuration
+
+Leave `vtnet0` selected, and press `OK`.
+
+![pfsense\_installation\_3.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421923091.png)
+
+ 
+
+#### WAN (vtnet0) Network Mode Setup
+
+Change the `Interface Mode` to **Static** by pressing `OK`.
+
+![pfsense\_installation\_4.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421924371.png)
+
+Modify the following areas with the correct configuration settings:
+
+| Section           | Input                                                                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IP Address`      | Enter the IP address for the OVHgateway, which is the second address in the IP block identified [above](#retrieve-the-public-address-in-the-ovhcloud-control-panel). |
+| `Default Gateway` | Enter the gateway IP, which is the third address in the IP block identified [above](#retrieve-the-public-address-in-the-ovhcloud-control-panel).                     |
+| `DNS Server`      | Enter your DNS (e.g., 8.8.8.8).                                                                                                                                      |
+
+Choose `Continue` and select `OK`.
+
+![pfsense\_installation\_9.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421926803.png)
+
+ 
+
+#### LAN Interface Assignment and Configuration
+
+Choose `vtnet1` and select `OK`.
+
+![pfsense\_installation\_10.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421929619.png)
+
+Choose `Continue` and select `OK`.
+
+![pfsense\_installation\_11.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421930643.png)
+
+Leave `LAN` selected, and press `Continue`.
+
+![pfsense\_installation\_12.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421931283.png)
+
+A connectivity check will run.
+
+![pfsense\_installation\_13.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414513427.png)
+
+ 
+
+#### Final installation steps
+
+Choose `Install CE`.
+
+![pfsense\_installation\_14.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421934867.png)
+
+Choose `Continue` and select `OK`.
+
+![pfsense\_installation\_15.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414515347.png)
+
+Choose `stripe` and select `OK`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421938323.png)
+
+Select `NUTANIX VDISK` and press `OK`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414517139.png)
+
+Confirm by pressing `Yes`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414519955.png)
+
+Select a version to install and press `OK`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414521363.png)
+
+When the installation has finished, press `OK`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421945107.png)
+
+Select `Reboot`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421948051.png)
+
+</details>
+
+ 
+
+### Eject the pfSense CD-ROM from the GW-PFSENSE virtual machine
+
+Eject the pfSense ISO image from the VM's storage disks.
+
+<details>
+<summary>Click here for full instructions.</summary>
+
+From **Prism Central**, go back to the **GW-PFSENSE** virtual machine management interface.
+
+Click the `Power Operations` menu and select `Guest Shutdown`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414525459.png)
+
+Then, click the `Update` menu and select `Storage`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414526355.png)
+
+Select the `CD-ROM` disk, click the `Actions` menu, and select `Eject`.
+
+![](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414526867.png)
+
+Return to the `Power Operations` menu and select `Power On`.
+
+![prism\_VMs\_GW-PFSENSE\_power-on.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666421910675.png)
+
+Click `Launch Console` to continue the installation after startup.
+
+![prism\_VMs\_GW-PFSENSE\_menu-bar.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/49666414497299.png)
+
+</details>
+
+ 
+
+### Configure some options through the web interface
+
+Connect to the pfSense Web Console with the URL https\://192.168.10.254 from a cluster virtual machine on the **AHV LAN: Base**.
+
+Enter the following information:
+
+- **User account**: admin
+- **Default password**: pfsense
+
+Then click `SIGN IN`.
+
+![pfSense\_loginScreen.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552584851.png)
+
+ 
+
+<details>
+<summary>Change the pfSense default password</summary>
+
+From the `System` menu, choose `User Manager`.
+
+![pfSense\_home\_system-menu.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552585107.png)
+
+Click the `Pen` icon on the right-hand side.
+
+![pfSense\_users.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572582123667.png)
+
+On the following screen, choose a new password, retype it to confirm, then scroll to the bottom of the page and click `Save`.
+
+</details>
+
+<details>
+<summary>Add a rule to allow remote administration from a public address</summary>
+
+Go to the `Firewall` menu and choose `Rules`.
+
+![pfSense\_home\_firewall-menu.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572657839379.png)
+
+Check that you are on the `WAN` tab, then click the `⬆️ Add` button (at the bottom) to create a firewall rule.
+
+![pfSense\_WAN-rules.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572657843859.png)
+
+Set these options:
+
+- **Edit Firewall Rule**
+
+  - Action: `Pass`
+  - Interface: `WAN`
+  - Address Family: `IPv4`
+  - Protocol: `TCP`
+
+- **Source**
+
+  - Select `Address or alias` from the drop-down menu.
+  - Enter the `public address` that can connect to the **pfSense** firewall.
+
+- **Destination**
+
+  - Destination: `WAN address`
+  - Destination Port Range From: `HTTPS`
+  - Destination Port Range To: `HTTPS`
+
+Click `Save` at the bottom of the page.
+
+![pfSense\_create-WAN-rule.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572582124691.png)
+
+Once you have returned to the rules list, click `Apply Changes` to activate the rule.
+
+The **pfSense** administration interface is then accessible from the Internet, only from the authorized network in HTTPS, here `https://198.51.100.1`.
+
+![pfSense\_WAN-rules\_applyChanges.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572582125331.png)
+
+</details>
+
+ 
+
+### Configuring Internet Access in a New VLAN
+
+We will create a new subnet in VLAN 2 with an address range in 192.168.2.0/24 and a gateway in 192.168.2.254.
+
+<details>
+<summary>PfSense VM modification</summary>
+
+Log in to Prism Central to make these changes:
+
+Use the [Isolating management machines from production](https://support.us.ovhcloud.com/hc/en-us/articles/18834562808595) guide to create a new VLAN on your Nutanix cluster with these settings:
+
+- **VLAN name**: `Production`
+- **VLAN number**: `2`
+
+Your new network must appear in **Subnets**.
+
+![prism\_subnets\_list.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552589075.png)
+
+Now that the new subnet has been created, we will add an adapter to the configuration of your **GW-PFSENSE** virtual machine.
+
+Via the virtual machine management, click on your **GW-PFSENSE** virtual machine, go to the `Update` menu, and choose `Network`.
+
+On the next page, click `+ Attach to Subnet`.
+
+Choose the `Production` subnet and click `Save`.
+
+![prism\_VMs\_attach-subnet-mod.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552589331.png)
+
+</details>
+
+<details>
+<summary>Enable and configure the new network adapter on pfSense</summary>
+
+Log in to the pfSense interface in https, with the public address (for example, **https\://198.51.100.1**) in your pfSense administration interface, and follow these instructions:
+
+Go to the `Interfaces` menu and click `Assignments`.
+
+![pfSense\_home\_interfaces-menu.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552590995.png)
+
+Click `+ Add` to the right of **Available network ports**.
+
+![pfSense\_interfaces\_assignments.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552591891.png)
+
+Select the `vtnet2` interface and click `Save`.
+
+![pfSense\_interface-assignments\_add.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572582126483.png)
+
+In the `Interfaces` menu, click `OPT1`.
+
+![pfSense\_home\_interfaces-menu-2.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552594707.png)
+
+Check **Enable Interfaces** and modify these settings :
+
+- **Description**: `VLAN2`
+- **IPv4 Address**: `192.168.2.254/24`
+
+Click `Save`.
+
+![pfSense\_interfaces\_enable.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552595219.png)
+
+Click `Apply Changes`.
+
+![pfSense\_interfaces\_applyChanges.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552595987.png)
+
+Go to the `Firewall` menu and click `Rules`.
+
+![pfSense\_home\_firewall-menu.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572657839379.png)
+
+Go to the `VLAN2` tab and click the `⬆️ Add` button on the left.
+
+![pfSense\_firewall-rules\_vlan2.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552597011.png)
+
+Change these values:
+
+- **Protocol**: `Any`
+- **Source** : `VLAN2 subnet`
+- **Destination**: `Any`
+
+Click `Save`.
+
+![pfSense\_firewall-rules\_add-rule.PNG](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572582129939.png)
+
+Click `Apply Changes`.
+
+![pfSense\_VLAN2-rules\_applyChanges.PNG.png](/images/hosted-private-cloud/nutanix-on-ovhcloud/replacing-ovhgateway/50572552599187.png)
+
+Your VLAN 2 is now connected to the Internet!
+
+</details>
+
+ 
+
+## Go further
+
+For more information and tutorials, please see our other [Nutanix support guides](https://support.us.ovhcloud.com/hc/en-us/sections/19306730639635-Nutanix) or explore the [guides for other OVHcloud products and services](https://support.us.ovhcloud.com/hc/en-us).
