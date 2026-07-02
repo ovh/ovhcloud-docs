@@ -15,6 +15,7 @@ import { SidebarDivider } from './SidebarDivider';
 import { SidebarGroup } from './SidebarGroup';
 import { SidebarItem } from './SidebarItem';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
+import { ActiveBranchProvider } from './useActiveBranch';
 import {
   isSidebarDivider,
   isSidebarGroup,
@@ -84,19 +85,21 @@ export function SidebarList({
           <img src="/images/ai.svg" alt="AI assistant" className="w-6 h-6" />
         </button>
       </div>
-      <div className="overflow-auto">
-        {sidebarData.map((item, index) => {
-          return (
-            <SidebarListItem
-              // biome-ignore lint/suspicious/noArrayIndexKey: sidebar items have no stable unique ID
-              key={index}
-              item={item}
-              index={index}
-              setSidebarData={setSidebarData}
-            />
-          );
-        })}
-      </div>
+      <ActiveBranchProvider sidebarData={sidebarData}>
+        <div className="overflow-auto">
+          {sidebarData.map((item, index) => {
+            return (
+              <SidebarListItem
+                // biome-ignore lint/suspicious/noArrayIndexKey: sidebar items have no stable unique ID
+                key={index}
+                item={item}
+                index={index}
+                setSidebarData={setSidebarData}
+              />
+            );
+          })}
+        </div>
+      </ActiveBranchProvider>
       <div className="grow"></div>
       <div className="flex flex-row align-items border-t border-gray-200 px-2">
         <SocialLinks />
@@ -147,5 +150,5 @@ function SidebarListItem(props: {
     );
   }
 
-  return <SidebarItem item={item} key={index} depth={0} />;
+  return <SidebarItem item={item} key={index} depth={0} id={String(index)} />;
 }

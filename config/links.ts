@@ -76,6 +76,15 @@ export const externalLinks: LinkMap = {
     'pl': 'https://www.ovhcloud.com/pl/bare-metal/game/',
     'pt': 'https://www.ovhcloud.com/pt/bare-metal/game/',
   },
+  'bare-metal/game-hub': {
+    'fr': 'https://www.ovhcloud.com/fr/lp/game-hub/',
+    'en': 'https://www.ovhcloud.com/en-gb/lp/game-hub/',
+    'de': 'https://www.ovhcloud.com/de/lp/game-hub/',
+    'es': 'https://www.ovhcloud.com/es-es/lp/game-hub/',
+    'it': 'https://www.ovhcloud.com/it/lp/game-hub/',
+    'pl': 'https://www.ovhcloud.com/pl/lp/game-hub/',
+    'pt': 'https://www.ovhcloud.com/pt/lp/game-hub/',
+  },
   'bare-metal/hg': {
     'fr': 'https://www.ovhcloud.com/fr/bare-metal/high-grade/',
     'en': 'https://www.ovhcloud.com/en-gb/bare-metal/high-grade/',
