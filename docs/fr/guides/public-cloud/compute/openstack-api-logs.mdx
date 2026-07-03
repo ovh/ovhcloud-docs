@@ -1,0 +1,122 @@
+---
+title: Comprendre les logs d'API OpenStack
+description: Découvrez comment lire et utiliser les logs d'accès à l'API OpenStack pour le dépannage, l'audit de sécurité et le débogage d'API
+lastUpdated: 2026-06-03
+---
+
+## Objectif
+
+Le Public Cloud OVHcloud expose des logs d'accès API pour trois services OpenStack essentiels : Compute (Nova), Block Storage (Cinder) et Network (Neutron). Ces logs capturent chaque requête HTTP adressée à l'API, avec des informations détaillées sur l'appelant, la requête et la réponse.
+
+Principaux cas d'usage :
+
+- **Dépannage** : identifier les appels API en échec, les réponses lentes ou les codes d'erreur inattendus
+- **Audit de sécurité** : suivre qui a appelé l'API, depuis quelle adresse IP et à quel moment
+- **Débogage d'API** : inspecter les chemins de requête exacts, les méthodes HTTP et les tailles de réponse
+
+**Ce guide explique les types de logs d'API OpenStack disponibles et documente chaque champ retourné.**
+
+## Prérequis
+
+- Un <ManagerLink to="/#/pci/projects">projet Public Cloud</ManagerLink> dans votre compte OVHcloud
+
+## En pratique
+
+### Types de logs disponibles
+
+Trois types de logs couvrent les principales API OpenStack :
+
+| Type de log | Service | Description |
+|---|---|---|
+| `compute-api` | Nova (Compute) | Logs d'accès HTTP pour les appels API de gestion des instances |
+| `volume-api` | Cinder (Block Storage) | Logs d'accès HTTP pour les appels API de gestion des volumes |
+| `network-api` | Neutron (Network) | Logs d'accès HTTP pour les appels API réseau et sous-réseau |
+
+### Champs des logs
+
+Chaque entrée de log contient les champs suivants :
+
+| Champ | Type | Description |
+|---|---|---|
+| `api_response_code_int` | entier | Code de statut HTTP retourné par l'API (ex. `200`, `404`, `500`) |
+| `api_response_size_int` | entier | Taille du corps de la réponse API en octets |
+| `api_response_time_num` | flottant | Temps de réponse de l'API en secondes |
+| `client` | chaîne | Adresse IP source du client API |
+| `fingerprinted_iplb` | chaîne | Adresse IP du répartiteur de charge ayant reçu la requête, le cas échéant |
+| `http_version` | chaîne | Version du protocole HTTP utilisée (ex. `HTTP/1.1`) |
+| `method` | chaîne | Méthode HTTP (ex. `GET`, `POST`, `PUT`, `DELETE`) |
+| `path` | chaîne | Chemin de l'endpoint API demandé (ex. `/v2.1/servers`) |
+| `program` | chaîne | Nom interne du service ayant généré l'entrée de log (ex. `nova-api`, `cinder-api`, `neutron-api`) |
+| `project_id` | chaîne | UUID du projet OpenStack (tenant) concerné par la requête |
+| `region` | chaîne | Région OVHcloud où la requête API a été traitée |
+| `request_id` | chaîne | Identifiant unique de la requête, utile pour corréler les logs entre services |
+| `user` | chaîne | UUID de l'utilisateur OpenStack ayant effectué la requête |
+| `user_agent` | chaîne | En-tête HTTP `User-Agent` envoyé par le client |
+
+### Cas d'usage et exemples
+
+#### Dépannage des appels API en échec
+
+Filtrez sur `api_response_code_int >= 500` pour identifier les erreurs côté serveur. Un `500` sur `POST /v2.1/servers` peut indiquer un problème de capacité ou un corps de requête mal formé.
+
+Exemple d'entrée de log pour une création d'instance en échec :
+
+```json
+{
+  "api_response_code_int": 500,
+  "api_response_size_int": 312,
+  "api_response_time_num": 0.342,
+  "client": "198.51.100.42",
+  "http_version": "HTTP/1.1",
+  "method": "POST",
+  "path": "/v2.1/servers",
+  "program": "nova-api",
+  "project_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "region": "GRA11",
+  "request_id": "req-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "user": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "user_agent": "python-openstackclient/5.8.0"
+}
+```
+
+Utilisez la valeur `request_id` pour corréler cette entrée avec d'autres logs de service pour la même requête.
+
+#### Audit des accès API
+
+Les champs `user`, `project_id`, `client` et `region` permettent de retracer qui a effectué une action et depuis quel endroit.
+
+Requêtes d'audit utiles :
+
+- Tous les appels depuis une adresse IP `client` inattendue
+- Toutes les requêtes `DELETE` sur des ressources sensibles (ex. `DELETE /v2.1/servers/{id}`)
+- Tous les accès depuis un `user_agent` non reconnu (ex. scripts d'automatisation inconnus)
+- Toutes les requêtes d'un `user` qui n'aurait pas dû être actif
+
+Par exemple, une entrée `DELETE /v2.1/servers/{id}` avec `api_response_code_int: 204` confirme la suppression réussie d'une instance ; le champ `user` identifie qui en est à l'origine.
+
+#### Détection des réponses API lentes
+
+Utilisez `api_response_time_num` pour détecter une dégradation des performances. Les requêtes dont le temps de réponse dépasse 2–3 secondes peuvent signaler une pression sur le backend ou une région surchargée.
+
+Combinez `api_response_time_num` avec `path` pour cibler l'endpoint problématique, et avec `region` pour déterminer si le problème est spécifique à une région.
+
+#### Block Storage — erreurs de quota et de conflit
+
+Pour le type de log `volume-api`, surveillez les appels répétés `POST /v3/{project_id}/volumes` retournant `api_response_code_int: 409` (Conflit). Cela indique généralement des conflits de noms de volumes ou un dépassement de quota.
+
+Un `403` sur `GET /v3/{project_id}/volumes` signifie que l'appelant (identifié par `user`) ne dispose pas des permissions nécessaires pour lister les volumes dans ce projet.
+
+#### Network — erreurs de permission et de routage
+
+Pour le type de log `network-api`, les requêtes `PUT` sur `/v2.0/routers/{id}` retournant `403` (Interdit) indiquent que l'appelant ne dispose pas des permissions suffisantes pour modifier le routeur. Le champ `user` identifie qui a tenté la modification.
+
+Un `404` sur `/v2.0/networks/{id}` confirme que le réseau n'existe plus ou n'a jamais été créé dans cette région.
+
+## Aller plus loin
+
+- [Introduction à OVHcloud Service Logs avec Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/service-logs)
+- [Débuter avec l'API OpenStack](/guides/public-cloud/compute/starting-with-nova)
+- [Préparer l'environnement pour utiliser l'API OpenStack](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment)
+- [Charger les variables d'environnement OpenStack](/guides/public-cloud/cross-functional/compute-set-openstack-environment-variables)
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

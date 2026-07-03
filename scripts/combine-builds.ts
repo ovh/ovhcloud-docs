@@ -7,7 +7,7 @@
  * 1.5. Images deduplication (symlinks dist/{locale}/images -> ../images)
  * 2. Root redirect creation (/ -> /fr/)
  * 3. Combined sitemap.xml generation
- * 4. robots.txt placement
+ * 4. robots.txt + sitemap-help.xml placement
  *
  * Usage:
  *   pnpm build:combine
@@ -129,11 +129,25 @@ const rootIndexHtml = `<!DOCTYPE html>
 fs.writeFileSync(path.join(DIST_DIR, 'index.html'), rootIndexHtml);
 console.log('   ✓ Created dist/index.html (redirects to /fr/)');
 
-// Also create 301.map if it doesn't exist
-const redirectMapPath = path.join(DIST_DIR, '301.map');
-if (!fs.existsSync(redirectMapPath)) {
-  fs.writeFileSync(redirectMapPath, '/ /fr/;\n');
-  console.log('   ✓ Created dist/301.map');
+// Copy the 301.map maintained in docs/public/ to the dist root so nginx can
+// read it. Rspress copies docs/public/* into each dist/{locale}/ root (not into
+// dist/{locale}/public/), so the canonical source is the first built locale's
+// dist root. Fall back to the shared public location.
+const redirectMapCandidates = [
+  path.join(DIST_DIR, builtLocales[0], '301.map'),
+  path.join(sharedPublic, '301.map'),
+];
+const redirectMapSrc = redirectMapCandidates.find((p) => fs.existsSync(p));
+const redirectMapDst = path.join(DIST_DIR, '301.map');
+
+if (redirectMapSrc) {
+  fs.copyFileSync(redirectMapSrc, redirectMapDst);
+  console.log(
+    `   ✓ Copied 301.map to dist root (from ${path.relative(ROOT_DIR, redirectMapSrc)})`,
+  );
+} else {
+  fs.writeFileSync(redirectMapDst, '/ /fr/;\n');
+  console.log('   ✓ Created default dist/301.map');
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -268,21 +282,50 @@ console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 console.log('\n4️⃣  Setting up robots.txt...');
 sectionStart = Date.now();
 
-const robotsSrc = path.join(sharedPublic, 'robots.txt');
+// Rspress copies docs/public/* into each dist/{locale}/ root (not into
+// dist/{locale}/public/), so the canonical source for shared root assets
+// like robots.txt and sitemap-help.xml is the first built locale's dist
+// root. Fall back to the legacy sharedPublic location for compatibility.
+const firstLocaleDir = path.join(DIST_DIR, builtLocales[0]);
+const robotsCandidates = [
+  path.join(firstLocaleDir, 'robots.txt'),
+  path.join(sharedPublic, 'robots.txt'),
+];
+const robotsSrc = robotsCandidates.find((p) => fs.existsSync(p));
 const robotsDst = path.join(DIST_DIR, 'robots.txt');
 
-if (fs.existsSync(robotsSrc)) {
+if (robotsSrc) {
   fs.copyFileSync(robotsSrc, robotsDst);
-  console.log('   ✓ Copied robots.txt to dist root');
+  console.log(
+    `   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`,
+  );
 } else {
   // Create default robots.txt
   const defaultRobots = `User-agent: *
 Allow: /
 
 Sitemap: ${SITE_URL}/sitemap.xml
+Sitemap: ${SITE_URL}/sitemap-help.xml
 `;
   fs.writeFileSync(robotsDst, defaultRobots);
   console.log('   ✓ Created default robots.txt');
+}
+
+// Promote sitemap-help.xml (legacy help.ovhcloud.com URLs for SEO crawl) to
+// the dist root so it is served at /sitemap-help.xml, matching the entry in
+// robots.txt. Source lives in docs/public/ alongside the other infra files;
+// Rspress copies it into each dist/{locale}/ root.
+const helpSitemapCandidates = [
+  path.join(firstLocaleDir, 'sitemap-help.xml'),
+  path.join(sharedPublic, 'sitemap-help.xml'),
+];
+const helpSitemapSrc = helpSitemapCandidates.find((p) => fs.existsSync(p));
+const helpSitemapDst = path.join(DIST_DIR, 'sitemap-help.xml');
+if (helpSitemapSrc) {
+  fs.copyFileSync(helpSitemapSrc, helpSitemapDst);
+  console.log(
+    `   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`,
+  );
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -321,9 +364,16 @@ const workerPath = fileURLToPath(
   new URL('./preprocess-html-worker.ts', import.meta.url),
 );
 
-function runWorker(dir: string): Promise<number> {
+const DOCS_DIR = path.join(ROOT_DIR, 'docs');
+
+function runWorker(
+  dir: string,
+  locale: string,
+): Promise<{ html: number; md: number }> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerPath, { workerData: { dir } });
+    const worker = new Worker(workerPath, {
+      workerData: { dir, locale, siteUrl: SITE_URL, docsDir: DOCS_DIR },
+    });
     worker.on('message', resolve);
     worker.on('error', reject);
   });
@@ -331,14 +381,16 @@ function runWorker(dir: string): Promise<number> {
 
 const preProcessResults = await Promise.all(
   builtLocales.map(async (locale) => {
-    const count = await runWorker(path.join(DIST_DIR, locale));
-    console.log(`   ✓ ${locale}: ${count} files pre-processed`);
-    return count;
+    const counts = await runWorker(path.join(DIST_DIR, locale), locale);
+    console.log(`   ✓ ${locale}: ${counts.html} HTML + ${counts.md} MD files`);
+    return counts;
   }),
 );
-const processedCount = preProcessResults.reduce((a, b) => a + b, 0);
+
+const totalHtml = preProcessResults.reduce((a, b) => a + b.html, 0);
+const totalMd = preProcessResults.reduce((a, b) => a + b.md, 0);
 console.log(
-  `   ✓ Pre-processed ${processedCount} HTML files total (h1 boost + anchor cleanup)`,
+  `   ✓ Total: ${totalHtml} HTML (h1 boost + anchor cleanup) + ${totalMd} MD (frontmatter injected)`,
 );
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -399,6 +451,7 @@ console.log('  - dist/301.map (redirect mapping)');
 console.log('  - dist/sitemap.xml (sitemap index)');
 console.log('  - dist/<locale>/sitemap.xml (per-locale sitemap with hreflang)');
 console.log('  - dist/robots.txt (SEO)');
+console.log('  - dist/sitemap-help.xml (legacy help.ovhcloud.com URLs)');
 console.log(
   '  - dist/<locale>/llms.txt (per-locale LLMs index, generated by Rspress)',
 );

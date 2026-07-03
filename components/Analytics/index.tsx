@@ -71,10 +71,7 @@ declare global {
     tC?: {
       event?: {
         spa_pageLoad?: () => void;
-        spa_click?: (
-          target: unknown,
-          data: { click_label: string },
-        ) => void;
+        spa_click?: (target: unknown, data: { click_label: string }) => void;
       };
     };
   }

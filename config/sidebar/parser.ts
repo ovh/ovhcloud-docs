@@ -150,6 +150,10 @@ interface ParsedLine {
   label: string;
   ref: string | null;
   kind: 'universe' | 'product' | 'section' | 'guide';
+  // Optional landing-page slug declared via a `{landing=<slug>}` marker on a
+  // product/section line. When set, the resulting SidebarGroup gets a `link`
+  // so clicking the category navigates to that page (and still expands).
+  landing?: string;
 }
 
 interface StackEntry {
@@ -187,6 +191,17 @@ function readFrontmatterTitle(basePathNoExt: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Whether a guide's source file exists in a given locale tree (tries
+ * .mdx then .md). Used to drop sidebar entries for guides intentionally
+ * absent from a locale (e.g. a language disabled for that guide), so the
+ * locale sidebar never points at a 404. Symlink-to-en fallbacks resolve
+ * via existsSync and are therefore kept.
+ */
+function guideFileExists(basePathNoExt: string): boolean {
+  return ['.mdx', '.md'].some((ext) => fs.existsSync(basePathNoExt + ext));
 }
 
 /**
@@ -334,6 +349,13 @@ export function parseIndexMd(
           collapsible: true,
           items: items as SidebarItem[],
         };
+        // A `{landing=<slug>}` marker turns this category into a clickable
+        // node: set `link` so the sidebar navigates to the landing page
+        // (SidebarGroup keeps the group expanded on click). Reached only for
+        // non-empty groups — pruned FR-only categories never get here.
+        if (parsed.landing) {
+          node.link = slugToLink(parsed.landing);
+        }
       }
 
       // Add to parent or to root
@@ -350,13 +372,38 @@ export function parseIndexMd(
 
     const leadingSpaces = line.match(/^(\s*)/)?.[1].length || 0;
     const indent = Math.floor(leadingSpaces / 4);
-    const stripped = line.replace(/^\s*\+\s+/, '');
+    let stripped = line.replace(/^\s*\+\s+/, '');
+
+    // Extract optional trailing `{key=value}` markers before parsing the
+    // `[label](ref)` so they don't pollute the label/ref. Order-independent;
+    // multiple markers on one line are supported.
+    //   - `{landing=<slug>}` : turns a product/section into a clickable group.
+    //   - `{label=<text>}`   : overrides the sidebar label of a guide leaf,
+    //                          independently of the guide's frontmatter title
+    //                          (verbatim, applied to every locale). Lets the
+    //                          sidebar rename an entry without touching the
+    //                          guide or adding a wrapper category.
+    const markers: Record<string, string> = {};
+    const markerRe = /\s*\{([a-zA-Z]+)=([^}]+)\}\s*$/;
+    let markerMatch = stripped.match(markerRe);
+    while (markerMatch !== null) {
+      markers[markerMatch[1]] = markerMatch[2].trim();
+      stripped = stripped
+        .slice(0, markerMatch.index ?? stripped.length)
+        .trimEnd();
+      markerMatch = stripped.match(markerRe);
+    }
+    const landing: string | undefined = markers.landing;
+    const labelOverride: string | undefined = markers.label;
 
     const linkMatch = stripped.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     const label = linkMatch ? linkMatch[1] : stripped.trim();
     const ref = linkMatch ? linkMatch[2] : null;
 
     const parsed = classifyLine(indent, label, ref);
+    if (landing && (parsed.kind === 'product' || parsed.kind === 'section')) {
+      parsed.landing = landing;
+    }
 
     // Flush stack entries at the same or deeper indent
     flushTo(indent);
@@ -370,11 +417,26 @@ export function parseIndexMd(
       }
       const link = slugToLink(ref as string);
 
-      // Resolve locale-specific title from MDX frontmatter
-      // Overview pages use a translated "Overview" label instead of the
-      // frontmatter title (which duplicates the parent product name)
+      // Drop guides whose source file is absent in this locale (deleted
+      // or never created — e.g. a language disabled for that guide, such
+      // as SMS in de/pt) so the locale sidebar never surfaces a 404.
+      // Symlink-to-en fallbacks resolve via guideFileExists and stay.
+      if (
+        docsDir &&
+        locale &&
+        !guideFileExists(path.join(docsDir, locale, link.slice(1)))
+      ) {
+        continue;
+      }
+
+      // Resolve the sidebar label, in priority order:
+      //   1. an explicit `{label=…}` marker (verbatim, wins over everything)
+      //   2. the translated "Overview" label for `/overview` leaves
+      //   3. the target guide's locale-specific frontmatter title
       let guideText = label;
-      if ((ref as string).endsWith('/overview') && locale) {
+      if (labelOverride) {
+        guideText = labelOverride;
+      } else if ((ref as string).endsWith('/overview') && locale) {
         guideText = OVERVIEW_TRANSLATIONS[locale as Locale] ?? 'Overview';
       } else if (docsDir && locale) {
         const mdxBasePath = path.join(docsDir, locale, link.slice(1));

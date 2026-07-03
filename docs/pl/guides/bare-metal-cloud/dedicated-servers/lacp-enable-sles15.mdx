@@ -1,0 +1,346 @@
+---
+title: Konfiguracja agregacji łączy LACP w systemie SLES 15
+description: Skonfiguruj agregację łączy LACP na serwerze SLES 15
+lastUpdated: 2026-07-01
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Wprowadzenie
+
+Agregacja łączy zwiększa dostępność serwera i podnosi wydajność połączeń sieciowych. Łącząc interfejsy sieciowe, sprawiasz, że Twoje połączenia sieciowe stają się redundantne: jeśli jedno łącze zostanie zerwane, ruch jest automatycznie przekierowywany do innego dostępnego łącza. Dzięki agregacji zwiększa się również dostępna przepustowość.
+Agregacja oparta jest na technologii IEEE 802.3ad, Link Aggregation Control Protocol (LACP).
+
+**Niniejszy przewodnik wyjaśnia, jak skonfigurować agregację łączy LACP w systemie SLES 15.**
+
+## Wymagania początkowe
+
+- Serwer dedykowany z kilkoma interfejsami sieciowymi. W gamach Scale i High Grade agregaty publiczny i prywatny są włączone domyślnie. W pozostałych gamach należy najpierw [włączyć OLA](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager), aby zagregować interfejsy.
+
+{/* CP-NAV-START:baremetal-dedicated-servers */}
+---
+
+### Dostęp do Panelu klienta OVHcloud
+
+- **Bezpośredni link:** <ManagerLink to="/#/dedicated-servers/server">Serwery dedykowane</ManagerLink>
+- **Ścieżka nawigacji:** <code className="action">Bare Metal Cloud</code> > <code className="action">Serwery dedykowane</code> > Wybierz swój serwer
+
+---
+{/* CP-NAV-END:baremetal-dedicated-servers */}
+
+## W praktyce
+
+Jeśli konfigurujesz agregację w pełni prywatną (OLA), serwer nie będzie już miał łączności publicznej i nie będzie można połączyć się z nim przez SSH. W każdym przypadku połączenie może zostać zerwane podczas konfigurowania agregatu, dlatego zalecamy korzystanie z konsoli IPMI/KVM w celu uzyskania dostępu do serwera.
+Kliknij zakładkę <code className="action">IPMI</code> (1).
+
+Następnie kliknij przycisk <code className="action">Z apletu Java (KVM)</code> (2).
+
+<img className="thumbnail" alt="remote kvm" src="/images/bare-metal-cloud/dedicated-servers/lacp-enable-sles15/remote_kvm2022.png" loading="lazy" />
+
+Zostanie pobrany plik JNLP. Uruchom oprogramowanie, aby uzyskać dostęp do IPMI. Zaloguj się, używając danych identyfikacyjnych przypisanych do serwera.
+
+Domyślnie podczas korzystania z szablonu OVHcloud karty sieciowe będą nazywane *eth0* i *eth1*. Jeśli nie używasz szablonu OVHcloud, możesz sprawdzić nazwy interfejsów za pomocą następującego polecenia:
+
+```bash
+ip a
+```
+
+:::info
+To polecenie zwróci kilka "interfejsów". Jeśli masz trudności z identyfikacją fizycznych identyfikatorów klienta, pierwszy interfejs zawsze będzie miał publiczny adres IP serwera przypisanego domyślnie.
+
+:::
+
+
+### Pobieranie adresów MAC
+
+Przejdź do zakładki <code className="action">Interfejsy sieciowe</code> i zanotuj adresy MAC dla każdego interfejsu (publicznego/prywatnego), które są wyświetlane na dole menu.
+
+<img className="thumbnail" alt="Panel klienta OVHcloud" src="/images/bare-metal-cloud/dedicated-servers/lacp-enable-sles15/ControlPanel.png" loading="lazy" />
+
+:::info
+Adres MAC głównego interfejsu publicznego to wartość `aggregationFallback` interfejsu `public`, którą możesz pobrać za pomocą następującej trasy API:
+
+<Api version="v1" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/networking"} />
+
+:::
+
+:::info
+Możesz korzystać z dowolnego adresu IP i prywatnej podsieci.
+Jeśli Twój serwer ma więcej niż 2 interfejsów sieciowych, możesz je dodać do konfiguracji, dodając numer parametru `BONDING_SLAVE_`, na przykład `BONDING_SLAVE_2='eth2'`.
+
+:::
+
+
+Teraz, gdy wiesz, jakie adresy MAC są przypisane do każdego typu interfejsu (publiczny/prywatny), musisz pobrać nazwy interfejsów.
+
+### Pobieranie nazw interfejsów
+
+:::warning
+Adresy IP będą różne dla każdego serwera.
+
+:::
+
+
+Aby pobrać nazwy interfejsów, wykonaj następujące polecenie:
+
+```bash
+ip a
+```
+
+:::info
+Adres sprzętowy (adres MAC) identyfikatora klienta można odnaleźć za pomocą polecenia `ip a` wcześniej. Będzie to numer obok `link/ether` wyświetlanego wyniku.
+
+:::
+
+
+Oto przykład wyniku:
+
+```text
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute
+       valid_lft forever preferred_lft forever
+2: ens22f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:c6 brd ff:ff:ff:ff:ff:ff
+    inet 203.0.113.1/32 metric 100 scope global dynamic ens22f0np0
+       valid_lft 71613sec preferred_lft 71613sec
+    inet6 2001:db8:1:1b00:203:0:112:0/56 scope global
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a6b2:c3ff:fed4:e5c6/64 scope link
+       valid_lft forever preferred_lft forever
+3: ens22f1np1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:c7 brd ff:ff:ff:ff:ff:ff
+4: ens33f0np0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:d6 brd ff:ff:ff:ff:ff:ff
+5: ens33f1np1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:d7 brd ff:ff:ff:ff:ff:ff
+```
+
+Po ustaleniu nazw interfejsów możesz skonfigurować agregację interfejsów w systemie operacyjnym.
+
+### Konfiguracja agregacji interfejsów
+
+Wybierz poniższą zakładkę odpowiadającą konfiguracji serwera:
+
+- **Dwa interfejsy**: serwery Advance z dwoma fizycznymi kartami NIC.
+- **Cztery interfejsy (domyślnie)**: serwery Scale i High Grade są dostarczane z osobno skonfigurowanymi agregatami publicznym i prywatnym. Nie jest wymagane żadne działanie w Panelu klienta OVHcloud.
+- **Cztery interfejsy (w pełni prywatne / OLA)**: wszystkie interfejsy połączone w jeden agregat prywatny (vRack). Wymaga to [włączenia OLA](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager) w Panelu klienta OVHcloud.
+
+<Tabs>
+<Tab label="Dwa interfejsy">
+Utwórz plik konfiguracyjny agregatu `/etc/sysconfig/network/ifcfg-bond0`:
+
+**Statyczny IP**
+
+```bash
+STARTMODE='onboot'
+BOOTPROTO='static'
+IPADDR='203.0.113.1/32'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='ens22f0np0'
+BONDING_SLAVE_1='ens22f1np1'
+BONDING_MODULE_OPTS='mode=802.3ad xmit_hash_policy=layer3+4 lacp_rate=fast'
+```
+
+Następnie skonfiguruj każdy fizyczny interfejs. Edytuj `/etc/sysconfig/network/ifcfg-ens22f0np0`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:c6
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens22f1np1`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:c7
+```
+
+<details>
+<summary>DHCP</summary>
+
+```bash
+STARTMODE='onboot'
+BOOTPROTO='dhcp4'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='ens22f0np0'
+BONDING_SLAVE_1='ens22f1np1'
+BONDING_MODULE_OPTS='mode=802.3ad xmit_hash_policy=layer3+4 lacp_rate=fast'
+```
+
+Pliki konfiguracyjne fizycznych interfejsów pozostają takie same jak powyżej.
+
+</details>
+</Tab>
+<Tab label="Cztery interfejsy (domyślnie)">
+Ta konfiguracja łączy publiczne interfejsy w `bond0` (z publicznym IP) i prywatne interfejsy w `bond1` (dla vRack).
+
+Utwórz plik konfiguracyjny publicznego agregatu `/etc/sysconfig/network/ifcfg-bond0`:
+
+**Statyczny IP**
+
+```bash
+STARTMODE='onboot'
+BOOTPROTO='static'
+IPADDR='203.0.113.1/32'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='ens22f0np0'
+BONDING_SLAVE_1='ens22f1np1'
+BONDING_MODULE_OPTS='mode=802.3ad xmit_hash_policy=layer3+4 lacp_rate=fast'
+```
+
+Utwórz plik konfiguracyjny prywatnego agregatu `/etc/sysconfig/network/ifcfg-bond1`:
+
+```bash
+STARTMODE='onboot'
+BOOTPROTO='static'
+IPADDR='10.0.0.1/24'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='ens33f0np0'
+BONDING_SLAVE_1='ens33f1np1'
+BONDING_MODULE_OPTS='mode=802.3ad xmit_hash_policy=layer3+4 lacp_rate=fast'
+```
+
+Następnie skonfiguruj każdy fizyczny interfejs. Edytuj `/etc/sysconfig/network/ifcfg-ens22f0np0`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:c6
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens22f1np1`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:c7
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens33f0np0`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:d6
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens33f1np1`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:d7
+```
+
+<details>
+<summary>DHCP (tylko bond0)</summary>
+
+W przypadku publicznego agregatu użyj DHCP:
+
+```bash
+STARTMODE='onboot'
+BOOTPROTO='dhcp4'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='ens22f0np0'
+BONDING_SLAVE_1='ens22f1np1'
+BONDING_MODULE_OPTS='mode=802.3ad xmit_hash_policy=layer3+4 lacp_rate=fast'
+```
+
+Prywatny agregat (`ifcfg-bond1`) i wszystkie pliki konfiguracyjne fizycznych interfejsów pozostają takie same jak powyżej.
+
+</details>
+</Tab>
+<Tab label="Cztery interfejsy (w pełni prywatne / OLA)">
+Ta konfiguracja agreguje wszystkie fizyczne interfejsy w jednym agregacie wyłącznie do użytku z vRack. Brak publicznej łączności IP.
+
+:::warning
+Po włączeniu OLA (w pełni prywatne) publiczny adres IP nie jest już dostępny. Przed zastosowaniem tej konfiguracji upewnij się, że masz alternatywny sposób dostępu (np. przez inny serwer w vRack lub przez KVM/IPMI).
+
+:::
+
+Utwórz plik konfiguracyjny agregatu `/etc/sysconfig/network/ifcfg-bond0`:
+
+```bash
+STARTMODE='onboot'
+BOOTPROTO='static'
+IPADDR='10.0.0.1/24'
+BONDING_MASTER='yes'
+BONDING_SLAVE_0='ens22f0np0'
+BONDING_SLAVE_1='ens22f1np1'
+BONDING_SLAVE_2='ens33f0np0'
+BONDING_SLAVE_3='ens33f1np1'
+BONDING_MODULE_OPTS='mode=802.3ad xmit_hash_policy=layer3+4 lacp_rate=fast'
+```
+
+Następnie skonfiguruj każdy fizyczny interfejs. Edytuj `/etc/sysconfig/network/ifcfg-ens22f0np0`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:c6
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens22f1np1`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:c7
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens33f0np0`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:d6
+```
+
+Utwórz `/etc/sysconfig/network/ifcfg-ens33f1np1`:
+
+```bash
+BOOTPROTO='none'
+STARTMODE='hotplug'
+LLADDR=a1:b2:c3:d4:e5:d7
+```
+
+:::info
+W konfiguracji w pełni prywatnej (OLA) agregat używa adresu MAC interfejsu **głównego prywatnego**. Pole `IPADDR` powinno być ustawione na Twój prywatny adres IP vRack.
+
+:::
+</Tab>
+</Tabs>
+
+### Zastosowanie konfiguracji
+
+Zastosuj konfigurację, przeładowując wszystkie interfejsy za pomocą wicked:
+
+```bash
+wicked ifreload all
+```
+
+Restart może trwać kilka sekund, ponieważ tworzony jest interfejs agregatu. Aby sprawdzić, czy agregat działa prawidłowo, wyślij polecenie ping do innego serwera w tym samym vRack. Jeśli działa, wszystko jest gotowe. Jeśli nie, sprawdź konfiguracje lub spróbuj zrestartować serwer.
+
+Możesz również sprawdzić ustawienia agregatu za pomocą następującego polecenia:
+
+```bash
+cat /proc/net/bonding/bond0
+```
+
+## Sprawdź również
+
+[Konfiguracja OVHcloud Link Aggregation (OLA) w Panelu klienta OVHcloud](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager)
+
+[Konfiguracja agregacji łączy LACP w systemie Debian 12 lub nowszym / Ubuntu 24.04 lub nowszym (Netplan) (EN)](/guides/bare-metal-cloud/dedicated-servers/lacp-enable-netplan)
+
+[Konfiguracja agregacji łączy LACP w systemie Debian 9-11 (ifupdown)](/guides/bare-metal-cloud/dedicated-servers/lacp-enable-ifupdown)
+
+[Konfiguracja NIC teaming dla OVHcloud Link Aggregation (OLA) w systemie Windows Server 2019](/guides/bare-metal-cloud/dedicated-servers/ola-enable-w2k19)
+
+Dołącz do [grona naszych użytkowników](/links/community).

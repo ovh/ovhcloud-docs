@@ -10,6 +10,7 @@ import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { OverviewQuickstart } from 'theme/components/OverviewQuickstart';
 import { OverviewTutorials } from 'theme/components/OverviewTutorials';
 import { Sidebar } from 'theme/components/Sidebar';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
 interface FrontmatterItem {
@@ -138,6 +139,7 @@ export function OverviewLayout(props: OverviewLayoutProps) {
   } = frontmatter as OverviewFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useOverviewSidebarMenu();
+  usePageTitle(title);
 
   return (
     <>

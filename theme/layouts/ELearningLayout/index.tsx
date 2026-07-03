@@ -11,6 +11,7 @@ import { ELearningCTA } from 'theme/components/ELearningCTA';
 import type { ELearningHeroProps } from 'theme/components/ELearningHero';
 import { ELearningHero } from 'theme/components/ELearningHero';
 import { Sidebar } from 'theme/components/Sidebar';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
 interface ELearningFrontmatter {
@@ -100,6 +101,7 @@ export function ELearningLayout(props: ELearningLayoutProps) {
   const { hero, courses, cta } = frontmatter as ELearningFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useELearningSidebarMenu();
+  usePageTitle((frontmatter as { title?: string }).title);
 
   return (
     <>

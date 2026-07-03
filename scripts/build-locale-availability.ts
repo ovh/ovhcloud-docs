@@ -47,7 +47,7 @@ for (const loc of LOCALES) {
   for (const f of walk(dir)) {
     if (!isResolvable(f)) continue;
     const rel = f
-      .replace(path.join(ROOT, 'docs', loc) + '/', '')
+      .replace(`${path.join(ROOT, 'docs', loc)}/`, '')
       .replace(/\.mdx$/, '');
     perLocale[loc].add(rel);
     union.add(rel);

@@ -11,6 +11,7 @@ import { MigrationResources } from 'theme/components/MigrationResources';
 import type { MigrationSectionsProps } from 'theme/components/MigrationSections';
 import { MigrationSections } from 'theme/components/MigrationSections';
 import { Sidebar } from 'theme/components/Sidebar';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
 interface MigrationFrontmatter {
@@ -103,6 +104,7 @@ export function MigrationLayout(props: MigrationLayoutProps) {
     frontmatter as MigrationFrontmatter;
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } =
     useMigrationSidebarMenu();
+  usePageTitle(title);
 
   return (
     <>
