@@ -2543,7 +2543,8 @@
         + [Enabling and configuring the Edge Network Firewall](bare-metal-cloud/dedicated-servers/firewall-network)
         + [How to protect a Game server with the application firewall](bare-metal-cloud/dedicated-servers/firewall-game-ddos)
         + [Monitoring DDoS attacks with the Network Security Dashboard](bare-metal-cloud/dedicated-servers/network-security-dashboard)
-    + [OVHcloud Connect](products/network-ovhcloud-connect){landing=network/ovhcloud-connect/landing-page-ovhcloud-connect}
+    + [OVHcloud Connect](products/network-ovhcloud-connect)
+        + [Overview](network/ovhcloud-connect/overview)
         + [Key Concepts](network-ovhcloud-connect-concepts)
             + [Introduction to OVHcloud Connect](network/ovhcloud-connect/introduction)
             + [Glossary](network/ovhcloud-connect/glossary)
