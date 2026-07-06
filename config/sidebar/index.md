@@ -378,6 +378,7 @@
             + [Public VCF as-a-Service - Creating network components from the Public VCF as-a-Service control panel](hosted-private-cloud/powered-by-vmware/vcd-network-creation)
             + [Public VCF as-a-Service - Linking a public IP block with vRack](hosted-private-cloud/powered-by-vmware/vcd-link-ip-to-vrack)
             + [Public VCF as-a-Service - Declaring the public IP gateway in VCD](hosted-private-cloud/powered-by-vmware/vcd-declare-public-gateway)
+            + [Public VCF as-a-Service - Configuring and managing your Edge Gateways](hosted-private-cloud/powered-by-vmware/vcd-edge-gateway)
             + [Public VCF as-a-Service - User roles](hosted-private-cloud/powered-by-vmware/vcd-user-role)
         + [Migration](hosted-private-cloud-public-VCF-migration)
             + [Migrating a PCC to Hosted Private Cloud](hosted-private-cloud/powered-by-vmware/service-migration)
