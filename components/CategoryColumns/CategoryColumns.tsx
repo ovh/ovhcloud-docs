@@ -16,6 +16,14 @@ interface CategoryItem {
 interface Category {
   title: string;
   items: CategoryItem[];
+  /**
+   * Number of grid rows this category spans (default 1). Set to 2 on a long
+   * category so its heading aligns with the short category next to it while
+   * the following category flows into the freed cell below that short one —
+   * e.g. a tall "API" column beside a short "SMPP" + "Tools" stack.
+   * Ignored on narrow screens (single-column layout).
+   */
+  rowSpan?: number;
 }
 
 interface CategoryColumnsProps {
@@ -57,7 +65,15 @@ export function CategoryColumns({ categories }: CategoryColumnsProps) {
   return (
     <div className="rp-category-columns">
       {visibleCategories.map((cat) => (
-        <section className="rp-category-columns__col" key={cat.title}>
+        <section
+          className="rp-category-columns__col"
+          key={cat.title}
+          style={
+            cat.rowSpan && cat.rowSpan > 1
+              ? { gridRow: `span ${cat.rowSpan}` }
+              : undefined
+          }
+        >
           {cat.title ? (
             <h3 className="rp-category-columns__heading">{cat.title}</h3>
           ) : (
