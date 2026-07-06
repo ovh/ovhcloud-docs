@@ -36,7 +36,7 @@ If you have reached the maximum capacity on your additional disk, you can add mo
 
 The following steps presume that you have configured an additional disk according to [our guide](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance).
 
-## Monitoring disk usage before resizing
+### Monitoring disk usage before resizing
 
 :::warning
 We recommend that you always maintain 20% free space on your storage volumes. This ensures optimum performance and avoids the risk of system degradation or failure when the volume reaches its maximum capacity.
@@ -56,7 +56,7 @@ To ensure that you resize your disk at the right moment, it is essential to moni
     
     Run the following command:
     
-    ```bash
+    ```cmd
     wmic logicaldisk get name, size, freespace
     ```
     
@@ -73,7 +73,7 @@ To ensure that you resize your disk at the right moment, it is essential to moni
     
     Run the following command:
     
-    ```bash
+    ```powershell
     Get-PSDrive | Where-Object {$_.Free -ne $null} | Select-Object Name, Used, Free
     ```
     
@@ -114,15 +114,23 @@ To ensure that you resize your disk at the right moment, it is essential to moni
 </Tabs>
 
 
+:::warning
+Before resizing, we recommend creating a snapshot of your volume to protect your data. If something goes wrong during the resize or partition extension, you can restore from the snapshot. See [Creating a volume snapshot](/guides/public-cloud/compute/storage-create-volume-snapshot) for instructions.
+:::
+
 ### Modifying the size of the disk
 
-Click on <code className="action">Block Storage</code> in the left-hand menu under **Storage & backup**.
+In your Public Cloud project, click on <code className="action">Block Storage</code> in the left-hand menu under **Storage & backup**.
 
 If the volume is attached to a **Windows instance**, click on <code className="action">...</code> in the row of the volume and select <code className="action">Detach from instance</code>.
 
 Click on <code className="action">...</code> in the row of the volume and select <code className="action">Edit</code>.
 
 <img className="thumbnail" alt="control panel" src="/images/public-cloud/compute/increase-the-size-of-an-additional-disk/increase-disk-02.png" loading="lazy" />
+
+:::warning
+Volume resizing is irreversible. You can only increase the size of a volume, never decrease it. Make sure the new size is correct before confirming.
+:::
 
 In the popup window, enter the new size for the volume and click on <code className="action">Modify the volume</code>.
 
@@ -132,13 +140,35 @@ In the popup window, enter the new size for the volume and click on <code classN
 
 Establish an SSH connection to your instance in order to adjust the partition to the resized disk.
 
+Before unmounting, check the current partition layout:
+
+```bash
+admin@server:~$ sudo fdisk -l /dev/vdb
+```
+
+```console
+Disk /dev/vdb: 70 GiB, 75161927680 bytes, 146800640 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x00000001
+
+Device     Boot  Start       End   Sectors  Size Id Type
+/dev/vdb1        2048  104857599 104855552   50G 83 Linux
+```
+
+:::warning
+Note the `Start` sector value (in this example, `2048`). You must re-enter this exact value when recreating the partition in the next step. Using a different start sector will misalign the filesystem and cause data corruption or loss.
+:::
+
 Unmount the disk first by using this command:
 
 ```bash
 admin@server:~$ sudo umount /mnt/disk
 ```
 
-Recreate the partition:
+Recreate the partition. This process only rewrites the partition table — your filesystem data is not touched and will be preserved, provided you re-enter the exact same start sector when prompted.
 
 ```bash
 admin@server:~$ sudo fdisk /dev/vdb
@@ -154,6 +184,7 @@ Command (m for help): d
 Selected partition 1
 Partition 1 has been deleted.
 ```
+
 ```console
 Command (m for help): n
 
@@ -163,11 +194,12 @@ e extended (container for logical partitions)
 Select (default p):
 Using default response p.
 Partition number (1-4, default 1):
-First sector (2048-146800639, default 2048):
+First sector (2048-146800639, default 2048): 2048
 Last sector, +sectors or +size{K,M,G,T,P} (2048-146800639, default 146800639):
 
 Created a new partition 1 of type 'Linux' and of size 70 GiB.
 ```
+
 ```console
 Command (m for help): w
 
@@ -175,6 +207,19 @@ The partition table has been altered.
 Calling ioctl() to re-read partition table.
 Syncing disks.
 ```
+
+Before resizing the filesystem, check its type:
+
+```bash
+admin@server:~$ lsblk -f /dev/vdb1
+```
+
+```console
+NAME   FSTYPE LABEL UUID                                 MOUNTPOINT
+vdb1   ext4         a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+The steps below apply to **ext2/ext3/ext4** filesystems. Unlike ext4, XFS cannot be resized while unmounted — the `xfs_growfs` tool requires the filesystem to be mounted. If your filesystem is **XFS**, skip the `umount`, `e2fsck`, and `resize2fs` steps, remount the disk after recreating the partition, then run `sudo xfs_growfs /mnt/disk`.
 
 Verify and check the partition:
 
@@ -187,7 +232,7 @@ Pass 2: Checking directory structure
 Pass 3: Checking directory connectivity
 Pass 4: Checking reference counts
 Pass 5: Checking group summary information
-/dev/vdb: 12/3276800 files (0.0% non-contiguous), 251700/13107200 blocks
+/dev/vdb1: 12/3276800 files (0.0% non-contiguous), 251700/13107200 blocks
 ```
 
 ```bash
@@ -217,6 +262,15 @@ tmpfs 982M 0 982M 0% /sys/fs/cgroup
 ```
 
 Once this is completed, detach the volume from the instance and reattach it to ensure the updated QoS settings (IOPS and bandwidth) are properly applied.
+
+After reattaching, remount the disk and confirm the volume is visible with the correct size:
+
+```bash
+admin@server:~$ sudo mount /dev/vdb1 /mnt/disk/
+admin@server:~$ lsblk /dev/vdb
+```
+
+You can also verify the updated volume configuration in your Public Cloud project under <code className="action">Block Storage</code>.
 
 ### Extending the partition (Windows instance)
 
@@ -249,6 +303,8 @@ The resized volume now includes the additional disk space.
 <img className="thumbnail" alt="windows" src="/images/public-cloud/compute/increase-the-size-of-an-additional-disk/resize-win-05.png" loading="lazy" />
 
 Once this is completed, detach the volume from the instance and reattach it to ensure the updated QoS settings (IOPS and bandwidth) are properly applied.
+
+After reattaching, open <code className="action">Disk Management</code> again to confirm the volume displays the correct total size. You can also verify the updated volume configuration in your Public Cloud project under <code className="action">Block Storage</code>.
 
 ## Go further
 
