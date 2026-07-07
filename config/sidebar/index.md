@@ -963,7 +963,7 @@
         + [Additional resources](public-cloud-network-additional-resources)
             + [How to create and manage a Health Monitor for OVHcloud Public Cloud Load Balancer](public-cloud/network-services/loadbalancer-create-health-monitor)
             + [How to create and manage Level 7 (L7) Policies and Rules for OVHcloud Public Cloud Load Balancers](public-cloud/network-services/loadbalancer-create-l7-policies)
-            + [Public Cloud Load Balancer monitoring with Prometheus](public-cloud/network-services/loadbalancer-monitoring-prometheus)
+            + [Monitor your Public Cloud Load Balancer with Prometheus](public-cloud/network-services/loadbalancer-monitoring-prometheus)
     + [Containers & Orchestration](products/public-cloud-containers-orchestration)
         + [Managed Kubernetes Service (MKS)](products/public-cloud-containers-orchestration-managed-kubernetes-k8s)
             + [Overview](public-cloud/containers-orchestration/managed-kubernetes/overview)
