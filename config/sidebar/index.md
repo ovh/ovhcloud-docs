@@ -1948,11 +1948,13 @@
             + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
             + [Migrating your email account from one OVHcloud email platform to another](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
         + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
-            + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced)
-            + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam)
-            + [Retrieving email headers](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-headers)
-            + [Managing the storage space for an email account](web-cloud/email-and-collaborative-solutions/troubleshooting/email-manage-quota)
-            + [Restoring deleted items from your email account](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-retention)
+            + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced){label=Cannot send or receive}
+            + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam){label=Blocked for spam}
+            + [Retrieving email headers](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-headers){label=Email headers (.eml)}
+            + [Managing the storage space for an email account](web-cloud/email-and-collaborative-solutions/troubleshooting/email-manage-quota){label=Mailbox storage}
+            + [Restoring deleted items from your email account](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-retention){label=Restore deleted emails}
+            + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365){label=Outlook sign-in prompts}
+            + [Exchange - How to manage logs](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-manage-logs){label=Managing logs}
         + [MX Plan](products/web-cloud-email-collaborative-solutions-mx-plan){landing=web-cloud/email-and-collaborative-solutions/mx-plan/landing-page-mx-plan}
             + [Getting started](web-cloud-email-collaborative-solutions-mx-plan-getting-started)
                 + [Getting started with the MX Plan solution](web-cloud/email-and-collaborative-solutions/mx-plan/email-generalities)

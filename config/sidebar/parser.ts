@@ -379,10 +379,12 @@ export function parseIndexMd(
     // multiple markers on one line are supported.
     //   - `{landing=<slug>}` : turns a product/section into a clickable group.
     //   - `{label=<text>}`   : overrides the sidebar label of a guide leaf,
-    //                          independently of the guide's frontmatter title
-    //                          (verbatim, applied to every locale). Lets the
-    //                          sidebar rename an entry without touching the
-    //                          guide or adding a wrapper category.
+    //                          independently of the guide's frontmatter title.
+    //                          Emitted as a translatable i18n key (seeded from
+    //                          this EN text via `pnpm sidebar:sync-i18n`);
+    //                          translators then fill the per-locale values in
+    //                          i18n.json. Lets the sidebar rename/shorten an
+    //                          entry without touching the guide.
     const markers: Record<string, string> = {};
     const markerRe = /\s*\{([a-zA-Z]+)=([^}]+)\}\s*$/;
     let markerMatch = stripped.match(markerRe);
@@ -430,12 +432,17 @@ export function parseIndexMd(
       }
 
       // Resolve the sidebar label, in priority order:
-      //   1. an explicit `{label=…}` marker (verbatim, wins over everything)
+      //   1. an explicit `{label=…}` marker → emitted as a translatable i18n
+      //      key (like non-leaf nodes), so the label is localised via i18n.json
+      //      instead of baking the verbatim EN string into every locale. The EN
+      //      text is the default, seeded by scripts/sidebar-sync-i18n.ts.
       //   2. the translated "Overview" label for `/overview` leaves
       //   3. the target guide's locale-specific frontmatter title
       let guideText = label;
       if (labelOverride) {
-        guideText = labelOverride;
+        const labelKey = `sidebar.gen.${toCamelCase((ref as string).replace(/\//g, '-'))}`;
+        i18nEntries[labelKey] = { en: labelOverride };
+        guideText = labelKey;
       } else if ((ref as string).endsWith('/overview') && locale) {
         guideText = OVERVIEW_TRANSLATIONS[locale as Locale] ?? 'Overview';
       } else if (docsDir && locale) {
