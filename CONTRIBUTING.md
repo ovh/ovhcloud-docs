@@ -402,7 +402,9 @@ You can also do this with <ApiLink>the OVHcloud API</ApiLink>.
 <CreateToken rights="GET=/*&POST=/*&PUT=/*&DELETE=/*">Generate OVHcloud API tokens</CreateToken>
 ```
 
-`<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console; do not link the console directly. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated.
+`<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console; do not link the console directly. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
+
+One exception: when documenting an **API endpoint as a value to copy** into code (e.g. the OAuth2 token endpoints in a `curl` example), keep the explicit EU/CA URLs in backticks — a zone-aware component would hide the variant the reader needs to copy.
 
 Pick the component by what you are pointing at:
 
