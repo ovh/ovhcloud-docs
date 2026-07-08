@@ -18,6 +18,7 @@ import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromCache } from './plugins/lastUpdatedFromCache';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 
 const locale = process.env.LOCALE || 'fr';
@@ -123,11 +124,13 @@ export default defineConfig({
 
   markdown: {
     crossCompilerCache: true,
-    remarkPlugins: [remarkNoManagerHardcoded, remarkCpNavGate],
+    remarkPlugins: [remarkNoManagerHardcoded, remarkNoApiHardcoded, remarkCpNavGate],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
       path.join(BASE_DIR, 'components/Api/index.tsx'),
       path.join(BASE_DIR, 'components/ManagerLink/ManagerLink.tsx'),
+      path.join(BASE_DIR, 'components/ApiLink/ApiLink.tsx'),
+      path.join(BASE_DIR, 'components/CreateToken/CreateToken.tsx'),
       path.join(BASE_DIR, 'components/Tooltip/Tooltip.tsx'),
       path.join(BASE_DIR, 'components/CardGrid/CardGrid.tsx'),
       path.join(BASE_DIR, 'components/CategoryColumns/CategoryColumns.tsx'),

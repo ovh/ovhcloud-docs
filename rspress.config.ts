@@ -18,6 +18,7 @@ import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromCache } from './plugins/lastUpdatedFromCache';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 
 // Dev performance: only serve selected locales (default: fr + en)
@@ -174,11 +175,13 @@ export default defineConfig({
   lang: activeLocales[0]?.lang || 'fr',
   locales: [...activeLocales],
   markdown: {
-    remarkPlugins: [remarkNoManagerHardcoded, remarkCpNavGate],
+    remarkPlugins: [remarkNoManagerHardcoded, remarkNoApiHardcoded, remarkCpNavGate],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
       path.join(__dirname, 'components/Api/index.tsx'),
       path.join(__dirname, 'components/ManagerLink/ManagerLink.tsx'),
+      path.join(__dirname, 'components/ApiLink/ApiLink.tsx'),
+      path.join(__dirname, 'components/CreateToken/CreateToken.tsx'),
       path.join(__dirname, 'components/Tooltip/Tooltip.tsx'),
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),

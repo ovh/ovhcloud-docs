@@ -375,25 +375,44 @@ Legacy `/pages/...` and `/products/...` paths have been permanently rewritten to
 
 ### Locale-aware external links — `/links/<key>`
 
-For URLs that change per locale (Manager, API console, product pages, order pages, etc.), use `/links/<key>`. The key resolves at build time to the right URL for the locale being built. Keys are defined in [config/links.ts](config/links.ts).
+For URLs that change per locale (Manager, product pages, order pages, etc.), use `/links/<key>`. The key resolves at build time to the right URL for the locale being built. Keys are defined in [config/links.ts](config/links.ts).
 
-Examples for the three most common cases:
+Typical example — product / order pages on ovhcloud.com:
 
 ```mdx
-<!-- Control Panel / Manager -->
-Log in to your [OVHcloud Control Panel](/links/manager).
-
-<!-- A product / order page on ovhcloud.com -->
 Order a [Public Cloud Compute instance](/links/public-cloud/compute).
 Browse the [Bare Metal range](/links/bare-metal/bare-metal).
-
-<!-- API console -->
-Open the [OVHcloud API console](/links/api).
 ```
+
+**Control Panel links are not `/links/` keys** — use the zone-aware `<ManagerLink to="/#/…">your service</ManagerLink>` component instead (it follows the reader's zone and wraps the auth flow; hardcoded `manager.*.ovhcloud.com` URLs fail the build). Same logic for API links — see the next section.
 
 The fallback chain is **target locale → `en` → first available**, so a missing translation never breaks the link.
 
 To add a new key, edit [config/links.ts](config/links.ts) and add a row with one URL per locale. Then use `(/links/your-new-key)` in any MDX file.
+
+### Zone-aware API links — `<ApiLink>` / `<CreateToken>`
+
+Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://eu.api.ovh.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
+
+```mdx
+<!-- Generic reference to the API / the API console -->
+You can also do this with <ApiLink>the OVHcloud API</ApiLink>.
+
+<!-- Token creation with pre-filled rights -->
+<CreateToken rights="GET=/*&POST=/*&PUT=/*&DELETE=/*">Generate OVHcloud API tokens</CreateToken>
+```
+
+`<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console; do not link the console directly. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated.
+
+Pick the component by what you are pointing at:
+
+| You want to reference… | Use | Not |
+|---|---|---|
+| The OVHcloud API / the console in general | `<ApiLink>` | hardcoded URLs, `/links/api\|console` |
+| A **specific endpoint** the reader should call | `<Api version="v1" section="…" method="GET" route={"…"} />` — deep-links straight to the operation | prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
+| Token creation with rights | `<CreateToken rights="…">` | hardcoded `createToken` URLs |
+
+Also skip "log in to the API console first" steps — the gateway and console are public pages; authentication happens contextually on the operation itself, and the basics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx). See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.
 
 ### Plain external links
 
