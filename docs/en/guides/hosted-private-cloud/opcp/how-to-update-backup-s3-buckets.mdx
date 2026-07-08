@@ -1,12 +1,12 @@
 ---
 title: How to update the backup S3 buckets
-description: Find out how to change the S3 object storage buckets used by the OPCP platform backups
-lastUpdated: 2026-07-07
+description: Find out how to change the S3 object storage buckets used by the OPCP platform backups, then redeploy the control plane and re-initialize the repositories
+lastUpdated: 2026-07-08
 ---
 
 ## Objective
 
-Your **OVHcloud On-Prem Cloud Platform (OPCP)** stores its platform backups in an external **S3-compatible object storage**. These backups cover the critical components required to restore the control plane, namely:
+Your **OVHcloud On-Prem Cloud Platform (OPCP)** stores its platform backups in an external **S3<sup>1</sup>-compatible object storage**. These backups cover the critical components required to restore the control plane, namely:
 
 - the internal **databases** (`db`),
 - the **persistent volumes** (`pv`),
@@ -23,14 +23,14 @@ This procedure modifies the backup configuration of the platform and re-initiali
 
 ## Requirements
 
-- An operational [OPCP](https://www.ovhcloud.com/en-gb/hosted-private-cloud/onprem-cloud-platform/) infrastructure.
+- An operational [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) infrastructure.
 - Administrative access to the OPCP controller with the `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl` and `velero` tools installed and configured.
 - The connection details of the **target** S3 object storage: endpoint URL, region, and the names of the buckets to use for the backups.
 - A maintenance window, as the control plane is redeployed during the operation.
 
 ## Instructions
 
-### 1. Run a pre-flight diagnostic
+### 1. Running a pre-flight diagnostic
 
 Before making any change, check that the platform is healthy. The `opcp-diag` tool runs a series of platform checks:
 
@@ -40,7 +40,7 @@ opcp-diag run -p
 
 Only proceed once the diagnostic passes. This gives you a clean baseline to compare against once the operation is complete.
 
-### 2. Update the backup configuration
+### 2. Updating the backup configuration
 
 Open the OPCP configuration in your editor:
 
@@ -78,7 +78,7 @@ The fields to review are:
 - **`pv.bucket`**: the bucket storing the persistent volume backups, with its `retention` (here `720h0m0s`, i.e. 30 days).
 - **`pv.tfState.retention`** / **`pv.kmsShares.retention`**: the retention applied to the Terraform state and KMS shares backups.
 
-:::note
+:::info
 Retention values can be expressed either as a day-based duration (for example `30d`) or as a Go duration string (for example `720h0m0s`, which is also 30 days). Keep the format used by the existing configuration.
 :::
 
@@ -88,7 +88,7 @@ Save and close the file. The command only **updates** the stored configuration; 
 ✅ Command 'edit' completed in 1m12.081606602s
 ```
 
-### 3. Apply the new configuration
+### 3. Applying the new configuration
 
 Apply the updated configuration:
 
@@ -112,7 +112,7 @@ You can follow the deployment in real time in a separate terminal by tailing the
 tail -F /var/log/opcp-cli/opcp-cli.log | jq .msg
 ```
 
-### 4. Wait for reconciliation
+### 4. Waiting for reconciliation
 
 The platform relies on **Flux** (GitOps reconciliation) and **Terraform** to converge to the new desired state. Wait until every resource has reconciled.
 
@@ -131,7 +131,7 @@ tfctl get
 
 Wait for these commands to report no pending or failing resources. If a resource stays blocked, you may occasionally need to restart the relevant pods — be patient, reconciliation can take a while.
 
-### 5. Verify the backup storage location
+### 5. Verifying the backup storage location
 
 Once reconciliation is complete, confirm that Velero now points to the new bucket and that the storage location is `Available`:
 
@@ -146,7 +146,7 @@ backup-location   aws        opcp01-backups-velero-region   Available   2026-07-
 
 The `PHASE` must be `Available`. It can take a few minutes after the deployment before the storage location is validated and becomes `Available`, so wait a moment and run the command again if needed. If it stays in another state, re-check the endpoint and bucket configuration from step 2 and the credentials of the S3 service.
 
-### 6. Re-initialize the Velero backup repositories
+### 6. Re-initializing the Velero backup repositories
 
 The **Kopia** backup repositories used by Velero are bound to the previous object storage location. To make Velero recreate them against the new buckets, you need to delete the existing repositories and restart the Velero components.
 
@@ -194,7 +194,7 @@ kubectl -n velero rollout restart deployment/velero
 kubectl -n velero rollout restart daemonset/node-agent
 ```
 
-:::note
+:::info
 A `Warning` message may be displayed when restarting these workloads. It is expected and can be safely ignored.
 :::
 
@@ -214,7 +214,7 @@ node-agent-qk6j2                                                  1/1     Runnin
 velero-5f7fd4c8b8-rqprb                                           1/1     Running     0          68s
 ```
 
-### 7. Trigger a first backup for each schedule
+### 7. Triggering a first backup for each schedule
 
 The platform defines several backup schedules. List them to confirm they are enabled:
 
@@ -258,7 +258,7 @@ Waiting for backup to complete. You may safely press ctrl-c to stop waiting - yo
 Backup completed with status: Completed. You may check for more information using the commands `velero backup describe pvs-backup-20260707123616` and `velero backup logs pvs-backup-20260707123616`.
 ```
 
-### 8. Verify the backups and the recreated repositories
+### 8. Verifying the backups and the recreated repositories
 
 Confirm that all three backups completed without errors:
 
@@ -287,11 +287,11 @@ kms-backup-location-kopia-567f6          5m17s   kopia
 monitoring-backup-location-kopia-kvmjv   5m15s   kopia
 ```
 
-### 9. Back up the databases
+### 9. Backing up the databases
 
 The internal databases are managed by **CloudNativePG** and backed up separately, to the `barmanObjectStore` that now points to the new bucket. Trigger a database backup for each database.
 
-:::note
+:::info
 The commands below use the `placement-db` database in the `placement` namespace as an example. Repeat them for the other databases, adapting the database name and its namespace accordingly.
 :::
 
@@ -314,11 +314,11 @@ kubectl get backups -n placement
 placement-db-20260707124646   5s      placement-db   barmanObjectStore   completed
 ```
 
-### 10. Check that data has been written to the new buckets
+### 10. Checking that data has been written to the new buckets
 
 The previous steps report that the backups completed from the platform's point of view. As an additional check, verify that the objects were actually created in the **new** S3 buckets.
 
-Using your usual S3 client or object storage interface, browse each backup bucket and confirm that new objects have appeared since the operation. You should see recently dated objects corresponding to the database, persistent volume, Terraform state and KMS shares backups you triggered. This confirms that the backups are effectively stored on the new object storage.
+Using your usual S3 client or object storage interface, browse each backup bucket and confirm that new objects have appeared since the operation. You should see recently dated objects corresponding to the database, persistent volume, Terraform state and KMS shares backups you triggered. This confirms that the backups are actually stored on the new object storage.
 
 ### 11. Final verification
 
@@ -360,6 +360,8 @@ Your OPCP platform backups now target the new S3 buckets.
 
 ## Go further
 
-If you need training or technical assistance for the implementation of our solutions, contact your sales representative or click [this link](https://www.ovhcloud.com/en-gb/professional-services/) to request a quote and have your project analyzed by our Professional Services team experts.
+For training or technical assistance implementing our solutions, contact your sales representative or visit our [Professional Services](/links/professional-services) page to request a quote and have your project analyzed by our experts.
 
 Join our [community of users](/links/community).
+
+<sup>1</sup>: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.
