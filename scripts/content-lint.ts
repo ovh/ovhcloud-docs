@@ -7,7 +7,7 @@
  *
  * Usage:
  *   pnpm content:lint                # scan all docs, exit 1 on findings
- *   pnpm content:lint <files...>     # scan only the given files (used by CI)
+ *   pnpm content:lint <files...>     # scan only the given files
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
