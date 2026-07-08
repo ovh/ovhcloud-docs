@@ -2030,7 +2030,7 @@
                 + [Configuring your Exchange account in Outlook 2016 for Mac](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-2016-mac)
                 + [Configuring your Exchange account on the macOS Mail app](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-mail-macos)
                 + [Configuring your Exchange account in the Mail app for Windows 10](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-windows-10)
-                + [Configuring your Exchange account in Thunderbird for Windows](web-cloud/email-and-collaborative-solutions/microsoft-exchange/thunderbird-windows-configuration)
+                + [Configuring your Exchange account in Thunderbird for Windows](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-thunderbird-windows)
                 + [Configuring your Exchange account in Thunderbird for macOS](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-thunderbird-mac)
             + [Setting up an email application on your mobile device](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-mobile-device)
                 + [Configuring an Exchange account on iPhone and iPad](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-ios)
