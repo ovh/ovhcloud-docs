@@ -56,6 +56,49 @@ function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+/**
+ * Persist the last search query + filter selection for the browser tab session,
+ * so it survives a full page navigation (e.g. clicking a result to open a guide,
+ * then reopening search). Cleared when the tab closes; not shared across tabs.
+ */
+const SEARCH_STATE_KEY = 'ovh-docs-search-state';
+
+interface PersistedSearchState {
+  query: string;
+  universe: string;
+  product: string;
+}
+
+function readPersistedSearch(): PersistedSearchState | null {
+  if (typeof sessionStorage === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(SEARCH_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      query: typeof parsed.query === 'string' ? parsed.query : '',
+      universe: typeof parsed.universe === 'string' ? parsed.universe : '',
+      product: typeof parsed.product === 'string' ? parsed.product : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedSearch(state: PersistedSearchState): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    // Nothing selected \u2192 clear, so a later fresh open starts empty.
+    if (!state.query && !state.universe && !state.product) {
+      sessionStorage.removeItem(SEARCH_STATE_KEY);
+    } else {
+      sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state));
+    }
+  } catch {
+    // Storage full / disabled \u2014 persistence is best-effort.
+  }
+}
+
 type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 
 /**
@@ -592,14 +635,21 @@ function titleTermScore(titleNorm: string, termGroups: TermGroup[]): number {
 
 export function PagefindSearch() {
   const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [resultCount, setResultCount] = useState(0);
+  // Seed query + filters from the persisted tab-session state (lazy initializer
+  // runs once, before the persistence effect, so there is no clear-then-restore
+  // race). Returns nulls under SSG (no sessionStorage) → empty defaults.
+  const [query, setQuery] = useState(() => readPersistedSearch()?.query ?? '');
   // Selected filter slugs (empty = no filter). Product depends on universe:
   // changing the universe clears any product selection outside it.
-  const [universe, setUniverse] = useState<string>('');
-  const [product, setProduct] = useState<string>('');
+  const [universe, setUniverse] = useState<string>(
+    () => readPersistedSearch()?.universe ?? '',
+  );
+  const [product, setProduct] = useState<string>(
+    () => readPersistedSearch()?.product ?? '',
+  );
   const pagefindRef = useRef<PagefindApi | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -738,6 +788,12 @@ export function PagefindSearch() {
     return () => clearTimeout(timer);
   }, [query, activeFilters, doSearch]);
 
+  // Persist query + filters for the tab session so they survive navigating to a
+  // result (see readPersistedSearch on mount).
+  useEffect(() => {
+    writePersistedSearch({ query, universe, product });
+  }, [query, universe, product]);
+
   // Cmd+K / Ctrl+K toggle
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -750,7 +806,9 @@ export function PagefindSearch() {
     return () => document.removeEventListener('keydown', handleKey);
   }, []);
 
-  // Open with ?q=... from URL (e.g. redirect from help.ovhcloud.com search)
+  // Open with ?q=... from URL (e.g. redirect from help.ovhcloud.com search).
+  // This wins over the persisted state seeded in the useState initializers — an
+  // explicit incoming query overrides whatever the tab last searched.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get('q');
