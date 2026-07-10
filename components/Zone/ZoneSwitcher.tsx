@@ -1,5 +1,6 @@
 import { useFrontmatter, useI18n } from '@rspress/core/runtime';
 import { useEffect, useRef, useState } from 'react';
+import { useAIChatbotDrawer } from 'theme/components/AIChatbotDrawer/context';
 import { useZone, ZONES, type Zone } from './ZoneContext';
 import './ZoneSwitcher.css';
 
@@ -24,6 +25,7 @@ const ZONE_DESC_KEY: Record<Zone, string> = {
 export function ZoneSwitcher() {
   const { zone, setZone, isSet } = useZone();
   const { frontmatter } = useFrontmatter();
+  const { isOpen: aiDrawerOpen } = useAIChatbotDrawer();
   const t = useI18n();
   const availableIn = (frontmatter as Record<string, unknown>)?.availableIn;
   const [open, setOpen] = useState(false);
@@ -40,6 +42,10 @@ export function ZoneSwitcher() {
 
   if (!isSet) return null;
   if (!Array.isArray(availableIn) || availableIn.length === 0) return null;
+  // Hide the sticky zone button while the AI assistant drawer is open — both
+  // are pinned bottom-right, and the switcher (z-index 90) would otherwise
+  // float over the conversation panel (z-index 81).
+  if (aiDrawerOpen) return null;
 
   const current = zone === 'unset' ? 'eu' : zone;
 

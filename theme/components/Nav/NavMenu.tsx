@@ -15,8 +15,8 @@ import {
 } from '@theme-original';
 import cls from 'clsx';
 import { useMemo, useState } from 'react';
-import { useLangsMenu, useVersionsMenu } from './hooks';
 import { useLocaleAvailability } from 'theme/hooks/useLocaleAvailability';
+import { useLangsMenu, useVersionsMenu } from './hooks';
 import './NavMenu.scss';
 import clsx from 'clsx';
 
@@ -25,7 +25,10 @@ const LOCALE_CODES = new Set(['fr', 'en', 'de', 'es', 'it', 'pl', 'pt']);
 function localeAndPathFromLink(link: string) {
   const parts = link.split('/').filter(Boolean);
   if (LOCALE_CODES.has(parts[0])) {
-    return { locale: parts[0], pathWithoutLocale: `/${parts.slice(1).join('/')}` };
+    return {
+      locale: parts[0],
+      pathWithoutLocale: `/${parts.slice(1).join('/')}`,
+    };
   }
   return { locale: 'fr', pathWithoutLocale: link };
 }
@@ -167,8 +170,13 @@ export function NavLangs() {
             // Resolve at render time so the `href` itself is the final
             // destination — SEO robots and JS-disabled clients land on the
             // same URL as JS users.
-            const { locale, pathWithoutLocale } = localeAndPathFromLink(item.link);
-            const resolvedHref = resolveLocaleSwitchUrl(pathWithoutLocale, locale);
+            const { locale, pathWithoutLocale } = localeAndPathFromLink(
+              item.link,
+            );
+            const resolvedHref = resolveLocaleSwitchUrl(
+              pathWithoutLocale,
+              locale,
+            );
             return (
               <a
                 key={item.text}

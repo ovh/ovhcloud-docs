@@ -1,6 +1,6 @@
 import type { Link, Root } from 'mdast';
-import type { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
+import type { VFile } from 'vfile';
 import { externalLinks } from '../config/links';
 
 const FORBIDDEN_PATTERNS: { regex: RegExp; label: string }[] = [

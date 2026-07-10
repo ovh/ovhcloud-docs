@@ -16,7 +16,7 @@
  * Output: /tmp/csm-slug-to-redirect.json
  *   { "{csm-slug}": { locale: "fr", docPath: "guides/.../page" | null }, ... }
  */
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 
 const CSV = 'redirections/legacy-urls.csv';
@@ -25,15 +25,24 @@ const OUT = '/tmp/csm-slug-to-redirect.json';
 
 // CSV country_code → our locale (fr-ca → fr, es-us → es, us → en, all en-* → en)
 const LOCALE_MAP = {
-  fr: 'fr', 'fr-ca': 'fr',
+  fr: 'fr',
+  'fr-ca': 'fr',
   de: 'de',
-  es: 'es', 'es-es': 'es', 'es-us': 'es',
+  es: 'es',
+  'es-es': 'es',
+  'es-us': 'es',
   it: 'it',
   pl: 'pl',
   pt: 'pt',
-  en: 'en', 'en-gb': 'en', 'en-ie': 'en', 'en-in': 'en',
-  'en-au': 'en', 'en-sg': 'en', 'en-ca': 'en',
-  asia: 'en', us: 'en',
+  en: 'en',
+  'en-gb': 'en',
+  'en-ie': 'en',
+  'en-in': 'en',
+  'en-au': 'en',
+  'en-sg': 'en',
+  'en-ca': 'en',
+  asia: 'en',
+  us: 'en',
 };
 
 // Build slug-mapping basePath → mdxPath lookup. Index under BOTH the original
@@ -104,7 +113,9 @@ function csmKeyFromUrl(url) {
 
 function basePathFromMarkdownPath(p) {
   if (!p) return null;
-  const bp = p.replace(/^\//, '').replace(/\/guide\.[a-z]{2}-[a-z]{2,}\.md$/, '');
+  const bp = p
+    .replace(/^\//, '')
+    .replace(/\/guide\.[a-z]{2}-[a-z]{2,}\.md$/, '');
   return bp || null;
 }
 
@@ -113,17 +124,34 @@ for (const rawLine of lines) {
   stats.csvRows++;
 
   const cols = rawLine.split(';').map((s) => s.trim());
-  const seoUrl = cols[0], countryCode = cols[1], mdPath = cols[2];
+  const seoUrl = cols[0],
+    countryCode = cols[1],
+    mdPath = cols[2];
 
   const csmSlug = csmKeyFromUrl(seoUrl);
-  if (!csmSlug) { stats.csmParseFail++; continue; }
-  if (!countryCode) { stats.emptyCountry++; continue; }
+  if (!csmSlug) {
+    stats.csmParseFail++;
+    continue;
+  }
+  if (!countryCode) {
+    stats.emptyCountry++;
+    continue;
+  }
   const locale = LOCALE_MAP[countryCode];
-  if (!locale) { stats.unknownLocale++; continue; }
-  if (!mdPath) { stats.emptyMdPath++; continue; }
+  if (!locale) {
+    stats.unknownLocale++;
+    continue;
+  }
+  if (!mdPath) {
+    stats.emptyMdPath++;
+    continue;
+  }
 
   const basePath = basePathFromMarkdownPath(mdPath);
-  if (!basePath) { stats.emptyMdPath++; continue; }
+  if (!basePath) {
+    stats.emptyMdPath++;
+    continue;
+  }
 
   let mdxPath = basePathToMdx.get(basePath);
 
@@ -150,7 +178,10 @@ for (const rawLine of lines) {
     }
   }
 
-  if (out[csmSlug]) { stats.dupSkipped++; continue; }
+  if (out[csmSlug]) {
+    stats.dupSkipped++;
+    continue;
+  }
   out[csmSlug] = { locale: effectiveLocale, docPath };
   if (docPath) stats.matched++;
   else stats.homeFallback++;
@@ -164,8 +195,12 @@ console.log(`Unknown locale code:          ${stats.unknownLocale}`);
 console.log(`Empty markdown_path:          ${stats.emptyMdPath}`);
 console.log(`Duplicate CSM slugs (skip):   ${stats.dupSkipped}`);
 console.log(`Matched (→ specific page):    ${stats.matched}`);
-console.log(`Leaf-slug rescued:            ${stats.leafRescued || 0}  (basePath unknown but leaf unique)`);
-console.log(`No basePath in slug-mapping:  ${stats.homeFallback}  (→ home fallback)`);
+console.log(
+  `Leaf-slug rescued:            ${stats.leafRescued || 0}  (basePath unknown but leaf unique)`,
+);
+console.log(
+  `No basePath in slug-mapping:  ${stats.homeFallback}  (→ home fallback)`,
+);
 console.log(`\nDistinct CSM slugs in output: ${Object.keys(out).length}`);
 
 writeFileSync(OUT, JSON.stringify(out, null, 2));

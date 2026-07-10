@@ -310,6 +310,17 @@ Standard GitHub-flavored Markdown tables work as-is:
 | value | value |
 ```
 
+Cells wrap automatically and the theme makes tables responsive, so a few guidelines keep them readable on every screen:
+
+**Width** — prefer **≤4 columns**; they fit any screen. **6+ columns scroll horizontally on phones** (acceptable for reference tables, but check each column earns its place). For a genuinely wide table (**8+ columns**), **transpose** it (if it has few rows and many columns) or **split** it into smaller grouped tables. There is no mobile "card" layout — wide tables scroll horizontally by design (a matrix can't be stacked without losing the grid).
+
+**Cell content**
+- Write naturally — cells wrap on their own. **Don't add `<br/>` just to force wrapping;** use it only for genuinely separate lines (e.g. several IP addresses in one cell).
+- **Long URLs and paths can't word-break and will widen the table.** Use link text — `[label](url)` — or a `/links/<key>` (see *Links*) instead of pasting a bare long URL.
+- **Never write a bare angle-bracket placeholder** like `<SID>` or `<region>` in a cell — MDX parses it as an unknown HTML tag and drops it. Backtick it (`` `<SID>` ``) or escape it (`&lt;SID&gt;`).
+
+**Format** — always include the header row; align columns with `:---` (left), `:---:` (center), `---:` (right). Prefer Markdown tables; reserve a raw HTML `<table>` for merged cells (`rowspan`/`colspan`) that Markdown can't express.
+
 ### Code blocks
 
 Same triple-backtick syntax as before, with language tags. Common languages used across the repo: `bash`, `console`, `json`, `yaml`, `ini`, `sql`, `python`, `go`, `javascript`, `typescript`, `dockerfile`, `nginx`, `apache`, `terraform`. Avoid `markdown` and `mdx` — they disable Shiki's lazy loading and slow the dev server.
@@ -364,25 +375,46 @@ Legacy `/pages/...` and `/products/...` paths have been permanently rewritten to
 
 ### Locale-aware external links — `/links/<key>`
 
-For URLs that change per locale (Manager, API console, product pages, order pages, etc.), use `/links/<key>`. The key resolves at build time to the right URL for the locale being built. Keys are defined in [config/links.ts](config/links.ts).
+For URLs that change per locale (Manager, product pages, order pages, etc.), use `/links/<key>`. The key resolves at build time to the right URL for the locale being built. Keys are defined in [config/links.ts](config/links.ts).
 
-Examples for the three most common cases:
+Typical example — product / order pages on ovhcloud.com:
 
 ```mdx
-<!-- Control Panel / Manager -->
-Log in to your [OVHcloud Control Panel](/links/manager).
-
-<!-- A product / order page on ovhcloud.com -->
 Order a [Public Cloud Compute instance](/links/public-cloud/compute).
 Browse the [Bare Metal range](/links/bare-metal/bare-metal).
-
-<!-- API console -->
-Open the [OVHcloud API console](/links/api).
 ```
+
+**Control Panel links are not `/links/` keys** — use the zone-aware `<ManagerLink to="/#/…">your service</ManagerLink>` component instead (it follows the reader's zone and wraps the auth flow; hardcoded `manager.*.ovhcloud.com` URLs fail the build). Same logic for API links — see the next section.
 
 The fallback chain is **target locale → `en` → first available**, so a missing translation never breaks the link.
 
 To add a new key, edit [config/links.ts](config/links.ts) and add a row with one URL per locale. Then use `(/links/your-new-key)` in any MDX file.
+
+### Zone-aware API links — `<ApiLink>` / `<CreateToken>`
+
+Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://eu.api.ovh.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
+
+```mdx
+<!-- Generic reference to the API / the API console -->
+You can also do this with <ApiLink>the OVHcloud API</ApiLink>.
+
+<!-- Token creation with pre-filled rights -->
+<CreateToken rights="GET=/*&POST=/*&PUT=/*&DELETE=/*">Generate OVHcloud API tokens</CreateToken>
+```
+
+`<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console; do not link the console directly. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
+
+One exception: when documenting an **API endpoint as a value to copy** into code (e.g. the OAuth2 token endpoints in a `curl` example), keep the explicit EU/CA URLs in backticks — a zone-aware component would hide the variant the reader needs to copy.
+
+Pick the component by what you are pointing at:
+
+| You want to reference… | Use | Not |
+|---|---|---|
+| The OVHcloud API / the console in general | `<ApiLink>` | hardcoded URLs, `/links/api\|console` |
+| A **specific endpoint** the reader should call | `<Api version="v1" section="…" method="GET" route={"…"} />` — deep-links straight to the operation | prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
+| Token creation with rights | `<CreateToken rights="…">` | hardcoded `createToken` URLs |
+
+Also skip "log in to the API console first" steps — the gateway and console are public pages; authentication happens contextually on the operation itself, and the basics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx). See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.
 
 ### Plain external links
 
@@ -411,7 +443,10 @@ Guide titles shown in the sidebar are read from each MDX file's frontmatter, **n
 pnpm install
 pnpm dev                       # defaults to fr + en
 DEV_LOCALES=en pnpm dev        # English only (faster)
+DEV_PATH=web-cloud/web-hosting pnpm dev   # scope to one subtree (fallback if dev shows a blank page)
 ```
+
+> Blank page on every route? See [README → Scoping to a route subtree (`DEV_PATH`)](README.md#scoping-to-a-route-subtree-dev_path--blank-page-fallback).
 
 1. Create or edit `.mdx` files under `docs/{locale}/guides/...` for each locale you're shipping.
 2. Drop new images under `docs/public/images/{universe}/{product}/{guide-slug}/`.

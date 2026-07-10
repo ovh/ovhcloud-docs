@@ -67,6 +67,40 @@ function processDir(
       let content = fs.readFileSync(fullPath, 'utf-8');
       let changed = false;
 
+      // Read the source MDX frontmatter once — reused for the Pagefind title
+      // meta (below) and the .md frontmatter injection (further down).
+      const slug = entry.name.replace(/\.html$/, '');
+      const relativePath = `${basePath}/${slug}`.replace(`/${locale}/`, '');
+      const mdxPath = path.join(docsDir, locale, `${relativePath}.mdx`);
+      const fm = readMdxFrontmatter(mdxPath);
+      const title = fm?.title || '';
+
+      // Pin the Pagefind result title to the frontmatter `title`.
+      //
+      // Pagefind derives a page's title from the first <h1> inside the indexed
+      // root (`--root-selector ".rp-doc"`). Custom layouts (pageType: landing,
+      // …) render their <h1> in a banner/header that sits OUTSIDE `.rp-doc`
+      // (and inside an excluded <header>), so Pagefind finds no title and the
+      // search result renders with an empty heading. Setting
+      // `data-pagefind-meta="title:…"` on the `.rp-doc` root makes the title
+      // authoritative for every page type — and drops the trailing "#" anchor
+      // artifact that leaked into doc-page titles. Injected on the first
+      // element whose class list contains the exact `rp-doc` token.
+      if (title && !content.includes('data-pagefind-meta')) {
+        const metaTitle = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        let injected = false;
+        content = content.replace(
+          /<([a-zA-Z][\w-]*)\b([^>]*\bclass="([^"]*)"[^>]*)>/g,
+          (match, _tag, attrs, classVal: string) => {
+            if (injected) return match;
+            if (!classVal.split(/\s+/).includes('rp-doc')) return match;
+            injected = true;
+            return `<${_tag}${attrs} data-pagefind-meta="title:${metaTitle}">`;
+          },
+        );
+        if (injected) changed = true;
+      }
+
       // Boost h1 weight so exact title matches rank first
       if (!content.includes('data-pagefind-weight')) {
         content = content.replace(
@@ -98,13 +132,6 @@ function processDir(
       const mdContent = fs.readFileSync(mdPath, 'utf-8');
       if (mdContent.startsWith('---\n')) continue; // Already has frontmatter
 
-      // Read frontmatter from the source MDX file
-      const slug = entry.name.replace(/\.html$/, '');
-      const relativePath = `${basePath}/${slug}`.replace(`/${locale}/`, '');
-      const mdxPath = path.join(docsDir, locale, `${relativePath}.mdx`);
-      const fm = readMdxFrontmatter(mdxPath);
-
-      const title = fm?.title || '';
       const description = fm?.description || '';
       const lastUpdated = fm?.lastUpdated || fm?.updated || '';
       const url = `${siteUrl}${basePath}/${slug}`;

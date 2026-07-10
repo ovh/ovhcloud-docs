@@ -1,3 +1,4 @@
+import { useZone } from '@components/Zone';
 import { useI18n, useLang } from '@rspress/core/runtime';
 import {
   useCallback,
@@ -7,8 +8,8 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useRegion } from '../Api/RegionContext';
 import { regionsForPath } from '../Api/productRegions';
+import { useRegion } from '../Api/RegionContext';
 import '../Api/index.css'; // shared dropdown styles
 import './index.css';
 
@@ -103,6 +104,7 @@ export function ManagerLink({
   urls,
 }: ManagerLinkProps) {
   const { region: globalRegion, setRegion } = useRegion();
+  const { isSet: zoneChosen } = useZone();
   const lang = useLang();
   const t = useI18n();
 
@@ -263,7 +265,11 @@ export function ManagerLink({
               <span className="ovh-api-dropdown__option-desc">{desc}</span>
             )}
             <span className="ovh-api-dropdown__option-url">
-              {REGIONS[r].managerHost.replace('https://', '')}
+              {/* In `urls` mode show the actual target's host, not the
+                  manager host (e.g. api.eu.ovhcloud.com for API links). */}
+              {(urls?.[r] ?? REGIONS[r].managerHost)
+                .replace(/^https:\/\//, '')
+                .split(/[/?#]/)[0]}
             </span>
           </button>
         );
@@ -271,13 +277,19 @@ export function ManagerLink({
     </div>
   );
 
-  // Single region (e.g. an EU-only product like SMS): link directly to that
-  // manager, with no region picker.
-  if (regions.length === 1) {
+  // Link directly to one manager — no region picker — when only one region is
+  // possible (e.g. an EU-only product like SMS), or when the visitor has already
+  // chosen a commercial zone: picking the manager region on top of the zone is
+  // redundant. The zone stays the single source of truth (changeable via the
+  // zone switcher); `region` is already clamped to the offered regions above.
+  if (regions.length === 1 || zoneChosen) {
+    const href = urls
+      ? (urls[region] ?? urls[regions[0]] ?? '')
+      : buildManagerUrl(region, to ?? '', authFlow, lang);
     return (
       <a
         className="ovh-manager-link__trigger"
-        href={buildManagerUrl(regions[0], to, authFlow, lang)}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
       >
