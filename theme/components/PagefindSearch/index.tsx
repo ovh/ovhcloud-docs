@@ -1,6 +1,10 @@
 import { trackClick } from '@components/Analytics';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  SEARCH_TAXONOMY,
+  type SearchTaxonomyEntry,
+} from '../../data/search-taxonomy';
 import './index.css';
 
 interface SubResult {
@@ -37,8 +41,14 @@ interface PagefindResult {
   data(): Promise<PagefindDocument>;
 }
 
+/** Pagefind filter selection: filter key → selected values. */
+type PagefindFilters = Record<string, string[]>;
+
 interface PagefindApi {
-  search(query: string): Promise<{ results: PagefindResult[] }>;
+  search(
+    query: string | null,
+    options?: { filters?: PagefindFilters },
+  ): Promise<{ results: PagefindResult[] }>;
   options?(opts: unknown): Promise<void>;
 }
 
@@ -49,6 +59,9 @@ function stripAccents(s: string): string {
 type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 
 function getLocale(): Locale {
+  // Guard for SSR/SSG where `document` is undefined (this module renders on the
+  // server too). Falls back to the default locale; the client re-resolves.
+  if (typeof document === 'undefined') return 'fr';
   const lang = (document.documentElement.lang || 'fr')
     .slice(0, 2)
     .toLowerCase();
@@ -569,8 +582,37 @@ export function PagefindSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [resultCount, setResultCount] = useState(0);
+  // Selected filter slugs (empty = no filter). Product depends on universe:
+  // changing the universe clears any product selection outside it.
+  const [universe, setUniverse] = useState<string>('');
+  const [product, setProduct] = useState<string>('');
   const pagefindRef = useRef<PagefindApi | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Locale taxonomy for the filter pills (universes + their products).
+  // Resolved on the client after mount — getLocale() reads `document`, which is
+  // absent during SSG. Defaults to the EN taxonomy for the (never-rendered)
+  // server pass; the modal that shows the pills is client-only anyway.
+  const [locale, setLocale] = useState<Locale>('en');
+  useEffect(() => {
+    setLocale(getLocale());
+  }, []);
+  const taxonomy = SEARCH_TAXONOMY[locale] ?? SEARCH_TAXONOMY.en;
+
+  // Product pills: those under the selected universe, or none until a universe
+  // is chosen. A product can still be picked directly — selecting one that
+  // belongs to a universe also selects that universe (handled in the click).
+  const productOptions: SearchTaxonomyEntry[] = universe
+    ? (taxonomy.products[universe] ?? [])
+    : [];
+
+  // Build the Pagefind filter object from the current selection.
+  const activeFilters: PagefindFilters = useMemo(() => {
+    const f: PagefindFilters = {};
+    if (universe) f.universe = [universe];
+    if (product) f.product = [product];
+    return f;
+  }, [universe, product]);
 
   const loadPagefind = useCallback(async () => {
     if (pagefindRef.current) return pagefindRef.current;
@@ -596,8 +638,11 @@ export function PagefindSearch() {
   }, []);
 
   const doSearch = useCallback(
-    async (q: string) => {
-      if (!q.trim()) {
+    async (q: string, filters: PagefindFilters) => {
+      const hasFilters = Object.keys(filters).length > 0;
+      // With filters active, an empty query means "browse this bucket" — send a
+      // bare filtered search. Without filters, an empty query clears results.
+      if (!q.trim() && !hasFilters) {
         setResults([]);
         setResultCount(0);
         return;
@@ -611,11 +656,14 @@ export function PagefindSearch() {
           return;
         }
 
+        const searchOpts = hasFilters ? { filters } : undefined;
+
         // Strip stop words + expand synonyms, run all variants in parallel
         const locale = getLocale();
-        const queries = expandQuery(q, locale);
+        // A bare filter browse (empty query) can't be expanded — search null.
+        const queries = q.trim() ? expandQuery(q, locale) : [''];
         const allSearchResults = await Promise.all(
-          queries.map((eq) => pf.search(eq)),
+          queries.map((eq) => pf.search(eq || null, searchOpts)),
         );
 
         // Take top 15 from EACH query independently, then merge.
@@ -670,11 +718,11 @@ export function PagefindSearch() {
     [loadPagefind],
   );
 
-  // Debounce search
+  // Debounce search. Re-runs when the query OR the active filters change.
   useEffect(() => {
-    const timer = setTimeout(() => doSearch(query), 200);
+    const timer = setTimeout(() => doSearch(query, activeFilters), 200);
     return () => clearTimeout(timer);
-  }, [query, doSearch]);
+  }, [query, activeFilters, doSearch]);
 
   // Cmd+K / Ctrl+K toggle
   useEffect(() => {
@@ -778,7 +826,56 @@ export function PagefindSearch() {
                 )}
               </div>
 
-              {query && (
+              <div className="pagefind-filters">
+                <div
+                  className="pagefind-filter-row"
+                  role="group"
+                  aria-label="Filter by universe"
+                >
+                  {taxonomy.universes.map((u) => (
+                    <button
+                      key={u.slug}
+                      type="button"
+                      className={`pagefind-pill${universe === u.slug ? ' pagefind-pill--active' : ''}`}
+                      aria-pressed={universe === u.slug}
+                      onClick={() => {
+                        if (universe === u.slug) {
+                          setUniverse('');
+                          setProduct('');
+                        } else {
+                          setUniverse(u.slug);
+                          setProduct('');
+                        }
+                      }}
+                    >
+                      {u.label}
+                    </button>
+                  ))}
+                </div>
+                {productOptions.length > 0 && (
+                  <div
+                    className="pagefind-filter-row pagefind-filter-row--products"
+                    role="group"
+                    aria-label="Filter by product"
+                  >
+                    {productOptions.map((p) => (
+                      <button
+                        key={p.slug}
+                        type="button"
+                        className={`pagefind-pill pagefind-pill--product${product === p.slug ? ' pagefind-pill--active' : ''}`}
+                        aria-pressed={product === p.slug}
+                        onClick={() =>
+                          setProduct(product === p.slug ? '' : p.slug)
+                        }
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {(query || universe || product) && (
                 <div className="pagefind-results">
                   {loading && <p className="pagefind-status">Searching…</p>}
                   {!loading && resultCount === -1 && (
@@ -788,12 +885,24 @@ export function PagefindSearch() {
                   )}
                   {!loading && resultCount === 0 && (
                     <p className="pagefind-status">
-                      No results for <strong>{query}</strong>
+                      {query ? (
+                        <>
+                          No results for <strong>{query}</strong>
+                        </>
+                      ) : (
+                        'No results in this selection'
+                      )}
                     </p>
                   )}
                   {!loading && resultCount > 0 && (
                     <p className="pagefind-status">
-                      {resultCount} results for <strong>{query}</strong>
+                      {query ? (
+                        <>
+                          {resultCount} results for <strong>{query}</strong>
+                        </>
+                      ) : (
+                        `${resultCount} results`
+                      )}
                     </p>
                   )}
                   {results.map((result) => (
