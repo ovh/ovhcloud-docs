@@ -58,6 +58,20 @@ function stripAccents(s: string): string {
 
 type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 
+/**
+ * Label for the reset pill that clears all filters and searches the whole
+ * documentation. Rendered as the first, always-visible pill in the universe row.
+ */
+const ALL_LABEL: Record<Locale, string> = {
+  fr: 'Toute la documentation',
+  en: 'All documentation',
+  de: 'Gesamte Dokumentation',
+  es: 'Toda la documentación',
+  it: 'Tutta la documentazione',
+  pl: 'Cała dokumentacja',
+  pt: 'Toda a documentação',
+};
+
 function getLocale(): Locale {
   // Guard for SSR/SSG where `document` is undefined (this module renders on the
   // server too). Falls back to the default locale; the client re-resolves.
@@ -832,6 +846,19 @@ export function PagefindSearch() {
                   role="group"
                   aria-label="Filter by universe"
                 >
+                  <button
+                    type="button"
+                    className={`pagefind-pill pagefind-pill--all${
+                      !universe && !product ? ' pagefind-pill--active' : ''
+                    }`}
+                    aria-pressed={!universe && !product}
+                    onClick={() => {
+                      setUniverse('');
+                      setProduct('');
+                    }}
+                  >
+                    {ALL_LABEL[locale] ?? ALL_LABEL.en}
+                  </button>
                   {taxonomy.universes.map((u) => (
                     <button
                       key={u.slug}
