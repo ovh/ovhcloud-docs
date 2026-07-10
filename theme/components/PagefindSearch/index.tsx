@@ -1,4 +1,5 @@
 import { trackClick } from '@components/Analytics';
+import { useLang } from '@rspress/core/runtime';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -102,17 +103,138 @@ function writePersistedSearch(state: PersistedSearchState): void {
 type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 
 /**
- * Label for the reset pill that clears all filters and searches the whole
- * documentation. Rendered as the first, always-visible pill in the universe row.
+ * Localized UI strings for the search component. Count-bearing strings are
+ * functions of the count. Kept here (rather than i18n.json) so the whole
+ * search surface is self-contained; falls back to EN for any missing locale.
  */
-const ALL_LABEL: Record<Locale, string> = {
-  fr: 'Toute la documentation',
-  en: 'All documentation',
-  de: 'Gesamte Dokumentation',
-  es: 'Toda la documentación',
-  it: 'Tutta la documentazione',
-  pl: 'Cała dokumentacja',
-  pt: 'Toda a documentação',
+interface UiStrings {
+  trigger: string; // sidebar trigger button + aria-labels
+  placeholder: string; // input placeholder
+  searching: string; // loading status
+  indexUnavailable: string; // dev-only: no built index
+  allDocumentation: string; // reset pill
+  clearQuery: string; // clear-input aria-label
+  close: string; // close-modal aria-label
+  filterByUniverse: string; // universe group aria-label
+  filterByProduct: string; // product group aria-label
+  noResultsFor: (q: string) => string;
+  noResultsInSelection: string;
+  resultsFor: (n: number, q: string) => string;
+  results: (n: number) => string;
+}
+
+const UI_STRINGS: Record<Locale, UiStrings> = {
+  fr: {
+    trigger: 'Rechercher',
+    placeholder: 'Rechercher dans la documentation...',
+    searching: 'Recherche…',
+    indexUnavailable:
+      "Index de recherche indisponible — effectuez d'abord un build complet.",
+    allDocumentation: 'Toute la documentation',
+    clearQuery: 'Effacer la recherche',
+    close: 'Fermer la recherche',
+    filterByUniverse: 'Filtrer par univers',
+    filterByProduct: 'Filtrer par produit',
+    noResultsFor: (q) => `Aucun résultat pour ${q}`,
+    noResultsInSelection: 'Aucun résultat dans cette sélection',
+    resultsFor: (n, q) => `${n} résultat${n > 1 ? 's' : ''} pour ${q}`,
+    results: (n) => `${n} résultat${n > 1 ? 's' : ''}`,
+  },
+  en: {
+    trigger: 'Search',
+    placeholder: 'Search documentation...',
+    searching: 'Searching…',
+    indexUnavailable: 'Search index not available — run a full build first.',
+    allDocumentation: 'All documentation',
+    clearQuery: 'Clear search query',
+    close: 'Close search',
+    filterByUniverse: 'Filter by universe',
+    filterByProduct: 'Filter by product',
+    noResultsFor: (q) => `No results for ${q}`,
+    noResultsInSelection: 'No results in this selection',
+    resultsFor: (n, q) => `${n} result${n > 1 ? 's' : ''} for ${q}`,
+    results: (n) => `${n} result${n > 1 ? 's' : ''}`,
+  },
+  de: {
+    trigger: 'Suchen',
+    placeholder: 'Dokumentation durchsuchen...',
+    searching: 'Suche läuft…',
+    indexUnavailable:
+      'Suchindex nicht verfügbar — führen Sie zuerst einen vollständigen Build aus.',
+    allDocumentation: 'Gesamte Dokumentation',
+    clearQuery: 'Suche löschen',
+    close: 'Suche schließen',
+    filterByUniverse: 'Nach Universum filtern',
+    filterByProduct: 'Nach Produkt filtern',
+    noResultsFor: (q) => `Keine Ergebnisse für ${q}`,
+    noResultsInSelection: 'Keine Ergebnisse in dieser Auswahl',
+    resultsFor: (n, q) => `${n} Ergebnis${n > 1 ? 'se' : ''} für ${q}`,
+    results: (n) => `${n} Ergebnis${n > 1 ? 'se' : ''}`,
+  },
+  es: {
+    trigger: 'Buscar',
+    placeholder: 'Buscar en la documentación...',
+    searching: 'Buscando…',
+    indexUnavailable:
+      'Índice de búsqueda no disponible — ejecute primero una compilación completa.',
+    allDocumentation: 'Toda la documentación',
+    clearQuery: 'Borrar la búsqueda',
+    close: 'Cerrar la búsqueda',
+    filterByUniverse: 'Filtrar por universo',
+    filterByProduct: 'Filtrar por producto',
+    noResultsFor: (q) => `Ningún resultado para ${q}`,
+    noResultsInSelection: 'Ningún resultado en esta selección',
+    resultsFor: (n, q) => `${n} resultado${n > 1 ? 's' : ''} para ${q}`,
+    results: (n) => `${n} resultado${n > 1 ? 's' : ''}`,
+  },
+  it: {
+    trigger: 'Cerca',
+    placeholder: 'Cerca nella documentazione...',
+    searching: 'Ricerca in corso…',
+    indexUnavailable:
+      'Indice di ricerca non disponibile — esegui prima una build completa.',
+    allDocumentation: 'Tutta la documentazione',
+    clearQuery: 'Cancella la ricerca',
+    close: 'Chiudi la ricerca',
+    filterByUniverse: 'Filtra per universo',
+    filterByProduct: 'Filtra per prodotto',
+    noResultsFor: (q) => `Nessun risultato per ${q}`,
+    noResultsInSelection: 'Nessun risultato in questa selezione',
+    resultsFor: (n, q) => `${n} risultat${n > 1 ? 'i' : 'o'} per ${q}`,
+    results: (n) => `${n} risultat${n > 1 ? 'i' : 'o'}`,
+  },
+  pl: {
+    trigger: 'Szukaj',
+    placeholder: 'Szukaj w dokumentacji...',
+    searching: 'Wyszukiwanie…',
+    indexUnavailable:
+      'Indeks wyszukiwania niedostępny — najpierw wykonaj pełną kompilację.',
+    allDocumentation: 'Cała dokumentacja',
+    clearQuery: 'Wyczyść wyszukiwanie',
+    close: 'Zamknij wyszukiwanie',
+    filterByUniverse: 'Filtruj według uniwersum',
+    filterByProduct: 'Filtruj według produktu',
+    noResultsFor: (q) => `Brak wyników dla ${q}`,
+    noResultsInSelection: 'Brak wyników w tym wyborze',
+    resultsFor: (n, q) => `Liczba wyników dla ${q}: ${n}`,
+    results: (n) => `Liczba wyników: ${n}`,
+  },
+  pt: {
+    trigger: 'Pesquisar',
+    placeholder: 'Pesquisar na documentação...',
+    searching: 'A pesquisar…',
+    indexUnavailable:
+      'Índice de pesquisa indisponível — execute primeiro uma build completa.',
+    allDocumentation: 'Toda a documentação',
+    clearQuery: 'Limpar a pesquisa',
+    close: 'Fechar a pesquisa',
+    filterByUniverse: 'Filtrar por universo',
+    filterByProduct: 'Filtrar por produto',
+    noResultsFor: (q) => `Nenhum resultado para ${q}`,
+    noResultsInSelection: 'Nenhum resultado nesta seleção',
+    resultsFor: (n, q) => `${n} resultado${n > 1 ? 's' : ''} para ${q}`,
+    results: (n) => `${n} resultado${n > 1 ? 's' : ''}`,
+  },
 };
 
 function getLocale(): Locale {
@@ -653,15 +775,19 @@ export function PagefindSearch() {
   const pagefindRef = useRef<PagefindApi | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Current locale, resolved by Rspress at SSR time (each locale is built
+  // separately) AND on the client — so the server-rendered trigger label and
+  // the client match, with no flash of English or hydration mismatch.
+  const rawLang = (useLang() || 'fr').slice(0, 2).toLowerCase();
+  const locale: Locale = (
+    ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as Locale[]
+  ).includes(rawLang as Locale)
+    ? (rawLang as Locale)
+    : 'fr';
   // Locale taxonomy for the filter pills (universes + their products).
-  // Resolved on the client after mount — getLocale() reads `document`, which is
-  // absent during SSG. Defaults to the EN taxonomy for the (never-rendered)
-  // server pass; the modal that shows the pills is client-only anyway.
-  const [locale, setLocale] = useState<Locale>('en');
-  useEffect(() => {
-    setLocale(getLocale());
-  }, []);
   const taxonomy = SEARCH_TAXONOMY[locale] ?? SEARCH_TAXONOMY.en;
+  // Localized UI strings for the current locale (falls back to EN).
+  const t = UI_STRINGS[locale] ?? UI_STRINGS.en;
 
   // Product pills: those under the selected universe, or none until a universe
   // is chosen. A product can still be picked directly — selecting one that
@@ -855,7 +981,7 @@ export function PagefindSearch() {
               type="button"
               className="pagefind-close"
               onClick={() => setIsOpen(false)}
-              aria-label="Close search"
+              aria-label={t.close}
             >
               ✕
             </button>
@@ -869,7 +995,7 @@ export function PagefindSearch() {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
-                  aria-label="Search"
+                  aria-label={t.trigger}
                 >
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -878,7 +1004,7 @@ export function PagefindSearch() {
                   ref={inputRef}
                   type="search"
                   className="pagefind-form__input"
-                  placeholder="Search documentation..."
+                  placeholder={t.placeholder}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   autoComplete="off"
@@ -887,7 +1013,7 @@ export function PagefindSearch() {
                   <button
                     type="button"
                     className="pagefind-form__clear"
-                    aria-label="Clear search query"
+                    aria-label={t.clearQuery}
                     onClick={() => {
                       setQuery('');
                       inputRef.current?.focus();
@@ -902,7 +1028,7 @@ export function PagefindSearch() {
                 <div
                   className="pagefind-filter-row"
                   role="group"
-                  aria-label="Filter by universe"
+                  aria-label={t.filterByUniverse}
                 >
                   <button
                     type="button"
@@ -915,7 +1041,7 @@ export function PagefindSearch() {
                       setProduct('');
                     }}
                   >
-                    {ALL_LABEL[locale] ?? ALL_LABEL.en}
+                    {t.allDocumentation}
                   </button>
                   {taxonomy.universes.map((u) => (
                     <button
@@ -941,7 +1067,7 @@ export function PagefindSearch() {
                   <div
                     className="pagefind-filter-row pagefind-filter-row--products"
                     role="group"
-                    aria-label="Filter by product"
+                    aria-label={t.filterByProduct}
                   >
                     {productOptions.map((p) => (
                       <button
@@ -962,32 +1088,20 @@ export function PagefindSearch() {
 
               {(query || universe || product) && (
                 <div className="pagefind-results">
-                  {loading && <p className="pagefind-status">Searching…</p>}
+                  {loading && <p className="pagefind-status">{t.searching}</p>}
                   {!loading && resultCount === -1 && (
-                    <p className="pagefind-status">
-                      Search index not available — run a full build first.
-                    </p>
+                    <p className="pagefind-status">{t.indexUnavailable}</p>
                   )}
                   {!loading && resultCount === 0 && (
                     <p className="pagefind-status">
-                      {query ? (
-                        <>
-                          No results for <strong>{query}</strong>
-                        </>
-                      ) : (
-                        'No results in this selection'
-                      )}
+                      {query ? t.noResultsFor(query) : t.noResultsInSelection}
                     </p>
                   )}
                   {!loading && resultCount > 0 && (
                     <p className="pagefind-status">
-                      {query ? (
-                        <>
-                          {resultCount} results for <strong>{query}</strong>
-                        </>
-                      ) : (
-                        `${resultCount} results`
-                      )}
+                      {query
+                        ? t.resultsFor(resultCount, query)
+                        : t.results(resultCount)}
                     </p>
                   )}
                   {results.map((result) => (
@@ -1052,12 +1166,12 @@ export function PagefindSearch() {
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          aria-label="Search"
+          aria-label={t.trigger}
         >
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-        <span>Search</span>
+        <span>{t.trigger}</span>
         <kbd>⌘K</kbd>
       </button>
       {modal}
