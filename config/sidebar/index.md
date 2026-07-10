@@ -1884,6 +1884,7 @@
             + [What should I do if the page “Your IP has been banned” appears?](web-cloud/web-hosting/ip-has-been-banned-diagnosis)
             + [What should I do if the page “Your request has been blocked” appears?](web-cloud/web-hosting/request-has-been-blocked-diagnosis)
             + [Monitoring and managing automated emails in your Web Hosting plan](web-cloud/web-hosting/mail-function-script-records)
+            + [Web Hosting - Email sending best practices](web-cloud/web-hosting/email-sending-best-practices)
             + [How to react to abnormal activity detected on your web hosting](web-cloud/web-hosting/resolve-anomalous-activity)
             + [Tutorial - What do I do when my database is full?](web-cloud/web-hosting/sql-overquota-database)
             + [Troubleshooting recurring errors when using FTP software](web-cloud/web-hosting/ftp-recurring-ftp-problems)
