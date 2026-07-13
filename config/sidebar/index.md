@@ -2451,7 +2451,7 @@
             + [Virtual Private Servers](network-additional-ip-products-vps)
                 + [Configuring IP aliasing](bare-metal-cloud/virtual-private-servers/configuring-ip-aliasing)
         + [Troubleshooting](network-additional-ip-troubleshooting)
-            + [How to delist blocklisted IP addresses](network/additional-ip/blocklist-ip-delist)
+            + [Delisting blocklisted IP addresses](network/additional-ip/blocklist-ip-delist)
             + [Cancelling an Additional IP service](network/additional-ip/additional-ip-cancellation)
     + [Bring Your Own IP](network-additional-ip-byoip)
         + [How to use the Bring Your Own IP feature](network/bring-your-own-ip/bring-your-own-ip)
