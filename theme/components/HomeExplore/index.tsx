@@ -37,8 +37,11 @@ export function HomeExplore({
     <section className="rp-home-explore">
       {title && <h2 className="rp-home-explore__title">{title}</h2>}
       {isRows ? (
-        (rawCards as Explore[][]).map((row, i) => (
-          <div key={i} className="rp-home-explore__row">
+        (rawCards as Explore[][]).map((row) => (
+          <div
+            key={row.map((c) => c.title).join('|')}
+            className="rp-home-explore__row"
+          >
             {row.map((card) => (
               <LinkCard
                 key={card.title}

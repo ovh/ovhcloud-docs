@@ -4,13 +4,13 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { usePageTitle } from 'theme/hooks/usePageTitle';
 import { HomeUsecases } from 'theme/components/HomeUsecases';
 import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { OverviewQuickstart } from 'theme/components/OverviewQuickstart';
 import { OverviewTutorials } from 'theme/components/OverviewTutorials';
 import { Sidebar } from 'theme/components/Sidebar';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
 interface FrontmatterItem {

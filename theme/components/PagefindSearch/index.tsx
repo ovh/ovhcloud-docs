@@ -17,6 +17,31 @@ interface SearchResult {
   titleMatchScore: number;
 }
 
+// Minimal shape of the runtime-loaded Pagefind API (no shipped types).
+interface PagefindSubResult {
+  title: string;
+  url: string;
+  excerpt: string;
+}
+
+interface PagefindDocument {
+  url: string;
+  excerpt: string;
+  meta?: { title?: string };
+  matchedMetaFields?: string[];
+  sub_results?: PagefindSubResult[];
+}
+
+interface PagefindResult {
+  id: string;
+  data(): Promise<PagefindDocument>;
+}
+
+interface PagefindApi {
+  search(query: string): Promise<{ results: PagefindResult[] }>;
+  options?(opts: unknown): Promise<void>;
+}
+
 function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -544,7 +569,7 @@ export function PagefindSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [resultCount, setResultCount] = useState(0);
-  const pagefindRef = useRef<any>(null);
+  const pagefindRef = useRef<PagefindApi | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadPagefind = useCallback(async () => {
@@ -554,7 +579,7 @@ export function PagefindSearch() {
       // fetches pagefind.js at runtime from the built output.
       const dynamicImport = new Function('u', 'return import(u)') as (
         u: string,
-      ) => Promise<any>;
+      ) => Promise<PagefindApi>;
       // Load the per-locale Pagefind index (each locale has its own bundle)
       const locale = getLocale();
       const pf = await dynamicImport(`/${locale}/pagefind/pagefind.js`);
@@ -598,7 +623,7 @@ export function PagefindSearch() {
         // even when the primary query has many more results.
         const PER_QUERY = 30;
         const seenIds = new Set<string>();
-        const mergedResults: any[] = [];
+        const mergedResults: PagefindResult[] = [];
         for (const sr of allSearchResults) {
           for (const r of sr.results.slice(0, PER_QUERY)) {
             if (!seenIds.has(r.id)) {
@@ -610,12 +635,12 @@ export function PagefindSearch() {
         setResultCount(allSearchResults[0].results.length); // show primary query count
 
         const topN = mergedResults;
-        const data = await Promise.all(topN.map((r: any) => r.data()));
+        const data = await Promise.all(topN.map((r) => r.data()));
 
         // Re-rank: synonym-aware term-group title scoring
         const termGroups = getTermGroups(q, locale);
         const ranked = data
-          .map((d: any) => {
+          .map((d) => {
             const titleNorm = stripAccents((d.meta?.title || '').toLowerCase());
             const score = titleTermScore(titleNorm, termGroups);
             return { d, titleMatchScore: score };
@@ -627,13 +652,11 @@ export function PagefindSearch() {
             title: d.meta?.title || d.url,
             excerpt: d.excerpt as string,
             titleMatch: d.matchedMetaFields?.includes('title') ?? false,
-            subResults: ((d.sub_results as any[]) || [])
-              .slice(0, 3)
-              .map((sr: any) => ({
-                title: sr.title as string,
-                url: (sr.url as string).replace(/\.html$/, ''),
-                excerpt: sr.excerpt as string,
-              })),
+            subResults: (d.sub_results || []).slice(0, 3).map((sr) => ({
+              title: sr.title as string,
+              url: (sr.url as string).replace(/\.html$/, ''),
+              excerpt: sr.excerpt as string,
+            })),
             titleMatchScore,
           }));
 

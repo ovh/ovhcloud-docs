@@ -3,6 +3,9 @@ import { useI18n } from '@rspress/core/runtime';
 import { useMdUrl } from '@rspress/core/theme-original';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAIChatbotDrawer } from 'theme/components/AIChatbotDrawer/context';
+import { LlmsOpenButton } from 'theme/components/LlmsOpenButton';
+import { PdfDownloadButton } from 'theme/components/PdfDownloadButton';
+import '@rspress/core/dist/theme/components/Llms/index.css';
 import './index.scss';
 
 const ArrowIcon = () => (
@@ -120,6 +123,19 @@ const ClaudeIcon = () => (
   </svg>
 );
 
+const PerplexityIcon = () => (
+  <svg
+    aria-hidden="true"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path d="M12 1.5L6 6.2V1.5H4.5v6.56L1.64 10.5H4.5v7.73L1.5 21.2v1.3h3V18l3 2.63V24h1.5v-3.37L12 18l3 2.63V24h1.5v-3.37L19.5 18v4.5h3v-1.3l-3-2.97V10.5h2.86L19.5 8.06V1.5H18v4.7L12 1.5ZM18 10.5v7.11l-4.5-3.95V10.5H18ZM10.5 10.5v3.16L6 17.61V10.5h4.5ZM6.88 9L12 4.64 17.12 9H6.88ZM13.5 13.39l4.01 3.52L13.5 20.1v-6.71Zm-3 0v6.71l-4.01-3.19L10.5 13.39Z" />
+  </svg>
+);
+
 interface MenuOption {
   title: string;
   description: string;
@@ -179,6 +195,15 @@ export function LlmsViewOptions() {
           q: `Read ${fullMarkdownUrl}, I want to ask questions about it.`,
         })}`,
       },
+      {
+        title: t('openInText', { name: 'Perplexity' }),
+        description: t('analyzePageText', { name: 'Perplexity' }),
+        icon: <PerplexityIcon />,
+        external: true,
+        href: `https://www.perplexity.ai/?${new URLSearchParams({
+          q: `Read ${fullMarkdownUrl}, I want to ask questions about it.`,
+        })}`,
+      },
     ],
     [fullMarkdownUrl, toggleChatbot, t],
   );
@@ -231,6 +256,8 @@ export function LlmsViewOptions() {
       className="rp-llms-view-options__trigger"
       data-active={isOpen || undefined}
     >
+      <LlmsOpenButton />
+      <PdfDownloadButton />
       <button
         type="button"
         className="rp-llms-button"

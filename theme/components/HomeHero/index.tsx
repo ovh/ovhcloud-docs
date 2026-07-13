@@ -43,12 +43,12 @@ function HomeHero({ beforeHeroActions, afterHeroActions }: HomeHeroProps) {
       <div className="rp-home-hero__container">
         {hero.badge && <div className="rp-home-hero__badge">{hero.badge}</div>}
         <div className="rp-home-hero__content">
-          <div className="rp-home-hero__title">
+          <h1 className="rp-home-hero__title">
             <span
               className="rp-home-hero__title-brand"
               {...renderHtmlOrText(hero.name)}
             ></span>
-          </div>
+          </h1>
 
           {multiHeroText.length !== 0 &&
             multiHeroText.map((heroText) => (
