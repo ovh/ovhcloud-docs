@@ -127,7 +127,7 @@ Do **not** use `../images/...` — the migration rewrote every legacy relative p
 ## Markdown formats — before / after
 
 > :::tip
-> A working example of every format below — admonitions, callouts, collapsible sections, tabs, action buttons, images, video embeds, code blocks, the full component set, etc. — lives in [docs/en/_internal/format-reference.mdx](docs/en/_internal/format-reference.mdx). When in doubt, copy from there. The page is rendered in dev and prod (so you can verify formats render correctly in both), but excluded from the sidebar, sitemap, `llms.txt`, and indexed via `noindex,nofollow`.
+> A working example of every format below — admonitions, callouts, collapsible sections, tabs, action buttons, images, video embeds, code blocks, the full component set, etc. — lives in [docs/en/internal/format-reference.mdx](docs/en/internal/format-reference.mdx). When in doubt, copy from there. The page is rendered in dev and prod (so you can verify formats render correctly in both), but excluded from the sidebar, sitemap, `llms.txt`, and indexed via `noindex,nofollow`.
 > :::
 
 ### Frontmatter
@@ -327,13 +327,15 @@ Same triple-backtick syntax as before, with language tags. Common languages used
 
 ### API endpoint blocks
 
-Use the `<Api>` component for inline OVHcloud API references:
+Use the `<Api>` component for OVHcloud API endpoint references, with its import:
 
 ```mdx
 import Api from '@components/Api';
 
-<Api version="v1" section="/dedicatedCloud" method="POST" route="/dedicatedCloud/{serviceName}/sap" />
+<Api version="v1" section="/dedicatedCloud" method="POST" route={"/dedicatedCloud/\{serviceName\}/sap"} />
 ```
+
+Escape path parameters as `\{serviceName\}` inside the `route={"…"}` expression. The pill renders block-like: introduce it with a full sentence ending in a colon ("… using the following API call:") — never place it mid-sentence. For an endpoint link *inside* running text or a table cell, use `<ApiLink section route method>` instead — that one is auto-registered, no import (see [Zone-aware API links](#zone-aware-api-links--apilink--createtoken)).
 
 ### Other components
 
@@ -398,11 +400,19 @@ Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), 
 <!-- Generic reference to the API / the API console -->
 You can also do this with <ApiLink>the OVHcloud API</ApiLink>.
 
+<!-- Console deep link: section, with custom link text -->
+All API routes used in this guide are in the <ApiLink section="/dedicated/nasha">*/dedicated/nasha* section of the API console</ApiLink>.
+
+<!-- Console deep link: operation, as a normal inline link (tables, prose) -->
+Retrieve them with the <ApiLink section="/me" method="GET" route={"/me/logs/audit"}>audit log API call</ApiLink>.
+
 <!-- Token creation with pre-filled rights -->
 <CreateToken rights="GET=/*&POST=/*&PUT=/*&DELETE=/*">Generate OVHcloud API tokens</CreateToken>
 ```
 
-`<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console; do not link the console directly. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
+Without props, `<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console — use that for any generic mention. Console links are only ever section/operation deep links via the props above; never hardcode a console URL. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
+
+**EU and CA API schemas differ per route.** Before deep-linking an operation (with `<Api>` or `<ApiLink>`), check it exists in both `https://api.eu.ovhcloud.com/1.0/<section>.json` and `https://api.ca.ovhcloud.com/1.0/<section>.json` — a console deep link to an operation the zone doesn't have falls back to the section root. If only one zone has it, add `regions={["eu"]}` (renders a plain single-zone link). EU-only *products* (SMS, Email Pro, …) are restricted automatically — no prop needed.
 
 One exception: when documenting an **API endpoint as a value to copy** into code (e.g. the OAuth2 token endpoints in a `curl` example), keep the explicit EU/CA URLs in backticks — a zone-aware component would hide the variant the reader needs to copy.
 
@@ -411,10 +421,11 @@ Pick the component by what you are pointing at:
 | You want to reference… | Use | Not |
 |---|---|---|
 | The OVHcloud API / the console in general | `<ApiLink>` | hardcoded URLs, `/links/api\|console` |
-| A **specific endpoint** the reader should call | `<Api version="v1" section="…" method="GET" route={"…"} />` — deep-links straight to the operation | prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
+| A **specific endpoint** the reader should call, as its own display element | `<Api version="v1" section="…" method="GET" route={"…"} />` after a full sentence ending in a colon | a mid-sentence pill; prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
+| A **section or operation as an inline text link** (running prose, table cells) | `<ApiLink section="…" [method="GET" route={"…"}]>your link text</ApiLink>` | hardcoded `?section=` console URLs |
 | Token creation with rights | `<CreateToken rights="…">` | hardcoded `createToken` URLs |
 
-Also skip "log in to the API console first" steps — the gateway and console are public pages; authentication happens contextually on the operation itself, and the basics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx). See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.
+Also skip "log in to the API console first" steps — the gateway and console are public pages, and the console offers authentication itself, both globally (the `Authentication` sidebar entry) and contextually on each operation. The sign-in mechanics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx); do not repeat them per guide. See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.
 
 ### Plain external links
 
