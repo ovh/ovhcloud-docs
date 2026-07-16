@@ -63,7 +63,8 @@ export interface SidebarGroupProps {
 
 export function SidebarGroup(props: SidebarGroupProps) {
   const activeMatcher = useActiveMatcher();
-  const { activeId, notifyClick, shouldForceCollapse } = useActiveBranch();
+  const { activeId, notifyClick, shouldForceCollapse, notifyManualToggle } =
+    useActiveBranch();
   const { item, depth, id, setSidebarData, className } = props;
   // A linked category can itself be multi-located: highlight it only when it
   // is the single resolved-active instance, not merely a route match.
@@ -76,7 +77,14 @@ export function SidebarGroup(props: SidebarGroupProps) {
   const collapsed = shouldForceCollapse(id) || rawCollapsed;
 
   const toggleCollapse = (): void => {
-    // update collapsed state
+    // Toggle the *effective* collapsed state (force-collapse included), not just
+    // the raw flag. Otherwise expanding a branch that is being force-collapsed
+    // (the "wrong" branch of a multi-located guide) would only flip the
+    // underlying flag while the force kept it visually collapsed — the user
+    // would click and nothing would open.
+    const willBeCollapsed = !collapsed;
+    // Let an explicit user action override / restore the automatic suppression.
+    notifyManualToggle(id, willBeCollapsed);
     setSidebarData((sidebarData) => {
       const newSidebarData = [...sidebarData];
       const indexes = id.split('-').map(Number);
@@ -88,7 +96,7 @@ export function SidebarGroup(props: SidebarGroupProps) {
         current = (current as NormalizedSidebarGroup).items[index];
       }
       if ('items' in current) {
-        current.collapsed = !current.collapsed;
+        current.collapsed = willBeCollapsed;
       }
       return newSidebarData;
     });

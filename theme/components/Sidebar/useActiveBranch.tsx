@@ -46,12 +46,21 @@ interface ActiveBranchContextValue {
    * guide and must be kept collapsed even though Rspress auto-expanded it.
    */
   shouldForceCollapse: (id: string) => boolean;
+  /**
+   * Record an explicit user expand/collapse of a group, so it overrides the
+   * automatic force-collapse applied to the "wrong" branch of a multi-located
+   * guide. `willBeCollapsed=false` (user expanded) clears any forced collapse
+   * and pins the group open for the session; `willBeCollapsed=true` (user
+   * collapsed) lets the automatic suppression resume.
+   */
+  notifyManualToggle: (id: string, willBeCollapsed: boolean) => void;
 }
 
 const ActiveBranchContext = createContext<ActiveBranchContextValue>({
   activeId: null,
   notifyClick: () => {},
   shouldForceCollapse: () => false,
+  notifyManualToggle: () => {},
 });
 
 /**
@@ -151,6 +160,29 @@ function readSuppressed(): Set<string> {
 function writeSuppressed(set: Set<string>): void {
   try {
     sessionStorage.setItem(SUPPRESS_KEY, JSON.stringify([...set]));
+  } catch {
+    // ignore
+  }
+}
+
+// Groups the user has explicitly expanded this session. These win over the
+// automatic force-collapse of a multi-located guide's "wrong" branch: once the
+// visitor opts a branch open, we neither force-collapse it nor let the
+// suppression effect re-add it while they remain on the shared route.
+const USER_OPENED_KEY = 'ovh.sidebar.userOpenedBranches';
+
+function readUserOpened(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(USER_OPENED_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeUserOpened(set: Set<string>): void {
+  try {
+    sessionStorage.setItem(USER_OPENED_KEY, JSON.stringify([...set]));
   } catch {
     // ignore
   }
@@ -258,6 +290,7 @@ export function ActiveBranchProvider({
   // un-suppressed. This is declarative (recomputed each render) so it survives
   // Rspress's per-route rebuild, and session-scoped so it survives navigation.
   const suppressedRef = useRef<Set<string>>(readSuppressed());
+  const userOpenedRef = useRef<Set<string>>(readUserOpened());
   const [suppressedVersion, bumpSuppressed] = useState(0);
 
   useLayoutEffect(() => {
@@ -270,7 +303,8 @@ export function ActiveBranchProvider({
       for (const id of candidates) {
         if (id === activeId || isAncestorId(id, activeId)) continue;
         const dp = divergencePoint(id, activeId);
-        if (dp && !set.has(dp)) {
+        // Never re-suppress a branch the user has explicitly expanded.
+        if (dp && !set.has(dp) && !userOpenedRef.current.has(dp)) {
           set.add(dp);
           changed = true;
         }
@@ -301,6 +335,33 @@ export function ActiveBranchProvider({
       set.has(groupId) && !isAncestorId(groupId, activeId);
   }, [activeId, suppressedVersion]);
 
+  // A user's explicit expand/collapse overrides the automatic force-collapse.
+  const notifyManualToggle = useMemo(
+    () =>
+      (groupId: string, willBeCollapsed: boolean): void => {
+        const sup = suppressedRef.current;
+        const opened = userOpenedRef.current;
+        let changed = false;
+        if (willBeCollapsed) {
+          // User explicitly collapsed → let automatic suppression resume.
+          if (opened.delete(groupId)) changed = true;
+        } else {
+          // User explicitly expanded → drop any forced collapse and pin open.
+          if (sup.delete(groupId)) changed = true;
+          if (!opened.has(groupId)) {
+            opened.add(groupId);
+            changed = true;
+          }
+        }
+        if (changed) {
+          writeSuppressed(sup);
+          writeUserOpened(opened);
+          bumpSuppressed((v) => v + 1);
+        }
+      },
+    [],
+  );
+
   const value = useMemo<ActiveBranchContextValue>(
     () => ({
       activeId,
@@ -308,8 +369,9 @@ export function ActiveBranchProvider({
         clickedRef.current = id;
       },
       shouldForceCollapse,
+      notifyManualToggle,
     }),
-    [activeId, shouldForceCollapse],
+    [activeId, shouldForceCollapse, notifyManualToggle],
   );
 
   return (
