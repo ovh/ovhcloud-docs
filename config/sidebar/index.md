@@ -1955,7 +1955,7 @@
             + [Retrieving email headers](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-headers){label=Email headers (.eml)}
             + [Managing the storage space for an email account](web-cloud/email-and-collaborative-solutions/troubleshooting/email-manage-quota){label=Mailbox storage}
             + [Restoring deleted items from your email account](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-retention){label=Restore deleted emails}
-            + [What to do if your email is rejected for cross-domain spoofing](web-cloud/email-and-collaborative-solutions/troubleshooting/email-rejected-cross-domain-spoofing){label=Rejected: cross-domain spoofing}
+            + [Email rejected for cross-domain spoofing (550 5.7.1)](web-cloud/email-and-collaborative-solutions/troubleshooting/email-rejected-cross-domain-spoofing){label=Rejected: cross-domain spoofing}
             + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365){label=Outlook sign-in prompts}
             + [Exchange - How to manage logs](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-manage-logs){label=Managing logs}
         + [MX Plan](products/web-cloud-email-collaborative-solutions-mx-plan){landing=web-cloud/email-and-collaborative-solutions/mx-plan/landing-page-mx-plan}
