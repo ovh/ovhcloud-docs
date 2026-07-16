@@ -1043,25 +1043,40 @@ export function PagefindSearch() {
                   >
                     {t.allDocumentation}
                   </button>
-                  {taxonomy.universes.map((u) => (
-                    <button
-                      key={u.slug}
-                      type="button"
-                      className={`pagefind-pill${universe === u.slug ? ' pagefind-pill--active' : ''}`}
-                      aria-pressed={universe === u.slug}
-                      onClick={() => {
-                        if (universe === u.slug) {
-                          setUniverse('');
-                          setProduct('');
-                        } else {
-                          setUniverse(u.slug);
-                          setProduct('');
-                        }
-                      }}
-                    >
-                      {u.label}
-                    </button>
-                  ))}
+                  {taxonomy.universes.map((u) => {
+                    const hasProducts =
+                      (taxonomy.products[u.slug]?.length ?? 0) > 0;
+                    const isActive = universe === u.slug;
+                    return (
+                      <button
+                        key={u.slug}
+                        type="button"
+                        className={`pagefind-pill pagefind-pill--universe${isActive ? ' pagefind-pill--active' : ''}`}
+                        aria-pressed={isActive}
+                        // Announce that this pill expands a product sub-filter.
+                        aria-expanded={hasProducts ? isActive : undefined}
+                        onClick={() => {
+                          if (isActive) {
+                            setUniverse('');
+                            setProduct('');
+                          } else {
+                            setUniverse(u.slug);
+                            setProduct('');
+                          }
+                        }}
+                      >
+                        {u.label}
+                        {hasProducts && (
+                          <span
+                            className="pagefind-pill__chevron"
+                            aria-hidden="true"
+                          >
+                            ›
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
                 {productOptions.length > 0 && (
                   <div

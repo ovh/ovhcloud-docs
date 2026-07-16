@@ -159,6 +159,29 @@ function processDir(
         changed = true;
       }
 
+      // --- Machine-readable markdown-alternate hint in <head> ---
+      // The raw-markdown endpoint (`<page>.md`, Content-Type: text/markdown)
+      // is served for every guide, but nothing in the STATIC pre-hydration
+      // HTML points to it: the on-page "View markdown" button is React-rendered
+      // and sits AFTER the full server-rendered nav, so a size-bounded, JS-free
+      // fetcher (AI agent, plain HTTP client) exhausts its budget on the nav
+      // and never reaches it. This <link> lives in <head> — the first few KB of
+      // the payload — so those clients discover the clean .md before any
+      // truncation. Only emitted when the sibling .md actually exists (guide
+      // pages, not custom landing layouts). Idempotent.
+      const mdSibling = fullPath.replace(/\.html$/, '.md');
+      if (
+        fs.existsSync(mdSibling) &&
+        !content.includes('type="text/markdown"')
+      ) {
+        const mdHref = `${basePath}/${slug}.md`;
+        content = content.replace(
+          '</head>',
+          `<link rel="alternate" type="text/markdown" href="${mdHref}"></head>`,
+        );
+        changed = true;
+      }
+
       if (changed) {
         fs.writeFileSync(fullPath, content);
         html++;
