@@ -159,7 +159,7 @@
         + [Configuration](bare-metal-cloud-dedicated-servers-configuration)
             + [System](bare-metal-cloud-dedicated-servers-configuration-system)
                 + [How to configure user accounts and root access on a server](bare-metal-cloud/dedicated-servers/changing-root-password-linux-ds)
-                + [Install and configure Windows Server on a dedicated server](bare-metal-cloud/dedicated-servers/configure-windows-dedicated-server)
+                + [How to install and configure Windows Server on a dedicated server](bare-metal-cloud/dedicated-servers/configure-windows-dedicated-server)
                 + [How to change a Windows Server product key](bare-metal-cloud/dedicated-servers/windows-key)
                 + [Changing the admin password on a Windows dedicated server](bare-metal-cloud/dedicated-servers/changing-admin-password-on-windows)
                 + [How to reset the Windows Administrator password with the Windows customer rescue system](bare-metal-cloud/dedicated-servers/rcw-changing-admin-password-on-windows)
