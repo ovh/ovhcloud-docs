@@ -1,3 +1,4 @@
+import { useZone } from '@components/Zone';
 import { useI18n, useLang } from '@rspress/core/runtime';
 import {
   useCallback,
@@ -7,9 +8,8 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useZone } from '@components/Zone';
-import { useRegion } from '../Api/RegionContext';
 import { regionsForPath } from '../Api/productRegions';
+import { useRegion } from '../Api/RegionContext';
 import '../Api/index.css'; // shared dropdown styles
 import './index.css';
 
@@ -265,7 +265,11 @@ export function ManagerLink({
               <span className="ovh-api-dropdown__option-desc">{desc}</span>
             )}
             <span className="ovh-api-dropdown__option-url">
-              {REGIONS[r].managerHost.replace('https://', '')}
+              {/* In `urls` mode show the actual target's host, not the
+                  manager host (e.g. api.eu.ovhcloud.com for API links). */}
+              {(urls?.[r] ?? REGIONS[r].managerHost)
+                .replace(/^https:\/\//, '')
+                .split(/[/?#]/)[0]}
             </span>
           </button>
         );

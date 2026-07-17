@@ -4,7 +4,6 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { usePageTitle } from 'theme/hooks/usePageTitle';
 import type { MigrationCTAProps } from 'theme/components/MigrationCTA';
 import { MigrationCTA } from 'theme/components/MigrationCTA';
 import type { MigrationResourcesProps } from 'theme/components/MigrationResources';
@@ -12,6 +11,7 @@ import { MigrationResources } from 'theme/components/MigrationResources';
 import type { MigrationSectionsProps } from 'theme/components/MigrationSections';
 import { MigrationSections } from 'theme/components/MigrationSections';
 import { Sidebar } from 'theme/components/Sidebar';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
 interface MigrationFrontmatter {
