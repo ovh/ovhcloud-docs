@@ -75,19 +75,48 @@ function processDir(
       const fm = readMdxFrontmatter(mdxPath);
       const title = fm?.title || '';
 
-      // Pin the Pagefind result title to the frontmatter `title`.
+      // Derive universe/product filter values from the URL path structure
+      // `guides/<universe>/<product>/…/<slug>`. Only guide pages (under
+      // `guides/`) carry filters; non-guide pages (home, etc.) get none.
+      // Values are the stable path slugs — the search UI maps them to
+      // locale-translated labels at render time (see config/sidebar/index.md).
+      const pathSegments = relativePath.split('/');
+      const universe =
+        pathSegments[0] === 'guides' && pathSegments.length >= 3
+          ? pathSegments[1]
+          : '';
+      // A product exists only when there's a segment BETWEEN universe and the
+      // final slug (guides/<universe>/<product>/<slug> → length ≥ 4).
+      const product =
+        universe && pathSegments.length >= 4 ? pathSegments[2] : '';
+
+      // Inject, in a single pass over the `.rp-doc` root:
+      //   1. The Pagefind result title (`data-pagefind-meta="title:…"`).
+      //   2. The universe/product search filters (`data-pagefind-filter`).
       //
-      // Pagefind derives a page's title from the first <h1> inside the indexed
-      // root (`--root-selector ".rp-doc"`). Custom layouts (pageType: landing,
-      // …) render their <h1> in a banner/header that sits OUTSIDE `.rp-doc`
-      // (and inside an excluded <header>), so Pagefind finds no title and the
-      // search result renders with an empty heading. Setting
-      // `data-pagefind-meta="title:…"` on the `.rp-doc` root makes the title
+      // (1) Pagefind derives a page's title from the first <h1> inside the
+      // indexed root (`--root-selector ".rp-doc"`). Custom layouts (pageType:
+      // landing, …) render their <h1> in a banner/header OUTSIDE `.rp-doc` (and
+      // inside an excluded <header>), so Pagefind finds no title and the result
+      // renders with an empty heading. Pinning the meta makes the title
       // authoritative for every page type — and drops the trailing "#" anchor
-      // artifact that leaked into doc-page titles. Injected on the first
-      // element whose class list contains the exact `rp-doc` token.
-      if (title && !content.includes('data-pagefind-meta')) {
+      // artifact that leaked into doc-page titles.
+      //
+      // (2) `universe` is added as an attribute on the root itself; `product`
+      // needs its OWN element — Pagefind reads one filter key per attribute, and
+      // duplicate attributes on one element collapse in the DOM — so it goes on
+      // a hidden <span> injected right after the root's opening tag, still
+      // inside the indexed root.
+      //
+      // Both target the first element whose class list contains the exact
+      // `rp-doc` token.
+      const needMeta = !!title && !content.includes('data-pagefind-meta');
+      const needFilters =
+        !!universe && !content.includes('data-pagefind-filter');
+      if (needMeta || needFilters) {
         const metaTitle = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        const esc = (v: string) =>
+          v.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
         let injected = false;
         content = content.replace(
           /<([a-zA-Z][\w-]*)\b([^>]*\bclass="([^"]*)"[^>]*)>/g,
@@ -95,7 +124,17 @@ function processDir(
             if (injected) return match;
             if (!classVal.split(/\s+/).includes('rp-doc')) return match;
             injected = true;
-            return `<${_tag}${attrs} data-pagefind-meta="title:${metaTitle}">`;
+            const metaAttr = needMeta
+              ? ` data-pagefind-meta="title:${metaTitle}"`
+              : '';
+            const universeAttr = needFilters
+              ? ` data-pagefind-filter="universe:${esc(universe)}"`
+              : '';
+            const productSpan =
+              needFilters && product
+                ? `<span data-pagefind-filter="product:${esc(product)}" style="display:none"></span>`
+                : '';
+            return `<${_tag}${attrs}${metaAttr}${universeAttr}>${productSpan}`;
           },
         );
         if (injected) changed = true;
@@ -117,6 +156,29 @@ function processDir(
       );
       if (cleaned !== content) {
         content = cleaned;
+        changed = true;
+      }
+
+      // --- Machine-readable markdown-alternate hint in <head> ---
+      // The raw-markdown endpoint (`<page>.md`, Content-Type: text/markdown)
+      // is served for every guide, but nothing in the STATIC pre-hydration
+      // HTML points to it: the on-page "View markdown" button is React-rendered
+      // and sits AFTER the full server-rendered nav, so a size-bounded, JS-free
+      // fetcher (AI agent, plain HTTP client) exhausts its budget on the nav
+      // and never reaches it. This <link> lives in <head> — the first few KB of
+      // the payload — so those clients discover the clean .md before any
+      // truncation. Only emitted when the sibling .md actually exists (guide
+      // pages, not custom landing layouts). Idempotent.
+      const mdSibling = fullPath.replace(/\.html$/, '.md');
+      if (
+        fs.existsSync(mdSibling) &&
+        !content.includes('type="text/markdown"')
+      ) {
+        const mdHref = `${basePath}/${slug}.md`;
+        content = content.replace(
+          '</head>',
+          `<link rel="alternate" type="text/markdown" href="${mdHref}"></head>`,
+        );
         changed = true;
       }
 

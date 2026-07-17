@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026.07.16
+
+### Features
+- **docs:** add VPS product landing page (#409)
+- **home:** add SIRET banner to FR home page hero (#406)
+- **build:** improve AI/LLM retrievability of guides
+- **docs:** add VPS product landing page
+
+### Documentation
+- 106 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.15.1
+
+### Features
+- **search:** signal that universe filters unfold product sub-filters
+
+### Documentation
+- 112 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.15
+
+### Features
+- **search:** add universe and product filters to docs search (#381)
+
+### Fixes
+- **public-cloud:** minor fixes on Increasing the size of an additional disk guide
+- **docs:** API links normalization & repair legacy links (#388)
+
+### Maintenance
+- **docs:** API guides update / clean-up (#390)
+
+### Documentation
+- 561 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.07.10
 
 ### Documentation

@@ -1,0 +1,120 @@
+---
+title: How to rename or move an encrypted object in SNC Cloud Platform Object Storage
+description: Find out how to work around the current limitation that prevents renaming or moving a server-side-encrypted object in SNC Cloud Platform Object Storage
+lastUpdated: 2026-07-13
+---
+
+## Objective
+
+Object Storage in SNC Cloud Platform is backed by Ceph RADOS Gateway (RGW). The S3<sup>1</sup> API has no dedicated *rename* or *move* operation: tools implement a rename or a move as a server-side **copy** followed by a **delete** of the original object.
+
+Server-side copy is currently **not supported for objects encrypted with Server-Side Encryption (SSE)**. As a result, attempting to rename or move an encrypted object fails with a `501 NotImplemented` error, and the object keeps its original name.
+
+In SNC Cloud Platform Object Storage **every object is server-side encrypted** — **SSE-S3** is applied by default, and **SSE-C** (your own encryption key) is available on request. This limitation therefore applies to **all** of your objects.
+
+**This guide explains how to rename or move an encrypted object by re-uploading it under the new name (a client-side copy), then deleting the original.**
+
+:::warning
+This is a temporary workaround for a known upstream limitation in Ceph RGW (tracker [#23264](https://tracker.ceph.com/issues/23264)). A fix has been merged upstream but is not yet available in a stable release. This guide will be updated once the fix is available on the platform.
+:::
+
+## Requirements
+
+- An [Object Storage bucket](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) on SNC Cloud Platform
+- Access Keys (access key ID and secret key) for your Object Storage
+- One of the following S3 clients installed:
+  - **[Rclone](https://rclone.org/)** (recommended), or
+  - **AWS CLI** (`aws`)
+- If your objects use **SSE-C** (customer-provided keys): the customer encryption key used to encrypt the objects
+
+## Instructions
+
+The workaround forces the client to **download** the object (which decrypts it) and **re-upload** it under the new name (which re-encrypts it), instead of asking the gateway to copy it server-side.
+
+### Method 1 — Rclone (recommended)
+
+Rclone normally performs a server-side copy, which fails on encrypted objects. Adding `--disable copy` forces Rclone to stream the object through the client (download, then upload), which succeeds.
+
+1\. Configure your remote in `~/.config/rclone/rclone.conf`:
+
+```bash
+[snc-s3]
+type = s3
+provider = Ceph
+env_auth = false
+access_key_id = CEPH_ACCESS_KEY
+secret_access_key = CEPH_SECRET_KEY
+endpoint = https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/
+region = eu-west-rbx-snc
+acl = private
+force_path_style = true
+```
+
+:::info
+Objects encrypted with **SSE-S3** (the SNC default) do not need any extra configuration — the gateway handles the key transparently on download and upload.
+
+If your objects use **SSE-C** (your own key), also add the customer key to the `[snc-s3]` remote so Rclone can decrypt on download and re-encrypt on upload, by setting `sse_customer_algorithm = AES256` and `sse_customer_key = YOUR_SSE_C_KEY`.
+:::
+
+2\. Rename a single object (same bucket, new name):
+
+```bash
+rclone moveto snc-s3:my-bucket/old-name.txt snc-s3:my-bucket/new-name.txt --disable copy
+```
+
+To move an object into a different prefix ("folder") or a different bucket, use the destination path you want, for example:
+
+```bash
+rclone moveto snc-s3:my-bucket/report.txt snc-s3:my-bucket/archive/2026/report.txt --disable copy
+```
+
+3\. Move many objects at once (a whole prefix):
+
+```bash
+rclone move snc-s3:my-bucket/inbox/ snc-s3:my-bucket/archive/ --disable copy --progress
+```
+
+:::info
+`--disable copy` is what makes this work on encrypted objects: it tells Rclone not to use the (unsupported) server-side copy and to transfer the data through your client instead. For large objects, this consumes bandwidth and time proportional to the object size.
+:::
+
+### Method 2 — AWS CLI
+
+The same principle applies: download, re-upload under the new name, then delete the original.
+
+1\. Download the object (this decrypts it):
+
+```bash
+aws --endpoint-url https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/ \
+  s3 cp s3://my-bucket/old-name.txt ./old-name.txt
+```
+
+2\. Re-upload it under the new name (this re-encrypts it):
+
+```bash
+aws --endpoint-url https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/ \
+  s3 cp ./old-name.txt s3://my-bucket/new-name.txt
+```
+
+3\. Delete the original object:
+
+```bash
+aws --endpoint-url https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/ \
+  s3 rm s3://my-bucket/old-name.txt
+```
+
+:::info
+For **SSE-S3** objects (the SNC default) no extra flags are needed — the platform encrypts the re-uploaded object automatically. For **SSE-C** objects, add your customer key to both the download and the upload commands, for example `--sse-c AES256 --sse-c-key fileb://sse-c.key` on the `cp` commands.
+:::
+
+:::warning
+Re-uploading creates a **new object**. Object metadata that is not carried by your client — such as custom ACLs, tags, or user metadata — may need to be re-applied. Verify the new object before deleting the original, especially for important data. If [object versioning](/guides/storage-and-backup/object-storage/s3-versioning) is enabled, the delete creates a delete marker rather than removing the data.
+:::
+
+## Go further
+
+For training or technical assistance implementing our solutions, contact your sales representative or visit our [Professional Services](/links/professional-services) page to request a quote and have your project analysed by our experts.
+
+Join our [community of users](/links/community).
+
+<sup>1</sup>: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.

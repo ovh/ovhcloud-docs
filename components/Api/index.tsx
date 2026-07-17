@@ -12,8 +12,8 @@ import { useRegion } from './RegionContext';
 import './index.css';
 
 const REGIONS = {
-  eu: { flag: '🇪🇺', label: 'EU', base: 'https://eu.api.ovh.com/console/' },
-  ca: { flag: '🇨🇦', label: 'CA', base: 'https://ca.api.ovh.com/console/' },
+  eu: { flag: '🇪🇺', label: 'EU', base: 'https://api.eu.ovhcloud.com/console/' },
+  ca: { flag: '🇨🇦', label: 'CA', base: 'https://api.ca.ovhcloud.com/console/' },
 } as const;
 
 type Region = keyof typeof REGIONS;

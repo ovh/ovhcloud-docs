@@ -282,8 +282,7 @@
             + [How to retrieve databases in rescue mode](bare-metal-cloud/dedicated-servers/restore-bdd-rescue)
             + [Network - Fixing slow downloads problems inside containers and VMs running on Proxmox VE servers with Broadcom BCM57502 NICs](bare-metal-cloud/dedicated-servers/proxmox-broadcom-slow-downloads)
             + [End of life for personal installation templates](bare-metal-cloud/dedicated-servers/end-of-life-for-personal-installation-templates)
-    + [Virtual Private Servers](products/bare-metal-cloud-virtual-private-servers)
-        + [Overview](bare-metal-cloud/virtual-private-servers/overview)
+    + [Virtual Private Servers](products/bare-metal-cloud-virtual-private-servers){landing=bare-metal-cloud/virtual-private-servers/landing-page-vps}
         + [Getting started](bare-metal-cloud-virtual-private-servers-getting-started)
             + [How to get started with a VPS](bare-metal-cloud/virtual-private-servers/starting-with-a-vps)
             + [How to manage a VPS from the OVHcloud Control Panel](bare-metal-cloud/virtual-private-servers/understand-vps-control-panel)
@@ -373,6 +372,7 @@
                 + [Deploy a Garrys Mod server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-garrys-mod)
                 + [Deploy a Hytale server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-hytale)
                 + [Deploy a Minecraft server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-minecraft)
+                + [Deploy a Palworld server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-palworld)
                 + [Deploy a Team Fortress 2 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-tf2)
                 + [Deploy a TeamSpeak 3 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-teamspeak-3)
                 + [Deploy a Valheim server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-valheim)
@@ -395,7 +395,6 @@
         + [Getting started](hosted-private-cloud-public-VCF-getting-started)
             + [Introduction to the Hosted Private Cloud Control Panel](hosted-private-cloud/powered-by-vmware/manager-ovh-private-cloud)
             + [Logging in to the vSphere interface](hosted-private-cloud/powered-by-vmware/vsphere-interface-connexion)
-            + [Connexion à l’API OVH](hosted-private-cloud/powered-by-vmware/connect-to-ovh-api)
             + [Public VCF as-a-Service - Logging in to your organization](hosted-private-cloud/powered-by-vmware/vcd-logging)
             + [Public VCF as-a-Service - How to use the Public VCF as-a-Service user interface](hosted-private-cloud/powered-by-vmware/vcd-getting-started-dashboard-overview)
         + [Configuration](hosted-private-cloud-public-VCF-configuration)
@@ -541,7 +540,6 @@
                 + [Using the secure interface](hosted-private-cloud/powered-by-vmware/interface-secure)
                 + [Using two-factor authentication (2FA) on your Private Cloud infrastructure](hosted-private-cloud/powered-by-vmware/use-2fa)
                 + [Authorising IP addresses for vCenter access](hosted-private-cloud/powered-by-vmware/authorise-ip-vcenter-access)
-                + [Utiliser le protocole SSLv3 sur Private Cloud](hosted-private-cloud/powered-by-vmware/use-sslv3-protocol)
             + [Compliance and SecNumCloud](hosted-private-cloud-managed-vmware-security-secnumcloud)
                 + [Responsibility sharing for the SecNumcloud-qualified VMware on OVHcloud service](hosted-private-cloud/powered-by-vmware/snc-responsibility-sharing)
                 + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
@@ -572,6 +570,7 @@
             + [Mise en route de votre SNC Cloud Platform](hosted-private-cloud/cloud-platform/getting-started)
             + [Comment sauvegarder une instance SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance)
             + [Comment sauvegarder un bucket Object Storage SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-backup-object-storage-bucket)
+            + [How to rename or move an encrypted object in SNC Cloud Platform Object Storage](hosted-private-cloud/cloud-platform/snc-cloud-platform-rename-move-encrypted-object)
     + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
@@ -1882,6 +1881,7 @@
             + [What should I do if the page “Your IP has been banned” appears?](web-cloud/web-hosting/ip-has-been-banned-diagnosis)
             + [What should I do if the page “Your request has been blocked” appears?](web-cloud/web-hosting/request-has-been-blocked-diagnosis)
             + [Monitoring and managing automated emails in your Web Hosting plan](web-cloud/web-hosting/mail-function-script-records)
+            + [Web Hosting - Email sending best practices](web-cloud/web-hosting/email-sending-best-practices)
             + [How to react to abnormal activity detected on your web hosting](web-cloud/web-hosting/resolve-anomalous-activity)
             + [Tutorial - What do I do when my database is full?](web-cloud/web-hosting/sql-overquota-database)
             + [Troubleshooting recurring errors when using FTP software](web-cloud/web-hosting/ftp-recurring-ftp-problems)
@@ -1952,6 +1952,7 @@
             + [Retrieving email headers](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-headers){label=Email headers (.eml)}
             + [Managing the storage space for an email account](web-cloud/email-and-collaborative-solutions/troubleshooting/email-manage-quota){label=Mailbox storage}
             + [Restoring deleted items from your email account](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-retention){label=Restore deleted emails}
+            + [Email rejected for cross-domain spoofing (550 5.7.1)](web-cloud/email-and-collaborative-solutions/troubleshooting/email-rejected-cross-domain-spoofing){label=Rejected: cross-domain spoofing}
             + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365){label=Outlook sign-in prompts}
             + [Exchange - How to manage logs](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-manage-logs){label=Managing logs}
         + [MX Plan](products/web-cloud-email-collaborative-solutions-mx-plan){landing=web-cloud/email-and-collaborative-solutions/mx-plan/landing-page-mx-plan}
@@ -2496,7 +2497,7 @@
             + [Virtual Private Servers](network-additional-ip-products-vps)
                 + [Configuring IP aliasing](bare-metal-cloud/virtual-private-servers/configuring-ip-aliasing)
         + [Troubleshooting](network-additional-ip-troubleshooting)
-            + [How to delist blocklisted IP addresses](network/additional-ip/blocklist-ip-delist)
+            + [Delisting blocklisted IP addresses](network/additional-ip/blocklist-ip-delist)
             + [Cancelling an Additional IP service](network/additional-ip/additional-ip-cancellation)
     + [Bring Your Own IP](network-additional-ip-byoip)
         + [How to use the Bring Your Own IP feature](network/bring-your-own-ip/bring-your-own-ip)
@@ -2717,6 +2718,7 @@
     + [Key Management Service (KMS)](manage-operate-kms)
         + [Overview](manage-and-operate/kms/overview)
         + [Getting started with OVHcloud Key Management Service (KMS)](manage-and-operate/kms/quick-start)
+        + [OKMS authentication methods](manage-and-operate/kms/okms-authentication-methods)
         + [Using the OVHcloud Key Management Service (KMS) with your data](manage-and-operate/kms/kms-usage)
         + [Manage your OKMS access certificate](manage-and-operate/kms/okms-certificate-management)
         + [OKMS Architecture overview](manage-and-operate/kms/architecture-overview)
@@ -2726,6 +2728,7 @@
         + [Pushing logs from OVHcloud KMS to Logs Data Platform](manage-and-operate/kms/logs)
     + [Secret Manager](manage-operate-secret-manager)
         + [Getting started with Secret Manager](manage-and-operate/secret-manager/secret-manager-ui)
+        + [OKMS authentication methods](manage-and-operate/kms/okms-authentication-methods)
         + [Use Secret Manager with REST API](manage-and-operate/secret-manager/rest-api)
         + [Use Secret Manager with Hashicorp Vault KV2 compliant API](manage-and-operate/secret-manager/kv2-api)
         + [Manage your OKMS access certificate](manage-and-operate/kms/okms-certificate-management)
