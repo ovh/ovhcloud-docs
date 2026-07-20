@@ -53,6 +53,7 @@
         + [Managing services](account-and-service-management-managing-billing-payments-and-services-managing-services)
             + [Best practices for managing your OVHcloud services and account](account-and-service-management/managing-billing-payments-and-services/best-practices)
             + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
+            + [Managing commitments in the OVHcloud Control Panel](account-and-service-management/managing-billing-payments-and-services/manage-commitments)
         + [Invoices, billing and payments](products/account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments)
             + [Managing OVHcloud orders](account-and-service-management/managing-billing-payments-and-services/ovh-orders)
             + [Managing payment methods](account-and-service-management/managing-billing-payments-and-services/manage-payment-methods)
