@@ -1,12 +1,19 @@
 import { useI18n } from '@rspress/core/runtime';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRegion } from './RegionContext';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { regionsForPath } from './productRegions';
+import { useRegion } from './RegionContext';
 import './index.css';
 
 const REGIONS = {
-  eu: { flag: '🇪🇺', label: 'EU', base: 'https://eu.api.ovh.com/console/' },
-  ca: { flag: '🇨🇦', label: 'CA', base: 'https://ca.api.ovh.com/console/' },
+  eu: { flag: '🇪🇺', label: 'EU', base: 'https://api.eu.ovhcloud.com/console/' },
+  ca: { flag: '🇨🇦', label: 'CA', base: 'https://api.ca.ovhcloud.com/console/' },
 } as const;
 
 type Region = keyof typeof REGIONS;
@@ -42,17 +49,49 @@ export default function Api({
 
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Close on outside click
+  // Position the menu relative to the trigger (viewport coords for `fixed`).
+  // The menu is portaled to <body> so it escapes the `contain: content` paint
+  // clipping that Rspress applies to `.rp-tabs` — without this, an <Api> block
+  // near the bottom of a tab would render its dropdown into the clipped area.
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 6, left: rect.left });
+  }, [open]);
+
+  // Close on outside click (menu is portaled, so it's not inside the wrapper)
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (
+        !triggerRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  // Close on scroll/resize — simpler than tracking the trigger's position
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
   }, [open]);
 
   // Keyboard navigation
@@ -107,12 +146,66 @@ export default function Api({
     setOpen(false);
   };
 
+  const menu = open && coords && (
+    <div
+      ref={menuRef}
+      className="ovh-api-dropdown__menu ovh-api-dropdown__menu--portal"
+      role="listbox"
+      aria-label={t('api.regionTooltipTitle')}
+      style={{ top: coords.top, left: coords.left }}
+    >
+      <p className="ovh-api-dropdown__title">{t('api.regionTooltipTitle')}</p>
+      {regions.map((r, i) => {
+        const isSelected = r === region;
+        const descKey = `api.regionTooltip${r.toUpperCase()}` as const;
+        const desc = t(descKey);
+
+        return (
+          <button
+            key={r}
+            ref={(el) => {
+              optionRefs.current[i] = el;
+            }}
+            type="button"
+            role="option"
+            aria-selected={isSelected}
+            className={`ovh-api-dropdown__option${isSelected ? ' ovh-api-dropdown__option--selected' : ''}`}
+            onClick={() => selectRegion(r)}
+            onKeyDown={handleKeyDown}
+            tabIndex={-1}
+          >
+            <span className="ovh-api-dropdown__option-header">
+              <span className="ovh-api-dropdown__option-flag">
+                {REGIONS[r].flag}
+              </span>
+              <span className="ovh-api-dropdown__option-label">
+                {REGIONS[r].label}
+              </span>
+              {isSelected && (
+                <span className="ovh-api-dropdown__check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
+            </span>
+            {desc && desc !== descKey && (
+              <span className="ovh-api-dropdown__option-desc">{desc}</span>
+            )}
+            <span className="ovh-api-dropdown__option-url">
+              {REGIONS[r].base.replace('https://', '').replace('/console/', '')}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="ovh-api-main">
       {regions.length > 1 && (
-        <div className="ovh-api-dropdown" ref={wrapperRef}>
+        <div className="ovh-api-dropdown">
           <button
             type="button"
+            ref={triggerRef}
             className="ovh-api-dropdown__trigger"
             onClick={() => setOpen(!open)}
             onKeyDown={handleKeyDown}
@@ -133,66 +226,7 @@ export default function Api({
               ▾
             </span>
           </button>
-
-          {open && (
-            <div
-              className="ovh-api-dropdown__menu"
-              role="listbox"
-              aria-label={t('api.regionTooltipTitle')}
-            >
-              <p className="ovh-api-dropdown__title">
-                {t('api.regionTooltipTitle')}
-              </p>
-              {regions.map((r, i) => {
-                const isSelected = r === region;
-                const descKey = `api.regionTooltip${r.toUpperCase()}` as const;
-                const desc = t(descKey);
-
-                return (
-                  <button
-                    key={r}
-                    ref={(el) => {
-                      optionRefs.current[i] = el;
-                    }}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    className={`ovh-api-dropdown__option${isSelected ? ' ovh-api-dropdown__option--selected' : ''}`}
-                    onClick={() => selectRegion(r)}
-                    onKeyDown={handleKeyDown}
-                    tabIndex={-1}
-                  >
-                    <span className="ovh-api-dropdown__option-header">
-                      <span className="ovh-api-dropdown__option-flag">
-                        {REGIONS[r].flag}
-                      </span>
-                      <span className="ovh-api-dropdown__option-label">
-                        {REGIONS[r].label}
-                      </span>
-                      {isSelected && (
-                        <span
-                          className="ovh-api-dropdown__check"
-                          aria-hidden="true"
-                        >
-                          ✓
-                        </span>
-                      )}
-                    </span>
-                    {desc && desc !== descKey && (
-                      <span className="ovh-api-dropdown__option-desc">
-                        {desc}
-                      </span>
-                    )}
-                    <span className="ovh-api-dropdown__option-url">
-                      {REGIONS[r].base
-                        .replace('https://', '')
-                        .replace('/console/', '')}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {menu && createPortal(menu, document.body)}
         </div>
       )}
       <a target="_blank" href={href} rel="noopener noreferrer">

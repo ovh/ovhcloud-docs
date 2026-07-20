@@ -300,12 +300,15 @@ if (robotsSrc) {
     `   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`,
   );
 } else {
-  // Create default robots.txt
+  // Create default robots.txt (kept in sync with docs/public/robots.txt)
   const defaultRobots = `User-agent: *
 Allow: /
 
 Sitemap: ${SITE_URL}/sitemap.xml
 Sitemap: ${SITE_URL}/sitemap-help.xml
+
+# AI/LLM index (per-page raw Markdown available at <url>.md):
+# ${SITE_URL}/llms.txt
 `;
   fs.writeFileSync(robotsDst, defaultRobots);
   console.log('   ✓ Created default robots.txt');
@@ -327,6 +330,38 @@ if (helpSitemapSrc) {
     `   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`,
   );
 }
+console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
+
+// ============================================================================
+// 4.5 ROOT llms.txt (AI/LLM discovery entry point)
+// ============================================================================
+// Rspress (`llms: true`) emits a full per-locale index at /<locale>/llms.txt
+// (+ llms-full.txt). There is no root /llms.txt, which is the conventional
+// discovery path an AI agent probes first. Write a small root index pointing
+// at each built locale's llms.txt so agents can fan out from a single guessable
+// URL. We link, not concatenate — the per-locale files already hold the corpus.
+console.log('\n4.5️⃣ Generating root llms.txt...');
+sectionStart = Date.now();
+
+const llmsLines = [
+  '# OVHcloud Documentation',
+  '',
+  '> Product documentation for OVHcloud services. Every guide is also available',
+  '> as raw Markdown by appending `.md` to its URL (Content-Type: text/markdown),',
+  '> and each rendered page advertises that URL via',
+  '> `<link rel="alternate" type="text/markdown">` in its `<head>`.',
+  '',
+  '## Per-language indexes',
+  '',
+];
+for (const locale of builtLocales) {
+  llmsLines.push(`- [${locale}](${SITE_URL}/${locale}/llms.txt)`);
+}
+llmsLines.push('');
+fs.writeFileSync(path.join(DIST_DIR, 'llms.txt'), `${llmsLines.join('\n')}`);
+console.log(
+  `   ✓ llms.txt (root index → ${builtLocales.length} per-locale llms.txt)`,
+);
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
 // ============================================================================

@@ -1,1 +1,1 @@
-export { default, CategoryColumns } from './CategoryColumns';
+export { CategoryColumns, default } from './CategoryColumns';

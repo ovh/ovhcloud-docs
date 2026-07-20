@@ -1,0 +1,309 @@
+---
+title: Méthodes d'authentification OKMS
+description: Découvrez comment configurer des jetons d'accès personnels, des comptes de service ou des certificats d'accès pour vous authentifier sur l'API REST régionale de votre domaine OKMS
+lastUpdated: 2026-07-16
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objectif
+
+Ce guide explique comment s'authentifier sur le **plan de données OKMS** — l'API REST régionale exposée sur votre domaine OKMS (par exemple `https://eu-west-rbx.okms.ovh.net`). Cette API est partagée par le **Key Management Service (KMS)** et le **Secret Manager**.
+
+Trois méthodes d'authentification sont disponibles pour l'API REST. Les intégrations **KMIP** ne prennent en charge que les **certificats d'accès** — nous recommandons de réserver les certificats aux cas d'usage KMIP, car leur configuration est plus complexe que celle des jetons.
+
+## Prérequis
+
+- Disposer d'un [compte client OVHcloud](/guides/account-and-service-management/account-information/ovhcloud-account-creation).
+- Disposer d'un [domaine OKMS](/guides/manage-and-operate/kms/quick-start) dans la région cible (créé lors de la commande d'un KMS ou de l'activation du Secret Manager dans cette région).
+
+## En pratique
+
+### Comprendre le plan de données OKMS
+
+Le plan de données OKMS est le point d'accès API régional pour les opérations cryptographiques (KMS) et le stockage de secrets (Secret Manager). Il est distinct du [plan de contrôle](/guides/manage-and-operate/api/apiv2) centralisé de l'API OVHcloud (`/v2/okms/...`), qui gère le provisionnement et la configuration des domaines OKMS.
+
+| Couche | Exemple de point d'accès | Usage |
+| --- | --- | --- |
+| **Plan de données (régional)** | `https://eu-west-rbx.okms.ovh.net` | Chiffrer, signer, gérer les clés et les secrets sur le domaine |
+| **Plan de contrôle (API OVHcloud)** | `https://eu.api.ovh.com/v2/okms/...` | Commander des domaines, gérer les identifiants, configurer la journalisation |
+
+Vous pouvez interagir avec le plan de données via l'interface Swagger unifiée à l'adresse `https://<region>.okms.ovh.net/swagger/`, la [CLI OKMS](https://github.com/ovh/okms-cli) ou le [SDK Go](https://pkg.go.dev/github.com/ovh/okms-sdk-go).
+
+### Choisir votre méthode d'authentification
+
+| Méthode | Idéal pour | API REST | KMIP |
+| --- | --- | --- | --- |
+| **Jeton d'accès personnel (PAT)** | Scripts et automatisation agissant au nom d'un [utilisateur local](/guides/account-and-service-management/account-information/ovhcloud-users-management) | Pris en charge | Non pris en charge |
+| **Compte de service** | Intégrations machine à machine | Pris en charge | Non pris en charge |
+| **Certificat d'accès** | Produits compatibles KMIP, clients mTLS, Swagger dans le navigateur avec certificats client | Pris en charge | **Obligatoire** |
+
+:::tip
+Pour l'accès à l'API REST, privilégiez un **jeton d'accès personnel (PAT)** ou un **compte de service**. Réservez les certificats d'accès aux cas d'usage **KMIP** ou aux clients basés sur mTLS.
+:::
+
+### Configurer l'authentification <a name="set-up-authentication"></a>
+
+<Tabs>
+  <Tab label="Jeton d'accès personnel (PAT)">
+    #### Étape 1 — Créer un utilisateur local
+
+    Si vous n'en disposez pas encore, créez un [utilisateur local OVHcloud](/guides/account-and-service-management/account-information/ovhcloud-users-management).
+
+    #### Étape 2 — Créer un PAT
+
+    Créez un [jeton d'accès personnel (PAT)](/guides/manage-and-operate/iam/configure-personal-access-token-pat) sur l'utilisateur local.
+
+    #### Étape 3 — Créer une politique IAM
+
+    Créez une [politique IAM](/guides/account-and-service-management/account-information/iam-policy-ui) qui accorde à l'utilisateur local les actions OKMS requises sur votre domaine. Consultez [Droits IAM pour OKMS](#iam-rights-for-okms) ci-dessous.
+
+    #### Utiliser le PAT sur le plan de données
+
+    Envoyez le PAT en tant que jeton Bearer :
+
+    ```bash
+    curl -H "Authorization: Bearer <your_pat>" \
+      https://eu-west-rbx.okms.ovh.net/v1/servicekey
+    ```
+
+    Dans l'[interface Swagger](#use-the-okms-swagger-ui), utilisez le schéma **personalAccessToken** dans la boîte de dialogue <code className="action">Authorize</code>.
+
+    Si le point d'accès régional n'accepte pas directement le schéma Bearer, utilisez l'authentification hybride avec le préfixe `pat_jwt_` comme décrit dans le [guide PAT](/guides/manage-and-operate/iam/configure-personal-access-token-pat).
+  </Tab>
+  <Tab label="Compte de service">
+    #### Étape 1 — Créer un compte de service
+
+    Si vous n'en disposez pas encore, créez un [compte de service OVHcloud](/guides/manage-and-operate/api/manage-service-account).
+
+    #### Étape 2 — Créer une politique IAM
+
+    Créez une [politique IAM](/guides/account-and-service-management/account-information/iam-policy-ui) qui accorde au compte de service les actions OKMS requises sur votre domaine. Consultez [Droits IAM pour OKMS](#iam-rights-for-okms) ci-dessous.
+
+    #### Utiliser le compte de service sur le plan de données
+
+    Obtenez un jeton d'accès OAuth2 via le flux client-credentials comme décrit dans [Comment utiliser des comptes de service pour se connecter aux API OVHcloud](/guides/account-and-service-management/account-information/authenticate-api-with-service-account), puis transmettez-le en tant que jeton Bearer :
+
+    ```bash
+    curl -H "Authorization: Bearer <access_token>" \
+      https://eu-west-rbx.okms.ovh.net/v1/servicekey
+    ```
+
+    Dans l'[interface Swagger](#use-the-okms-swagger-ui), utilisez le schéma **oAuth2ClientCredentials** dans la boîte de dialogue <code className="action">Authorize</code>.
+  </Tab>
+  <Tab label="Certificat d'accès">
+    #### Étape 1 (facultative) — Créer une identité
+
+    Si vous n'en disposez pas encore, créez une identité OVHcloud (utilisateur local, groupe d'utilisateurs ou compte de service). Consultez [Présentation des identités](/guides/manage-and-operate/iam/identities-management).
+
+    #### Étape 2 — Créer un certificat OKMS
+
+    Créez un certificat d'accès OKMS avec au moins une identité associée. Consultez [Générer un certificat d'accès OKMS](/guides/manage-and-operate/kms/okms-certificate-management).
+
+    #### Étape 3 — Créer une politique IAM
+
+    Créez une [politique IAM](/guides/account-and-service-management/account-information/iam-policy-ui) qui accorde aux identités liées au certificat l'accès à votre domaine OKMS.
+
+    - Pour l'accès à l'**API REST**, utilisez les actions `okms:apiovh:*` listées ci-dessous.
+    - Pour l'accès **KMIP**, accordez les actions `okms:kmip:*` documentées dans [Droits IAM KMIP](/guides/manage-and-operate/kms/kms-kmip#iam-rights).
+
+    #### Utiliser le certificat sur le plan de données
+
+    Présentez le certificat client via TLS (mTLS). Pour un accès Swagger depuis le navigateur, consultez [Utiliser l'interface Swagger OKMS](#use-the-okms-swagger-ui) ci-dessous.
+  </Tab>
+</Tabs>
+
+### Utiliser l'interface Swagger OKMS <a name="use-the-okms-swagger-ui"></a>
+
+Le domaine OKMS expose une interface Swagger unifiée à l'adresse `https://<region>.okms.ovh.net/swagger/`. Par exemple, pour un domaine en **eu-west-rbx** : [https://eu-west-rbx.okms.ovh.net/swagger/](https://eu-west-rbx.okms.ovh.net/swagger/).
+
+Vous pouvez aussi l'ouvrir depuis le lien Swagger du <ManagerLink to="/#/okms/key-management-service">tableau de bord de votre domaine OKMS</ManagerLink>.
+
+L'interface Swagger prend en charge les trois méthodes d'authentification de l'API REST. Effectuez les [étapes de configuration](#set-up-authentication) pour la méthode choisie, y compris la [politique IAM](#iam-rights-for-okms) requise, avant d'exécuter des requêtes.
+
+#### Jeton d'accès personnel (PAT)
+
+1. Cliquez sur le bouton <code className="action">Authorize</code> (icône cadenas) dans l'interface Swagger.
+2. Sous **personalAccessToken** (HTTP Bearer, format JWT), collez le PAT que vous avez créé pour votre utilisateur local.
+3. Cliquez sur <code className="action">Authorize</code>, puis sur <code className="action">Close</code>.
+
+Swagger envoie votre jeton dans un en-tête `Authorization: Bearer <token>` pour chaque requête que vous exécutez.
+
+#### Compte de service
+
+1. Cliquez sur le bouton <code className="action">Authorize</code> dans l'interface Swagger.
+2. Sous **oAuth2ClientCredentials**, saisissez le `client_id` et le `client_secret` de votre compte de service. Consultez [Comment utiliser des comptes de service pour se connecter aux API OVHcloud](/guides/account-and-service-management/account-information/authenticate-api-with-service-account) pour obtenir ces identifiants.
+3. Swagger obtient un jeton d'accès OAuth2 via le flux client-credentials et l'ajoute aux requêtes suivantes.
+
+#### Certificat d'accès
+
+L'authentification par certificat d'accès utilise TLS mutuel (mTLS) au niveau du transport. Le certificat est présenté par votre navigateur lors de la connexion à l'URL Swagger — il ne se configure pas via la boîte de dialogue <code className="action">Authorize</code>.
+
+##### Importer votre certificat dans le navigateur
+
+Convertissez votre certificat OKMS et votre clé privée au format PKCS#12 (en supposant des fichiers nommés `ID_certificate.pem` et `ID_privatekey.pem`) :
+
+```bash
+openssl pkcs12 -export -in ID_certificate.pem -inkey ID_privatekey.pem -out client.p12
+```
+
+Vous serez invité à définir un mot de passe pour le fichier chiffré. Importez `client.p12` dans votre navigateur :
+
+**Sur Firefox**
+
+- Tapez `about:preferences#privacy` dans la barre d'adresse.
+- Faites défiler jusqu'à la section <code className="action">Certificats</code>.
+
+<img className="thumbnail" alt="Paramètres du gestionnaire de certificats Firefox" src="/images/manage-and-operate/kms/kms-usage/firefox-cert-manager.png" loading="lazy" />
+
+- Cliquez sur <code className="action">Afficher les certificats...</code>, ouvrez l'onglet <code className="action">Vos certificats</code>, puis <code className="action">Importer...</code> et sélectionnez votre fichier `client.p12`.
+- Saisissez le mot de passe PKCS#12 lorsque vous y êtes invité.
+
+**Sur Chrome/Chromium**
+
+- Tapez `chrome://settings/certificates` dans la barre d'adresse.
+- Ouvrez l'onglet <code className="action">Vos certificats</code>, cliquez sur <code className="action">Importer</code> et sélectionnez votre fichier `client.p12`.
+- Saisissez le mot de passe PKCS#12 lorsque vous y êtes invité.
+
+<img className="thumbnail" alt="Gestionnaire de certificats Chromium" src="/images/manage-and-operate/kms/kms-usage/chromium-cert-manager.png" loading="lazy" />
+
+##### Accéder à Swagger avec votre certificat
+
+Ouvrez `https://<region>.okms.ovh.net/swagger/` dans votre navigateur. Vous serez invité à sélectionner le certificat importé :
+
+<img className="thumbnail" alt="Invite d'identification par certificat dans le navigateur" src="/images/manage-and-operate/kms/kms-usage/firefox-identify-with-certificate.png" loading="lazy" />
+
+Vous pouvez maintenant exécuter des appels API de manière interactive depuis l'interface Swagger.
+
+### Droits IAM pour OKMS <a name="iam-rights-for-okms"></a>
+
+Les actions IAM OKMS suivent le modèle `okms:<channel>:<resource>/<operation>` :
+
+| Canal | Périmètre | Utilisé pour |
+| --- | --- | --- |
+| `okms:apiovh` | Plan de contrôle et plan de données REST API | Clés KMS, secrets, certificats, configuration du domaine |
+| `okms:apikms` | Plan de données REST API régional | Appels API régionaux directs (certaines intégrations utilisent à la fois les actions `apiovh` et `apikms`) |
+| `okms:kmip` | Protocole KMIP | Intégrations de produits compatibles KMIP — voir la [documentation dédiée](/guides/manage-and-operate/kms/kms-kmip#iam-rights) |
+
+#### Actions `okms:apiovh` courantes
+
+| Action | Description |
+| --- | --- |
+| `okms:apiovh:serviceKey/get` | Lister ou récupérer des clés de chiffrement |
+| `okms:apiovh:serviceKey/create` | Créer ou importer une clé |
+| `okms:apiovh:serviceKey/update` | Mettre à jour les métadonnées d'une clé |
+| `okms:apiovh:serviceKey/delete` | Supprimer une clé |
+| `okms:apiovh:serviceKey/activate` | Activer une clé |
+| `okms:apiovh:serviceKey/deactivate` | Désactiver une clé |
+| `okms:apiovh:serviceKey/encrypt` | Chiffrer des données avec une clé |
+| `okms:apiovh:serviceKey/decrypt` | Déchiffrer des données avec une clé |
+| `okms:apiovh:serviceKey/sign` | Signer des données avec une clé |
+| `okms:apiovh:serviceKey/verify` | Vérifier une signature |
+| `okms:apiovh:serviceKey/datakey` | Générer une clé de données |
+| `okms:apiovh:serviceKey/datakeyDecrypt` | Déchiffrer une clé de données |
+| `okms:apiovh:secret/get` | Lister les secrets et leurs métadonnées |
+| `okms:apiovh:secret/create` | Créer un secret |
+| `okms:apiovh:secret/update` | Mettre à jour les métadonnées d'un secret |
+| `okms:apiovh:secret/delete` | Supprimer un secret |
+| `okms:apiovh:secret/version/getData` | Lire le contenu d'une version de secret |
+| `okms:apiovh:credential/get` | Lister les certificats d'accès |
+| `okms:apiovh:credential/create` | Créer un certificat d'accès |
+| `okms:apiovh:credential/delete` | Supprimer un certificat d'accès |
+| `okms:apiovh:secretConfig/get` | Lire la configuration par défaut du Secret Manager |
+| `okms:apiovh:secretConfig/update` | Mettre à jour la configuration par défaut du Secret Manager |
+
+:::info
+Lister une version de secret (`okms:apiovh:secret/get`) est distinct de la lecture de son contenu (`okms:apiovh:secret/version/getData`). Accordez les deux lorsque l'identité doit lire les valeurs des secrets.
+:::
+
+Parcourez la liste complète des actions dans la <ApiLink>console API OVHcloud</ApiLink> sous le type de produit **Key Management System (KMS)**, ou dans les [politiques IAM](/guides/account-and-service-management/account-information/iam-policy-ui) lors de la création d'une politique.
+
+#### Modèles de politiques IAM suggérés
+
+Appliquez ces modèles à la ressource de votre domaine OKMS (`urn:v1:<region>:resource:okms:<okmsId>`). Remplacez `<identity_urn>` et `<okms_urn>` par vos valeurs. Créez les politiques via l'[espace client](/guides/account-and-service-management/account-information/iam-policy-ui) ou l'[API IAM](/guides/account-and-service-management/account-information/iam-policies-api).
+
+**Administration complète** — contrôle total du domaine OKMS via l'API REST :
+
+```json
+{
+  "name": "okms-full-admin",
+  "description": "Full administrative access to an OKMS domain",
+  "identities": ["<identity_urn>"],
+  "resources": [{ "urn": "<okms_urn>" }],
+  "action": ["okms:apiovh:*"]
+}
+```
+
+**Lecture seule** — lister et inspecter les ressources sans opérations d'écriture ou cryptographiques :
+
+```json
+{
+  "name": "okms-read-only",
+  "description": "Read-only access to an OKMS domain",
+  "identities": ["<identity_urn>"],
+  "resources": [{ "urn": "<okms_urn>" }],
+  "action": [
+    "okms:apiovh:serviceKey/get",
+    "okms:apiovh:secret/get",
+    "okms:apiovh:credential/get",
+    "okms:apiovh:secretConfig/get",
+    "okms:apiovh:log/get"
+  ]
+}
+```
+
+Ajoutez `okms:apiovh:secret/version/getData` si l'identité doit lire les valeurs des secrets.
+
+**Opérations cryptographiques uniquement** — utiliser les clés pour chiffrer, déchiffrer, signer et vérifier sans gérer les clés ou les secrets :
+
+```json
+{
+  "name": "okms-crypto-only",
+  "description": "Cryptographic operations on an OKMS domain",
+  "identities": ["<identity_urn>"],
+  "resources": [{ "urn": "<okms_urn>" }],
+  "action": [
+    "okms:apiovh:serviceKey/get",
+    "okms:apiovh:serviceKey/encrypt",
+    "okms:apiovh:serviceKey/decrypt",
+    "okms:apiovh:serviceKey/sign",
+    "okms:apiovh:serviceKey/verify",
+    "okms:apiovh:serviceKey/datakey",
+    "okms:apiovh:serviceKey/datakeyDecrypt"
+  ]
+}
+```
+
+**Accès aux secrets uniquement** — lire les secrets du Secret Manager sans accès aux clés KMS, aux certificats ou à la configuration du domaine :
+
+```json
+{
+  "name": "okms-secret-access-only",
+  "description": "Read-only access to Secret Manager secrets on an OKMS domain",
+  "identities": ["<identity_urn>"],
+  "resources": [{ "urn": "<okms_urn>" }],
+  "action": [
+    "okms:apiovh:secret/get",
+    "okms:apiovh:secret/version/getData",
+    "okms:apikms:secret/version/getData"
+  ]
+}
+```
+
+Ajoutez `okms:apiovh:secret/create`, `okms:apiovh:secret/update` et `okms:apiovh:secret/delete` si l'identité doit gérer les secrets.
+
+:::warning
+Les opérations KMIP utilisent les actions `okms:kmip:*`, et non `okms:apiovh:*`. L'accès KMIP par certificat nécessite à la fois la création du certificat et les droits IAM KMIP du [guide KMIP](/guides/manage-and-operate/kms/kms-kmip#iam-rights).
+:::
+
+## Aller plus loin
+
+[Utiliser votre OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/kms-usage)
+
+[Utiliser le Secret Manager avec l'API REST](/guides/manage-and-operate/secret-manager/rest-api)
+
+[Comment connecter un produit compatible en utilisant le protocole KMIP](/guides/manage-and-operate/kms/kms-kmip)
+
+[Générer un certificat d'accès OKMS](/guides/manage-and-operate/kms/okms-certificate-management)
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
