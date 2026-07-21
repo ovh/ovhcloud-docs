@@ -80,7 +80,7 @@
         + [API](account-and-service-management-managing-billing-payments-and-services-api)
             + [Ordering Public Cloud projects using the OVHcloud API](account-and-service-management/managing-billing-payments-and-services/order-project-api)
     + [FinOps](products/account-and-service-management-finops)
-        + [Export billing data to a bucket](account-and-service-management/finops/export-billing-data-to-bucket)
+        + [Exporting billing data to a bucket](account-and-service-management/finops/export-billing-data-to-bucket)
     + [Reversibility](products/account-and-service-management-reversibility)
         + [Reversibility policies](account-and-service-management-reversibility-reversibility-policies)
             + [Global Reversibility Policy](account-and-service-management/reversibility/global-reversibility-policy)
