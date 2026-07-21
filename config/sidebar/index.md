@@ -1690,8 +1690,7 @@
                 + [Configure the DNS of your Domain Name](web-cloud/domains/api-domain-dns)
             + [Migration](web-cloud-domains-api-migration)
                 + [Transfer a Domain Name](web-cloud/domains/api-domain-transfer)
-        + [Domain names](products/web-cloud-domains-domain-names)
-            + [Overview](web-cloud/domains/domain-names/overview)
+        + [Domain names](products/web-cloud-domains-domain-names){landing=web-cloud/domains/landing-page-domain-names}
             + [Getting started](web-cloud-domains-domain-names-getting-started)
                 + [FAQ Domain names and DNS](web-cloud/domains/faq-domain-dns)
                 + [How to create a subdomain](web-cloud/domains/domain-create-subdomains)

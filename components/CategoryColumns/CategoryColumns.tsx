@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
 import { useZone, type Zone } from '../Zone/ZoneContext';
 import './CategoryColumns.css';
@@ -16,6 +17,12 @@ interface CategoryItem {
 interface Category {
   title: string;
   items: CategoryItem[];
+  /**
+   * Optional decorative glyph shown before the heading text (e.g. a role icon).
+   * Purely visual — rendered inside an aria-hidden wrapper. Omit for a plain
+   * text heading (the default for every existing usage).
+   */
+  icon?: ReactNode;
   /**
    * Number of grid rows this category spans (default 1). Set to 2 on a long
    * category so its heading aligns with the short category next to it while
@@ -75,7 +82,17 @@ export function CategoryColumns({ categories }: CategoryColumnsProps) {
           }
         >
           {cat.title ? (
-            <h3 className="rp-category-columns__heading">{cat.title}</h3>
+            <h3 className="rp-category-columns__heading">
+              {cat.icon ? (
+                <span
+                  className="rp-category-columns__heading-icon"
+                  aria-hidden="true"
+                >
+                  {cat.icon}
+                </span>
+              ) : null}
+              {cat.title}
+            </h3>
           ) : (
             <div
               className="rp-category-columns__heading rp-category-columns__heading--spacer"
