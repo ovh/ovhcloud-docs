@@ -169,6 +169,83 @@ function useHashActivatesTab(rootRef: React.RefObject<HTMLDivElement | null>) {
 }
 
 /**
+ * Keep the clicked tab row fixed in place on tab switch.
+ *
+ * "Anchored" means the label row must not move at all: it stays at the exact
+ * viewport position it had at click time, whatever that was (pinned under the
+ * nav, or mid-page). Because these tabs are synced, one click reflows every
+ * block on the page — blocks above the viewport change height and shove the
+ * clicked row. We neutralise that: capture the row's viewport top BEFORE the
+ * panel swaps, then restore it by the exact delta AFTER the swap.
+ *
+ * Timing is the whole game. The correction must land in the SAME click task,
+ * after React has committed the new panel but before the browser paints — a
+ * `requestAnimationFrame` alone is one step too late and lets the displaced
+ * frame paint (a visible flash of the tab titles). So we hang both listeners
+ * off `document`: capture-phase fires before React's delegated handler (read
+ * the old position), bubble-phase fires after it (React 18 flushes discrete
+ * events synchronously, so the DOM is already swapped) — we correct there,
+ * synchronously, pre-paint. We then repeat the correction once in a rAF: the
+ * synchronous `scrollTo` itself re-clamps the sticky row and reflows the synced
+ * blocks, leaving a one-frame residual that this convergence pass absorbs.
+ *
+ * Gated on {@link tabsBlockHasHeadingAnchors} like the other hooks: per-step/
+ * anchor blocks drive their own hash-scroll and are left alone.
+ */
+function useKeepTabAnchored(rootRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof window === 'undefined') {
+      return;
+    }
+    if (tabsBlockHasHeadingAnchors(root)) {
+      return;
+    }
+
+    const labelTop = () =>
+      root.querySelector<HTMLElement>('.rp-tabs__label')?.getBoundingClientRect()
+        .top ?? null;
+    let before: number | null = null;
+
+    // Capture phase (before React swaps): remember the row's viewport position.
+    const onCapture = (e: MouseEvent) => {
+      const item = (e.target as HTMLElement | null)?.closest(
+        '.rp-tabs__label__item',
+      );
+      before = item && root.contains(item) ? labelTop() : null;
+    };
+
+    // Scroll so the row returns to its remembered viewport position.
+    const align = (anchor: number) => {
+      const delta = (labelTop() ?? anchor) - anchor;
+      if (Math.abs(delta) > 1) {
+        window.scrollTo({ top: window.scrollY + delta, behavior: 'auto' });
+      }
+    };
+
+    // Bubble phase at document (after React committed the swap, still pre-paint):
+    // align synchronously (no flash), then once more next frame to absorb the
+    // residual the scroll/sticky re-clamp leaves behind.
+    const onBubble = () => {
+      if (before == null) {
+        return;
+      }
+      const anchor = before;
+      before = null;
+      align(anchor);
+      requestAnimationFrame(() => align(anchor));
+    };
+
+    document.addEventListener('click', onCapture, true);
+    document.addEventListener('click', onBubble, false);
+    return () => {
+      document.removeEventListener('click', onCapture, true);
+      document.removeEventListener('click', onBubble, false);
+    };
+  }, [rootRef]);
+}
+
+/**
  * Keep tab-panel headings out of the right-side outline.
  *
  * Rspress builds the outline from the *visible* h2/h3/h4 in the DOM, so a
@@ -205,6 +282,7 @@ export function Tabs({ noSync, ...props }: TabsProps): ReactElement {
   const rootRef = useRef<HTMLDivElement | null>(null);
   useHashActivatesTab(rootRef);
   useExcludePanelHeadingsFromToc(rootRef);
+  useKeepTabAnchored(rootRef);
 
   // 1. Explicit opt-out → keep this block local (no sync, no persistence).
   if (noSync) {
