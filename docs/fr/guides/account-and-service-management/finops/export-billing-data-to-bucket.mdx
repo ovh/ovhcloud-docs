@@ -1,0 +1,279 @@
+---
+title: Exporter vos données de facturation vers un bucket
+description: Découvrez comment configurer un export quotidien de vos données de facturation — au format FOCUS — vers un bucket compatible S3 que vous possédez, via l'API OVHcloud
+lastUpdated: 2026-07-21
+---
+
+import Api from '@components/Api';
+
+## Objectif
+
+OVHcloud peut transmettre vos données de facturation, converties au standard ouvert **FOCUS**, vers un bucket de stockage objet compatible S3<sup>1</sup> que **vous** possédez. Une fois configuré, l'export s'exécute **automatiquement chaque jour** : aucun téléchargement manuel, aucun clic dans l'espace client — vos données arrivent dans votre bucket sous forme de fichier CSV, prêt pour vos outils FinOps.
+
+**Ce guide vous explique comment créer, suivre, modifier et supprimer cette configuration d'export via l'API OVHcloud.**
+
+:::info
+Cette page couvre uniquement la **configuration de l'export vers un bucket**. Elle ne traite pas de la lecture des colonnes exportées ni du standard FOCUS lui-même.
+:::
+
+## Prérequis
+
+- Disposer d'un compte OVHcloud actif avec des données de facturation.
+- Disposer d'un **jeton d'authentification API OVHcloud valide** ayant la permission d'appeler les routes `/finops`. Si besoin, consultez le guide « [Premiers pas avec les API OVHcloud](/guides/manage-and-operate/api/first-steps) » pour en créer un. Toutes les requêtes ci-dessous doivent être authentifiées ; les exemples présentent le jeton sous la forme `$OVH_API_TOKEN`.
+- Disposer d'un **bucket compatible S3** dans lequel vous pouvez écrire, ainsi que d'un couple d'identifiants pour celui-ci :
+    - une **clé d'accès** (access key) et une **clé secrète** (secret key),
+    - l'**hôte de l'endpoint** du bucket (un nom d'hôte **sans** schéma `http://` / `https://` / `s3://`, par exemple `s3.gra.io.cloud.ovh.net`) et sa **région**.
+
+:::warning
+Les connexions à votre bucket utilisent toujours le **HTTPS** — ne faites pas précéder l'endpoint d'un schéma. Consultez la section « [Erreurs fréquentes](#frequent-errors) ».
+:::
+
+:::info
+L'export fonctionne avec n'importe quel bucket compatible S3 — il n'est pas nécessaire qu'il s'agisse d'OVHcloud Object Storage. Vous fournissez l'endpoint, la région et les identifiants ; OVHcloud y écrit.
+:::
+
+## Fonctionnement de l'export
+
+La configuration est une **ressource déclarative**. Vous décrivez la *cible* souhaitée (votre bucket, l'heure quotidienne, la politique de fichier) et OVHcloud converge vers celle-ci :
+
+1. Vous **créez** la configuration avec les informations du bucket (`POST`).
+2. OVHcloud la **valide** en se connectant réellement à votre bucket et en vérifiant qu'il est accessible avec les identifiants que vous avez fournis.
+3. Lorsque la validation réussit, la ressource passe à l'état **`READY`** ; si OVHcloud ne parvient pas à joindre votre bucket, elle passe à **`ERROR`**.
+4. Chaque jour, à l'**heure que vous avez choisie**, OVHcloud régénère vos données pour le mois en cours et téléverse le fichier dans votre bucket.
+
+Comme la validation implique un véritable test de connexion, OVHcloud traite la création et les modifications de manière **asynchrone** : l'API répond immédiatement avec un statut `CREATING` (ou `UPDATING`), et vous **interrogez** (poll) la ressource jusqu'à ce qu'elle atteigne `READY`.
+
+Tous les exemples utilisent l'endpoint API européen d'OVHcloud `https://eu.api.ovh.com/v2`. Si votre compte est hébergé dans une autre région, utilisez l'endpoint API de votre région (par exemple `https://ca.api.ovh.com/v2` pour le Canada).
+
+## Étape 1 — Créer la configuration d'export
+
+Envoyez un `POST` à `/finops/bucketExport` avec la spécification de votre cible.
+
+<Api version="v2" section="/finops" method="POST" route={"/finops/bucketExport"} />
+
+:::tip
+**Vous préférez une interface graphique ?** La console API ci-dessus construit et signe la requête à votre place — les exemples `curl` ci-dessous montrent l'appel brut équivalent.
+:::
+
+```bash
+curl -X POST "https://eu.api.ovh.com/v2/finops/bucketExport" \
+  -H "Authorization: Bearer $OVH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetSpec": {
+      "exportHour": 6,
+      "filePolicy": "CREATE",
+      "bucketConfiguration": {
+        "accessKey": "MY_ACCESS_KEY",
+        "secretKey": "MY_SECRET_KEY",
+        "bucketName": "my-finops-export",
+        "endpointURL": "s3.gra.io.cloud.ovh.net",
+        "region": "gra",
+        "pathPrefix": "./"
+      }
+    }
+  }'
+```
+
+:::info
+Les valeurs `endpointURL` et `region` ci-dessus utilisent celles d'OVHcloud Object Storage à titre d'exemple. Remplacez-les par l'hôte de l'endpoint (sans schéma) et la région de votre propre fournisseur compatible S3.
+:::
+
+### Champs de `targetSpec`
+
+| Champ | Requis | Description |
+|-------|--------|-------------|
+| `exportHour` | **Oui** | Heure de la journée, `0`–`23` (UTC), à laquelle l'export quotidien s'exécute. |
+| `filePolicy` | Non | `CREATE` (par défaut) conserve un fichier par jour ; `REPLACE` conserve un seul fichier par mois, écrasé à chaque exécution. Voir [Disposition des fichiers](#file-layout-in-your-bucket). |
+| `bucketConfiguration.accessKey` | **Oui** | Clé d'accès de votre bucket. |
+| `bucketConfiguration.secretKey` | **Oui** | Clé secrète de votre bucket. |
+| `bucketConfiguration.bucketName` | Non | Nom du bucket cible. |
+| `bucketConfiguration.endpointURL` | Non | L'**hôte seul** de l'endpoint de votre bucket, sans aucun schéma (par exemple `s3.gra.io.cloud.ovh.net`, et **non** `https://s3.gra.io.cloud.ovh.net` ni `s3://s3.gra.io.cloud.ovh.net`). Les connexions utilisent toujours le HTTPS. |
+| `bucketConfiguration.region` | Non | Code de région / d'emplacement de votre bucket. |
+| `bucketConfiguration.pathPrefix` | Non | Préfixe ajouté devant chaque clé d'objet écrite. Utilisez `"./"` pour écrire à la racine du bucket (recommandé). |
+
+:::warning
+Votre **clé secrète est en écriture seule** : OVHcloud la chiffre à la réception et ne la **renvoie jamais**. Dans chaque réponse, le champ `secretKey` est masqué par `"***"`, tandis qu'OVHcloud renvoie la clé d'accès en clair.
+:::
+
+### La réponse
+
+L'API répond `201 Created` avec la ressource. Notez l'`id` (vous l'utiliserez pour suivre et gérer la configuration) et le `resourceStatus`, qui démarre à `CREATING` :
+
+```json
+{
+  "id": "f556df9c-a52e-4bc1-8895-e3589cbba0be",
+  "resourceStatus": "CREATING",
+  "checksum": "9b2c5d6e0f1a2b3c4d5e6f7a8b9c0d1e",
+  "targetSpec": {
+    "exportHour": 6,
+    "filePolicy": "CREATE",
+    "bucketConfiguration": {
+      "accessKey": "MY_ACCESS_KEY",
+      "secretKey": "***",
+      "bucketName": "my-finops-export",
+      "endpointURL": "s3.gra.io.cloud.ovh.net",
+      "region": "gra",
+      "pathPrefix": "./"
+    }
+  },
+  "currentState": { "...": "même structure que targetSpec" },
+  "currentTasks": [
+    {
+      "id": "5a1b...",
+      "type": "CREATE_BUCKET_EXPORT",
+      "status": "PENDING",
+      "link": "/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be"
+    }
+  ]
+}
+```
+
+## Étape 2 — Suivre le provisionnement jusqu'à ce qu'il soit prêt
+
+La création est asynchrone. Interrogez la ressource par son `id` jusqu'à ce que `resourceStatus` ne soit plus `CREATING` :
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport/\{id\}"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+- **`READY`** — OVHcloud a joint votre bucket et la configuration est active. La prochaine exécution quotidienne téléversera vos données.
+- **`ERROR`** — la validation a échoué (le plus souvent, OVHcloud n'a pas pu joindre votre bucket avec les identifiants que vous avez fournis). Consultez la section « [Erreurs fréquentes](#frequent-errors) ».
+
+### Inspecter le détail du provisionnement
+
+Deux sous-ressources en lecture seule vous permettent de voir exactement ce qui s'est passé.
+
+Listez les tâches (les unités de travail exécutées par OVHcloud, y compris celles terminées) :
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport/\{id\}/task"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be/task" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+Listez les événements du cycle de vie (une chronologie lisible) :
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport/\{id\}/event"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be/event" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+Une tâche comporte un tableau `errors` ; lorsqu'un test de connexion échoue, son message vous en indique la raison.
+
+## Étape 3 — Récupérer vos fichiers exportés
+
+Une fois la configuration en `READY`, OVHcloud téléverse un fichier CSV dans votre bucket **une fois par jour, à l'`exportHour` que vous avez définie (UTC)**.
+
+- **Contenu** : vos données de facturation converties au standard **FOCUS 1.3**, au format CSV.
+- **Fenêtre** : chaque exécution couvre le **mois calendaire en cours jusqu'à cet instant** (du 1er du mois à maintenant). Le fichier grossit donc au fil du mois à mesure qu'OVHcloud ingère de nouvelles données de facturation.
+
+### Disposition des fichiers dans votre bucket <a name="file-layout-in-your-bucket"></a>
+
+La clé d'objet dépend de votre `filePolicy` :
+
+| `filePolicy` | Clé d'objet | Comportement |
+|--------------|-------------|--------------|
+| `CREATE` (par défaut) | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/<DD>/focus.csv` | Un **nouveau fichier daté chaque jour** ; OVHcloud conserve les jours précédents. |
+| `REPLACE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/focus.csv` | Un **seul fichier par mois**, qu'OVHcloud écrase à chaque exécution. |
+
+Un `pathPrefix` égal à `"./"` écrit à la **racine du bucket** (aucun dossier supplémentaire). Par exemple, avec `pathPrefix: "./"` et la politique `CREATE` par défaut, vos données du 15 juin 2026 arrivent à :
+
+```text
+<your-nichandle>/2026/06/15/focus.csv
+```
+
+## Gérer une configuration existante
+
+### La modifier <a name="update-it"></a>
+
+Envoyez un `PUT` à `/finops/bucketExport/{id}` avec le `targetSpec` **complet** souhaité (la nouvelle spécification remplace intégralement la précédente). Comme pour la création, OVHcloud valide la modification de manière asynchrone : la réponse revient avec le statut `UPDATING`, et vous interrogez la ressource jusqu'à `READY`.
+
+<Api version="v2" section="/finops" method="PUT" route={"/finops/bucketExport/\{id\}"} />
+
+```bash
+curl -X PUT "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be" \
+  -H "Authorization: Bearer $OVH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetSpec": {
+      "exportHour": 8,
+      "filePolicy": "CREATE",
+      "bucketConfiguration": {
+        "accessKey": "MY_ACCESS_KEY",
+        "secretKey": "MY_SECRET_KEY",
+        "bucketName": "my-finops-export",
+        "endpointURL": "s3.gra.io.cloud.ovh.net",
+        "region": "gra",
+        "pathPrefix": "./"
+      }
+    }
+  }'
+```
+
+:::info
+Pendant qu'OVHcloud valide une modification, la réponse conserve votre configuration **précédente** dans `currentState` et affiche la configuration **demandée** dans `targetSpec`. OVHcloud ne modifie pas votre export actif tant que la nouvelle configuration n'a pas atteint `READY`. Si la validation échoue, la ressource passe à `ERROR` et la configuration précédente reste en vigueur.
+:::
+
+### Lister vos configurations
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+La liste est paginée. Lorsque d'autres résultats sont disponibles, la réponse comporte un en-tête `X-Pagination-Cursor-Next` ; renvoyez-le dans l'en-tête `X-Pagination-Cursor` pour récupérer la page suivante.
+
+### La supprimer
+
+<Api version="v2" section="/finops" method="DELETE" route={"/finops/bucketExport/\{id\}"} />
+
+```bash
+curl -X DELETE "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+La suppression arrête l'export quotidien. OVHcloud ne supprime **pas** les fichiers déjà écrits dans votre bucket.
+
+## Référence : valeurs de statut de la ressource
+
+| Statut | Signification |
+|--------|---------------|
+| `CREATING` | OVHcloud a accepté la configuration et la valide. |
+| `UPDATING` | OVHcloud a accepté une modification et la valide. |
+| `READY` | La configuration est valide et active ; les exports quotidiens s'exécutent. |
+| `ERROR` | La dernière création ou modification a échoué à la validation (par exemple, bucket injoignable). |
+| `DELETING` | OVHcloud supprime la configuration. |
+
+## Erreurs fréquentes <a name="frequent-errors"></a>
+
+La plupart des échecs se manifestent par une ressource bloquée en **`ERROR`** après une création ou une modification, car OVHcloud valide la configuration en se connectant réellement à votre bucket. Commencez toujours par lire les `errors` de la tâche (Étape 2) — le message en indique la cause. Les plus courantes :
+
+| Symptôme | Cause probable | Comment corriger |
+|----------|----------------|------------------|
+| Le statut passe à `ERROR` juste après la création/modification | **Un schéma dans `endpointURL`** — la valeur contient `http://`, `https://` ou `s3://`. Le endpoint doit être un **hôte nu** (par exemple `s3.gra.io.cloud.ovh.net`) ; tout schéma fait échouer la connexion. | Retirez le schéma et ne conservez que l'hôte. Les connexions utilisent toujours le HTTPS. |
+| Le statut passe à `ERROR`, le message mentionne un accès refusé / une signature / un « forbidden » | **Identifiants incorrects ou insuffisants** — la clé d'accès ou la clé secrète est erronée, ou les identifiants n'ont pas d'accès en écriture au bucket. | Revérifiez la **clé d'accès** et la **clé secrète**, et confirmez qu'elles peuvent écrire dans le bucket. OVHcloud ne renvoie jamais la clé secrète : renvoyez-la donc en entier lors du `PUT` de correction. |
+| Le statut passe à `ERROR`, le message mentionne le bucket | **`bucketName` ou `region` incorrects**, ou le bucket n'existe pas / n'est pas joignable. | Vérifiez le nom du bucket et la région, ainsi que l'existence du bucket pour ces identifiants. |
+| `404 Not Found` sur un `id` de configuration | La configuration n'existe pas, ou elle appartient à un autre compte. | Vérifiez l'`id` et que vous vous authentifiez avec le compte qui le possède. |
+| Aucun fichier n'apparaît dans le bucket | L'exécution quotidienne n'a pas encore eu lieu, ou le statut n'est pas `READY`. | L'export s'exécute une fois par jour à `exportHour` (UTC) ; confirmez que la ressource est en `READY` et attendez la prochaine exécution. |
+| `400 Bad Request` à la création/modification | Un champ requis est manquant (`accessKey`, `secretKey`) ou le corps ne contient pas de `targetSpec`. | Envoyez un `targetSpec` complet, y compris les identifiants du bucket. |
+
+:::info
+Après avoir corrigé une configuration en `ERROR`, envoyez un `PUT` corrigé (voir [La modifier](#update-it)) et interrogez à nouveau la ressource jusqu'à ce qu'elle atteigne `READY`. La configuration précédente reste en vigueur jusqu'à ce qu'OVHcloud valide la nouvelle.
+:::
+
+## Aller plus loin
+
+Le fichier exporté suit le [standard CSV FOCUS 1.3](https://focus.finops.org) — reportez-vous à la spécification officielle FOCUS pour interpréter chaque colonne.
+
+Rejoignez notre [communauté Discord](https://discord.gg/ovhcloud) pour poser vos questions et partager vos retours.
+
+<sup>1</sup> : S3 est une marque déposée d'Amazon Technologies, Inc. Le service d'OVHcloud n'est ni sponsorisé, ni approuvé, ni affilié de quelque manière que ce soit à Amazon Technologies, Inc.

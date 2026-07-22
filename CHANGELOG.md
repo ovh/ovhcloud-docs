@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026.07.22
+
+### Features
+- **scripts:** Add PDF generation (#435)
+
+### Documentation
+- 6 guides updated across en, fr
+
+## 2026.07.21
+
+### Features
+- **compute:** update the transfer guide (#422)
+
+### Maintenance
+- **docs:** symlink untranslated EN duplicates to EN source
+- **docs:** clean up legacy api refs and images
+
+### Documentation
+- 175 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.07.17
 
 ### Fixes
