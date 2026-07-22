@@ -54,8 +54,11 @@ const TransferIcon = () => (
   </svg>
 );
 
-const Arrow = () => (
-  <span className="domain-lifecycle__arrow" aria-hidden="true">
+const Arrow = ({ optional = false }: { optional?: boolean }) => (
+  <span
+    className={`domain-lifecycle__arrow${optional ? ' domain-lifecycle__arrow--optional' : ''}`}
+    aria-hidden="true"
+  >
     <svg
       width={22}
       height={22}
@@ -67,7 +70,9 @@ const Arrow = () => (
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M5 12h14M13 6l6 6-6 6" />
+      {/* Dashed shaft on the optional branch → signals "not a next step". */}
+      <path d="M5 12h14" strokeDasharray={optional ? '4 3' : undefined} />
+      <path d="M13 6l6 6-6 6" />
     </svg>
   </span>
 );
@@ -78,6 +83,9 @@ interface NodeText {
 }
 
 interface Strings {
+  // Badge shown on the "transfer" node — it is an option available at any time,
+  // not a sequential step like register → configure → renew.
+  anytime: string;
   nodes: NodeText[];
 }
 
@@ -102,10 +110,11 @@ const ICONS: ReactNode[] = [
 // locales not yet translated — the Domains landing is French-first.
 const STRINGS: Record<string, Strings> = {
   fr: {
+    anytime: 'À tout moment',
     nodes: [
       {
         title: 'Enregistrer',
-        desc: 'Réservez un nouveau nom de domaine ou faites venir chez OVHcloud un domaine existant.',
+        desc: 'Réservez un nouveau nom de domaine ou transférez chez OVHcloud un domaine existant.',
       },
       {
         title: 'Configurer',
@@ -122,10 +131,11 @@ const STRINGS: Record<string, Strings> = {
     ],
   },
   en: {
+    anytime: 'Anytime',
     nodes: [
       {
         title: 'Register',
-        desc: 'Reserve a new domain name or bring an existing domain over to OVHcloud.',
+        desc: 'Reserve a new domain name or transfer an existing domain to OVHcloud.',
       },
       {
         title: 'Configure',
@@ -142,10 +152,11 @@ const STRINGS: Record<string, Strings> = {
     ],
   },
   de: {
+    anytime: 'Jederzeit',
     nodes: [
       {
         title: 'Registrieren',
-        desc: 'Reservieren Sie einen neuen Domainnamen oder holen Sie eine bestehende Domain zu OVHcloud.',
+        desc: 'Reservieren Sie einen neuen Domainnamen oder transferieren Sie eine bestehende Domain zu OVHcloud.',
       },
       {
         title: 'Konfigurieren',
@@ -162,10 +173,11 @@ const STRINGS: Record<string, Strings> = {
     ],
   },
   es: {
+    anytime: 'En cualquier momento',
     nodes: [
       {
         title: 'Registrar',
-        desc: 'Reserve un nuevo nombre de dominio o traiga a OVHcloud un dominio ya existente.',
+        desc: 'Reserve un nuevo nombre de dominio o transfiera a OVHcloud un dominio ya existente.',
       },
       {
         title: 'Configurar',
@@ -182,6 +194,7 @@ const STRINGS: Record<string, Strings> = {
     ],
   },
   it: {
+    anytime: 'In qualsiasi momento',
     nodes: [
       {
         title: 'Registrare',
@@ -202,6 +215,7 @@ const STRINGS: Record<string, Strings> = {
     ],
   },
   pl: {
+    anytime: 'W dowolnej chwili',
     nodes: [
       {
         title: 'Rejestracja',
@@ -222,6 +236,7 @@ const STRINGS: Record<string, Strings> = {
     ],
   },
   pt: {
+    anytime: 'A qualquer momento',
     nodes: [
       {
         title: 'Registar',
@@ -259,16 +274,31 @@ export function DomainLifecycle() {
   const t = STRINGS[lang] ?? STRINGS.en;
   return (
     <div className="domain-lifecycle">
-      {t.nodes.map((node, i) => (
-        <Fragment key={node.title}>
-          <a className="domain-lifecycle__node" href={localizeHref(HREFS[i])}>
-            <span className="domain-lifecycle__icon">{ICONS[i]}</span>
-            <p className="domain-lifecycle__title">{node.title}</p>
-            <p className="domain-lifecycle__desc">{node.desc}</p>
-          </a>
-          {i < t.nodes.length - 1 && <Arrow />}
-        </Fragment>
-      ))}
+      {t.nodes.map((node, i) => {
+        // The last node (transfer) is an option available at any time, not a
+        // sequential phase — set it apart (orange) with a badge and a dashed
+        // incoming connector.
+        const optional = i === t.nodes.length - 1;
+        return (
+          <Fragment key={node.title}>
+            <a
+              className="domain-lifecycle__node"
+              data-node={optional ? 'optional' : 'step'}
+              href={localizeHref(HREFS[i])}
+            >
+              {optional && (
+                <span className="domain-lifecycle__badge">{t.anytime}</span>
+              )}
+              <span className="domain-lifecycle__icon">{ICONS[i]}</span>
+              <p className="domain-lifecycle__title">{node.title}</p>
+              <p className="domain-lifecycle__desc">{node.desc}</p>
+            </a>
+            {i < t.nodes.length - 1 && (
+              <Arrow optional={i === t.nodes.length - 2} />
+            )}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

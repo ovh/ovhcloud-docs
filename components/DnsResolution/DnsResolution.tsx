@@ -137,7 +137,7 @@ interface Strings {
 const STRINGS: Record<string, Strings> = {
   fr: {
     intro:
-      'Comment votre nom de domaine est interprété, de votre terminal jusqu’au serveur qui héberge votre site :',
+      'Comment votre nom de domaine est interprété, de votre navigateur jusqu’au serveur qui héberge votre site :',
     lan: 'Réseau local',
     typed: 'Vous saisissez l’adresse dans votre navigateur',
     query: `${DOMAIN} ?`,
@@ -151,7 +151,7 @@ const STRINGS: Record<string, Strings> = {
   },
   en: {
     intro:
-      'How your domain name is interpreted, from your device to the server that hosts your website:',
+      'How your domain name is interpreted, from your browser to the server that hosts your website:',
     lan: 'Local network',
     typed: 'You type the address into your browser',
     query: `${DOMAIN} ?`,
@@ -165,7 +165,7 @@ const STRINGS: Record<string, Strings> = {
   },
   de: {
     intro:
-      'Wie Ihr Domainname interpretiert wird – von Ihrem Gerät bis zum Server, der Ihre Website hostet:',
+      'Wie Ihr Domainname interpretiert wird – von Ihrem Browser bis zum Server, der Ihre Website hostet:',
     lan: 'Lokales Netzwerk',
     typed: 'Sie geben die Adresse in Ihren Browser ein',
     query: `${DOMAIN} ?`,
@@ -179,7 +179,7 @@ const STRINGS: Record<string, Strings> = {
   },
   es: {
     intro:
-      'Cómo se interpreta su nombre de dominio, desde su dispositivo hasta el servidor que aloja su sitio web:',
+      'Cómo se interpreta su nombre de dominio, desde su navegador hasta el servidor que aloja su sitio web:',
     lan: 'Red local',
     typed: 'Usted escribe la dirección en su navegador',
     query: `${DOMAIN} ?`,
@@ -193,7 +193,7 @@ const STRINGS: Record<string, Strings> = {
   },
   it: {
     intro:
-      'Come viene interpretato il tuo nome a dominio, dal tuo dispositivo fino al server che ospita il tuo sito:',
+      'Come viene interpretato il tuo nome a dominio, dal tuo browser fino al server che ospita il tuo sito:',
     lan: 'Rete locale',
     typed: 'Digiti l’indirizzo nel tuo browser',
     query: `${DOMAIN} ?`,
@@ -207,7 +207,7 @@ const STRINGS: Record<string, Strings> = {
   },
   pl: {
     intro:
-      'Jak interpretowana jest Twoja nazwa domeny — od Twojego urządzenia aż po serwer, który hostuje Twoją stronę:',
+      'Jak interpretowana jest Twoja nazwa domeny — od Twojej przeglądarki aż po serwer, który hostuje Twoją stronę:',
     lan: 'Sieć lokalna',
     typed: 'Wpisujesz adres w przeglądarce',
     query: `${DOMAIN} ?`,
@@ -221,7 +221,7 @@ const STRINGS: Record<string, Strings> = {
   },
   pt: {
     intro:
-      'Como o seu nome de domínio é interpretado, do seu dispositivo até ao servidor que aloja o seu site:',
+      'Como o seu nome de domínio é interpretado, do seu navegador até ao servidor que aloja o seu site:',
     lan: 'Rede local',
     typed: 'Introduz o endereço no seu navegador',
     query: `${DOMAIN} ?`,
@@ -236,7 +236,7 @@ const STRINGS: Record<string, Strings> = {
 };
 
 /**
- * A graphical diagram of DNS resolution for the Domains landing page: a device
+ * A graphical diagram of DNS resolution for the Domains landing page: a browser
  * inside the local network types a domain name, queries the DNS servers outside
  * the network, and those resolve the name to the IP address of the hosting
  * server. The centrepiece is the interpretation `domain → IP`. Pure HTML +
@@ -285,7 +285,7 @@ export function DnsResolution() {
           </span>
         </div>
 
-        {/* terminal → DNS */}
+        {/* browser → DNS */}
         <div className="dns-res__link">
           <span className="dns-res__link-label">{t.query}</span>
           <span className="dns-res__arrow">
