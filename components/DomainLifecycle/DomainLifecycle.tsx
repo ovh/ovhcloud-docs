@@ -54,9 +54,9 @@ const TransferIcon = () => (
   </svg>
 );
 
-const Arrow = ({ optional = false }: { optional?: boolean }) => (
+const Arrow = ({ hidden = false }: { hidden?: boolean }) => (
   <span
-    className={`domain-lifecycle__arrow${optional ? ' domain-lifecycle__arrow--optional' : ''}`}
+    className={`domain-lifecycle__arrow${hidden ? ' domain-lifecycle__arrow--hidden' : ''}`}
     aria-hidden="true"
   >
     <svg
@@ -70,9 +70,7 @@ const Arrow = ({ optional = false }: { optional?: boolean }) => (
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {/* Dashed shaft on the optional branch → signals "not a next step". */}
-      <path d="M5 12h14" strokeDasharray={optional ? '4 3' : undefined} />
-      <path d="M13 6l6 6-6 6" />
+      <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
   </span>
 );
@@ -276,8 +274,9 @@ export function DomainLifecycle() {
     <div className="domain-lifecycle">
       {t.nodes.map((node, i) => {
         // The last node (transfer) is an option available at any time, not a
-        // sequential phase — set it apart (orange) with a badge and a dashed
-        // incoming connector.
+        // sequential phase — set it apart (orange, badge) and hide its incoming
+        // arrow (its slot is kept so the tile spacing stays even) so it reads as
+        // detached from the register → configure → renew sequence.
         const optional = i === t.nodes.length - 1;
         return (
           <Fragment key={node.title}>
@@ -286,15 +285,19 @@ export function DomainLifecycle() {
               data-node={optional ? 'optional' : 'step'}
               href={localizeHref(HREFS[i])}
             >
-              {optional && (
-                <span className="domain-lifecycle__badge">{t.anytime}</span>
-              )}
-              <span className="domain-lifecycle__icon">{ICONS[i]}</span>
+              <span className="domain-lifecycle__head">
+                <span className="domain-lifecycle__icon">{ICONS[i]}</span>
+                {optional && (
+                  <span className="domain-lifecycle__badge">{t.anytime}</span>
+                )}
+              </span>
               <p className="domain-lifecycle__title">{node.title}</p>
               <p className="domain-lifecycle__desc">{node.desc}</p>
             </a>
+            {/* Keep every arrow slot (even spacing) but hide the glyph before
+                the detached transfer node. */}
             {i < t.nodes.length - 1 && (
-              <Arrow optional={i === t.nodes.length - 2} />
+              <Arrow hidden={i === t.nodes.length - 2} />
             )}
           </Fragment>
         );
