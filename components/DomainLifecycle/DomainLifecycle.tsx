@@ -91,7 +91,7 @@ interface Strings {
 // locale prefix at render time. Order: register → configure → renew → transfer.
 const HREFS = [
   '/guides/web-cloud/domains/faq-domain-dns',
-  '/guides/web-cloud/domains/dns/overview',
+  '/guides/web-cloud/domains/dns/landing-page-dns',
   '/guides/web-cloud/domains/autorenew-domain-name',
   '/guides/web-cloud/domains/transfer-incoming-generic-domain',
 ];

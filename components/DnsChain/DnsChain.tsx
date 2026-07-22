@@ -82,7 +82,7 @@ interface Strings {
 // The links are shared across locales; useLocalizeHref() prepends the current
 // locale prefix at render time.
 const HREFS = [
-  '/guides/web-cloud/domains/overview',
+  '/guides/web-cloud/domains/landing-page-domain-names',
   '/guides/web-cloud/domains/dns-server-general-information',
   '/guides/web-cloud/domains/dns-zone-general-information',
   '/guides/web-cloud/domains/dns-zone-records',
