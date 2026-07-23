@@ -855,6 +855,7 @@
                     + [Object Storage – How to share an object or file externally](storage-and-backup/object-storage/s3-share-object-externally)
                     + [Object Storage - How to retrieve object metadata with GetObjectAttributes](storage-and-backup/object-storage/s3-get-object-attributes)
                     + [Object Storage - Lifecycle and replication use cases](storage-and-backup/object-storage/s3-use-cases-lifecycle-replication)
+                    + [Object Storage - Browser-based uploads using POST](storage-and-backup/object-storage/s3-post-object-upload)
                 + [Security](products/public-cloud-storage-object-storage-s3-security)
                     + [Object Storage - Encrypt your server-side objects with SSE-C](storage-and-backup/object-storage/s3-encrypt-your-objects-with-sse-c)
                     + [Object Storage - Managing object immutability with Object Lock (WORM)](storage-and-backup/object-storage/s3-managing-object-lock)
