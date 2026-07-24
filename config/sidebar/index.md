@@ -58,6 +58,7 @@
             + [Managing OVHcloud orders](account-and-service-management/managing-billing-payments-and-services/ovh-orders)
             + [Managing payment methods](account-and-service-management/managing-billing-payments-and-services/manage-payment-methods)
             + [Managing OVHcloud bills](account-and-service-management/managing-billing-payments-and-services/invoice-management)
+            + [Unknown transaction or issuer](account-and-service-management/managing-billing-payments-and-services/understand-unknown-invoice)
             + [Purchase Order (PO)](account-and-service-management/managing-billing-payments-and-services/purchase-order)
             + [Payer une commande en tant qu’administration publique](account-and-service-management/managing-billing-payments-and-services/public-administration)
             + [Correcting a bank details error](account-and-service-management/managing-billing-payments-and-services/correct-bank-details-error)
