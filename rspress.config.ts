@@ -11,6 +11,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import type { Locale } from './config/shared';
@@ -20,6 +21,7 @@ import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -198,7 +200,12 @@ export default defineConfig({
   lang: activeLocales[0]?.lang || 'fr',
   locales: [...activeLocales],
   markdown: {
-    remarkPlugins: [remarkNoManagerHardcoded, remarkNoApiHardcoded, remarkCpNavGate],
+    remarkPlugins: [
+      remarkNoManagerHardcoded,
+      remarkNoApiHardcoded,
+      remarkNoUnresolvedFragments,
+      remarkCpNavGate,
+    ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
       path.join(__dirname, 'components/Api/index.tsx'),
@@ -232,8 +239,13 @@ export default defineConfig({
       ],
     },
   },
-  // In dev, resolve /links/ to the first active locale (default: fr)
-  replaceRules: generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
+  // In dev, resolve [[fragment:]] and /links/ to the first active locale
+  // (default: fr). Fragment rules MUST come first so (/links/key) tokens
+  // inside fragment bodies resolve in the same pass.
+  replaceRules: [
+    ...generateFragmentRules((activeLocales[0]?.lang || 'fr') as Locale),
+    ...generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
+  ],
 
   route: {
     cleanUrls: true,

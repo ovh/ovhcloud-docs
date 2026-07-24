@@ -10,6 +10,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
+import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import type { Locale } from './config/shared';
@@ -20,6 +21,7 @@ import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 
 const locale = process.env.LOCALE || 'fr';
 const BASE_DIR = process.cwd();
@@ -199,7 +201,12 @@ export default defineConfig({
 
   markdown: {
     crossCompilerCache: true,
-    remarkPlugins: [remarkNoManagerHardcoded, remarkNoApiHardcoded, remarkCpNavGate],
+    remarkPlugins: [
+      remarkNoManagerHardcoded,
+      remarkNoApiHardcoded,
+      remarkNoUnresolvedFragments,
+      remarkCpNavGate,
+    ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
       path.join(BASE_DIR, 'components/Api/index.tsx'),
@@ -235,7 +242,12 @@ export default defineConfig({
     },
   },
 
-  replaceRules: generateLinkRules(locale as Locale),
+  // Fragment rules MUST come before link rules so (/links/key) tokens
+  // inside fragment bodies resolve in the same pass.
+  replaceRules: [
+    ...generateFragmentRules(locale as Locale),
+    ...generateLinkRules(locale as Locale),
+  ],
 
   route: {
     cleanUrls: true,
