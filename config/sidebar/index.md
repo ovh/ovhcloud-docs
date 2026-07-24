@@ -470,6 +470,7 @@
                 + [Configuring NTP on the Private Gateway](hosted-private-cloud/powered-by-vmware/private-gateway-ntp)
             + [vSphere Features](hosted-private-cloud-managed-vmware-configuration-vsphere)
                 + [Using the vSphere SDK](hosted-private-cloud/powered-by-vmware/vmware-installation-api)
+                + [Managing global vSphere permissions](hosted-private-cloud/powered-by-vmware/vsphere-global-rights)
                 + [Managing granular rights on vSphere objects](hosted-private-cloud/powered-by-vmware/vsphere-granular-rights)
                 + [Cluster creation and EVC activation](hosted-private-cloud/powered-by-vmware/create-cluster-enable-evc)
             + [Backup and Replication](hosted-private-cloud-managed-vmware-configuration-backup)
