@@ -2062,6 +2062,7 @@
                 + [Configuring your ActiveSync Zimbra account in Mail for iOS](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-mail-app-ios)
                 + [Configuring your ActiveSync Zimbra account in Outlook for Android](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-outlook-app-android)
                 + [Configuring your ActiveSync Zimbra account in Gmail for Android](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-gmail-app-android)
+                + [Configuring your Zimbra Pro account on the Zimbra mobile app](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-app-android-ios)
     + [Internet](products/web-cloud-internet)
         + [Internet access](products/web-cloud-internet-internet-access){landing=web-cloud/internet/internet-access/landing-page-internet-access}
             + [Key concepts](web-cloud-internet-internet-access-key-concepts)
