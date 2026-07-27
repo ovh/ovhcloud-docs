@@ -1711,6 +1711,7 @@
             + [Migration](products/web-cloud-domains-domain-names-migration)
                 + [Incoming transfer to OVHcloud](web-cloud-domains-domain-names-migration-incoming-transfer-to-ovhcloud)
                     + [Transferring a domain name to OVHcloud](web-cloud/domains/transfer-incoming-generic-domain)
+                    + [Importing an external DNS zone to OVHcloud](web-cloud/domains/dns-zone-import)
                     + [Transferring a .uk domain name to OVHcloud](web-cloud/domains/transfer-incoming-couk)
                     + [Transferring a .pl domain name to OVHcloud](web-cloud/domains/transfer-pl)
                     + [Transferring a domain name from Hostinger to OVHcloud](web-cloud/domains/transfer-incoming-hostinger)
