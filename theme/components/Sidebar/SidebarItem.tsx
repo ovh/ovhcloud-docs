@@ -108,7 +108,8 @@ export function SidebarItemRaw({
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          onClick?.();
+          e.preventDefault();
+          e.currentTarget.click();
         }
       }}
     >
