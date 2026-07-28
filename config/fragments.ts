@@ -22,10 +22,10 @@ export const textFragments: FragmentMap = {
 
 <summary>Information regarding OVHcloud service administration and how to find appropriate assistance</summary>
 
-When using OVHcloud guides, please be aware of the following considerations:
+When using OVHcloud guides, please be aware of the following conditions:
 
 - User instructions aim to provide as many details as possible but cannot cover individual use cases. You might need to adapt the pertinent actions to your requirements.
-- The OVHcloud ecosystem is built for flexibility and freedom of choice. You are therefore responsible for the secure and proper configuration of your services. To prevent data loss, we strongly recommend applying backup strategies to all your important data.
+- The OVHcloud ecosystem is built for flexibility and freedom of choice.  Customers are therefore responsible for the secure and proper configuration of their services. To prevent data loss, we strongly recommend to apply backup strategies to all your important data.
 - Our guides and tutorials may reference third-party software or services in combination with OVHcloud solutions. The technical support provided by OVHcloud does not include the configuration of systems or products outside of our responsibility. This includes but is not limited to:
   - Operating systems and user interfaces (Windows, Debian, Plesk, etc.).
   - Any other third-party software (FTP clients, email software, etc.).
@@ -36,7 +36,7 @@ To receive the appropriate assistance for any issues you might experience, follo
 - **You seek personalized advice or you would like to discuss a topic that is not covered in detail by our documentation?**<br />
   Join the [OVHcloud Community](/links/community) to search for your topic and reach out to other users.
 - **You need to report an incident regarding your OVHcloud service or you are experiencing difficulties in the OVHcloud Control Panel?**<br />
-  Create a support request in our [Help Center](/links/support-contact).
+  Create a support request in our [Help Centre](/links/support-contact).
 - **You require professional assistance for your project or you need help with tasks outside our support scope?**<br />
   Visit our [partner portal](/links/partner) to search for experts who are familiar with OVHcloud solutions.
 - **You are looking for more detailed information regarding our support levels and Professional Services?**<br />
@@ -74,7 +74,7 @@ Pour recevoir l’assistance appropriée en cas de problème, suivez ces recomma
 - **Vous recherchez des informations plus détaillées sur nos niveaux de support et Professional Services ?**<br />
   Consultez nos pages [niveaux de support OVHcloud](/links/support) et [OVHcloud Professional Services](/links/professional-services).
 
-Vous pouvez également nous aider à améliorer cette documentation :
+Vous pouvez participer à l’amélioration de notre documentation :
 
 - **Vous souhaitez faire un retour pour améliorer un guide ou signaler des informations insuffisantes sur une page spécifique ?**<br />
   Utilisez les boutons « Cette page vous a-t-elle aidé ? » en bas de page pour nous en informer.
@@ -100,7 +100,7 @@ Um bei Problemen die passende Unterstützung zu erhalten, beachten Sie folgende 
 - **Sie benötigen individuelle Hilfe oder möchten ein Thema besprechen, das in unserer Dokumentation nicht ausführlich behandelt wird?**<br />
   Treten Sie der [OVHcloud Community](/links/community) bei, um nach Ihrem Thema zu suchen und sich mit anderen Nutzern auszutauschen.
 - **Sie möchten einen Vorfall zu Ihrem OVHcloud Dienst melden oder haben Schwierigkeiten im OVHcloud Kundencenter?**<br />
-  Erstellen Sie eine Supportanfrage in unserem [Hilfe-Center](/links/support-contact).
+  Erstellen Sie eine Supportanfrage in unserem [Help Center](/links/support-contact).
 - **Sie benötigen professionelle Unterstützung für Ihr Projekt oder Hilfe bei Aufgaben außerhalb unseres Support-Bereichs?**<br />
   Besuchen Sie unser [Partnerportal](/links/partner), um Experten zu finden, die mit OVHcloud Lösungen vertraut sind.
 - **Sie suchen ausführlichere Informationen zu unseren Support Levels und Professional Services?**<br />
@@ -138,7 +138,7 @@ Para recibir la asistencia adecuada ante cualquier problema, siga estas recomend
 - **¿Busca información más detallada sobre nuestros niveles de soporte y Professional Services?**<br />
   Visite nuestras páginas web sobre los [niveles de soporte de OVHcloud](/links/support) y los [OVHcloud Professional Services](/links/professional-services).
 
-También puede ayudarnos a mejorar esta documentación:
+Puede participar en la mejora de nuestra documentación:
 
 - **¿Desea enviar comentarios para mejorar una guía o informar de información insuficiente en una página concreta?**<br />
   Utilice los botones «¿Le ha resultado útil esta página?» al final de la página para hacérnoslo saber.
@@ -170,7 +170,7 @@ Per ricevere l’assistenza appropriata in caso di problemi, segui queste indica
 - **Cerchi informazioni più dettagliate sui nostri livelli di supporto e sui Professional Services?**<br />
   Visita le nostre pagine web sui [livelli di supporto OVHcloud](/links/support) e sugli [OVHcloud Professional Services](/links/professional-services).
 
-Puoi anche aiutarci a migliorare questa documentazione:
+Puoi partecipare al miglioramento della nostra documentazione:
 
 - **Vuoi condividere un feedback per migliorare una guida o segnalare informazioni insufficienti su una pagina specifica?**<br />
   Utilizza i pulsanti "Questa pagina ti è stata utile?" in fondo alla pagina per farcelo sapere.
@@ -202,7 +202,7 @@ Aby uzyskać odpowiednią pomoc w przypadku problemów, postępuj zgodnie z poni
 - **Szukasz bardziej szczegółowych informacji o naszych poziomach wsparcia i usługach Professional Services?**<br />
   Odwiedź nasze strony internetowe: [poziomy wsparcia OVHcloud](/links/support) oraz [OVHcloud Professional Services](/links/professional-services).
 
-Możesz również pomóc nam ulepszyć tę dokumentację:
+Możesz uczestniczyć w ulepszaniu naszej dokumentacji:
 
 - **Chcesz przekazać opinię, aby ulepszyć stronę przewodnika, lub zgłosić niewystarczające informacje na konkretnej stronie?**<br />
   Skorzystaj z przycisków „Czy ta strona była pomocna?” na dole strony, aby nas o tym poinformować.
@@ -228,13 +228,13 @@ Para receber a assistência adequada em caso de problemas, siga estas orientaç�
 - **Procura aconselhamento personalizado ou pretende discutir um tema que não é abordado em detalhe na nossa documentação?**<br />
   Junte-se à [comunidade OVHcloud](/links/community) para pesquisar o seu tema e falar com outros utilizadores.
 - **Precisa de comunicar um incidente relativo ao seu serviço OVHcloud ou tem dificuldades na Área de Cliente OVHcloud?**<br />
-  Crie um pedido de suporte no nosso [centro de ajuda](/links/support-contact).
+  Crie um pedido de suporte no nosso [Centro de Ajuda](/links/support-contact).
 - **Necessita de assistência profissional para o seu projeto ou de ajuda com tarefas fora do âmbito do nosso suporte?**<br />
   Visite o nosso [portal de parceiros](/links/partner) para encontrar especialistas familiarizados com as soluções OVHcloud.
 - **Procura informações mais detalhadas sobre os nossos níveis de suporte e Professional Services?**<br />
   Visite as nossas páginas web sobre os [níveis de suporte OVHcloud](/links/support) e os [OVHcloud Professional Services](/links/professional-services).
 
-Também pode ajudar-nos a melhorar esta documentação:
+Pode participar na melhoria da nossa documentação:
 
 - **Pretende partilhar comentários para melhorar uma página de guia ou comunicar informações insuficientes numa página específica?**<br />
   Utilize os botões «Esta página foi útil?» no final da página para nos informar.
