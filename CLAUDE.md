@@ -36,6 +36,18 @@ pnpm check  # lint + format with auto-fix
 - `config/shared.ts` - Shared locale definitions and base config
 - `turbo.json` - Turborepo orchestrates parallel locale builds
 
+### Text Fragments
+Reusable per-locale text blocks, inserted in MDX as a token on its own line (`[[fragment:<key>]]`) and expanded at build time via Rspress `replaceRules` — same mechanism as the `/links/` keys, applied before them so a fragment body can contain `/links/` targets.
+
+| File | Role |
+|------|------|
+| `config/fragments.ts` | **Source of truth** — fragment bodies per locale (markdown; import-free JSX only) |
+| `config/fragment-rules.ts` | Generates the `ReplaceRule[]` for a locale (fallback `locale → en → first`) |
+| `plugins/remarkNoUnresolvedFragments.ts` | Fails the build on an unresolved/misspelled token |
+| `styles/index.css` | `details.support` styling for the `support-scope` block |
+
+Authoring rules and the current key list: `docs/en/internal/format-reference.mdx` §6b.
+
 ### Dev vs Production Routing
 Rspress strips the URL prefix for the default locale (`lang: 'fr'`):
 
