@@ -223,7 +223,7 @@
                 + [Configuring the vRack between the Public Cloud and a Dedicated Server](bare-metal-cloud/dedicated-servers/configuring-the-vrack-between-the-public-cloud-and-a-dedicated-server)
                 + [Upgrade and downgrade private bandwidth (vRack) via the OVHcloud API](bare-metal-cloud/dedicated-servers/manage-bandwidth-vrack-api)
             + [Deployments](bare-metal-cloud-dedicated-servers-configuration-deployments)
-                + [Deploy an application from the application catalogue on a Dedicated Server](bare-metal-cloud/dedicated-servers/application-catalog)
+                + [Deploying an application from the catalogue on a Dedicated Server](bare-metal-cloud/dedicated-servers/application-catalog)
                 + [OVHcloud API & OS Installation](bare-metal-cloud/dedicated-servers/api-os-installation)
                 + [Bring Your Own Image (BYOI) / Bring Your Own Linux (BYOLinux), a comparison sheet](bare-metal-cloud/dedicated-servers/bring-your-own-image-versus-bring-your-own-linux)
                 + [Bring Your Own Image (BYOI)](bare-metal-cloud/dedicated-servers/bring-your-own-image)
