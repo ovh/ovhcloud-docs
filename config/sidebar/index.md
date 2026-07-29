@@ -1063,7 +1063,7 @@
                     + [Customizing CoreDNS on an OVHcloud Managed Kubernetes cluster](public-cloud/containers-orchestration/managed-kubernetes/customizing-coredns)
                     + [Customizing Cilium on an OVHcloud Managed Kubernetes cluster](public-cloud/containers-orchestration/managed-kubernetes/customizing-cilium)
                 + [Traffic Management](public-cloud-containers-orchestration-managed-kubernetes-k8s-configuration-traffic-management)
-                    + [Installing Nginx Ingress on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/install-nginx-ingress)
+                    + [Installing Traefik on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/install-nginx-ingress)
                     + [Expose your applications using OVHcloud Public Cloud Load Balancer](public-cloud/containers-orchestration/managed-kubernetes/expose-applications-using-load-balancer)
                     + [Sticky sessions/Session Affinity based on Nginx Ingress on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/sticky-session-nginx-ingress)
                     + [Secure a Nginx Ingress with cert-manager on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/secure-nginx-ingress-cert-manager)
