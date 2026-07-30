@@ -78,6 +78,7 @@
         + [FAQ](account-and-service-management-managing-billing-payments-and-services-faq)
             + [Billing and payment FAQ](account-and-service-management/managing-billing-payments-and-services/faq-billing)
             + [OVHcloud order tracking FAQ](account-and-service-management/managing-billing-payments-and-services/faq-order-tracking)
+            + [Electronic invoicing FAQ](account-and-service-management/managing-billing-payments-and-services/faq-electronic-invoicing)
             + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
         + [API](account-and-service-management-managing-billing-payments-and-services-api)
             + [Ordering Public Cloud projects using the OVHcloud API](account-and-service-management/managing-billing-payments-and-services/order-project-api)
