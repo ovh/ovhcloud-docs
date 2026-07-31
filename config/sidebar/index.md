@@ -387,8 +387,8 @@
                 + [Edit Counter-Strike 2 server configuration on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-edit-cs2-config)
                 + [Edit Minecraft server configuration on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-edit-minecraft-config)
                 + [Install mods and plugins on your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-plugins)
-                + [Install mods on your Project Zomboid server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-project-zomboid)
                 + [Uploading a custom world to your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-upload-minecraft-world)
+                + [Install mods on your Project Zomboid server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-project-zomboid)
 + Private Cloud
     + [Public VCF as-a-Service](products/hosted-private-cloud-public-VCF)
         + [Overview](hosted-private-cloud/powered-by-vmware/public-vcf/overview)
