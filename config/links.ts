@@ -5,6 +5,15 @@ import type { Locale } from './shared';
 export type LinkMap = Record<string, Partial<Record<Locale, string>>>;
 
 export const externalLinks: LinkMap = {
+  'about-us/data-sovereignty': {
+    fr: 'https://www.ovhcloud.com/fr/about-us/data-sovereignty/',
+    en: 'https://www.ovhcloud.com/en-gb/about-us/data-sovereignty/',
+    de: 'https://www.ovhcloud.com/de/about-us/data-sovereignty/',
+    es: 'https://www.ovhcloud.com/es-es/about-us/data-sovereignty/',
+    it: 'https://www.ovhcloud.com/it/about-us/data-sovereignty/',
+    pl: 'https://www.ovhcloud.com/pl/about-us/data-sovereignty/',
+    pt: 'https://www.ovhcloud.com/pt/about-us/data-sovereignty/',
+  },
   'bare-metal/advance': {
     fr: 'https://www.ovhcloud.com/fr/bare-metal/advance/',
     en: 'https://www.ovhcloud.com/en-gb/bare-metal/advance/',
@@ -923,6 +932,15 @@ export const externalLinks: LinkMap = {
     it: 'https://partner.ovhcloud.com/it/directory/',
     pl: 'https://partner.ovhcloud.com/pl/directory/',
     pt: 'https://partner.ovhcloud.com/pt/directory/',
+  },
+  compliance: {
+    fr: 'https://www.ovhcloud.com/fr/compliance/',
+    en: 'https://www.ovhcloud.com/en-gb/compliance/',
+    de: 'https://www.ovhcloud.com/de/compliance/',
+    es: 'https://www.ovhcloud.com/es-es/compliance/',
+    it: 'https://www.ovhcloud.com/it/compliance/',
+    pl: 'https://www.ovhcloud.com/pl/compliance/',
+    pt: 'https://www.ovhcloud.com/pt/compliance/',
   },
   'professional-services': {
     fr: 'https://www.ovhcloud.com/fr/professional-services/',
