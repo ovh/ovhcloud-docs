@@ -933,15 +933,6 @@ export const externalLinks: LinkMap = {
     pl: 'https://partner.ovhcloud.com/pl/directory/',
     pt: 'https://partner.ovhcloud.com/pt/directory/',
   },
-  compliance: {
-    fr: 'https://www.ovhcloud.com/fr/compliance/',
-    en: 'https://www.ovhcloud.com/en-gb/compliance/',
-    de: 'https://www.ovhcloud.com/de/compliance/',
-    es: 'https://www.ovhcloud.com/es-es/compliance/',
-    it: 'https://www.ovhcloud.com/it/compliance/',
-    pl: 'https://www.ovhcloud.com/pl/compliance/',
-    pt: 'https://www.ovhcloud.com/pt/compliance/',
-  },
   'professional-services': {
     fr: 'https://www.ovhcloud.com/fr/professional-services/',
     en: 'https://www.ovhcloud.com/en-gb/professional-services/',
