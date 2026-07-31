@@ -379,6 +379,7 @@
                 + [Deploy a Hytale server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-hytale)
                 + [Deploy a Minecraft server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-minecraft)
                 + [Deploy a Palworld server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-palworld)
+                + [Deploy a Project Zomboid server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-project-zomboid)
                 + [Deploy a Team Fortress 2 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-tf2)
                 + [Deploy a TeamSpeak 3 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-teamspeak-3)
                 + [Deploy a Valheim server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-valheim)
@@ -386,6 +387,7 @@
                 + [Edit Counter-Strike 2 server configuration on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-edit-cs2-config)
                 + [Edit Minecraft server configuration on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-edit-minecraft-config)
                 + [Install mods and plugins on your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-plugins)
+                + [Install mods on your Project Zomboid server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-project-zomboid)
                 + [Uploading a custom world to your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-upload-minecraft-world)
 + Private Cloud
     + [Public VCF as-a-Service](products/hosted-private-cloud-public-VCF)
