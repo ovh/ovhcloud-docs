@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.08.03
+
+### Features
+- **transverse:** add info (#510)
+
+### Documentation
+- 20 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.07.31.1
 
 ### Documentation
