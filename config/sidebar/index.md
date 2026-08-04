@@ -194,6 +194,7 @@
             + [Network](bare-metal-cloud-dedicated-servers-configuration-network)
                 + [Configuring OVHcloud Secondary DNS on a dedicated server](bare-metal-cloud/dedicated-servers/adding-secondary-dns-on-dedicated-server)
                 + [Install an OVHcloud SSH key](bare-metal-cloud/dedicated-servers/ovh-ssh-key)
+                + [Understanding link aggregation on dedicated servers](bare-metal-cloud/dedicated-servers/link-aggregation-overview)
                 + [Configuring OVHcloud Link Aggregation in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/ola-enable-manager)
                 + [How to configure your NIC for OVHcloud Link Aggregation in Debian 9 to 11](bare-metal-cloud/dedicated-servers/lacp-enable-ifupdown)
                 + [How to configure Link Aggregation with LACP in Debian 12 or Ubuntu 24.04](bare-metal-cloud/dedicated-servers/lacp-enable-netplan)
