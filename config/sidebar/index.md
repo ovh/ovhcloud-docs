@@ -2733,6 +2733,7 @@
         + [Getting started with OVHcloud Key Management Service (KMS)](manage-and-operate/kms/quick-start)
         + [OKMS authentication methods](manage-and-operate/kms/okms-authentication-methods)
         + [Using the OVHcloud Key Management Service (KMS) with your data](manage-and-operate/kms/kms-usage)
+        + [Import and export keys on OVHcloud KMS using BYOK](manage-and-operate/kms/import-key-byok)
         + [Manage your OKMS access certificate](manage-and-operate/kms/okms-certificate-management)
         + [OKMS Architecture overview](manage-and-operate/kms/architecture-overview)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
