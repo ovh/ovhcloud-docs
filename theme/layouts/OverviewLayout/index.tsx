@@ -9,6 +9,7 @@ import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { OverviewQuickstart } from 'theme/components/OverviewQuickstart';
 import { OverviewTutorials } from 'theme/components/OverviewTutorials';
+import { ProductPdfButton } from 'theme/components/ProductPdfButton';
 import { Sidebar } from 'theme/components/Sidebar';
 import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
@@ -163,6 +164,12 @@ export function OverviewLayout(props: OverviewLayoutProps) {
             <div className="rp-overview-header">
               {title && <h1 className="rp-overview-title">{title}</h1>}
               {text && <p className="rp-overview-text">{text}</p>}
+            </div>
+
+            {/* Whole-product PDF download — shown only when the page declares a
+                `pdf:` frontmatter ref (the button returns null otherwise). */}
+            <div className="rp-overview-pdf">
+              <ProductPdfButton />
             </div>
 
             {/* Essentials Section */}

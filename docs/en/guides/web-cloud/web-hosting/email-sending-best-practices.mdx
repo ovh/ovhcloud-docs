@@ -1,0 +1,412 @@
+---
+title: "Web Hosting - Email sending best practices"
+description: Learn why the PHP mail() function is discouraged on shared hosting and how to configure authenticated SMTP sending through your OVHcloud email accounts
+lastUpdated: 2026-07-15
+availableIn: [eu, ca, apac]
+---
+
+import { Region } from '@components/Zone';
+
+## Objective
+
+To ensure your emails reach your recipients, OVHcloud maintains a dedicated outbound infrastructure, with automatic anti-spam filtering and continuous monitoring of server reputation. To make the most of it, we recommend sending your emails through **authenticated SMTP** rather than the native PHP `mail()` function. This approach gives every email a verifiable identity, which significantly improves deliverability and reduces the risk of being classified as spam.
+
+**This guide explains OVHcloud's best practices and recommendations for sending emails reliably and securely from a shared hosting plan, whether you manage a WordPress site, another CMS, or a PHP application.**
+
+## Requirements
+
+- An [OVHcloud Web Hosting](/links/web/hosting) plan.
+- An email address attached to your domain name (<Region zones={['eu']}>MX Plan, Email Pro, or Exchange solution</Region><Region zones={['ca']}>MX Plan or Exchange solution</Region><Region zones={['apac']}>MX Plan solution</Region>). If you do not have one yet, refer to the guide [Creating an email address with an MX Plan solution](/guides/web-cloud/email-and-collaborative-solutions/mx-plan/email-creation).
+
+{/* CP-NAV-START:web-hosting */}
+---
+
+### OVHcloud Control Panel Access
+
+- **Direct link:** <ManagerLink to="/#/web/hosting">Hosting plans</ManagerLink>
+- **Navigation path:** <code className="action">Web Cloud</code> > <code className="action">Hosting plans</code> > Select your web hosting plan
+
+---
+{/* CP-NAV-END:web-hosting */}
+
+## Instructions
+
+### 1. `mail()` or authenticated SMTP: what difference does it make for you?
+
+#### What OVHcloud does to protect your sending
+
+OVHcloud continuously monitors the reputation of its sending servers and automatically filters suspicious messages — so your legitimate emails do not suffer. But this protection has a limit: the PHP `mail()` function does not check the sender identity declared in the email (the `From:` field). An email sent through `mail()` can therefore appear to come from any address, which is enough to trigger the filters of recipient servers (Gmail, Outlook, etc.) and compromise the deliverability of **your own emails**.
+
+#### Emails without a reliable signature
+
+The `mail()` function sends emails without guaranteeing the sender's identity. Recipient servers (Gmail, Outlook, etc.) verify that the email genuinely comes from a server authorised by your domain, using the **SPF** and **DKIM** records. With `mail()`, this verification often fails: the message may then land in spam or be rejected.
+
+Sending through authenticated SMTP solves this problem: the email is issued by the OVHcloud server authorised for your domain, with the correct signature.
+
+:::warning
+Abusive use of the `mail()` function can lead to automatic blocking of your hosting's outbound emails. If you notice that your emails are no longer being sent, refer to the guide [Monitoring and managing automated emails in your web hosting plan](/guides/web-cloud/web-hosting/mail-function-script-records).
+:::
+
+#### Open forms: an additional abuse vector
+
+A publicly accessible contact form with no protection mechanism is a prime target for bots. They exploit it to send thousands of emails within minutes through your hosting, causing the shared IP address to be blocked and harming every client on the cluster.
+
+Set up the following protections on any form that triggers an email:
+
+- **Captcha**: integrate a verification system (Google reCAPTCHA v3, hCaptcha, or a simple arithmetic challenge) to block automated submissions.
+- **Rate limiting**: limit the number of sends per IP address on the server side to prevent burst abuse.
+- **Strict input validation**: check and sanitise every form field before using it in an email — never trust user-supplied data.
+
+:::warning
+The absence of a captcha on an open sending form is one of the most frequent causes of shared hosting being blocked for spam. This protection is essential regardless of the sending method used.
+:::
+
+### 2. The best practice: use an OVHcloud email account with authenticated SMTP
+
+#### Principle
+
+Send your emails through an **authenticated SMTP** connection to the OVHcloud mail server, using an email account attached to your domain (for example `contact@mydomain.ovh`).
+
+This approach offers three major benefits:
+
+- **Guaranteed authentication**: the OVHcloud server verifies your identity before accepting the email.
+- **Working SPF and DKIM**: the email is issued by a server authorised for your domain and signed correctly.
+- **Traceability**: every send is tied to an identified account, so you can act quickly in case of abuse.
+
+#### Why the `From:` field must belong to your domain
+
+The `From:` field of your email **must contain** an address belonging to your domain (for example `contact@mydomain.ovh`), and this address must match the SMTP account used for authentication.
+
+If the `From:` does not match the domain authorised in the SPF record, or if the DKIM signature does not match, the recipient mail servers (Gmail, Outlook, etc.) may reject the email or classify it as spam.
+
+:::tip
+To maximise deliverability, make sure the SPF, DKIM, and DMARC records are correctly configured in your DNS zone. Gmail and Yahoo Mail now require them for bulk senders. Refer to our guides:
+
+- [How to improve email security with an SPF record](/guides/web-cloud/domains/dns-zone-spf)
+- [How to improve email security with a DKIM record](/guides/web-cloud/domains/dns-zone-dkim)
+- [How to improve email security with a DMARC record](/guides/web-cloud/domains/dns-zone-dmarc)
+
+:::
+
+#### Contact forms: fixed `From:` field and user `Reply-To:`
+
+A common mistake is to place the email address entered by the user in the form directly in the `From:` field. For example, a visitor enters `user@gmail.com` and the script uses this address as the sender.
+
+This behaviour is incorrect for two reasons:
+
+- Your domain's SPF record does not authorise Gmail servers (or any other third-party provider) to send on your behalf → SPF check failure.
+- You are sending "on behalf of" an address that does not belong to you → high risk of being classified as spam or rejected.
+
+**The correct pattern for a contact form:**
+
+| Email field | Value | Role |
+|---|---|---|
+| `From:` | `contact@mydomain.ovh` (fixed address of the site) | Authenticated sender — never changes |
+| `Reply-To:` | Address entered by the user in the form | Allows you to reply directly to the user |
+| `Subject:` | Message subject, prefixed (for example `[Contact]`) | Makes form messages easy to identify |
+
+This way, when you reply to the email you received, your mail client sends the reply to the user's address via the `Reply-To:` field, without compromising SPF/DKIM authentication.
+
+Here is how to adapt the PHPMailer example for a contact form:
+
+```php
+// User-supplied data (validate and sanitise before use)
+$userEmail = filter_var($_POST['email'], FILTER_VALIDATE_EMAIL);
+$userName  = htmlspecialchars(strip_tags($_POST['name']));
+$message   = htmlspecialchars(strip_tags($_POST['message']));
+
+if (!$userEmail) {
+    die('Invalid email address.');
+}
+
+// From: always fixed — your site's address, never the user's
+$mail->setFrom('contact@mydomain.ovh', 'My Website');
+
+// Reply-To: the user's address, so you can reply to them directly
+$mail->addReplyTo($userEmail, $userName);
+
+// Recipient: yourself (you receive the form message)
+$mail->addAddress('contact@mydomain.ovh', 'My Website');
+
+$mail->Subject = '[Contact] ' . $userName;
+$mail->Body    = "Name: $userName\nEmail: $userEmail\n\nMessage:\n$message";
+```
+
+:::tip
+Never pass form data directly into PHPMailer without prior validation. Use `filter_var()` for the email address and `htmlspecialchars()` + `strip_tags()` for text fields to prevent email header injection.
+:::
+
+#### OVHcloud SMTP settings
+
+Use the following settings for your MX Plan email account (included with your web hosting):
+
+<Region zones={['eu']}>
+
+| Setting | Value |
+|---|---|
+| **SMTP server** | `smtp.mail.ovh.net` |
+| **Port (SSL/TLS)** | `465` *(recommended)* |
+| **Port (STARTTLS)** | `587` |
+| **Encryption** | `SSL/TLS` (port 465) or `STARTTLS` (port 587) |
+| **Authentication** | Required |
+| **Username** | Full email address (for example `contact@mydomain.ovh`) |
+| **Password** | Password of the OVHcloud email account |
+
+</Region>
+
+<Region zones={['ca', 'apac']}>
+
+| Setting | Value |
+|---|---|
+| **SMTP server** | `smtp.mail.ovh.ca` |
+| **Port (SSL/TLS)** | `465` *(recommended)* |
+| **Port (STARTTLS)** | `587` |
+| **Encryption** | `SSL/TLS` (port 465) or `STARTTLS` (port 587) |
+| **Authentication** | Required |
+| **Username** | Full email address (for example `contact@mydomain.ovh`) |
+| **Password** | Password of the OVHcloud email account |
+
+</Region>
+
+<Region zones={['eu']}>
+
+:::tip
+For **Email Pro** or **Exchange** solutions, the SMTP server is different. Refer to the documentation for each solution for the exact settings.
+:::
+
+</Region>
+
+<Region zones={['ca']}>
+
+:::tip
+For **Exchange** solutions, the SMTP server is different. Refer to the documentation for the exact settings.
+:::
+
+</Region>
+
+#### Where to find your SMTP credentials
+
+The **SMTP username** is your full email address (for example `contact@mydomain.ovh`).
+
+The **password** is the one set when the address was created, or changed from the OVHcloud Control Panel. If you have forgotten it or want to reset it, refer to the guide [Changing the password of an email account](/guides/web-cloud/email-and-collaborative-solutions/mx-plan/email-change-password).
+
+:::warning
+The MX Plan solution included with web hosting is subject to **sending quotas** (around 200 emails per hour per account). Standard mailbox solutions are not designed for bulk sending: for high volumes — newsletters or bulk transactional emails — use a dedicated third-party transactional email service, which is built for this purpose.
+:::
+
+#### PHP code example with PHPMailer
+
+[PHPMailer](https://github.com/PHPMailer/PHPMailer) is the reference PHP library for sending emails through SMTP. Install it via Composer:
+
+```bash
+composer require phpmailer/phpmailer
+```
+
+Here is a complete example of authenticated SMTP sending:
+
+```php
+<?php
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
+
+require 'vendor/autoload.php';
+
+$mail = new PHPMailer(true);
+
+try {
+    // OVHcloud SMTP server settings
+    $mail->isSMTP();
+    $mail->Host       = 'smtp.mail.ovh.net';
+    $mail->SMTPAuth   = true;
+    $mail->Username   = 'contact@mydomain.ovh'; // Your OVHcloud email address
+    $mail->Password   = 'your_password';         // Password of the email account
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL/TLS
+    $mail->Port       = 465;
+
+    // Sender: must belong to your domain
+    $mail->setFrom('contact@mydomain.ovh', 'My Website');
+    $mail->addReplyTo('contact@mydomain.ovh', 'My Website');
+
+    // Recipient
+    $mail->addAddress('mary.johnson@example.com', 'Recipient Name');
+
+    // Content
+    $mail->isHTML(true);
+    $mail->Subject = 'Your email subject';
+    $mail->Body    = 'Email body in <b>HTML</b>';
+    $mail->AltBody = 'Email body in plain text (fallback)';
+
+    $mail->send();
+    echo 'Email sent successfully.';
+} catch (Exception $e) {
+    echo "Error while sending: {$mail->ErrorInfo}";
+}
+```
+
+<Region zones={['ca', 'apac']}>
+
+:::warning
+The example above uses the SMTP server `smtp.mail.ovh.net`, available only in the Europe zone. From Canada or the Asia-Pacific zone, replace the value of `$mail->Host` with `smtp.mail.ovh.ca`.
+:::
+
+</Region>
+
+:::warning
+Never store your email account password in plain text in a versioned PHP file. Use a configuration file excluded from your Git repository (`.gitignore`).
+:::
+
+:::info
+With this configuration, every email sent from your site is:
+
+- **authenticated** with the OVHcloud server,
+- **signed** with your domain's SPF and DKIM records,
+- **traceable** in case of abuse or a deliverability issue.
+
+:::
+
+### 3. WordPress and other CMSs: use an SMTP plugin
+
+#### 3.1 The problem with WordPress by default
+
+The `wp_mail()` function in WordPress uses the PHP `mail()` function behind the scenes. It therefore inherits all the problems described in the previous section: no authentication, uncontrolled `From:`, spam risk.
+
+The solution is to install an **SMTP plugin** that replaces `wp_mail()` with an authenticated SMTP connection to your OVHcloud mail server.
+
+#### 3.2 Configuring WP Mail SMTP
+
+[WP Mail SMTP](https://wordpress.org/plugins/wp-mail-smtp/) is the most widely used plugin for this configuration.
+
+**Installation:**
+
+1. In your WordPress administration, go to **Plugins** > **Add New Plugin**.
+2. Search for `WP Mail SMTP` and click **Install Now**, then **Activate**.
+
+**Configuration:**
+
+1. Go to **WP Mail SMTP** > **Settings** in the administration menu.
+2. In the **From** section, fill in the following fields:
+
+| Field | Value |
+|---|---|
+| **From Email** | `contact@mydomain.ovh` (address belonging to your domain) |
+| **From Name** | Display name for your site (for example `My Website`) |
+
+3. In the **Mailer** section, select **Other SMTP**.
+4. Fill in the SMTP settings:
+
+<Region zones={['eu']}>
+
+| Field | Value |
+|---|---|
+| **SMTP Host** | `smtp.mail.ovh.net` |
+| **Encryption** | `SSL/TLS` |
+| **SMTP Port** | `465` |
+| **Authentication** | Enabled |
+| **SMTP Username** | `contact@mydomain.ovh` |
+| **SMTP Password** | Password of your OVHcloud email account |
+
+</Region>
+
+<Region zones={['ca', 'apac']}>
+
+| Field | Value |
+|---|---|
+| **SMTP Host** | `smtp.mail.ovh.ca` |
+| **Encryption** | `SSL/TLS` |
+| **SMTP Port** | `465` |
+| **Authentication** | Enabled |
+| **SMTP Username** | `contact@mydomain.ovh` |
+| **SMTP Password** | Password of your OVHcloud email account |
+
+</Region>
+
+5. Click **Save Settings**.
+6. In the **Tools** tab, use **Email Test** to check the configuration.
+
+:::tip
+Enable the **Force From Email** option so that all outgoing emails use the configured address, even if a third-party plugin tries to use another one.
+:::
+
+#### 3.3 Alternative: FluentSMTP
+
+[FluentSMTP](https://wordpress.org/plugins/fluent-smtp/) is a lightweight, free alternative with no limit on sending volume.
+
+**Installation:**
+
+1. In your WordPress administration, go to **Plugins** > **Add New Plugin**.
+2. Search for `FluentSMTP` and click **Install Now**, then **Activate**.
+
+**Configuration:**
+
+1. Go to **FluentSMTP** > **Settings**.
+2. Click **Add Connection** and select **Other SMTP**.
+3. Fill in the same settings as for WP Mail SMTP:
+
+<Region zones={['eu']}>
+
+| Field | Value |
+|---|---|
+| **Host** | `smtp.mail.ovh.net` |
+| **Port** | `465` |
+| **Encryption** | `SSL/TLS` |
+| **Authentication** | Yes |
+| **Username** | `contact@mydomain.ovh` |
+| **Password** | Password of your OVHcloud email account |
+| **From Email** | `contact@mydomain.ovh` |
+
+</Region>
+
+<Region zones={['ca', 'apac']}>
+
+| Field | Value |
+|---|---|
+| **Host** | `smtp.mail.ovh.ca` |
+| **Port** | `465` |
+| **Encryption** | `SSL/TLS` |
+| **Authentication** | Yes |
+| **Username** | `contact@mydomain.ovh` |
+| **Password** | Password of your OVHcloud email account |
+| **From Email** | `contact@mydomain.ovh` |
+
+</Region>
+
+4. Click **Save Connection**, then send a test email.
+
+#### 3.4 Other CMSs (Drupal, Joomla, PrestaShop)
+
+The principle is the same for any CMS or framework: replace the native sending function with a module or an authenticated SMTP configuration.
+
+| CMS | Recommended module |
+|---|---|
+| **Drupal** | [SMTP Authentication Support](https://www.drupal.org/project/smtp) |
+| **Joomla** | Native configuration: **System** > **Global Configuration** > **Server** tab > **Mail Settings** section |
+| **PrestaShop** | **Advanced Parameters** > **E-mail** — choose **Set my own SMTP parameters** |
+
+<Region zones={['eu']}>
+
+In all cases, the SMTP settings are the same: server `smtp.mail.ovh.net`, port `465` (SSL/TLS) or `587` (STARTTLS), with authentication using the full email address and its password.
+
+</Region>
+
+<Region zones={['ca', 'apac']}>
+
+In all cases, the SMTP settings are the same: server `smtp.mail.ovh.ca`, port `465` (SSL/TLS) or `587` (STARTTLS), with authentication using the full email address and its password.
+
+</Region>
+
+## Go further
+
+[Monitoring and managing automated emails in your web hosting plan](/guides/web-cloud/web-hosting/mail-function-script-records)
+
+[How to improve email security with an SPF record](/guides/web-cloud/domains/dns-zone-spf)
+
+[How to improve email security with a DKIM record](/guides/web-cloud/domains/dns-zone-dkim)
+
+[How to improve email security with a DMARC record](/guides/web-cloud/domains/dns-zone-dmarc)
+
+For specialised services (SEO, development, etc.), contact the [OVHcloud partners](/links/partner).
+
+If you would like assistance using and configuring your OVHcloud solutions, please take a look at our [support offers](/links/support).
+
+Join our [community of users](/links/community).

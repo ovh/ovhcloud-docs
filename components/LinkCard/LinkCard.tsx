@@ -20,6 +20,17 @@ interface LinkCardProps {
    */
   icon?: React.ReactNode;
   /**
+   * Stack the icon on top of the content instead of beside it. Useful for
+   * three-column grids where the beside layout gets cramped. No effect without
+   * an `icon`.
+   */
+  stacked?: boolean;
+  /**
+   * Optional small chip rendered under the description — e.g. a value to match
+   * ("Webmail: Roundcube"). Use it to turn a card into a recognizable choice.
+   */
+  tag?: React.ReactNode;
+  /**
    * The style of the link card.
    */
   style?: React.CSSProperties;
@@ -30,16 +41,26 @@ export function LinkCard({
   title,
   description,
   icon,
+  stacked,
+  tag,
   style,
 }: LinkCardProps) {
   const localizeHref = useLocalizeHref();
   const isExternal = href.startsWith('http://') || href.startsWith('https://');
   const resolvedHref = isExternal ? href : localizeHref(href);
 
+  const className = [
+    'link-card',
+    icon && 'link-card--with-icon',
+    icon && stacked && 'link-card--stacked',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <a
       href={resolvedHref}
-      className={icon ? 'link-card link-card--with-icon' : 'link-card'}
+      className={className}
       style={style}
       {...(isExternal && { target: '_blank', rel: 'noopener noreferrer' })}
     >
@@ -54,6 +75,7 @@ export function LinkCard({
           <span className="link-card__arrow">→</span>
         </h3>
         {description && <p className="link-card__description">{description}</p>}
+        {tag && <span className="link-card__tag">{tag}</span>}
       </div>
     </a>
   );

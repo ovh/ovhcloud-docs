@@ -5,7 +5,8 @@ export type Problem =
   | 'spam-blocked'
   | 'mailbox-full'
   | 'password'
-  | 'deleted';
+  | 'deleted'
+  | 'locked';
 
 interface ProblemIconProps {
   /** Which troubleshooting symptom this card is about. */
@@ -81,6 +82,17 @@ export function ProblemIcon({ name, size = 28, style }: ProblemIconProps) {
         <path d="M11.5 12H20" />
         <path d="M17 12v3" />
         <path d="M20 12v3" />
+      </svg>
+    );
+  }
+
+  if (name === 'locked') {
+    // Padlock — account locked / mail client repeatedly prompted for the password.
+    return (
+      <svg {...common} aria-hidden="true">
+        <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />
+        <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
+        <path d="M12 14v3" />
       </svg>
     );
   }

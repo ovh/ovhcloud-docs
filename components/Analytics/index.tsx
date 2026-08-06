@@ -3,15 +3,13 @@
 // the tracking team. jQuery is loaded as a standalone <script> from
 // /vendor/jquery-3.7.1.min.js (configured in builderConfig.html.tags).
 //
-// ovh_delta.js itself is loaded dynamically here from a useEffect (not via
-// builderConfig.html.tags) because in SSG mode, defer scripts execute before
-// React 19's async hydration completes. The cookie banner tag inside
-// ovh_delta.js then fires on a not-fully-hydrated DOM and silently fails to
-// inject. Loading it from useEffect guarantees React has hydrated first.
+// ovh_delta.js / ovh_tags.js are NOT injected here anymore: the CMP injects them
+// at bootstrap via window.__cmpConfig.scripts (see rspress.config*.ts), so there
+// is a single injection path owned by the consent layer. This component only
+// maintains the TMS data layer (window.tc_vars) and drives spa_pageLoad on
+// navigation; it polls for window.tC since the CMP-injected scripts load async.
 import { useLang, usePage } from '@rspress/core/runtime';
 import { useEffect } from 'react';
-
-const TRACKER_SRC = 'https://analytics.ovh.com/ovh/ovh_delta.js';
 
 interface TrackingVars {
   env_country: string;
@@ -114,17 +112,6 @@ export const AnalyticsBootstrap = () => {
   const lang = useLang();
   const { page } = usePage();
 
-  // Inject ovh_delta.js once, after the first render (React is hydrated).
-  useEffect(() => {
-    if (!document.querySelector(`script[src="${TRACKER_SRC}"]`)) {
-      const s = document.createElement('script');
-      s.src = TRACKER_SRC;
-      s.async = true;
-      s.dataset.analytics = '';
-      document.head.appendChild(s);
-    }
-  }, []);
-
   useEffect(() => {
     const { page_name, page_theme, chapter1, chapter2, chapter3 } =
       parsePagePath(page.pagePath);
@@ -146,8 +133,8 @@ export const AnalyticsBootstrap = () => {
       ...(chapter3 ? { chapter3 } : {}),
     };
 
-    // Poll for window.tC in case ovh_delta.js loads after this effect runs
-    // (async script vs React hydration timing).
+    // Poll for window.tC: the CMP injects ovh_delta.js asynchronously at its
+    // own bootstrap, so it may become available after this effect runs.
     let attempts = 0;
     const maxAttempts = 50; // 50 × 100ms = 5s
     const interval = window.setInterval(() => {

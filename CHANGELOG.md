@@ -1,5 +1,157 @@
 # Changelog
 
+## 2026.08.06
+
+### Documentation
+- 23 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.05
+
+### Documentation
+- 143 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.03
+
+### Features
+- **transverse:** add info (#510)
+
+### Documentation
+- 20 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.31.1
+
+### Documentation
+- 28 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.31
+
+### Documentation
+- 86 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.30
+
+### Documentation
+- 600 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.29
+
+### Documentation
+- 174 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.24
+
+### Documentation
+- 98 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.23.1
+
+### Fixes
+- **docs:** normalize community links - stragglers
+
+### Maintenance
+- distinguish action buttons from inline code (#452)
+
+### Documentation
+- 77 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.23
+
+### Features
+- **build:** serve guide body before nav for AI retrievability
+
+## 2026.07.22
+
+### Features
+- **components:** sticky tab label row + anchored tab switching (#440)
+- **mks:** add instructions about driver version (#439)
+- rich illustrated DNS (Domain Name System) landing page (7 locales) (#420)
+- **scripts:** Add PDF generation (#435)
+
+### Documentation
+- 48 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.21
+
+### Features
+- **compute:** update the transfer guide (#422)
+
+### Maintenance
+- **docs:** symlink untranslated EN duplicates to EN source
+- **docs:** clean up legacy api refs and images
+
+### Documentation
+- 175 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.17
+
+### Fixes
+- **sidebar:** let manual expand override auto-collapse of a multi-located guide's branch (#413)
+
+### Maintenance
+- add Qwen 3 32b decommissioning to docs (#419)
+
+### Documentation
+- 182 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.16
+
+### Features
+- **docs:** add VPS product landing page (#409)
+- **home:** add SIRET banner to FR home page hero (#406)
+- **build:** improve AI/LLM retrievability of guides
+- **docs:** add VPS product landing page
+
+### Documentation
+- 106 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.15.1
+
+### Features
+- **search:** signal that universe filters unfold product sub-filters
+
+### Documentation
+- 112 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.15
+
+### Features
+- **search:** add universe and product filters to docs search (#381)
+
+### Fixes
+- **public-cloud:** minor fixes on Increasing the size of an additional disk guide
+- **docs:** API links normalization & repair legacy links (#388)
+
+### Maintenance
+- **docs:** API guides update / clean-up (#390)
+
+### Documentation
+- 561 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.10
+
+### Documentation
+- 14 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.09.1
+
+### Fixes
+- **search:** set Pagefind result title from frontmatter on all pages
+- **home:** render hero title as h1 and add meta description
+
+### Documentation
+- 23 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.07.09
+
+### Features
+- use new CMP
+
+### Fixes
+- **seo:** repair 404 links reported by SEO team
+
+### Documentation
+- 36 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.07.08
 
 ### Features

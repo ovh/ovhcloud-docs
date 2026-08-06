@@ -11,6 +11,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import type { Locale } from './config/shared';
@@ -20,6 +21,7 @@ import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -138,6 +140,29 @@ export default defineConfig({
           append: true,
           attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
         },
+        // OVHcloud CMP — mirrors rspress.config.build.ts (early <head> consent
+        // gate). Intentional divergences from prod: (1) dev serves multiple
+        // locales from one instance, so we omit `locale` and let the CMP fall
+        // back to navigator.language / en-GB; (2) environment is 'preproduction'
+        // so local dev never writes test consents to the production API.
+        {
+          tag: 'script',
+          head: true,
+          append: true,
+          children:
+            "window.__cmpConfig={region:'EU',environment:'preproduction'," +
+            "scripts:['https://analytics.ovh.com/ovh/ovh_delta.js','https://analytics.ovh.com/ovh/ovh_tags.js']};",
+        },
+        {
+          // Absolute URL — the bundle is served by the OVHcloud server farms.
+          tag: 'script',
+          head: true,
+          append: true,
+          attrs: {
+            src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
+            defer: true,
+          },
+        },
       ],
     },
     source: {
@@ -175,7 +200,12 @@ export default defineConfig({
   lang: activeLocales[0]?.lang || 'fr',
   locales: [...activeLocales],
   markdown: {
-    remarkPlugins: [remarkNoManagerHardcoded, remarkNoApiHardcoded, remarkCpNavGate],
+    remarkPlugins: [
+      remarkNoManagerHardcoded,
+      remarkNoApiHardcoded,
+      remarkNoUnresolvedFragments,
+      remarkCpNavGate,
+    ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
       path.join(__dirname, 'components/Api/index.tsx'),
@@ -209,8 +239,13 @@ export default defineConfig({
       ],
     },
   },
-  // In dev, resolve /links/ to the first active locale (default: fr)
-  replaceRules: generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
+  // In dev, resolve [[fragment:]] and /links/ to the first active locale
+  // (default: fr). Fragment rules MUST come first so (/links/key) tokens
+  // inside fragment bodies resolve in the same pass.
+  replaceRules: [
+    ...generateFragmentRules((activeLocales[0]?.lang || 'fr') as Locale),
+    ...generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
+  ],
 
   route: {
     cleanUrls: true,
@@ -240,7 +275,7 @@ export default defineConfig({
     ],
     footer: {
       message:
-        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" onclick="window.tC&&window.tC.privacyCenter&&window.tC.privacyCenter.showPrivacyCenter();return false">Privacy center</a></div>',
+        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>',
     },
   },
 });
