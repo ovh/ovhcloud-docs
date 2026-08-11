@@ -1,7 +1,7 @@
 ---
 title: Import and export keys on OVHcloud KMS using BYOK
 description: Find out how to securely import and export encrypted key material with OVHcloud KMS using asymmetric RSA key wrapping (BYOK)
-lastUpdated: 2026-08-10
+lastUpdated: 2026-08-12
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -14,6 +14,8 @@ Bring Your Own Key (BYOK) lets you import and export cryptographic key material 
 
 :::info
 KMIP BYOK is not available yet. This guide covers only the regional REST API, the [OKMS CLI](https://github.com/ovh/okms-cli) and the [Go SDK](https://pkg.go.dev/github.com/ovh/okms-sdk-go).
+
+Keys created with the `HSM` protection level cannot currently be used for BYOK, either as transport keys or as the key material being wrapped.
 :::
 
 ## Requirements
@@ -21,7 +23,8 @@ KMIP BYOK is not available yet. This guide covers only the regional REST API, th
 - An [OVHcloud customer account](/guides/account-and-service-management/account-information/ovhcloud-account-creation).
 - An [OVHcloud KMS ordered](/guides/manage-and-operate/kms/quick-start).
 - An [authentication method configured](/guides/manage-and-operate/kms/okms-authentication-methods) for the OKMS data plane (Personal Access Token, service account, or access certificate).
-- An IAM policy that grants the BYOK actions described in [Configure IAM for BYOK](#configure-iam-for-byok).
+- The ability to apply an IAM policy on your OKMS domain; the BYOK actions required are listed in [Configure IAM for BYOK](#configure-iam-for-byok).
+- Your `okmsId` and your regional endpoint, both returned by <ApiLink section="/okms" version="v2" method="GET" route={"/okms/resource"}>GET /okms/resource</ApiLink> and displayed in the **General information** tab of your <ManagerLink to="/#/okms/key-management-service">OKMS domain dashboard</ManagerLink>.
 - Optional: the [OKMS CLI](https://github.com/ovh/okms-cli) or the [Go SDK](https://pkg.go.dev/github.com/ovh/okms-sdk-go) installed for the tabbed examples.
 
 ## Instructions
@@ -30,17 +33,17 @@ KMIP BYOK is not available yet. This guide covers only the regional REST API, th
 
 <img className="thumbnail" alt="BYOK RSA key import flow from source to destination KMS" src="/images/manage-and-operate/kms/import-export-keys-byok/byok-rsa-import-ceremony.png" loading="lazy" />
 
-The ceremony involves two environments:
+The ceremony involves two environments and an operator:
 
 - **Destination (Dst):** your OKMS domain, where the imported key will be stored.
 - **Source (Src):** the system that currently holds the key material (another KMS, an application, or a tool such as OpenSSL).
-- **Operator:** entity with the permissions to access both the OKMS domain and the source of the key to import. Can be a human using the OKMS CLI or a service performing using the API.
+- **Operator:** the entity with the permissions to access both the OKMS domain and the source of the key to import. This can be a human using the OKMS CLI, or a service acting through the API.
 
 1. Generate an RSA transport key pair on the OVHcloud KMS with the `wrapKey` and `unwrapKey` operations.
-2. Export the **public** transport key from the OVHcloud KMS
+2. Export the **public** transport key from the OVHcloud KMS.
 3. Import the **public** transport key in the source environment.
 4. On the source, export the key material wrapped (encrypted) with the transport key using either `RSA-OAEP` or `RSA-OAEP-256`.
-5. On the destination, import the wrapped key with `POST /v1/servicekey` and a `wrappedKeys` payload. The KMS unwraps the ciphertext with the private transport key and stores the resulting service key.
+5. On the destination, import the wrapped key with `POST /api/{okmsId}/v1/servicekey` and a `wrappedKeys` payload. The KMS unwraps the ciphertext with the private transport key and stores the resulting service key.
 
 Keys imported this way have `never_extractable` set to `false`, because the material existed outside the KMS before import. To extract a key later in wrapped form, set `extractable` to `true` and follow [Export a wrapped key](#export-a-wrapped-key). See [Service key sensitivity attributes](/guides/manage-and-operate/kms/kms-usage#service-key-sensitivity-attributes) for the full attribute list.
 
@@ -50,7 +53,7 @@ Prefer this ceremony over [plaintext key import](/guides/manage-and-operate/kms/
 
 ### Configure IAM for BYOK
 
-Apply a policy to your OKMS domain resource (`urn:v1:<region>:resource:okms:<okmsId>`). Replace `<identity_urn>` and `<okms_urn>` with your values. Create policies via the [OVHcloud Control Panel](/guides/account-and-service-management/account-information/iam-policy-ui) or the [OVHcloud API](/guides/account-and-service-management/account-information/iam-policies-api).
+Apply a policy to your OKMS domain resource. Its URN is displayed in the **General information** tab of your <ManagerLink to="/#/okms/key-management-service">OKMS domain dashboard</ManagerLink>. Replace `<identity_urn>` and `<okms_urn>` with your values. Create policies via the [OVHcloud Control Panel](/guides/account-and-service-management/account-information/iam-policy-ui) or the [OVHcloud API](/guides/account-and-service-management/account-information/iam-policies-api).
 
 **BYOK import** — read, create or import service keys, and unwrap with a transport key:
 
@@ -96,6 +99,10 @@ For import, `serviceKey/unwrapKey` must be allowed on the RSA transport key refe
 Create an RSA key dedicated to wrapping. Always set both `wrapKey` and `unwrapKey`. `wrapKey` and `unwrapKey` are mutually exclusive with `sign` and `verify`.
 
 Supported RSA key sizes: `2048`, `3072` or `4096` bits.
+
+:::info
+`SOFTWARE` is the default protection level, so you do not need to set it.
+:::
 
 <Tabs>
 <Tab label="REST API">
@@ -194,6 +201,8 @@ if err != nil {
 
 On the source environment, encrypt the key material with the destination public RSA key.
 
+This step happens outside OVHcloud KMS: use a JOSE library on the source environment.
+
 Supported wrapping algorithms ([RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518#section-4.1)):
 
 | Algorithm | Description |
@@ -214,11 +223,11 @@ After wrapping with the destination public key, send the resulting JWE Compact S
 
 ### Import the wrapped key
 
-Call `POST /v1/servicekey` with a `wrappedKeys` array instead of plaintext `keys`.
+Call `POST /api/{okmsId}/v1/servicekey` with a `wrappedKeys` array instead of plaintext `keys`.
 
 |**Method**|**Path**|**Description**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey|Create, import, or wrapped-import a service key|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey|Create, import, or wrapped-import a service key|
 
 | Field | Required | Description |
 | --- | --- | --- |
@@ -272,7 +281,7 @@ okms keys import --usage encrypt,decrypt \
   imported-aes-byok @wrapped.jwe
 ```
 
-`KEY` is the JWE Compact Serialization string. Pass it as `@path/to/wrapped.jwe`, inline, or `-` to read from stdin.
+The last argument (`KEY` in `okms keys import NAME KEY`) is the JWE Compact Serialization string. Pass it as `@path/to/wrapped.jwe`, inline, or `-` to read from stdin.
 
 `--wrapped-key-format` values: `JWK` (default), `RAW`, `PKCS1`, `PKCS8`.
 
@@ -343,7 +352,7 @@ You can then use the key for `encrypt`, `decrypt`, `sign`, or `verify` as docume
 
 ### Export a wrapped key
 
-Secure export is import in reverse: OVHcloud KMS encrypts the key material with an RSA transport key and returns only a JWE ciphertext. The private transport key must live on the **destination** environment so only that environment can unwrap the material.
+Secure export is import in reverse: OVHcloud KMS encrypts the key material with an RSA transport key and returns only a JWE ciphertext. The private transport key must live in the **destination** environment — here the external system receiving the key, not OVHcloud KMS — so only that environment can unwrap the material.
 
 #### Understand the export ceremony
 
@@ -464,7 +473,7 @@ if err != nil {
 </Tab>
 </Tabs>
 
-After a successful wrapped export, disable extraction again:
+After a successful wrapped export (see [Export the key wrapped by the transport key](#export-the-key-wrapped-by-the-transport-key)), disable extraction again:
 
 <Tabs>
 <Tab label="REST API">
@@ -503,7 +512,7 @@ if err != nil {
 
 #### Export the key wrapped by the transport key
 
-Call `GET /v1/servicekey/{keyId}` with the wrapping query parameters below. When these parameters are present, the API returns `wrappedKeys` instead of plaintext `keys`.
+Call `GET /api/{okmsId}/v1/servicekey/{keyId}` with the wrapping query parameters below. When these parameters are present, the API returns `wrappedKeys` instead of plaintext `keys`.
 
 | Query parameter | Required | Description |
 | --- | --- | --- |
@@ -513,7 +522,7 @@ Call `GET /v1/servicekey/{keyId}` with the wrapping query parameters below. When
 
 |**Method**|**Path**|**Description**|
 | :-: | :-: | :-: |
-|GET|/v1/servicekey/&#123;keyId&#125;|Get metadata, or export key material in wrapped form|
+|GET|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;|Get metadata, or export key material in wrapped form|
 
 IAM actions: `okms:apikms:serviceKey/get` on the exported key, and `okms:apikms:serviceKey/wrapKey` on the transport key.
 
