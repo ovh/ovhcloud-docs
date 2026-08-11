@@ -2452,8 +2452,7 @@
                 + [Backup Agent - Service updates](storage-and-backup/backup-agent/update)
                 + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion)
                 + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant)
-        + [Backup Licenses](products/storage-backup-and-disaster-recovery-solution-backup-licenses)
-            + [Overview](storage-and-backup/backup-licenses/overview)
+        + [Backup Licenses](products/storage-backup-and-disaster-recovery-solution-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-licenses-getting-started)
                 + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration)
                 + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise)
