@@ -321,6 +321,7 @@
         + [Migration](bare-metal-cloud-virtual-private-servers-migration)
             + [How to migrate a website from a VPS to a Dedicated Server or a Public Cloud instance](bare-metal-cloud/virtual-private-servers/migrate-to-pci-or-dedicated-server)
             + [How to migrate an n8n configuration between two VPS](bare-metal-cloud/virtual-private-servers/import-export-n8n)
+            + [How to update the OS on a VPS](bare-metal-cloud/virtual-private-servers/update-os-on-a-vps)
         + [Tutorials](bare-metal-cloud-virtual-private-servers-tutorials)
             + [How to use PuTTY for SSH connections and authentication](web-cloud/web-hosting/ssh-using-putty-on-windows)
             + [How to use SFTP to transfer files](bare-metal-cloud/dedicated-servers/transfer-data-via-sftp)
