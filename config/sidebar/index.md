@@ -609,6 +609,7 @@
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
+            + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
         + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
             + [Getting started with your CloudStore](hosted-private-cloud/opcp/cloudstore-getting-started)
         + [Landing Zone Manager](hosted-private-cloud-hosted-private-cloud-opcp-landing-zone-manager)
