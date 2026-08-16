@@ -1064,6 +1064,7 @@
                     + [Secure a Nginx Ingress with cert-manager on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/secure-nginx-ingress-cert-manager)
                     + [Getting the source IP behind the LoadBalancer](public-cloud/containers-orchestration/managed-kubernetes/getting-source-ip-behind-loadbalancer)
                     + [How to migrate from Load Balancer for MKS (IOLB) to Public Cloud Load Balancer (Octavia)](public-cloud/containers-orchestration/managed-kubernetes/migrate-iolb-to-public-cloud-loadbalancer)
+                    + [Migrating from NGINX Ingress Controller to Traefik on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/migrating-nginx-to-traefik)
                 + [Backup and Restore](public-cloud-containers-orchestration-managed-kubernetes-k8s-configuration-backup-and-restore)
                     + [Backup and Restore OVHcloud Managed Kubernetes Cluster, Namespace and Applications using TrilioVault for Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/backup-restore-cluster-trilio)
                     + [Backing-up an OVHcloud Managed Kubernetes cluster using CloudCasa](public-cloud/containers-orchestration/managed-kubernetes/backup-restore-cluster-cloudcasa)
