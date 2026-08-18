@@ -1724,6 +1724,7 @@
                     + [Transferring a .pl domain name to OVHcloud](web-cloud/domains/transfer-pl)
                     + [Transferring a domain name from Hostinger to OVHcloud](web-cloud/domains/transfer-incoming-hostinger)
                     + [Transferring a domain name from GoDaddy to OVHcloud](web-cloud/domains/transfer-incoming-godaddy)
+                    + [Transferring a domain name from Home.pl to OVHcloud](web-cloud/domains/transfer-incoming-homepl)
                     + [Transferring a domain name from Ionos to OVHcloud](web-cloud/domains/transfer-incoming-ionos)
                     + [Transferring a domain name from Gandi to OVHcloud](web-cloud/domains/transfer-incoming-gandi)
                     + [Transferring a domain name from Wix to OVHcloud](web-cloud/domains/transfer-incoming-wix)
