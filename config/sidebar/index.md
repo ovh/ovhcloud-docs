@@ -63,6 +63,7 @@
             + [Payer une commande en tant qu’administration publique](account-and-service-management/managing-billing-payments-and-services/public-administration)
             + [Correcting a bank details error](account-and-service-management/managing-billing-payments-and-services/correct-bank-details-error)
             + [Renseigner votre numéro de SIRET et mettre à jour votre taux de TVA](account-and-service-management/managing-billing-payments-and-services/update-vat-rate)
+            + [Understanding and correcting electronic invoicing errors](account-and-service-management/managing-billing-payments-and-services/electronic-invoicing-errors)
             + [Hosted Private Cloud](account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments-hosted-private-cloud)
                 + [Hosted Private Cloud billing information](account-and-service-management/managing-billing-payments-and-services/facturation-private-cloud)
             + [AI Notebooks](account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments-ai-notebooks)
