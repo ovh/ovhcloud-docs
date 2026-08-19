@@ -1,0 +1,175 @@
+---
+title: "Comment mettre à jour OPCP.Core"
+description: "Découvrez comment mettre à jour votre OVHcloud On-Prem Cloud Platform (OPCP), du téléchargement des artefacts avec l’opcp-cli aux vérifications post-déploiement."
+lastUpdated: 2026-08-19
+---
+
+## Objectif
+
+Ce guide explique comment mettre à jour votre **OVHcloud On-Prem Cloud Platform (OPCP)** : téléchargement des nouveaux artefacts, mise à jour de l’`opcp-cli`, application de la nouvelle version OPCP, puis validation de la plateforme une fois la mise à jour terminée.
+
+## Prérequis
+
+- Disposer d’une infrastructure [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) opérationnelle.
+- Disposer d’un accès administrateur (`root`) au plan de contrôle OPCP, avec les outils `opcp-cli`, `opcp-diag`, `needrestart`, `flux` et `tfctl` installés et configurés.
+- Disposer d’un accès au bucket S3<sup>1</sup> officiel fourni pour votre livraison OPCP, afin de télécharger l’`opcp-cli`, le nouveau paquet OPCP, les `RELEASE-NOTES`, ainsi que leurs fichiers de signature `.minisig` correspondants.
+
+## En pratique
+
+### 1. Lancer les vérifications préalables au déploiement
+
+Sur le plan de contrôle OPCP, lancez `opcp-diag` pour confirmer que la plateforme est en bonne santé avant de démarrer la mise à jour :
+
+```bash
+opcp-diag run -p
+```
+
+Si une erreur est signalée, vérifiez s’il est nécessaire de la corriger avant d’aller plus loin.
+
+### 2. Télécharger les artefacts
+
+Obtenez un accès au bucket S3 officiel afin de télécharger la dernière version :
+
+- de l’`opcp-cli`,
+- du nouveau paquet OPCP,
+- des `RELEASE-NOTES` des versions qui seront déployées.
+
+Vous trouverez également les fichiers `.minisig` correspondants dans le bucket. Ils permettent de vérifier que les fichiers téléchargés ne sont pas corrompus avant de mettre à jour votre produit OPCP.
+
+:::info
+Si vous utilisez actuellement un produit OPCP en mode AirGap, vous devriez avoir reçu un utilisateur en lecture seule pour accéder à ce bucket. Consultez [Utiliser le stockage objet avec S3cmd](/guides/storage-and-backup/object-storage/s3-s3cmd) pour démarrer avec le stockage objet.
+:::
+
+Une fois les fichiers requis téléchargés, transférez-les sur l’un de vos contrôleurs OPCP. En mode HA (3 contrôleurs), les artefacts sont automatiquement synchronisés entre tous les contrôleurs : il n’est donc pas nécessaire de transférer les fichiers sur chacun d’eux.
+
+### 3. Lire les RELEASE-NOTES
+
+Certaines versions nécessitent des actions manuelles pour préparer les services avant la mise à jour.
+
+Lisez attentivement les `RELEASE-NOTES`, car certaines actions peuvent être requises avant le début de la mise à jour et d’autres après sa fin.
+
+### 4. Mettre à jour l’opcp-cli
+
+Si cela est indiqué dans les `RELEASE-NOTES`, téléversez le nouveau binaire `opcp-cli` ainsi que sa signature sur le plan de contrôle OPCP géré à distance.
+
+Puis, en tant que `root`, mettez à jour `opcp-cli` :
+
+```bash
+root@opcp-reg-prd-0-0:~ $ opcp-cli update --bin /home/opcp-admin/opcp-cli-linux-amd64 --signature /home/opcp-admin/opcp-cli-linux-amd64.minisig
+✅ Commande 'update' terminée en 521.528004ms
+
+root@opcp-reg-prd-0-0:~ $ opcp-cli version
+INFO[0000] 👉 Opcp-cli version information
+INFO[0000] Opcp-cli version: v2.4.1
+INFO[0000] Opcp-cli commit: de54e85
+INFO[0000] Opcp-cli build time: 2026-02-05_15:54:16
+INFO[0000] ✅ Commande 'version' terminée en 35.343µs
+```
+
+Supprimez les fichiers téléversés une fois la mise à jour confirmée :
+
+```bash
+root@opcp-reg-prd-0-0:~ $ rm /home/ovh/opcp-cli-linux-amd64*
+```
+
+### 5. Mettre à jour les artefacts OPCP
+
+En tant que `root` sur le plan de contrôle OPCP géré à distance, ouvrez le fichier de configuration et mettez à jour les versions :
+
+```bash
+opcp-cli config edit
+```
+
+Mettez à jour la version globale et, si nécessaire, les versions spécifiques des artefacts. Par exemple :
+
+```yaml
+opcp-version:
+  global: 1.2.1
+  artifacts:
+    irobox: 1.2.4
+    binaries: 1.2.4
+```
+
+Si aucune version spécifique n’est nécessaire, définissez uniquement la version globale :
+
+```yaml
+opcp-version:
+  global: 1.2.4
+```
+
+Si nécessaire, mettez également à jour la configuration matérielle :
+
+```bash
+opcp-cli config edit --hardware
+```
+
+Appliquez ensuite la nouvelle version :
+
+```bash
+opcp-cli deploy
+```
+
+Les étapes suivantes peuvent prendre beaucoup de temps, selon ce qui est mis à jour dans la version :
+
+- extraction des images Glance,
+- démarrage du déploiement sur les nœuds distants,
+- exécution du déploiement du plan de contrôle, qui peut prendre jusqu’à 10 minutes.
+
+Vous pouvez suivre les journaux détaillés dans `/var/log/opcp-cli/opcp-cli.log` :
+
+```bash
+tail -F /var/log/opcp-cli/opcp-cli.log | jq .msg
+```
+
+### 6. Effectuer les vérifications finales
+
+#### Vérifier si certains services nécessitent un redémarrage
+
+Utilisez `needrestart` pour vérifier si certains services doivent être redémarrés :
+
+```bash
+needrestart -r l
+```
+
+:::warning
+Le redémarrage de services peut avoir un impact sur la plateforme. Ne procédez que si cela est nécessaire.
+:::
+
+Si nécessaire, redémarrez les services concernés :
+
+```bash
+needrestart -ra
+needrestart
+```
+
+#### Attendre la réconciliation
+
+Attendez que la réconciliation Flux soit terminée et que les exécutions Terraform soient achevées :
+
+```bash
+flux get all -A --status-selector ready=false
+flux get all -A --status-selector ready=unknown
+tfctl get
+```
+
+Si nécessaire, appliquez un correctif. Il est parfois nécessaire de relancer certains pods : soyez patient.
+
+#### Vérifications post-déploiement
+
+Sur le plan de contrôle OPCP, relancez `opcp-diag` :
+
+```bash
+opcp-diag run -p
+```
+
+Si une erreur est signalée, vérifiez s’il est nécessaire de la corriger.
+
+Vous pouvez également essayer d’accéder à l’interface pour confirmer qu’elle fonctionne correctement.
+
+## Aller plus loin
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d’utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.
