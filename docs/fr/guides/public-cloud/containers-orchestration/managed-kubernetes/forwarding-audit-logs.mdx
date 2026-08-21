@@ -1,1 +1,357 @@
-../../../../../en/guides/public-cloud/containers-orchestration/managed-kubernetes/forwarding-audit-logs.mdx
+---
+title: Redirection des journaux d'audit du Managed Kubernetes Service
+description: Découvrez comment rediriger les journaux d'audit d'un cluster Managed Kubernetes Service OVHcloud vers Logs Data Platform
+lastUpdated: 2026-08-03
+---
+
+import Api from '@components/Api';
+
+ 
+## Objectif
+
+Dans ce guide, vous apprendrez à activer la redirection des journaux d'audit de votre cluster Managed Kubernetes Service (MKS) OVHcloud vers Logs Data Platform (LDP), une plateforme qui vous aide à stocker, archiver, interroger et visualiser vos journaux.
+Si vous souhaitez découvrir Logs Data Platform avant de lire ce guide, consultez le [guide d'introduction à Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/introduction).
+
+## Glossaire
+
+- **Logs Data Platform :** une plateforme de gestion de journaux entièrement managée et sécurisée par OVHcloud. Retrouvez plus d'informations sur la [page du service Logs Data Platform](/links/manage-operate/logs-data-platform).
+- **Data Stream :** une partition logique de journaux que vous créez dans un compte LDP et que vous utiliserez pour ingérer, visualiser ou interroger vos journaux. Plusieurs sources peuvent être stockées dans le même flux de données, qui constitue l'unité de définition d'un pipeline de journaux (politique de rétention, archivage, streaming en direct...), des droits d'accès et des politiques d'alerte.
+- **Redirection des journaux :** fonctionnalité intégrée à un produit OVHcloud permettant d'ingérer les journaux de ses services vers un *Data Stream* d'un compte LDP appartenant au même compte OVHcloud. La fonctionnalité doit être activée par le client, service par service.
+- **Abonnement de redirection des journaux :** lorsque vous activez la redirection des journaux d'un service OVHcloud donné vers un *Data Stream* LDP donné, un *abonnement* est créé et rattaché au *Data Stream* pour une gestion ultérieure par le client.
+- **Étape de la requête et niveau d'audit :** les enregistrements d'audit commencent leur cycle de vie au sein du composant kube-apiserver. Chaque requête, à chaque étape de son exécution, génère un événement d'audit, qui est ensuite prétraité selon la politique définie par le Managed Kubernetes Service OVHcloud. Cette politique définit quels événements d'audit ainsi que quel niveau d'audit (c'est-à-dire quelles données d'événements) sont transmis via les journaux d'audit de votre cluster Kubernetes. Pour plus de détails, consultez la [documentation Kubernetes sur l'audit](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
+
+## Concept
+
+Que sont les journaux d'audit d'un cluster Managed Kubernetes ?
+
+Les journaux d'audit du Managed Kubernetes fournissent un ensemble chronologique d'enregistrements pertinents pour la sécurité, documentant la séquence des actions dans votre cluster.
+
+Le cluster audite les activités générées par les utilisateurs, par les applications qui utilisent l'API Kubernetes, et par le control plane lui-même. L'audit permet aux administrateurs du cluster de savoir ce qui s'est passé, quand, qui l'a initié et depuis où, sur quoi cela s'est produit et vers où cela allait. Pour plus de détails sur les audits de cluster, consultez la [documentation Kubernetes sur l'audit](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
+
+:::warning
+Les journaux d'audit du Managed Kubernetes n'incluent PAS les journaux de vos applications s'exécutant sur vos pods Kubernetes. Si vous souhaitez récupérer vos journaux de data plane dans un des data streams de votre Logs Data Platform, consultez ce guide : [Transmettre les journaux d'un cluster Kubernetes vers Logs Data Platform avec Fluent Bit](/guides/manage-and-operate/observability/logs-data-platform/kubernetes-fluent-bit)
+
+:::
+
+
+Le Managed Kubernetes Service OVHcloud a défini une politique d'audit, vous permettant de récupérer les journaux relatifs à :
+
+- les requêtes vers les ressources d'autorisation, pour faciliter le diagnostic des problèmes d'authentification
+- les modifications de configmap et de secret dans tous les namespaces, au niveau d'audit Metadata
+- les modifications de ressources au niveau RequestResponse (verbosité maximale) pour les verbes create, patch, update et delete
+- les modifications de ressources au niveau Request pour les autres verbes
+- toutes les autres requêtes au niveau Metadata
+
+Remarques :
+
+- aucun journal pour les requêtes du "system:kube-proxy" sur les endpoints ou services
+- faible niveau de verbosité (niveau Metadata) pour les endpoints contenant des données sensibles comme tokenreview
+- aucun journal pour les requêtes à l'étape RequestReceived
+- aucun journal pour les vérifications de santé et les requêtes de métriques de l'apiserver
+
+Pour plus de détails sur les informations capturées dans les journaux d'audit Kubernetes, consultez la [documentation publique de Kubernetes](https://kubernetes.io/docs/reference/config-api/apiserver-audit.v1/).
+
+### Politique d'audit
+
+La politique d'audit suivante (`audit.k8s.io/v1`) est appliquée au cluster Managed Kubernetes :
+
+<details>
+<summary>Consulter la politique d'audit</summary>
+
+```yaml
+apiVersion: audit.k8s.io/v1
+kind: Policy
+metadata: {}
+omitStages:
+- RequestReceived
+rules:
+- level: None
+  nonResourceURLs:
+  - /healthz*
+  - /logs
+  - /metrics
+  - /swagger*
+  - /version
+  userGroups:
+  - system:authenticated
+- level: None
+  resources:
+  - resources:
+    - endpoints
+    - services
+    - services/status
+  users:
+  - system:kube-proxy
+  verbs:
+  - watch
+- level: Metadata
+  resources:
+  - group: authentication.k8s.io
+    resources:
+    - tokenreviews
+- level: RequestResponse
+  resources:
+  - group: authorization.k8s.io
+- level: Metadata
+  resources:
+  - resources:
+    - secrets
+    - configmaps
+- level: None
+  resources:
+  - resources:
+    - nodes
+    - nodes/status
+  userGroups:
+  - system:nodes
+  verbs:
+  - get
+- level: RequestResponse
+  resources:
+  - group: admissionregistration.k8s.io
+  - group: apiextensions.k8s.io
+  - group: apiregistration.k8s.io
+  - group: apps
+  - group: authentication.k8s.io
+  - group: autoscaling
+  - group: batch
+  - group: certificates.k8s.io
+  - group: extensions
+  - group: metrics.k8s.io
+  - group: networking.k8s.io
+  - group: policy
+  - group: rbac.authorization.k8s.io
+  - group: settings.k8s.io
+  - group: storage.k8s.io
+  - resources:
+    - '*'
+  verbs:
+  - create
+  - patch
+  - update
+  - delete
+- level: Request
+  resources:
+  - group: admissionregistration.k8s.io
+  - group: apiextensions.k8s.io
+  - group: apiregistration.k8s.io
+  - group: apps
+  - group: authentication.k8s.io
+  - group: autoscaling
+  - group: batch
+  - group: certificates.k8s.io
+  - group: extensions
+  - group: metrics.k8s.io
+  - group: networking.k8s.io
+  - group: policy
+  - group: rbac.authorization.k8s.io
+  - group: settings.k8s.io
+  - group: storage.k8s.io
+  - resources:
+    - '*'
+- level: Metadata
+  omitStages:
+  - RequestReceived
+```
+
+</details>
+
+### Exemple de journal d'audit
+
+Voici un exemple de journal d'audit généré par un cluster Kubernetes. *Notez que cet exemple n'est pas exhaustif.*
+
+<details>
+<summary>Consulter un exemple de journal d'audit</summary>
+
+```json
+{
+   "kind":"Event",
+   "apiVersion":"audit.k8s.io/v1",
+   "level":"Metadata",
+   "auditID":"XXXXXXX-XXXX-XXXX-XXXX-XXXXXXXX",
+   "stage":"ResponseStarted",
+   "requestURI":"/api/v1/namespaces/searching-worker/configmaps?......",
+   "verb":"watch",
+   "user":{
+      "username":"system:node:search-workers-node-81097c",
+      "groups":[
+         "system:nodes",
+         "system:authenticated"
+      ]
+   },
+   "sourceIPs":[
+      "10.10.0.43"
+   ],
+   "userAgent":"kubelet/v1.26.4 (linux/amd64) kubernetes/f89670c",
+   "objectRef":{
+      "resource":"configmaps",
+      "namespace":"searching-worker",
+      "name":"kube-root-ca.crt",
+      "apiVersion":"v1"
+   },
+   "responseStatus":{
+      "metadata":{
+
+      },
+      "code":200
+   },
+   "requestReceivedTimestamp":"2024-01-01T11:59:06.428015Z",
+   "stageTimestamp":"2024-01-01T11:59:06.428962Z",
+   "annotations":{
+      "authorization.k8s.io/decision":"allow",
+      "authorization.k8s.io/reason":""
+   }
+}
+```
+
+</details>
+
+## Prérequis
+
+Pour suivre ce guide, vous aurez besoin de :
+
+- un compte Logs Data Platform (LDP) avec au moins un *Stream* actif configuré. Ce guide vous accompagnera dans toutes les étapes nécessaires : [Démarrage rapide de Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start).
+    - Si vous ne connaissez pas encore toutes les possibilités de configuration des *Stream* LDP, créez-en simplement un nouveau avec les options par défaut (indexation et websocket activés, stockage longue durée désactivé) pour les besoins de ce guide.
+- un cluster Managed Kubernetes Service (MKS) opérationnel. Ce guide vous accompagnera également dans ces étapes.
+- le compte LDP et le cluster MKS doivent appartenir au même compte OVHcloud.
+
+{/* CP-NAV-START:publiccloud-projects */}
+---
+
+### Accès à l'espace client OVHcloud
+
+- **Lien direct :** <ManagerLink to="/#/pci/projects">Public Cloud Projects</ManagerLink>
+- **Pour accéder à vos services :** <code className="action">Public Cloud</code> > sélectionnez votre projet
+
+---
+{/* CP-NAV-END:publiccloud-projects */}
+
+## En pratique
+
+### Activer la redirection des journaux d'audit via l'espace client OVHcloud
+
+#### Étape 1 - Accéder à la section Logs d'Audit de votre cluster Managed Kubernetes Service
+
+Accédez à l'interface d'administration de vos clusters Managed Kubernetes OVHcloud en cliquant sur <code className="action">Managed Kubernetes Service</code> dans le menu de gauche.
+
+<img className="thumbnail" alt="Entrée de menu Log Data Platform" src="/images/public-cloud/containers-orchestration/managed-kubernetes/forwarding-audit-logs-to-logs-data-platform/mks-cluster-details.png" loading="lazy" />
+
+Accédez aux détails de votre cluster MKS (en cliquant sur le nom du cluster dans la liste des clusters MKS) et cliquez sur l'onglet <code className="action">Logs d'Audit</code>.
+
+#### Étape 2 - Créer un abonnement Logs Data Platform
+
+Dans l'onglet <code className="action">Logs d'Audit</code>, vous pouvez visualiser en direct les journaux d'audit de votre cluster.
+
+Pour activer la redirection des journaux vers LDP, cliquez simplement sur le bouton <code className="action">S'abonner</code> sur la droite de votre écran.
+
+<img className="thumbnail" alt="Entrée de menu Log Data Platform" src="/images/public-cloud/containers-orchestration/managed-kubernetes/forwarding-audit-logs-to-logs-data-platform/Kubernetes1.png" loading="lazy" />
+
+#### Étape 3 - Sélectionner votre compte LDP et votre flux de données
+
+Dans la liste déroulante, sélectionnez le compte LDP souhaité, puis sélectionnez le Flux de données que vous souhaitez utiliser dans la liste, et cliquez sur le bouton <code className="action">S'abonner</code>.
+
+<img className="thumbnail" alt="Entrée de menu Log Data Platform" src="/images/public-cloud/containers-orchestration/managed-kubernetes/forwarding-audit-logs-to-logs-data-platform/Kubernetes2.png" loading="lazy" />
+
+Votre abonnement est maintenant créé et les journaux d'audit de votre MKS sont redirigés !
+
+### Activer la redirection des journaux d'audit via les API
+
+Vous devrez définir le *Stream* cible de l'un de vos comptes LDP vers lequel vous souhaitez que vos journaux soient redirigés. L'activation de la redirection créera un abonnement pour cet identifiant de flux.
+Notez que l'activation de la redirection est gratuite, mais que l'utilisation du service Logs Data Platform vous sera facturée selon la grille tarifaire standard. Pour connaître les tarifs de LDP, consultez la [page produit Logs Data Platform](/links/manage-operate/logs-data-platform).
+
+Vous pouvez récupérer les spécifications de l'API sur le <ApiLink section="/dbaas/logs" method="POST" route={"/dbaas/logs/\{serviceName\}/output/graylog/stream"}>portail API OVHcloud</ApiLink>
+
+#### Étape 1 - Récupérer votre Stream cible (et son ID)
+
+Listez les flux de données de votre compte Logs Data Platform :
+
+<Api version="v1" section="/dbaas/logs" method="GET" route={"/dbaas/logs/\{serviceName\}/output/graylog/stream"} />
+
+Obtenez les détails d'un flux de données :
+
+<Api version="v1" section="/dbaas/logs" method="GET" route={"/dbaas/logs/\{serviceName\}/output/graylog/stream/\{streamId\}"} />
+
+
+#### Étape 2 - Créer votre abonnement
+
+Comme dans l'exemple ci-dessus, la requête POST contient un payload avec un streamId, qui correspond au flux de données cible de votre compte LDP vers lequel vous souhaitez rediriger les journaux d'audit de votre cluster Kubernetes. Vous devez également spécifier le 'kind' de journal que vous souhaitez rediriger. Notez que la seule valeur actuellement prise en charge pour le Managed Kubernetes Service est 'audit' (vous pouvez retrouver les types disponibles via l'appel <ApiLink section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/capabilities/kube/log/kind"}>API dédiée</ApiLink>) :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/log/subscription"} />
+
+```json
+{
+  "kind": "string", // The only supported value currently is 'audit'.
+  "streamId": "18d602ec-af40-4000-8e59-41ecc8c23f80" // The streamID of the targeted Stream.
+}
+```
+
+**Résultat :**
+```json
+{
+  "operationId": "f550aa1c-89ab-4b1a-81ae-4fba4959966f",
+  "serviceName": "string"
+}
+```
+
+Vous pouvez ainsi l'utiliser pour récupérer le subscriptionId à des fins de gestion ultérieure, via l'endpoint de lecture de Logs Data Platform :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/log/subscription/\{subscriptionId\}"} />
+
+**Résultat :**
+
+```json
+{
+  "createdAt": "2024-01-31T15:45:25.286Z",
+  "kind": "string",
+  "resource": {
+    "name": "string",
+    "type": "string"
+  },
+  "serviceName": "string",
+  "streamId": "string",
+  "subscriptionId": "18d60324-b260-4000-83db-b484f4db6e80",
+  "updatedAt": "2024-01-31T15:45:25.286Z"
+}
+```
+
+### Comment utiliser vos journaux d'audit Kubernetes ?
+
+Maintenant que les journaux d'audit de votre instance Kubernetes sont ingérés et stockés dans votre flux de données Logs Data Platform, vous pouvez interroger vos journaux et créer des tableaux de bord pour obtenir une représentation graphique de vos journaux à l'aide de l'interface web de Graylog.
+
+- Depuis l'espace client OVHcloud, récupérez le nom d'utilisateur LDP (ex : logs-xxxx) et son mot de passe sur la page d'accueil de votre compte Logs Data Platform. Vous pouvez consulter la documentation [Démarrage rapide de Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start).
+- Ouvrez l'interface web de Graylog. Vous pouvez retrouver le lien sur la page d'accueil de votre compte ou via votre point d'accès selon la région de votre compte (par exemple : pour la région de Gravelines, il s'agit de https://gra1.logs.ovh.com/)
+- Connectez-vous à Graylog avec votre nom d'utilisateur et votre mot de passe Logs Data Platform
+- Recherchez dans vos journaux à travers le flux de données de votre compte Logs Data Platform. Vous pouvez consulter la [documentation Graylog sur l'écriture des requêtes de recherche](https://go2docs.graylog.org/current/making_sense_of_your_log_data/writing_search_queries.html) pour plus de détails sur la syntaxe de recherche.
+
+Consultez la documentation suivante : [Logs Data Platform - Visualiser, interroger et exploiter vos journaux](/guides/manage-and-operate/observability/logs-data-platform/overview) pour plus de détails sur l'utilisation de vos journaux avec Logs Data Platform, notamment pour :
+
+- configurer des alertes,
+- visualiser les journaux en temps réel via un WebSocket,
+- créer des visualisations avec OpenSearch Dashboards,
+- s'intégrer avec l'API OpenSearch,
+- se connecter avec Grafana.
+ 
+### Comment gérer vos abonnements ?
+
+À tout moment, vous pouvez récupérer les abonnements rattachés à votre flux de données Logs Data Platform et choisir de désactiver la redirection en annulant votre abonnement sur votre flux, afin que celui-ci ne reçoive plus vos journaux d'audit.
+
+Notez que cela ne supprime pas les journaux déjà stockés avant l'annulation de l'abonnement, car les données stockées dans un flux de journaux sont immuables, sauf si vous supprimez le flux entier.
+
+Pour supprimer votre abonnement, vous pouvez utiliser la section dédiée dans l'espace client OVHcloud. Accédez à l'onglet <code className="action">Logs d'Audit</code> de votre cluster MKS et cliquez sur <code className="action">Se désabonner</code>, ou utilisez la route API suivante :
+
+<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/log/subscription/\{subscriptionId\}"} />
+
+**Résultat :**
+
+```json
+{
+  "operationId": "a550aa1c-89ab-4b1a-81ae-4fba4959966c",
+  "serviceName": "string"
+}
+```
+
+## Aller plus loin
+
+- Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) pour obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l’équipe Professional Services.
+
+- Échangez avec notre [communauté d'utilisateurs](/links/community).
