@@ -711,6 +711,8 @@
             + [Public Cloud API Rate Limits](public-cloud/cross-functional/api-rate-limits)
             + [Comparison and resilience of Deployment Modes - Understanding 3-AZ / 1-AZ / Local Zones](public-cloud/cross-functional/deployment-modes-comparison-resilience-details)
             + [3-AZ resilience - Mechanisms and reference architectures](public-cloud/cross-functional/deployments-modes-reference-architecture)
+            + [Disaster recovery plan - Mechanisms and reference architectures](public-cloud/cross-functional/disaster-recovery-plan-architecture)
+            + [Disaster recovery plan - Implementation example](public-cloud/cross-functional/disaster-recovery-plan-implementation)
             + [How do Savings Plans work?](public-cloud/cross-functional/savings-plans)
             + [Introduction to Public Cloud Logs](public-cloud/cross-functional/logs-concepts)
         + [Getting Started](public-cloud-cross-functional-getting-started)
