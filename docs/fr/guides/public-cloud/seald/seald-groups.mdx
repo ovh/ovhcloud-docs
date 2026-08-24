@@ -1,0 +1,146 @@
+---
+title: "Créer et gérer des groupes Seald SDK"
+description: "Créez des groupes pour chiffrer des données pour plusieurs utilisateurs simultanément, gérez les membres et les rôles d'administrateur, et invitez des utilisateurs via des clés temporaires TMR."
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide explique comment utiliser les groupes du SDK Seald pour chiffrer des données pour plusieurs utilisateurs simultanément. Les groupes agissent comme une identité Seald : toutes les données chiffrées pour un groupe peuvent être déchiffrées par tous ses membres. L'ajout ou la suppression de membres octroie ou révoque immédiatement l'accès à toutes les données chiffrées pour le groupe.
+
+## Prérequis
+
+- Un compte Seald actif avec un `appId` et `apiURL`.
+- Le package `@seald-io/sdk` installé et initialisé. Consultez le guide [Installer le SDK Seald](/guides/public-cloud/seald/seald-install-sdk).
+- Tous les membres du groupe doivent avoir des identités Seald existantes et leurs valeurs `sealdId` doivent être connues.
+
+## En pratique
+
+Cette section couvre la création d'un groupe, le chiffrement et le déchiffrement pour un groupe, la gestion des membres et des rôles d'administrateur, le renouvellement des clés de groupe, et l'invitation d'utilisateurs non enregistrés via les clés temporaires TMR de groupe.
+
+### Étape 1 — Créer un groupe
+
+Appelez `sdk.createGroup` et fournissez au moins un membre et un administrateur. Les deux listes doivent inclure l'utilisateur qui crée le groupe :
+
+```javascript
+const group = await seald.createGroup({
+  groupName: 'Mon équipe',  // nom d'affichage dans le tableau de bord d'administration
+  members: { sealdIds: [monSealdId, sealdIdUtilisateur2] },
+  admins: { sealdIds: [monSealdId] }
+})
+
+// group.id est le sealdId du groupe — utilisez-le comme destinataire de chiffrement
+// group.groupName est le nom que vous venez d'attribuer
+```
+
+> [!INFO]
+> Pour accélérer la création de groupe, pré-générez les clés d'identité à l'avance en appelant `seald.preGenerateIdentityKeys(1)` avant de créer le groupe.
+
+### Étape 2 — Chiffrer et déchiffrer des données pour un groupe
+
+Utilisez l'`id` du groupe comme destinataire dans tout appel de chiffrement :
+
+```javascript
+// Chiffrer un fichier pour le groupe
+const encrypted = await seald.encryptFile(
+  Buffer.from('Contenu secret', 'utf8'),
+  { sealdIds: [group.id] },
+  { filename: 'secret.txt' }
+)
+
+// N'importe quel membre du groupe peut le déchiffrer
+const { data } = await instanceSDKMembre.decryptFile(encrypted)
+```
+
+> [!INFO]
+> Si l'utilisateur qui chiffre est également un membre du groupe, passez `encryptForSelf: false` pour ignorer le chiffrement direct vers ses propres identités. Il pourra toujours déchiffrer via son appartenance au groupe, ce qui améliore les performances.
+
+### Étape 3 — Ajouter et supprimer des membres
+
+Seuls les administrateurs du groupe peuvent ajouter ou supprimer des membres.
+
+Lorsqu'un utilisateur est ajouté, il obtient immédiatement accès à toutes les données précédemment chiffrées pour le groupe. Lorsqu'un utilisateur est supprimé, il perd immédiatement cet accès :
+
+```javascript
+// Ajouter un nouveau membre (administrateur uniquement)
+await instanceSDKAdmin.addGroupMembers(group.id, {
+  sealdIds: [nouveauMembreSealdId]
+})
+
+// Supprimer un membre (administrateur uniquement)
+await instanceSDKAdmin.removeGroupMembers(group.id, {
+  sealdIds: [membreSupprime]
+})
+```
+
+### Étape 4 — Renouveler les clés de groupe après la suppression d'un membre
+
+Après la suppression d'un membre, renouvelez les clés cryptographiques du groupe pour empêcher le membre supprimé de déchiffrer les futures données ajoutées au groupe :
+
+```javascript
+await instanceSDKAdmin.renewGroupKey(group.id)
+```
+
+### Étape 5 — Gérer les rôles d'administrateur
+
+Les administrateurs peuvent promouvoir des membres au rang d'administrateur ou rétrograder des administrateurs existants :
+
+```javascript
+// Promouvoir un membre en administrateur
+await instanceSDKAdmin.setGroupAdmin(group.id, { sealdIds: [nouveauAdminSealdId] }, true)
+
+// Rétrograder un administrateur en membre
+await instanceSDKAdmin.setGroupAdmin(group.id, { sealdIds: [ancienAdminSealdId] }, false)
+```
+
+### Étape 6 — Inviter un utilisateur dans un groupe via TMR (optionnel)
+
+Les clés temporaires TMR de groupe permettent à un administrateur d'inviter un utilisateur à rejoindre un groupe via un challenge e-mail ou SMS, même avant que l'utilisateur ait une identité Seald. C'est utile lors de l'envoi d'une invitation.
+
+**Créer la clé temporaire (administrateur) :**
+
+```javascript
+// rawOverEncryptionKey doit être exactement 64 octets, encodés en Base64, aléatoires cryptographiquement
+const rawOverEncryptionKey = await seald.utils.generateB64EncodedSymKey()
+
+const tmrKey = await seald.createGroupTMRTemporaryKey(group.id, {
+  rawOverEncryptionKey,
+  authFactor: { type: 'EM', value: 'utilisateur.invite@exemple.com' },
+  isAdmin: false
+})
+// tmrKey.id n'est pas secret — envoyez-le avec rawOverEncryptionKey à votre backend pour stockage
+```
+
+**Convertir la clé temporaire (utilisateur invité, une fois qu'il dispose d'une identité) :**
+
+```javascript
+// 1. Obtenir un JWT TMR de SSKS en fournissant le challenge envoyé au facteur d'auth
+const { token } = await sdkNouvelUtilisateur.ssks2MR.getFactorToken({
+  sessionId: ssksSessionId,
+  authFactor: { type: 'EM', value: 'utilisateur.invite@exemple.com' },
+  challenge: 'challenge-depuis-email'
+})
+
+// 2. Convertir la clé temporaire pour rejoindre le groupe
+await sdkNouvelUtilisateur.convertGroupTMRTemporaryKey(
+  group.id,
+  tmrKey.id,
+  token,
+  rawOverEncryptionKey, // récupéré depuis votre backend
+  { deleteOnConvert: true }
+)
+```
+
+> [!INFO]
+> Stockez chaque `rawOverEncryptionKey` sur votre backend aux côtés du `tmrKey.id`. Limitez l'accès à l'administrateur créateur et à l'utilisateur invité. Utilisez une `rawOverEncryptionKey` différente pour chaque invitation, même si le même administrateur invite le même facteur d'authentification.
+
+:::warning
+Pour lister ou rechercher les clés temporaires TMR de groupe, utilisez `sdk.listGroupTMRTemporaryKeys()` ou `sdk.searchGroupTMRTemporaryKeys()`. Pour en supprimer une, utilisez `sdk.deleteGroupTMRTemporaryKey()`.
+:::
+
+## Aller plus loin
+
+- [Créer et utiliser des sessions de chiffrement](/guides/public-cloud/seald/seald-encryption-sessions)
+- [Chiffrement anonyme](/guides/public-cloud/seald/seald-anonymous-encryption)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

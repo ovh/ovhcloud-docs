@@ -1,0 +1,129 @@
+---
+title: "Implement pseudonymisation with Seald"
+description: "Split datasets into identifying and non-identifying subsets, encrypt the identifying part client-side, and store only encrypted identifying data on your server."
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide explains how to implement pseudonymisation using the Seald SDK to comply with data minimisation requirements. The approach splits a dataset into two subsets — data that the server must process and data that should remain confidential — encrypts the confidential subset client-side, and stores only the encrypted version on the server.
+
+## Requirements
+
+- An active Seald account with an `appId` and `apiURL`.
+- The `@seald-io/sdk` package installed. See the [Install the Seald SDK](/guides/public-cloud/seald/seald-install-sdk) guide.
+- An initialised Seald SDK instance for the users authorised to decrypt identifying data.
+
+## Instructions
+
+This section explains the pseudonymisation pattern and how to implement it with the Seald SDK.
+
+### Step 1 — Understand the pseudonymisation pattern
+
+Pseudonymisation divides a dataset into two parts:
+
+- **Non-identifying data** — the subset the server legitimately needs (for queries, analytics, or business logic). Stored and processed in plaintext.
+- **Identifying data** — fields that must not be processed by the server (personal details, health data, financial information). Encrypted client-side for authorised users only.
+
+A random pseudonym (for example, a UUID) links the two subsets, so the full record can be reconstructed by authorised users.
+
+Without client-side encryption, a server compromise exposes all data. With client-side encryption, the server only holds the encrypted form of identifying data, without the decryption key.
+
+```
+┌────────────────────────────────────────────┐
+│ Frontend                                   │
+│  Full record                               │
+│    → pseudonym (UUID)                      │
+│    → non-identifying fields (plaintext)    │
+│    → identifying fields  ──Seald SDK──►   │
+│                             encrypted blob │
+└──────────────────┬─────────────────────────┘
+                   │ sends
+         ┌─────────▼───────────┐
+         │ Backend / Database  │
+         │  pseudonym          │
+         │  non-identifying    │ ← queryable
+         │  encrypted blob     │ ← opaque to server
+         └─────────────────────┘
+```
+
+### Step 2 — Encrypt identifying data client-side
+
+On the frontend, split the record, generate a pseudonym, encrypt the identifying fields using the Seald SDK, and send the encrypted blob to your server:
+
+```javascript
+import { randomUUID } from 'node:crypto' // or crypto.randomUUID() in browsers
+import SealdSDK from '@seald-io/sdk'
+
+// Authorised users who can decrypt identifying data
+const authorisedSealdIds = [dataOfficerSealdId, supervisorSealdId]
+
+// Generate a pseudonym
+const pseudonym = randomUUID()
+
+// The identifying fields to protect
+const identifyingFields = {
+  firstName: 'Alice',
+  lastName: 'Smith',
+  email: 'alice@example.com',
+  dateOfBirth: '1985-04-12'
+}
+
+// Encrypt the identifying fields as a JSON string
+const { id: sessionId, encryptedFile } = await anonymousSDK.encrypt({
+  getKeysToken,     // JWT from your backend — scope 1
+  encryptionToken,  // JWT from your backend — scope 0
+  recipients: { sealdIds: authorisedSealdIds },
+  clearFile: Buffer.from(JSON.stringify(identifyingFields), 'utf8'),
+  filename: 'identifying-data.json'
+})
+
+// Non-identifying fields — sent to the server in plaintext
+const nonIdentifyingFields = {
+  pseudonym,
+  sessionId,              // needed to retrieve the encryption session for decryption
+  encryptedBlob: encryptedFile.toString('base64'),
+  age: 39,
+  country: 'FR',
+  productCategory: 'electronics'
+}
+
+await fetch('/api/records', {
+  method: 'POST',
+  body: JSON.stringify(nonIdentifyingFields)
+})
+```
+
+### Step 3 — Decrypt identifying data when needed
+
+Authorised users retrieve the encrypted blob from the server and decrypt it client-side:
+
+```javascript
+// Retrieve the record and its encrypted blob from the server
+const record = await fetch(`/api/records/${pseudonym}`).then(r => r.json())
+const encryptedBuffer = Buffer.from(record.encryptedBlob, 'base64')
+
+// Decrypt using the authorised user's SDK instance
+const { data } = await authorisedSDKInstance.decryptFile(encryptedBuffer)
+const identifyingFields = JSON.parse(data.toString('utf8'))
+
+// identifyingFields now contains { firstName, lastName, email, dateOfBirth }
+```
+
+### Step 4 — Manage access
+
+Because the identifying data is encrypted using the Seald SDK's normal encryption primitives, you can manage access at any point:
+
+- **Add an authorised user**: Create an encryption session and call `session.addRecipients({ sealdIds: [newOfficerSealdId] })` for all existing records (or for new records from that point forward).
+- **Revoke access**: Call `session.revokeRecipients({ sealdIds: [removedOfficerSealdId] })`.
+- **Use groups**: Encrypt for a Seald group instead of individual `sealdIds`. Adding or removing a member from the group immediately changes who can decrypt.
+
+> [!INFO]
+> **Temporary server access:** If a server-side workflow must process identifying data in a specific case (for example, OCR or ML inference), you can grant the server a temporary Seald identity as a recipient, run the workflow, and then immediately revoke the server's access. Only data processed during the window of access is at risk if the server is later compromised.
+
+## Go further
+
+- [Implement anonymous encryption](/guides/public-cloud/seald/seald-anonymous-encryption)
+- [Create and manage Seald SDK groups](/guides/public-cloud/seald/seald-groups)
+
+Join our [community of users](/links/community).

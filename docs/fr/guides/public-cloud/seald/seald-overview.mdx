@@ -1,0 +1,165 @@
+---
+title: Qu'est-ce que Seald — Concepts clés
+description: Découvrez comment Seald fournit le chiffrement de bout en bout côté client pour les applications web, mobiles et desktop sur OVHcloud Public Cloud.
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide présente Seald, le problème qu'il résout et les concepts fondamentaux à maîtriser avant d'intégrer le SDK Seald dans votre application. Il s'adresse aux développeurs qui évaluent Seald en tant que produit OVHcloud Public Cloud.
+
+À l'issue de ce guide, vous comprendrez le fonctionnement des identités cryptographiques, des sessions de chiffrement et du stockage de clés, et vous serez prêt à consulter les guides de démarrage rapide.
+
+## Présentation
+
+### Le problème que Seald résout
+
+La plupart des applications protègent les données de deux façons : le TLS chiffre les données en transit, et le chiffrement au repos (parfois géré par un service de gestion de clés) protège les données sur disque. Les deux approches partagent une faiblesse structurelle : le backend de l'application traite les données en clair à l'exécution. Si le backend est compromis — par un attaquant externe, un collaborateur malveillant ou un environnement d'hébergement compromis — toutes les données auxquelles il a accès sont exposées.
+
+Seald résout ce problème en déplaçant le chiffrement côté client. Les données sont chiffrées dans le frontend — le navigateur, l'application mobile ou l'application desktop — avant d'être envoyées au serveur. Le backend ne stocke et ne transmet que du texte chiffré. Même si le backend est entièrement compromis, il ne peut pas lire les données protégées.
+
+C'est le modèle de chiffrement de bout en bout (E2E). Seald rend ce modèle pratique à intégrer dans des architectures d'application existantes, via un SDK JavaScript/TypeScript distribué sous le namespace npm `@seald-io`.
+
+> [!INFO]
+> Dans ce contexte, « côté client » signifie que les opérations de chiffrement et de déchiffrement sont effectuées dans le code frontend de votre application, à l'aide du SDK Seald. L'API Seald gère la distribution des clés — elle ne voit jamais les données en clair.
+
+### Architecture
+
+Le tableau ci-dessous résume comment les trois composants interagissent.
+
+| Composant | Rôle |
+|---|---|
+| Frontend (votre application) | Exécute le SDK Seald (`@seald-io/sdk`) ; chiffre et déchiffre les données localement, et échange les identités publiques et les clés chiffrées avec l'API Seald |
+| Votre Backend | Stocke et transmet uniquement des données chiffrées ; ne manipule jamais de texte en clair ni de clés de déchiffrement |
+| Infrastructure Seald (API Seald + SSKS) | Distribue les clés publiques et les clés chiffrées ; SSKS stocke en option les identités chiffrées afin qu'elles puissent être récupérées sur un nouvel appareil |
+
+Le point clé : **votre backend ne manipule jamais que du texte chiffré**. L'API Seald gère la distribution des clés publiques et la livraison des clés chiffrées — elle ne détient pas de clés de déchiffrement sous une forme qu'elle pourrait utiliser.
+
+### Intégration du SDK dans votre pile
+
+Vous installez le SDK Seald dans votre application frontend :
+
+```bash
+npm install @seald-io/sdk
+```
+
+Le SDK gère l'identité cryptographique d'un utilisateur localement. Lorsqu'un utilisateur chiffre des données pour un ensemble de destinataires, le SDK :
+
+1. Contacte l'API Seald pour récupérer les clés publiques des destinataires.
+2. Génère une clé de chiffrement symétrique pour la session.
+3. Chiffre cette clé pour chaque destinataire à l'aide de sa clé publique.
+4. Chiffre les données avec la clé symétrique.
+5. Envoie le texte chiffré (données + clés chiffrées) à votre backend pour stockage.
+
+Le déchiffrement suit le chemin inverse : le SDK récupère la clé chiffrée auprès de l'API Seald, la déchiffre localement avec la clé privée de l'utilisateur, puis déchiffre les données.
+
+## Concepts clés
+
+### Identités cryptographiques
+
+Une **identité Seald** est une paire de clés asymétriques (clé publique + clé privée) générée localement sur l'appareil de l'utilisateur lors de la première initialisation du SDK. La clé privée ne quitte jamais l'appareil en clair ; la clé publique est enregistrée auprès de l'API Seald afin que d'autres utilisateurs puissent chiffrer des données pour cette identité.
+
+Chaque utilisateur dispose d'une identité Seald. Cette identité peut être stockée de plusieurs façons :
+
+- **Base de données locale persistante :** L'identité est stockée sur l'appareil, chiffrée par une `databaseKey` que votre backend génère et contrôle.
+- **SSKS avec protection par mot de passe :** Voir [SSKS](#ssks-seald-sdk-key-storage) ci-dessous.
+- **SSKS avec la règle des deux hommes :** Voir [Règle des deux hommes (2MR)](#règle-des-deux-hommes-2mr) ci-dessous.
+
+:::warning
+Si l'identité d'un utilisateur est uniquement stockée dans une base de données locale et que celle-ci est perdue (réinitialisation de l'appareil, désinstallation), l'identité est définitivement perdue et les données chiffrées précédemment ne peuvent plus être déchiffrées. Planifiez votre stratégie de stockage d'identité avant la mise en production.
+:::
+
+### Sessions de chiffrement
+
+Une **session de chiffrement** représente un ensemble de données chiffrées et les destinataires autorisés à les déchiffrer. Lorsque vous appelez le SDK pour chiffrer un document ou un champ, le SDK :
+
+1. Crée une nouvelle clé symétrique spécifique à cette session.
+2. Chiffre la clé pour chaque destinataire autorisé (utilisateurs ou groupes).
+3. Stocke la distribution de clés chiffrées sur l'API Seald.
+4. Retourne le texte chiffré.
+
+Par la suite, tout destinataire autorisé peut ouvrir la session pour déchiffrer les données. Vous pouvez également modifier la liste des destinataires a posteriori : ajouter un utilisateur, en supprimer un, ou ajouter un groupe — sans rechiffrer les données sous-jacentes.
+
+### SSKS (Seald SDK Key Storage)
+
+**SSKS** (Seald SDK Key Storage) est un service optionnel côté serveur qui stocke l'identité Seald d'un utilisateur sous forme chiffrée, afin qu'il puisse la récupérer sur un nouvel appareil. L'identité est toujours chiffrée avant d'être envoyée à SSKS — SSKS ne peut pas la lire.
+
+Deux plugins interagissent avec SSKS :
+
+| Plugin | Mode de protection de l'identité |
+|--------|----------------------------------|
+| `@seald-io/sdk-plugin-ssks-password` | Chiffrée avec le mot de passe de l'utilisateur. Seul l'utilisateur peut la récupérer. |
+| `@seald-io/sdk-plugin-ssks-2mr` | Divisée entre votre backend et SSKS via la règle des deux hommes (voir ci-dessous). |
+
+Utilisez SSKS lorsque vos utilisateurs doivent accéder à leurs données chiffrées depuis plusieurs appareils ou après la réinstallation de l'application.
+
+### Règle des deux hommes (2MR)
+
+La **règle des deux hommes** (2MR) est un schéma de stockage d'identité qui supprime le risque de compromission à point unique. L'identité de l'utilisateur est divisée entre deux parties indépendantes :
+
+1. **Votre backend applicatif** détient une part.
+2. **Le serveur SSKS** détient l'autre part.
+
+Aucune des deux parties ne peut reconstruire l'identité de l'utilisateur seule. Pour récupérer une identité (par exemple, sur un nouvel appareil), l'utilisateur doit s'authentifier avec succès auprès des deux systèmes.
+
+## Cas d'usage
+
+### Protection des données sensibles
+
+Le cas d'usage principal est le chiffrement de bout en bout du contenu généré par les utilisateurs — messages, documents, champs de formulaire — afin que le backend de l'application puisse stocker et relayer les données sans pouvoir les lire.
+
+### Pseudonymisation
+
+Un pattern architectural courant consiste à diviser un enregistrement de données en deux parties :
+
+- **Données non-identifiantes** — traitées par le backend sans chiffrement (agrégations, statistiques, logique métier).
+- **Données identifiantes** — chiffrées côté client par le SDK Seald, accessibles uniquement aux utilisateurs autorisés.
+
+Ce pattern est aligné avec la technique de pseudonymisation recommandée par l'article 32 du RGPD.
+
+### Traitement côté serveur avec accès temporaire
+
+Certaines opérations backend — génération de PDF, indexation en texte intégral, transcodage d'image — nécessitent un accès aux données en clair. Seald prend en charge cela via un **octroi temporaire de droits** :
+
+1. Accordez des droits de déchiffrement à une **identité de service** (une identité Seald détenue par le processus backend).
+2. Le backend déchiffre, traite et rechiffre le résultat.
+3. Révoquez immédiatement l'accès de l'identité de service après le traitement.
+
+:::warning
+L'octroi temporaire de droits à une identité de service signifie que les données sont brièvement accessibles en clair sur le serveur pendant la fenêtre de traitement. Évaluez si cela est acceptable pour votre modèle de menace avant d'adopter ce pattern.
+:::
+
+## Prérequis et limites
+
+### Prérequis
+
+Avant d'intégrer Seald, vous aurez besoin de :
+
+- Un compte Seald. Contactez Seald ou votre représentant OVHcloud pour obtenir des identifiants.
+- Une application frontend dans un environnement pris en charge : web (navigateurs modernes), React Native ou Electron.
+- Node.js 18 ou version ultérieure pour le développement local et les outils de build.
+- Un backend capable de générer et de stocker de façon sécurisée une `databaseKey` par utilisateur.
+
+Consultez le [guide d'installation du SDK](/guides/public-cloud/seald/seald-install-sdk) pour les exigences complètes.
+
+### Limites techniques
+
+**Environnement de staging :**
+
+L'environnement de staging est fourni pour le développement et les tests. Il fonctionne sur un serveur unique sans haute disponibilité et sans garantie de persistance des données. L'indicateur de test `fake_otp: true` est disponible en staging, ce qui contourne le challenge par e-mail lors de la récupération d'identité 2MR.
+
+**Environnement de production :**
+
+L'environnement de production fonctionne sur des serveurs répliqués avec haute disponibilité et sauvegardes régulières. L'option `fake_otp` est bloquée en production. Contactez Seald pour provisionner un compte de production.
+
+:::warning
+Les données créées dans l'environnement de staging peuvent être supprimées sans préavis. Ne stockez pas de données utilisateur réelles ou d'identités de production en staging.
+:::
+
+## Aller plus loin
+
+- [Premiers pas avec Seald sur le web](/guides/public-cloud/seald/seald-quickstart-web)
+- [Installer le SDK Seald](/guides/public-cloud/seald/seald-install-sdk)
+- [Glossaire Seald](/guides/public-cloud/seald/seald-glossary)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

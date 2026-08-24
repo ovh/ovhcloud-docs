@@ -1,0 +1,162 @@
+---
+title: "Seald SDK - Troubleshooting common issues"
+description: "Diagnose and resolve the most common errors encountered when integrating the Seald SDK: JWT failures, identity retrieval errors, and environment issues."
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide helps you diagnose and resolve common errors encountered when integrating the Seald SDK, including JWT validation failures, identity retrieval errors, SSKS rate limiting, staging environment issues, and React Native configuration problems.
+
+## Requirements
+
+- An active Seald account and a functioning SDK integration.
+- Access to your backend logs and your Seald administration dashboard.
+
+## Instructions
+
+Use the symptoms below to identify the likely cause, then follow the corresponding resolution steps.
+
+### Identify the issue
+
+**Symptoms:**
+
+- SDK throws an error during `initiateIdentity` or `retrieveIdentity`.
+- JWT-related error messages such as `invalid token`, `expired token`, or `permission denied`.
+- SSKS responds with `406 Not Acceptable`.
+- SSKS rate-limits requests with `Request throttled, retry after {N}s`.
+- Encryption or decryption fails with a `session not found` or `recipient not found` error.
+- The SDK is slow to initialise or create sub-identities.
+- Build errors when adding the SDK to a React Native project.
+
+---
+
+### Cause 1 — JWT validation failure
+
+**Diagnosis:**
+
+The SDK throws an error immediately after `initiateIdentity` or `sdk.pushJWT()`. The error message mentions `invalid`, `expired`, or `permission denied`.
+
+**Resolution:**
+
+1. Verify that `iss` in the JWT payload matches your `JWTSecretId` exactly.
+2. Verify that `iat` is a Unix timestamp in **seconds**, not milliseconds. `Date.now()` returns milliseconds — divide by 1000: `Math.floor(Date.now() / 1000)`.
+3. Verify that the `scopes` array contains the correct permission value for the operation (e.g., `[3]` for signup, `[0]` for anonymous session creation).
+4. Verify that the `JWTSecret` used to sign the token matches the `JWTSecretId` in `iss`.
+5. Check that the signing algorithm is `HS256`.
+6. If using `jti`, verify the nonce has not been used before (each JWT must have a unique `jti`).
+7. Check the clock on your backend server — JWTs expire 10 minutes after `iat` by default. A clock skew of several minutes causes immediate expiry.
+
+---
+
+### Cause 2 — SSKS returns `406 Not Acceptable`
+
+**Diagnosis:**
+
+Your backend receives a `406` response from `POST https://{SSKS_URL}/tmr/back/challenge_send/`.
+
+**Resolution:**
+
+This error almost always means `fake_otp: true` was sent to a production SSKS endpoint. `fake_otp` is only available in the staging environment.
+
+1. Search your codebase for `fake_otp` and ensure it is removed from all production code paths.
+2. If you use environment variables to toggle `fake_otp`, verify that the production environment variable is not set or is set to `false`.
+
+---
+
+### Cause 3 — SSKS rate-limits identity retrieval
+
+**Diagnosis:**
+
+`ssksPassword.retrieveIdentity` or `ssks2MR.retrieveIdentity` throws: `Request throttled, retry after {N}s`.
+
+**Resolution:**
+
+The SSKS server applies rate limiting after multiple failed attempts (for example, incorrect passwords).
+
+1. Wait the number of seconds indicated in the error message before retrying.
+2. If this occurs in automated tests, verify that tests are not running identity retrieval in parallel for the same user. Wait for one retrieval to complete before starting another.
+3. If the user has forgotten their password and you use SSKS Password, account recovery is not possible without data loss. Consider switching to SSKS 2MR for future users.
+
+---
+
+### Cause 4 — Concurrent identity retrieval causes errors
+
+**Diagnosis:**
+
+Automated tests intermittently fail during `retrieveIdentity` or `saveIdentity`, or two devices retrieve the same identity at the same instant.
+
+**Resolution:**
+
+The SSKS server does not support concurrent retrieval of the same identity. Ensure that:
+
+1. In automated tests, sequential retrieval is enforced — await one `retrieveIdentity` call to complete before starting another for the same user.
+2. In production, use a persistent local database (`databasePath` + `databaseKey`) so that users do not need to retrieve their identity from SSKS on every page load. See [Configure a persistent local database](/guides/public-cloud/seald/seald-local-database).
+
+---
+
+### Cause 5 — Too many sub-identities degrade performance
+
+**Diagnosis:**
+
+Creating a new sub-identity or encrypting for a user takes noticeably longer as the number of sessions for that user grows. The user may have tens of sub-identities.
+
+**Resolution:**
+
+1. Avoid creating a new sub-identity on every login. Instead, use a persistent local database to cache the existing identity across sessions.
+2. If the user must retrieve their identity from SSKS on each login, retrieve the same identity rather than creating a new sub-identity each time.
+3. Call `seald.preGenerateIdentityKeys(1)` before creating a sub-identity to pre-generate cryptographic keys in the background and reduce perceived latency.
+
+---
+
+### Cause 6 — React Native build errors or runtime crashes
+
+**Diagnosis:**
+
+The React Native app fails to build after adding `@seald-io/sdk`, or crashes at runtime with errors referencing `crypto`, `Buffer`, or `stream`.
+
+**Resolution:**
+
+1. Install all required peer dependencies at the specified versions:
+   - `@react-native-async-storage/async-storage@2.1.0`
+   - `@seald-io/react-native-scrypt@1.2.3`
+   - `react-native-quick-crypto@0.7.11`
+   - `@craftzdog/react-native-buffer@6.0.5`
+   - `react-native-quick-base64@2.1.2`
+   - `readable-stream@4.7.0`
+2. Add the `@seald-io/sdk` package (and its peer deps) to the `transformIgnorePatterns` exception list in `jest.config.js` (for tests) and to the Metro resolver config.
+3. Add the Babel plugin for React Native if needed: `@babel/plugin-proposal-export-namespace-from`.
+4. Run `npx pod-install` (iOS) after installing native dependencies.
+5. See the [Install the Seald SDK](/guides/public-cloud/seald/seald-install-sdk) guide for the full Metro and Babel configuration.
+
+---
+
+### Cause 7 — Encryption session not found
+
+**Diagnosis:**
+
+`retrieveEncryptionSession` throws a `session not found` or similar error.
+
+**Resolution:**
+
+1. Verify that the `sessionId` or `encryptedMessage` passed to `retrieveEncryptionSession` is correct and has not been truncated.
+2. Verify that the SDK instance has an initialised identity that is a recipient of the session.
+3. If using the encryption session cache, try passing `{ useCache: false }` to force a network call: `retrieveEncryptionSession({ sessionId, useCache: false })`.
+4. If the session was created in the staging environment, it may have been deleted due to staging data reset. Sessions created in staging cannot be accessed after a reset.
+
+---
+
+### Escalation
+
+If the steps above do not resolve the issue:
+
+1. Enable verbose logging in the SDK if available.
+2. Gather the full error message, stack trace, SDK version, and environment (browser, Node.js version, or React Native version).
+3. Contact [Seald support](mailto:support@seald.io) and provide the diagnostic information collected above, including your `appId` and the approximate time of the failure.
+
+## Go further
+
+- [Frequently Asked Questions](/guides/public-cloud/seald/seald-faq)
+- [Technical limits and known issues](/guides/public-cloud/seald/seald-limits)
+
+Join our [community of users](/links/community).

@@ -1,0 +1,244 @@
+---
+title: "Getting started with Seald: Node.js"
+description: "Integrate end-to-end encryption into a Node.js application using the Seald SDK: install, create an identity, and encrypt data."
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide walks you through a complete Seald integration in a Node.js application. It covers three phases:
+
+1. Install and initialise the Seald SDK.
+2. Create and persist a Seald identity.
+3. Encrypt and decrypt messages and files.
+
+By the end, you will have a working Seald integration capable of encrypting data for specific recipients and decrypting it later.
+
+> [!INFO]
+> Node.js does not require any polyfill configuration. The standard `import` or `require` syntax works directly with the `@seald-io/sdk` package.
+
+## Requirements
+
+- A Seald account (staging or production)
+- Node.js 18 or later and npm
+- The following credentials from the Seald administration dashboard: `appId`, `apiURL` (staging only — omit in production), `JWTSecretId`, and `JWTSecret`
+
+## Instructions
+
+The steps below assume a server-side Node.js environment (or Electron). All code examples use ES module syntax; replace `import` with `require` if you use CommonJS.
+
+### Step 1 — Install the SDK
+
+Run the following command in your project directory:
+
+```bash
+npm install --save @seald-io/sdk
+```
+
+If you intend to store user identities via an SSKS server (optional), also install the relevant plugin:
+
+```bash
+npm install --save @seald-io/sdk-plugin-ssks-password  # password-based storage
+npm install --save @seald-io/sdk-plugin-ssks-2mr        # two-man rule storage
+```
+
+This guide uses manual identity export/import instead of SSKS, so neither plugin is required to follow the steps below.
+
+### Step 2 — Initialise the SDK
+
+Import the package and create an SDK instance. Call `initialize()` before performing any operation.
+
+```javascript
+import SealdSDK from '@seald-io/sdk'
+
+const seald = SealdSDK({ appId, apiURL })
+await seald.initialize()
+```
+
+> [!INFO]
+> In production, omit `apiURL`. The SDK defaults to the Seald production endpoint.
+
+### Step 3 — Create a Seald identity
+
+Before a user can encrypt or decrypt data, they need a Seald identity. Identity creation requires a signed JWT that your backend generates and passes to the client.
+
+**3.1 — Generate the signup JWT on your backend**
+
+Install the `jsonwebtoken` and `uuid` packages if they are not already present:
+
+```bash
+npm install --save jsonwebtoken uuid
+```
+
+Generate the JWT with a short expiry and a unique nonce:
+
+```javascript
+const jwt = require('jsonwebtoken')
+const { v4: uuidv4 } = require('uuid')
+
+const signupJWT = jwt.sign(
+  {
+    iss: JWTSecretId,
+    jti: uuidv4(),
+    scopes: [3] // scope 3 = JOIN_TEAM (identity creation)
+  },
+  JWTSecret,
+  { algorithm: 'HS256', expiresIn: '10m' }
+)
+```
+
+:::warning
+Never expose `JWTSecret` to the client. Generate JWTs exclusively on your backend and transmit only the signed token to the frontend or application layer.
+:::
+
+**3.2 — Initialise the identity**
+
+Pass the signed JWT to `initiateIdentity()`:
+
+```javascript
+const { sealdId: mySealdId } = await seald.initiateIdentity({ signupJWT })
+```
+
+The returned `mySealdId` uniquely identifies this user in the Seald ecosystem. Store it in your database alongside the user record.
+
+**3.3 — Export and store the identity**
+
+Export the identity as a Buffer and store it encrypted in your database:
+
+```javascript
+const exportedIdentity = await seald.exportIdentity()
+// exportedIdentity is a Buffer containing the user's private key material
+```
+
+:::warning
+`exportIdentity()` returns a Buffer that contains sensitive cryptographic key material. Store it encrypted at rest (for example, encrypted with a key derived from the user's password). Anyone who obtains this Buffer can decrypt all data encrypted for this identity.
+:::
+
+### Step 4 — Load an existing identity
+
+On subsequent sessions, retrieve the stored Buffer from your database and import it instead of calling `initiateIdentity()` again:
+
+```javascript
+await seald.importIdentity(exportedIdentity)
+// The SDK is now ready to encrypt and decrypt data for this identity
+```
+
+### Step 5 — Encrypt and decrypt data
+
+**5.1 — Encrypt and decrypt a message**
+
+Create an encryption session for a set of recipients identified by their `sealdId`, then encrypt a string:
+
+```javascript
+// Create a session — all listed recipients will be able to decrypt
+const session = await seald.createEncryptionSession(
+  { sealdIds: [mySealdId, recipientSealdId] }
+)
+
+const encryptedMessage = await session.encryptMessage('Secret message')
+```
+
+To decrypt, retrieve the session by its ID and call `decryptMessage()`:
+
+```javascript
+const retrievedSession = await seald.retrieveEncryptionSession({
+  sessionId: session.sessionId
+})
+const decryptedMessage = await retrievedSession.decryptMessage(encryptedMessage)
+```
+
+**5.2 — Encrypt and decrypt a file (Buffer)**
+
+Use `encryptFile()` to encrypt binary data. The `filename` option is stored in the encrypted envelope and returned on decryption:
+
+```javascript
+const encryptedBuffer = await seald.encryptFile(
+  Buffer.from('Secret file content', 'utf8'),
+  { sealdIds: [mySealdId, recipientSealdId] },
+  { filename: 'secret.txt' }
+)
+
+const { data, filename } = await seald.decryptFile(encryptedBuffer)
+console.log(filename)          // 'secret.txt'
+console.log(data.toString('utf8')) // 'Secret file content'
+```
+
+**5.3 — Reuse a session for multiple files**
+
+Create the session once and call `encryptFile()` on it multiple times to avoid creating a separate session for each file:
+
+```javascript
+const session = await seald.createEncryptionSession(
+  { sealdIds: [mySealdId, recipientSealdId] }
+)
+
+const file1Encrypted = await session.encryptFile(
+  Buffer.from('content of file 1'),
+  { filename: 'file1.txt' }
+)
+const file2Encrypted = await session.encryptFile(
+  Buffer.from('content of file 2'),
+  { filename: 'file2.txt' }
+)
+```
+
+### Step 6 — Manage encryption session recipients (optional)
+
+After a session is created, you can add or remove recipients. Only the session creator can revoke recipients by default.
+
+**Add a recipient:**
+
+```javascript
+await session.addRecipients({ sealdIds: [newRecipientSealdId] })
+```
+
+**Revoke a recipient:**
+
+```javascript
+await session.revokeRecipients({ sealdIds: [removedRecipientSealdId] })
+```
+
+> [!INFO]
+> Revoking a recipient prevents future decryption attempts by that recipient. It does not affect already-decrypted copies of the data.
+
+### Step 7 — Server-side encryption with the anonymous SDK (optional)
+
+The anonymous SDK allows a backend service to encrypt data for Seald users without holding a Seald identity. This is useful for server-side processes such as encrypting files before storing them on behalf of users.
+
+**Initialise the anonymous SDK:**
+
+```javascript
+const anonymousSDK = await SealdSDK.AnonymousSDKBuilder({ apiURL })
+```
+
+**Encrypt data for a recipient:**
+
+Your backend must provide two short-lived JWTs:
+
+- `getKeysToken`: signed with scope `1` (`ANONYMOUS_FIND_KEYS`)
+- `encryptionToken`: signed with scope `0` (`ANONYMOUS_CREATE_SESSION`)
+
+```javascript
+const { sessionId, encryptedFile } = await anonymousSDK.encrypt({
+  getKeysToken,     // JWT with scope ANONYMOUS_FIND_KEYS (1)
+  encryptionToken,  // JWT with scope ANONYMOUS_CREATE_SESSION (0)
+  recipients: [{ sealdId: recipientSealdId }],
+  clearFile: Buffer.from('Secret data'),
+  filename: 'data.txt'
+})
+```
+
+The recipient can then retrieve and decrypt the session using their standard Seald identity.
+
+> [!INFO]
+> The anonymous SDK is intended for backend services only. It does not persist any cryptographic material between calls.
+
+## Go further
+
+- [Install the Seald SDK](/guides/public-cloud/seald/seald-install-sdk)
+- [Manage Seald identities](/guides/public-cloud/seald/seald-identities)
+- [Work with encryption sessions](/guides/public-cloud/seald/seald-encryption-sessions)
+- [Generate and manage JWT secrets](/guides/public-cloud/seald/seald-jwt)
+- [Anonymous server-side encryption](/guides/public-cloud/seald/seald-anonymous-encryption)
+
+Join our [community of users](/links/community).

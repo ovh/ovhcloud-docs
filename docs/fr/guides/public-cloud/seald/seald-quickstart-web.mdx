@@ -1,0 +1,199 @@
+---
+title: "Premiers pas avec Seald : application web"
+description: Intégrez le SDK Seald dans une application web — installez le SDK, créez une identité utilisateur et chiffrez des messages de bout en bout.
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide vous explique comment intégrer le SDK de chiffrement de bout en bout Seald dans une application web basée sur un navigateur. Vous parcourrez le cycle de vie complet : installer le SDK, l'initialiser, créer et persister une identité utilisateur avec le stockage basé sur un mot de passe, puis chiffrer et déchiffrer des messages.
+
+À l'issue de ce guide, vous disposerez d'une intégration Seald fonctionnelle dans une application navigateur, utilisant le plugin SSKS Password pour stocker et récupérer les identités entre les sessions.
+
+## Prérequis
+
+- Un compte Seald (staging ou production) — consultez le [tableau de bord d'administration Seald](https://dashboard.staging-0.seald.io/) pour obtenir vos identifiants
+- Node.js et npm installés sur votre machine de développement
+- Les identifiants suivants depuis votre tableau de bord : `appId`, `apiURL`, `keyStorageURL`, `JWTSecretId` et `JWTSecret`
+- Une application web avec un backend capable de générer et signer des JWT
+
+## En pratique
+
+L'intégration suit quatre phases principales : installer les packages, initialiser le SDK dans le navigateur, créer (ou récupérer) une identité utilisateur, puis chiffrer et déchiffrer des données via des sessions de chiffrement.
+
+### Étape 1 — Installer le SDK
+
+Installez le SDK Seald et le plugin SSKS Password depuis npm.
+
+1. Exécutez la commande suivante à la racine de votre projet :
+
+```bash
+npm i -S @seald-io/sdk @seald-io/sdk-plugin-ssks-password
+```
+
+> [!INFO]
+> Pour plus d'options d'installation (CDN, configuration de bundler), consultez le guide [Installer le SDK Seald](/guides/public-cloud/seald/seald-install-sdk).
+
+### Étape 2 — Importer et initialiser le SDK
+
+Importez les deux packages et créez une instance du SDK.
+
+1. Ajoutez les imports suivants au point d'entrée de votre application :
+
+```javascript
+import SealdSDK from '@seald-io/sdk'
+import SealdSDKPluginSSKSPassword from '@seald-io/sdk-plugin-ssks-password'
+```
+
+2. Instanciez et initialisez le SDK. Remplacez les valeurs fictives par celles de votre tableau de bord :
+
+```javascript
+const seald = SealdSDK({
+  appId,       // votre ID d'application depuis le tableau de bord Seald
+  apiURL,      // staging uniquement — à omettre en production
+  plugins: [SealdSDKPluginSSKSPassword(keyStorageURL)] // keyStorageURL : staging uniquement — à omettre en production
+})
+
+await seald.initialize()
+```
+
+> [!INFO]
+> Les paramètres `apiURL` et `keyStorageURL` pointent vers l'environnement de staging. Supprimez-les lors du déploiement en production afin que le SDK utilise automatiquement les points de terminaison de production par défaut.
+
+### Étape 3 — Générer un JWT de signup sur votre backend
+
+Un JWT de signup autorise un nouvel utilisateur à rejoindre votre équipe Seald. Il doit être généré sur votre backend à l'aide de votre `JWTSecret` — ce secret ne doit **jamais** être exposé dans le code frontend.
+
+:::warning
+Votre `JWTSecret` donne la capacité d'ajouter des utilisateurs à votre équipe Seald. Ne l'incluez jamais dans un code côté client, un bundle navigateur ou un dépôt public. Générez toujours le JWT sur votre serveur et envoyez uniquement le jeton signé au frontend.
+:::
+
+1. Sur votre backend (exemple Node.js avec `jose`), générez un JWT de signup de courte durée :
+
+```javascript
+import { SignJWT } from 'jose'
+import { v4 as uuidv4 } from 'uuid'
+
+const signupJWT = await new SignJWT({
+  iss: JWTSecretId,
+  jti: uuidv4(),   // nonce unique pour éviter les attaques par rejeu
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [3],     // scope 3 = permission JOIN_TEAM
+  join_team: true
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+2. Exposez un point de terminaison authentifié sur votre backend qui retourne ce jeton.
+
+3. Depuis le frontend, appelez ce point de terminaison pour obtenir le jeton :
+
+```javascript
+const signupJWT = await backendAPI.getSignupJWT()
+```
+
+> [!INFO]
+> Le JWT doit utiliser l'algorithme HS256. Le champ `scopes` doit contenir `[3]` (JOIN_TEAM) pour la création d'identité. Pour une explication complète des champs JWT, consultez le guide [Secrets JWT](/guides/public-cloud/seald/seald-jwt).
+
+### Étape 4 — Créer une identité utilisateur
+
+Lors de la première utilisation, créez une identité Seald pour l'utilisateur et sauvegardez-la chiffrée avec un mot de passe afin qu'elle puisse être récupérée lors des sessions futures.
+
+:::warning
+Si vous ne sauvegardez pas l'identité, elle n'est stockée qu'en mémoire et est définitivement perdue à la fermeture de la page. Toutes les données chiffrées pour cette identité deviennent irrécupérables.
+:::
+
+1. Appelez `initiateIdentity` avec le JWT de signup, puis sauvegardez immédiatement l'identité avec un mot de passe :
+
+```javascript
+const password = 'motDePasseSecretUtilisateur' // utilisez un mot de passe dérivé des identifiants de l'utilisateur
+
+const { sealdId: mySealdId } = await seald.initiateIdentity({ signupJWT })
+
+// Persister l'identité, chiffrée avec le mot de passe de l'utilisateur
+await seald.ssksPassword.saveIdentity({
+  userId: 'monUserId', // l'identifiant de votre application pour cet utilisateur
+  password
+})
+```
+
+> [!INFO]
+> `userId` est l'identifiant de votre application pour l'utilisateur (par exemple, un ID de base de données ou une adresse e-mail). Stockez le `sealdId` retourné si vous avez besoin d'ajouter l'utilisateur comme destinataire lors de la création de sessions de chiffrement.
+
+### Étape 5 — Récupérer une identité lors des sessions suivantes
+
+Lorsqu'un utilisateur existant ouvre l'application, récupérez son identité depuis le stockage de mot de passe SSKS au lieu d'en créer une nouvelle.
+
+1. Appelez `retrieveIdentity` avec les mêmes `userId` et `password` utilisés lors de la création :
+
+```javascript
+const { sealdId: mySealdId } = await seald.ssksPassword.retrieveIdentity({
+  userId: 'monUserId',
+  password
+})
+```
+
+Le SDK est maintenant entièrement initialisé avec l'identité de l'utilisateur et prêt à chiffrer et déchiffrer des données.
+
+### Étape 6 — Chiffrer et déchiffrer des données
+
+Utilisez une session de chiffrement pour chiffrer et déchiffrer des messages. Une session définit l'ensemble des destinataires pouvant déchiffrer le contenu.
+
+1. Créez une session de chiffrement pour un ou plusieurs destinataires, identifiés par leur `sealdId` :
+
+```javascript
+const session = await seald.createEncryptionSession(
+  { sealdIds: [mySealdId, autreUtilisateurSealdId] }
+)
+```
+
+2. Chiffrez un message :
+
+```javascript
+const encryptedMessage = await session.encryptMessage('Bonjour, c\'est secret !')
+```
+
+3. Sur n'importe quel appareil de destinataire autorisé (ou plus tard dans la même session), récupérez la session depuis le message chiffré et déchiffrez-le :
+
+```javascript
+const retrievedSession = await seald.retrieveEncryptionSession({ encryptedMessage })
+const decryptedMessage = await retrievedSession.decryptMessage(encryptedMessage)
+```
+
+> [!INFO]
+> Les sessions de chiffrement peuvent également chiffrer des fichiers binaires. Consultez le guide [Sessions de chiffrement](/guides/public-cloud/seald/seald-encryption-sessions) pour le chiffrement de fichiers, la révocation de sessions et l'ajout ou la suppression de destinataires après création.
+
+### Étape 7 — Vérifier l'intégration
+
+Effectuez un test aller-retour rapide pour confirmer que votre configuration fonctionne de bout en bout.
+
+1. Après avoir initialisé le SDK et créé (ou récupéré) une identité, exécutez le snippet suivant :
+
+```javascript
+// Chiffrer un message de test
+const testSession = await seald.createEncryptionSession({ sealdIds: [mySealdId] })
+const encrypted = await testSession.encryptMessage('Test d\'intégration OK')
+
+// Récupérer la session et déchiffrer
+const check = await seald.retrieveEncryptionSession({ encryptedMessage: encrypted })
+const decrypted = await check.decryptMessage(encrypted)
+
+if (decrypted === 'Test d\'intégration OK') {
+  console.log('Intégration Seald vérifiée avec succès.')
+} else {
+  console.error('Le contenu déchiffré ne correspond pas. Vérifiez votre configuration SDK.')
+}
+```
+
+2. Vérifiez que la console affiche `Intégration Seald vérifiée avec succès.`
+
+## Aller plus loin
+
+- [Installer le SDK Seald](/guides/public-cloud/seald/seald-install-sdk)
+- [Gérer les identités Seald](/guides/public-cloud/seald/seald-identities)
+- [Plugin SSKS Password](/guides/public-cloud/seald/seald-ssks-password)
+- [Sessions de chiffrement](/guides/public-cloud/seald/seald-encryption-sessions)
+- [Secrets JWT](/guides/public-cloud/seald/seald-jwt)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

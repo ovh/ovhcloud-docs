@@ -1,0 +1,172 @@
+---
+title: "Generate and manage Seald JWT secrets"
+description: "Create JWT secrets in the Seald dashboard or via API, and generate signed JWTs on your backend to authorise identity creation and anonymous encryption."
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide explains how to create JWT secrets (shared secrets used to sign JSON Web Tokens) and how to generate the different types of JWTs required by the Seald SDK. JWTs authorise operations such as creating an identity, adding a custom connector, and performing anonymous encryption.
+
+> [!INFO]
+> **Keep JWTSecret values confidential.** Store them in environment variables or a secrets manager, never in client-side code. The `JWTSecretId` is not secret and can be embedded in tokens.
+
+## Requirements
+
+- A Seald administration account.
+- A backend capable of signing HS256 JWTs (any language with a JWT library).
+
+## Instructions
+
+This section covers creating JWT secrets, understanding permissions, and generating the four types of JWT used by the Seald SDK.
+
+### Step 1 — Create a JWT secret
+
+**Via the dashboard:**
+
+1. Log in to your Seald administration dashboard.
+2. Go to **Settings**, then the **JWT secrets** tab.
+3. Click **Create a secret**, select the required permissions, and confirm.
+4. Copy the `JWTSecretId` and `JWTSecret` values. The secret value is only shown once.
+
+**Via the API:**
+
+```shell
+curl -X POST https://dashboard.seald.io/dashboardapi/v2/jwtsharedsecret/ \
+  -H 'X-DASHBOARD-API-KEY: YOUR_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"permissions": [3]}'
+```
+
+The response contains `id` (`JWTSecretId`), `shared_secret` (`JWTSecret`), and `permissions`.
+
+### Step 2 — Understand JWT permissions
+
+Each `JWTSecret` has a set of permissions. A JWT can only use a subset of the permissions its secret has.
+
+| Value | Constant | Purpose |
+|---|---|---|
+| `-1` | `PERMISSION_ALL` | All permissions |
+| `0` | `PERMISSION_ANONYMOUS_CREATE_SESSION` | Create an anonymous encryption session |
+| `1` | `PERMISSION_ANONYMOUS_FIND_KEYS` | Retrieve recipient encryption keys |
+| `2` | `PERMISSION_ANONYMOUS_FIND_SIGCHAIN` | Retrieve a signature chain (unused) |
+| `3` | `PERMISSION_JOIN_TEAM` | Create a Seald identity (signup) |
+| `4` | `PERMISSION_ADD_CONNECTOR` | Add a custom identifier to an identity |
+| `5` | `PERMISSION_ANONYMOUS_FIND_SYMENCKEY` | Retrieve a session anonymously via SymEncKey |
+
+### Step 3 — Generate a signup JWT
+
+A signup JWT (scope `3`) authorises a new SDK instance to create its first identity. Generate it on your backend and deliver it to the frontend just before calling `sdk.initiateIdentity`:
+
+```javascript
+// Node.js — jose library
+import { SignJWT } from 'jose'
+import { randomUUID } from 'node:crypto'
+
+const token = await new SignJWT({
+  iss: JWTSecretId,
+  jti: randomUUID(),                      // one-time use nonce
+  iat: Math.floor(Date.now() / 1000),     // issued now (expires in 10 min by default)
+  scopes: [3],                            // PERMISSION_JOIN_TEAM
+  join_team: true
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+
+// Frontend usage
+await sdk.initiateIdentity({ signupJWT: token })
+```
+
+### Step 4 — Generate a connector JWT (optional)
+
+A connector JWT (scope `4`) adds a custom identifier to an existing identity. The connector format must be `${IDENTIFIER}@${APP_ID}` with type `AP`:
+
+```javascript
+const token = await new SignJWT({
+  iss: JWTSecretId,
+  jti: randomUUID(),
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [4],                             // PERMISSION_ADD_CONNECTOR
+  connector_add: {
+    value: `${customId}@${appId}`,
+    type: 'AP'
+  }
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+
+// Frontend usage — on an already-initialised SDK instance
+await sdk.pushJWT(token)
+```
+
+:::warning
+Connectors are stored in clear text in the Seald database. Avoid using personal data such as email addresses as the connector value. Use an internal UUID instead.
+:::
+
+### Step 5 — Generate anonymous encryption JWTs
+
+Anonymous encryption requires two separate JWTs:
+
+- A **getKeys JWT** (scope `1`, no `jti`): authorises key retrieval. Omit `jti` because this request may be paginated across multiple API calls.
+- An **encryption JWT** (scope `0`, with `jti`): authorises session creation. Include `jti` to prevent replay.
+
+```javascript
+const getKeysToken = await new SignJWT({
+  iss: JWTSecretId,
+  // No jti — key retrieval may require multiple calls
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [1],                              // PERMISSION_ANONYMOUS_FIND_KEYS
+  recipients: [sealdIdUser1, sealdIdUser2]
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+
+const encryptionToken = await new SignJWT({
+  iss: JWTSecretId,
+  jti: randomUUID(),                        // one-time use
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [0],                              // PERMISSION_ANONYMOUS_CREATE_SESSION
+  recipients: [sealdIdUser1, sealdIdUser2],
+  owner: sealdIdUser1                       // required for session creation
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+### Step 6 — Generate a SymEncKey retrieval JWT (optional)
+
+To allow anonymous session retrieval via a SymEncKey (scope `5`), generate a JWT listing the allowed SymEncKey IDs:
+
+```javascript
+const token = await new SignJWT({
+  iss: JWTSecretId,
+  jti: randomUUID(),
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [5],                              // PERMISSION_ANONYMOUS_FIND_SYMENCKEY
+  sym_enc_keys: [symEncKeyId]
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+### JWT field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `iss` | string | Yes | The `JWTSecretId` |
+| `iat` | number | Yes | Unix timestamp (seconds). JWT expires 10 minutes after `iat` if `exp` is not set. |
+| `exp` | number | No | Custom expiry as a Unix timestamp. |
+| `jti` | string | No | Unique nonce. If set, the JWT can only be used once. |
+| `scopes` | array | No | Subset of the secret's permissions. If omitted, all secret permissions apply. |
+| `join_team` | boolean | Scope 3 | Must be `true` for signup JWTs. |
+| `connector_add` | object | Scope 4 | `{ value: "ID@APP_ID", type: "AP" }` |
+| `recipients` | array | Scopes 0, 1 | List of `sealdId` values authorised for anonymous operations. |
+| `owner` | string | Scope 0 | `sealdId` of the session owner (required for session creation). |
+| `sym_enc_keys` | array | Scope 5 | List of SymEncKey IDs allowed for anonymous retrieval. |
+
+## Go further
+
+- [Implement anonymous encryption](/guides/public-cloud/seald/seald-anonymous-encryption)
+- [Create and manage Seald SDK identities](/guides/public-cloud/seald/seald-identities)
+
+Join our [community of users](/links/community).

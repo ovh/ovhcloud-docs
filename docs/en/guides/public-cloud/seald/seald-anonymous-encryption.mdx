@@ -1,0 +1,151 @@
+---
+title: "Implement anonymous encryption with Seald"
+description: "Encrypt data server-side or for unauthenticated users without a Seald identity, using the Seald Anonymous SDK and backend-issued JWTs."
+lastUpdated: 2026-05-19
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objective
+
+This guide explains how to use the Seald Anonymous SDK to encrypt data for users who have a Seald identity, from a context that does not have one — such as a backend service, an unauthenticated frontend, or a server-side workflow. The resulting encrypted data can only be decrypted by the designated recipient using their full Seald SDK instance.
+
+## Requirements
+
+- An active Seald account with an `appId` and `apiURL`.
+- The `@seald-io/sdk` package installed. See the [Install the Seald SDK](/guides/public-cloud/seald/seald-install-sdk) guide.
+- A backend capable of issuing HS256-signed JWTs with `PERMISSION_ANONYMOUS_FIND_KEYS` (scope `1`) and `PERMISSION_ANONYMOUS_CREATE_SESSION` (scope `0`). See [Generate and manage JWT secrets](/guides/public-cloud/seald/seald-jwt).
+- The `sealdId` of each recipient (obtained when the recipient created their identity).
+
+## Instructions
+
+This section covers importing the Anonymous SDK, generating the required JWTs on your backend, and encrypting data using either the one-shot or session-based approach.
+
+### Step 1 — Import and instantiate the Anonymous SDK
+
+The Anonymous SDK is a separate entry point from the full Seald SDK.
+
+<Tabs>
+<Tab label="Browser">
+
+Polyfilled (recommended for Webpack without custom polyfill config):
+
+```javascript
+import AnonymousSDKBuilder from '@seald-io/sdk/anonymous'
+const anonymousSDK = AnonymousSDKBuilder({ apiURL })
+```
+
+</Tab>
+<Tab label="Node.js / Electron">
+
+```javascript
+import { AnonymousSDKBuilder } from '@seald-io/sdk'
+const anonymousSDK = AnonymousSDKBuilder({ apiURL })
+```
+
+</Tab>
+<Tab label="React Native">
+
+```javascript
+import AnonymousSDKBuilder from '@seald-io/sdk/anonymous-react-native'
+const anonymousSDK = AnonymousSDKBuilder({ apiURL })
+```
+
+</Tab>
+</Tabs>
+
+### Step 2 — Generate JWTs on your backend
+
+Anonymous encryption requires two separate JWTs per operation. Generate both on your backend and pass them to the Anonymous SDK.
+
+**getKeys JWT** — authorises recipient key retrieval (scope `1`). Omit `jti` because this request may span multiple paginated API calls:
+
+```javascript
+// Node.js — jose library
+import { SignJWT } from 'jose'
+
+const getKeysToken = await new SignJWT({
+  iss: JWTSecretId,
+  // No jti — key retrieval may be paginated
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [1],                              // PERMISSION_ANONYMOUS_FIND_KEYS
+  recipients: [sealdIdUser1, sealdIdUser2]
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+**Encryption JWT** — authorises session creation (scope `0`). Must include `jti` to prevent replay:
+
+```javascript
+import { randomUUID } from 'node:crypto'
+
+const encryptionToken = await new SignJWT({
+  iss: JWTSecretId,
+  jti: randomUUID(),                        // one-time use
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [0],                              // PERMISSION_ANONYMOUS_CREATE_SESSION
+  recipients: [sealdIdUser1, sealdIdUser2],
+  owner: sealdIdUser1                       // required: session owner's sealdId
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+Deliver both tokens to the client (or use them directly server-side in a Node.js context).
+
+### Step 3 — Encrypt a file in one call
+
+Use `anonymousSDK.encrypt` to encrypt a file in a single operation:
+
+```javascript
+const { id: sessionId, encryptedFile } = await anonymousSDK.encrypt({
+  getKeysToken,
+  encryptionToken,
+  recipients: { sealdIds: [sealdIdUser1, sealdIdUser2] },
+  clearFile: clearFileBuffer,     // string, Buffer, Blob, or ReadableStream
+  filename: 'document.txt'
+})
+
+// sessionId identifies the encryption session — store it alongside encryptedFile
+```
+
+The recipients can decrypt the file using their full Seald SDK instance:
+
+```javascript
+const { data, filename } = await recipientSDK.decryptFile(encryptedFile)
+```
+
+### Step 4 — Encrypt multiple items with a session
+
+If you need to encrypt several messages or files for the same recipients, use `anonymousSDK.createEncryptionSession` to create a session and reuse the key:
+
+```javascript
+const session = await anonymousSDK.createEncryptionSession({
+  getKeysToken,
+  encryptionToken,
+  recipients: { sealdIds: [sealdIdUser1, sealdIdUser2] }
+})
+
+// Encrypt a message
+const encryptedMessage = await session.encryptMessage('Confidential update')
+
+// Encrypt a file
+const encryptedFile = await session.encryptFile(
+  Buffer.from('File content', 'utf8'),
+  { filename: 'report.pdf' }
+)
+```
+
+> [!INFO]
+> **Session reuse:** The encryption JWT must include `jti` and is consumed once. If you need to encrypt additional items to the same session later, retrieve the session using the full Seald SDK (as a recipient) and call `addRecipients` or encrypt from there. The Anonymous SDK cannot retrieve an existing session — it can only create new ones.
+
+> [!INFO]
+> **SymEncKey retrieval:** If you need the Anonymous SDK to retrieve an existing session via a SymEncKey, use `anonymousSDK.retrieveEncryptionSession` with a backend-issued JWT (scope `5`). See [Generate and manage JWT secrets](/guides/public-cloud/seald/seald-jwt) for the JWT format.
+
+## Go further
+
+- [Create and use encryption sessions](/guides/public-cloud/seald/seald-encryption-sessions)
+- [Implement pseudonymisation](/guides/public-cloud/seald/seald-pseudonymisation)
+
+Join our [community of users](/links/community).

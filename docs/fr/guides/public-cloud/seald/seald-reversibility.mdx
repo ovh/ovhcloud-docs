@@ -1,0 +1,117 @@
+---
+title: "Déchiffrer des données avec l'outil de réversibilité"
+description: Récupérez vos données en clair en cas d'arrêt du SDK Seald grâce à l'outil de réversibilité et aux exports fournis par Seald.
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide explique comment utiliser l'outil de réversibilité Seald pour déchiffrer les données chiffrées avec le SDK, sans avoir recours au SDK lui-même. Cette procédure est prévue pour les cas exceptionnels (arrêt du service, migration) et nécessite des exports fournis par l'équipe Seald ainsi que certaines données de votre backend.
+
+:::warning
+L'outil de réversibilité casse le chiffrement de bout en bout. Il ne doit jamais être utilisé en dehors des procédures exceptionnelles de sortie du service. Testez la procédure sur votre environnement de staging avant d'en avoir besoin en production.
+:::
+
+## Prérequis
+
+- L'export des données Seald (fichiers `ssks.backup` et `api.backup`), fourni par le [support Seald](mailto:support@seald.io).
+- La clé privée avec laquelle les exports ont été chiffrés.
+- Les données de votre backend : clés `twoManRuleKey` (si SSKS 2MR), mots de passe (si SSKS Password), clés SymEncKey (si applicable).
+- Node.js installé sur la machine exécutant la procédure.
+
+> [!INFO]
+> Cette procédure est possible uniquement si vous avez accès aux identités de chaque utilisateur. Avec SSKS 2MR, les identités peuvent être déchiffrées à partir des exports combinés SSKS + clés de votre backend. Avec SSKS Password uniquement, un accès aux mots de passe utilisateurs est nécessaire.
+
+## En pratique
+
+La réversibilité s'effectue en trois étapes : déchiffrement des identités, déchiffrement des clés de session, puis déchiffrement des données elles-mêmes.
+
+### Étape 1 — Installer l'outil de réversibilité
+
+```bash
+npm install @seald-io/reversibility-tools
+```
+
+### Étape 2 — Déchiffrer les identités (`decryptSsksExport`)
+
+Cette étape produit un fichier JSONLines contenant les identités déchiffrées au format `{ sealdId, deviceId, identity }`.
+
+```javascript
+const { node: sscrypto } = require('sscrypto')
+const fs = require('node:fs')
+const { decryptSsksExport } = require('@seald-io/reversibility-tools')
+
+const appId = 'VOTRE_APP_ID'
+
+// Charger votre clé privée
+const privateKeyB64 = await fs.promises.readFile('./exports/private_key', 'utf8')
+const privateKey = sscrypto.PrivateKey.fromB64(privateKeyB64)
+
+await decryptSsksExport(
+  './exports/ssks.backup',         // export SSKS fourni par Seald
+  privateKey,
+  './clear/identities.jsonl',      // fichier de sortie
+  {
+    appId,
+    ssksTmrKeysPath: './exports/ssks-tmr-keys.jsonl',         // optionnel — si SSKS 2MR
+    ssksStrictPasswordsPath: './exports/ssks-passwords.jsonl'  // optionnel — si SSKS Password
+  }
+)
+```
+
+**Format du fichier `ssks-tmr-keys.jsonl` (si SSKS 2MR) :**
+```json
+{ "userId": "string", "sealdId": "string", "twoManRuleKey": "string" }
+```
+
+**Format du fichier `ssks-passwords.jsonl` (si SSKS Password) :**
+```json
+{ "userId": "string", "sealdId": "string", "password": "string" }
+```
+
+### Étape 3 — Déchiffrer les clés de session (`decryptApiExport`)
+
+Cette étape produit un fichier JSONLines associant chaque `sessionId` à sa clé de déchiffrement.
+
+```javascript
+const { decryptApiExport } = require('@seald-io/reversibility-tools')
+
+await decryptApiExport(
+  './exports/api.backup',             // export API fourni par Seald
+  './clear/identities.jsonl',         // résultat de l'étape précédente
+  privateKey,
+  './clear/sessions.jsonl',           // fichier de sortie
+  {
+    tmrAccessesOverEncryptionKeysPath: './exports/tmr-accesses.jsonl',  // optionnel
+    symEncKeysPath: './exports/sym-enc-keys.jsonl',                      // optionnel
+    appId
+  }
+)
+```
+
+### Étape 4 — Déchiffrer les données (`decryptMessage` / `decryptFile`)
+
+```javascript
+const { decryptMessage, decryptFile } = require('@seald-io/reversibility-tools')
+
+// Déchiffrer un message
+const decrypted = await decryptMessage(encryptedMessage, './clear/sessions.jsonl')
+
+// Déchiffrer un fichier
+const { stream, promise } = decryptFile(
+  fs.createReadStream('./encrypted/document.seald'),
+  './clear/sessions.jsonl'
+)
+const { filename, size } = await promise
+await fs.promises.writeFile(`./clear/${filename}`, stream)
+```
+
+> [!INFO]
+> Un exemple complet est disponible sur GitHub : [seald/seald-reversibility-tools-demo](https://github.com/seald/seald-reversibility-tools-demo).
+
+## Aller plus loin
+
+- [Passer du serveur de staging à la production](/guides/public-cloud/seald/seald-staging-to-production)
+- [Bonnes pratiques de sécurité](/guides/public-cloud/seald/seald-security-best-practices)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
