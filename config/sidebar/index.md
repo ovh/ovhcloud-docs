@@ -1768,6 +1768,7 @@
                     + [Add an MX record to your domain name’s configuration](web-cloud/domains/dns-zone-mx)
                 + [DNS options](web-cloud-domains-dns-configuration-dns-options)
                     + [How to enable Anycast DNS for your domain name](web-cloud/domains/dns-anycast-enable)
+                    + [How to disable Anycast DNS for your domain name](web-cloud/domains/dns-anycast-disable)
                     + [Customising the DNS servers for an OVHcloud domain name](web-cloud/domains/glue-registry)
                     + [Configuring a dynamic DNS for a domain name](web-cloud/domains/dns-dynhost)
             + [Security](web-cloud-domains-dns-security)
