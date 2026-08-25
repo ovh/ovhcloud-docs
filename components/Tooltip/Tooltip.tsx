@@ -70,7 +70,9 @@ export function Tooltip({
   const localizeHref = useLocalizeHref();
   // An unknown key renders the trigger as plain text (see the `!resolved`
   // guard below) rather than an empty overlay — a stale key degrades, never
-  // breaks the page. `glossary:validate` is what catches it at build time.
+  // breaks the page. It should never reach production either:
+  // plugins/remarkNoUnresolvedTerm.ts fails the build on an unresolved
+  // term=, and `pnpm glossary:validate` sweeps every locale plus orphans.
   const resolved = content ?? (term ? glossary[term]?.definition : undefined);
   const id = useId();
   const triggerRef = useRef<HTMLSpanElement>(null);
