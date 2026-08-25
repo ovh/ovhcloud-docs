@@ -2684,8 +2684,7 @@
     + [CLI](manage-operate-cli)
         + [Getting Started with OVHcloud CLI](manage-and-operate/cli/getting-started)
     + [Observability](products/manage-operate-observability)
-        + [Logs Data Platform](products/observability-logs-data-platform)
-            + [Overview](manage-and-operate/observability/logs-data-platform/overview)
+        + [Logs Data Platform](products/observability-logs-data-platform){landing=manage-and-operate/observability/logs-data-platform/landing-page-logs-data-platform}
             + [Getting started](observability-logs-data-platform-getting-started)
                 + [Introduction to Logs Data Platform](manage-and-operate/observability/logs-data-platform/introduction)
                 + [Quick start for Logs Data Platform](manage-and-operate/observability/logs-data-platform/getting-started-quick-start)
