@@ -2581,6 +2581,7 @@
         + [Getting started](network-ovhcloud-connect-getting-started)
             + [Installation of OVHcloud Connect Direct from the OVHcloud Control Panel](network/ovhcloud-connect/occ-direct-control-panel)
             + [Installation of OVHcloud Connect Provider from the OVHcloud Control Panel](network/ovhcloud-connect/occ-provider-control-panel)
+            + [Set up OVHcloud Connect Cross Cloud with GCP](network/ovhcloud-connect/occ-cross-cloud-gcp)
             + [How to initiate a diagnostic for OVHcloud Connect from the OVHcloud Control Panel](network/ovhcloud-connect/occ-diagnostics)
             + [OVHcloud Connect Logs Forwarding](network/ovhcloud-connect/logs-to-customers)
             + [FAQ](network/ovhcloud-connect/faq)
