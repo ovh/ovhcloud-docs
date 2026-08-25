@@ -22,6 +22,7 @@ import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
+import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -219,6 +220,7 @@ export default defineConfig({
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
+      remarkNoUnresolvedTerm,
       remarkCpNavGate,
     ],
     rehypePlugins: [rehypeLazyImages],
