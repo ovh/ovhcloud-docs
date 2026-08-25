@@ -383,6 +383,7 @@
                 + [Deploy a Minecraft server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-minecraft)
                 + [Deploy a Palworld server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-palworld)
                 + [Deploy a Project Zomboid server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-project-zomboid)
+                + [Deploy a Rust server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-rust)
                 + [Deploy a Team Fortress 2 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-tf2)
                 + [Deploy a TeamSpeak 3 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-teamspeak-3)
                 + [Deploy a Valheim server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-valheim)
