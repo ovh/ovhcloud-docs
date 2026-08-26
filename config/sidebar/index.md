@@ -608,7 +608,7 @@
             + [How the Ironic to NetBox synchronisation works](hosted-private-cloud/opcp/netbox-ironic-synchronisation)
             + [How to use Terraform](hosted-private-cloud/opcp/use-terraform)
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
-            + [How to upgrade OPCP.Core](hosted-private-cloud/opcp/how-to-upgrade-opcp)
+            + [How to upgrade OPCP](hosted-private-cloud/opcp/how-to-upgrade-opcp)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
         + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
