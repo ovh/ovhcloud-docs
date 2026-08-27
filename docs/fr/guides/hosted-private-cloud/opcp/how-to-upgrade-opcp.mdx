@@ -1,0 +1,200 @@
+---
+title: "Comment mettre à jour OPCP"
+description: "Découvrez comment mettre à jour votre OVHcloud On-Prem Cloud Platform (OPCP), du téléchargement des artefacts aux vérifications post-déploiement"
+lastUpdated: 2026-08-27
+---
+
+## Objectif
+
+Ce guide explique comment mettre à jour votre **OVHcloud On-Prem Cloud Platform (OPCP)** : téléchargement des nouveaux artefacts, mise à jour de l’`opcp-cli`, application de la nouvelle version OPCP, puis validation de la plateforme une fois la mise à jour terminée.
+
+## Prérequis
+
+- Disposer d’une infrastructure [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) opérationnelle.
+- Disposer d’un accès administrateur (`root`) au plan de contrôle OPCP, avec les outils `opcp-cli`, `opcp-diag`, `needrestart`, `flux` et `tfctl` installés et configurés.
+- Disposer d’un accès au bucket S3<sup>1</sup> officiel fourni pour votre livraison OPCP, afin de télécharger l’`opcp-cli`, le nouveau paquet OPCP, les `RELEASE-NOTES`, ainsi que leurs fichiers de signature `.minisig` correspondants.
+
+## En pratique
+
+### 1. Lancer les vérifications préalables au déploiement
+
+Sur le plan de contrôle OPCP, lancez `opcp-diag` pour confirmer que la plateforme est en bonne santé avant de démarrer la mise à jour :
+
+```bash
+opcp-diag run -p
+```
+
+Si une erreur est signalée, vérifiez si elle doit être corrigée avant d’aller plus loin.
+
+### 2. Télécharger les artefacts
+
+Obtenez un accès au bucket S3 officiel afin de télécharger la dernière version :
+
+- de l’`opcp-cli`,
+- du nouveau paquet OPCP,
+- des `RELEASE-NOTES` des versions qui seront déployées.
+
+Vous trouverez également les fichiers `.minisig` correspondants dans le bucket. Ils permettent de vérifier que les fichiers téléchargés ne sont pas corrompus avant de mettre à jour votre produit OPCP.
+
+:::info
+Si vous utilisez actuellement un produit OPCP en mode AirGap, vous devriez avoir reçu un utilisateur en lecture seule pour accéder à ce bucket. Consultez [Utiliser Object Storage avec S3cmd](/guides/storage-and-backup/object-storage/s3-s3cmd) pour démarrer avec Object Storage.
+:::
+
+Une fois la configuration de la commande `s3cmd` terminée, vous pouvez lister les artefacts à télécharger :
+
+```bash
+s3cmd ls
+2026-08-14 16:19  s3://opcp-distribution-gra
+
+s3cmd ls s3://opcp-distribution-gra
+                          DIR  s3://opcp-distribution-gra/bundle/
+                          DIR  s3://opcp-distribution-gra/opcp-cli/
+                          DIR  s3://opcp-distribution-gra/opcp-controller-debian-image/
+
+s3cmd ls s3://opcp-distribution-gra/opcp-cli/v3.1.21/
+2026-07-15 14:38    186822902  s3://opcp-distribution-gra/opcp-cli/v3.1.21/opcp-cli-linux-amd64
+2026-07-15 14:38          312  s3://opcp-distribution-gra/opcp-cli/v3.1.21/opcp-cli-linux-amd64.minisig
+
+s3cmd ls s3://opcp-distribution-gra/bundle/3.0.6/
+2026-07-16 14:49  12045479079  s3://opcp-distribution-gra/bundle/3.0.6/opcp-binaries-3.0.6.tar.gz
+2026-07-16 14:49          310  s3://opcp-distribution-gra/bundle/3.0.6/opcp-binaries-3.0.6.tar.gz.minisig
+2026-07-16 14:50   2333361766  s3://opcp-distribution-gra/bundle/3.0.6/opcp-glance-images-3.0.6.tar.gz
+2026-07-16 14:50          310  s3://opcp-distribution-gra/bundle/3.0.6/opcp-glance-images-3.0.6.tar.gz.minisig
+2026-07-16 14:50      2608231  s3://opcp-distribution-gra/bundle/3.0.6/opcp-helm-charts-3.0.6.tar.gz
+2026-07-16 14:50          310  s3://opcp-distribution-gra/bundle/3.0.6/opcp-helm-charts-3.0.6.tar.gz.minisig
+2026-07-16 15:01  16121324032  s3://opcp-distribution-gra/bundle/3.0.6/opcp-images-3.0.6.tar
+2026-07-16 15:01          310  s3://opcp-distribution-gra/bundle/3.0.6/opcp-images-3.0.6.tar.minisig
+2026-07-16 15:01      2451332  s3://opcp-distribution-gra/bundle/3.0.6/opcp-irobox-3.0.6.tar.gz
+2026-07-16 15:01          310  s3://opcp-distribution-gra/bundle/3.0.6/opcp-irobox-3.0.6.tar.gz.minisig
+2026-07-16 15:02    968468765  s3://opcp-distribution-gra/bundle/3.0.6/opcp-packages-3.0.6.tar.gz
+2026-07-16 15:02          310  s3://opcp-distribution-gra/bundle/3.0.6/opcp-packages-3.0.6.tar.gz.minisig
+
+s3cmd get s3://opcp-distribution-gra/opcp-cli/v3.1.21/opcp-cli-linux-amd64
+download: 's3://opcp-distribution-gra/opcp-cli/v3.1.21/opcp-cli-linux-amd64' -> './opcp-cli-linux-amd64'  [1 of 1]
+ 186822902 of 186822902   100% in   11s    15.98 MB/s  done
+```
+
+Une fois les fichiers requis téléchargés, transférez-les sur l’un de vos contrôleurs OPCP, sous le chemin `/home/opcp-admin`. En mode HA (3 contrôleurs), les artefacts sont automatiquement synchronisés entre tous les contrôleurs : il n’est donc pas nécessaire de transférer les fichiers sur chacun d’eux.
+
+### 3. Lire les RELEASE-NOTES
+
+Certaines versions nécessitent des actions manuelles pour préparer les services avant la mise à jour.
+
+Lisez attentivement les `RELEASE-NOTES`, car certaines actions peuvent être requises avant le début de la mise à jour et d’autres après sa fin.
+
+### 4. Mettre à jour l’opcp-cli
+
+Si cela est indiqué dans les `RELEASE-NOTES`, téléversez le nouveau binaire `opcp-cli` ainsi que sa signature sur le plan de contrôle OPCP géré à distance.
+
+Puis, en tant que `root`, mettez à jour `opcp-cli` :
+
+```bash
+root@opcp-reg-prd-0-0:~ $ opcp-cli update --bin /home/opcp-admin/opcp-cli-linux-amd64 --signature /home/opcp-admin/opcp-cli-linux-amd64.minisig
+✅ Command 'update' completed in 521.528004ms
+
+root@opcp-reg-prd-0-0:~ $ opcp-cli version
+opcp-cli version
+Opcp-cli version: v3.1.21
+Opcp-cli commit: 4c11635
+Opcp-cli build time: 2026-07-13_15:15:23
+
+Deployed artifacts:
+  images          configured: 3.0.6        deployed: 3.0.6        build-time: 2026-07-13T09:28:08Z      deployed-at: 2026-07-16T12:47:52Z
+  packages        configured: 3.0.6        deployed: 3.0.6        build-time: 2026-07-13T09:27:28Z      deployed-at: 2026-07-16T12:48:00Z
+  binaries        configured: 3.0.6        deployed: 3.0.6        build-time: 2026-07-13T09:31:36Z      deployed-at: 2026-07-16T12:50:05Z
+  helm-charts     configured: 3.0.6        deployed: 3.0.6        build-time: 2026-07-13T09:28:07Z      deployed-at: 2026-07-16T12:50:06Z
+  glance-images   configured: 3.0.6        deployed: 3.0.6        build-time: 2026-07-13T09:27:36Z      deployed-at: 2026-07-16T12:55:16Z
+  irobox          configured: 3.0.6        deployed: 3.0.6        build-time: 2026-07-13T09:26:28Z      deployed-at: 2026-08-26T08:47:18Z
+```
+
+Supprimez les fichiers téléversés une fois la mise à jour confirmée :
+
+```bash
+root@opcp-reg-prd-0-0:~ $ rm /home/ovh/opcp-cli-linux-amd64*
+```
+
+### 5. Mettre à jour les artefacts OPCP
+
+En tant que `root` sur le plan de contrôle OPCP géré à distance, ouvrez le fichier de configuration et mettez à jour les versions :
+
+```bash
+opcp-cli config edit
+```
+
+Mettez à jour la version globale. Par exemple :
+
+```yaml
+opcp-version:
+  global: 3.0.6
+```
+
+Appliquez ensuite la nouvelle version :
+
+```bash
+opcp-cli deploy
+```
+
+Les étapes suivantes peuvent prendre jusqu'à 30 minutes, selon ce qui est mis à jour dans la version :
+
+- extraction des images Glance,
+- démarrage du déploiement sur les nœuds distants,
+- exécution du déploiement du plan de contrôle, qui peut prendre jusqu’à 10 minutes.
+
+Vous pouvez suivre les journaux détaillés dans `/var/log/opcp-cli/opcp-cli.log`. Pour cela, ouvrez une nouvelle fenêtre de terminal et exécutez :
+
+```bash
+tail -F /var/log/opcp-cli/opcp-cli.log | jq .msg
+```
+
+### 6. Effectuer les vérifications finales
+
+#### Vérifier si certains services nécessitent un redémarrage
+
+Utilisez `needrestart` pour vérifier si certains services doivent être redémarrés :
+
+```bash
+needrestart -r l
+```
+
+:::warning
+Le redémarrage de services peut avoir un impact sur la plateforme. Ne procédez que si cela est nécessaire.
+:::
+
+Si nécessaire, redémarrez les services concernés :
+
+```bash
+needrestart -ra
+needrestart
+```
+
+#### Attendre la réconciliation
+
+Attendez que la réconciliation Flux soit terminée et que les exécutions Terraform soient achevées :
+
+```bash
+flux get all -A --status-selector ready=false
+flux get all -A --status-selector ready=unknown
+tfctl get
+```
+
+Si nécessaire, appliquez un correctif. Vous devez parfois relancer certains pods : soyez patient.
+
+#### Vérifications post-déploiement
+
+Sur le plan de contrôle OPCP, relancez `opcp-diag` :
+
+```bash
+opcp-diag run -p
+```
+
+Si une erreur est signalée, vérifiez si elle doit être corrigée.
+
+Vous pouvez également essayer d’accéder à l’interface pour confirmer qu’elle fonctionne correctement.
+
+## Aller plus loin
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d’utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.

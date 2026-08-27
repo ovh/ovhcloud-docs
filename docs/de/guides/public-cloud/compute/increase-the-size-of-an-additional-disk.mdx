@@ -141,28 +141,6 @@ vdb1   ext4         a1b2c3d4-e5f6-7890-abcd-ef1234567890
 Die folgenden Schritte gelten für **ext2/ext3/ext4**-Dateisysteme. Im Gegensatz zu ext4 kann XFS nicht im ausgehängten Zustand vergrößert werden – das Tool `xfs_growfs` benötigt ein eingehängtes Dateisystem. Wenn Ihr Dateisystem **XFS** ist, hängen Sie die Disk trotzdem wie unten beschrieben aus und erstellen Sie die Partition neu, überspringen Sie dabei jedoch die Schritte `e2fsck` und `resize2fs`: Hängen Sie die Disk stattdessen erneut ein und führen Sie anschließend `sudo xfs_growfs /mnt/disk` aus.
 :::
 
-Überprüfen Sie vor dem Aushängen das aktuelle Partitionslayout:
-
-```bash
-admin@server:~$ sudo fdisk -l /dev/vdb
-```
-
-```console
-Disk /dev/vdb: 70 GiB, 75161927680 bytes, 146800640 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x00000001
-
-Device     Boot  Start       End   Sectors  Size Id Type
-/dev/vdb1        2048  104857599 104855552   50G 83 Linux
-```
-
-:::warning
-Notieren Sie sich den Wert der Spalte `Start` (in diesem Beispiel `2048`). Sie müssen genau diesen Wert erneut eingeben, wenn Sie die Partition im nächsten Schritt neu erstellen. Ein abweichender Startsektor führt zu einer Fehlausrichtung des Dateisystems und kann Datenkorruption oder Datenverlust verursachen.
-:::
-
 Hängen Sie die Disk zunächst aus:
 
 ```bash
@@ -177,6 +155,28 @@ admin@server:~$ sudo umount /mnt/vdb
 
 <Tabs>
   <Tab label="Für Partitionen bis 2 TB">
+    Überprüfen Sie das aktuelle Partitionslayout:
+
+    ```bash
+    admin@server:~$ sudo fdisk -l /dev/vdb
+    ```
+
+    ```console
+    Disk /dev/vdb: 70 GiB, 75161927680 bytes, 146800640 sectors
+    Units: sectors of 1 * 512 = 512 bytes
+    Sector size (logical/physical): 512 bytes / 512 bytes
+    I/O size (minimum/optimal): 512 bytes / 512 bytes
+    Disklabel type: dos
+    Disk identifier: 0x00000001
+
+    Device     Boot  Start       End   Sectors  Size Id Type
+    /dev/vdb1        2048  104857599 104855552   50G 83 Linux
+    ```
+
+    :::warning
+    Notieren Sie sich den Wert der Spalte `Start` (in diesem Beispiel `2048`). Sie müssen genau diesen Wert erneut eingeben, wenn Sie die Partition weiter unten neu erstellen. Ein abweichender Startsektor führt zu einer Fehlausrichtung des Dateisystems und kann Datenkorruption oder Datenverlust verursachen.
+    :::
+
     Erstellen Sie die Partition mit folgendem Befehl neu. Dabei wird lediglich die Partitionstabelle neu geschrieben – die Daten Ihres Dateisystems bleiben erhalten, sofern Sie bei der entsprechenden Abfrage genau denselben Startsektor erneut eingeben.
 
     ```bash
@@ -243,11 +243,23 @@ admin@server:~$ sudo umount /mnt/vdb
     ```
   </Tab>
   <Tab label="Für Partitionen über 2 TB">
-    Führen Sie nach dem Aushängen der Disk den folgenden Befehl aus, um die Informationen zu den Partitionen anzuzeigen:
+    Führen Sie den folgenden Befehl aus, um die Informationen zu den Partitionen anzuzeigen:
 
     ```bash
     admin@server:~$ sudo parted /dev/vdb print
     ```
+
+    :::info
+    Prüfen Sie das Feld `Partition Table` in der folgenden Ausgabe: Wenn dort `gpt` steht, fahren Sie wie beschrieben fort. Steht dort stattdessen `msdos`, konvertieren Sie die Tabelle zunächst mit folgendem Befehl:
+
+    ```bash
+    admin@server:~$ sudo parted /dev/vdb mklabel gpt
+    ```
+
+    Dadurch wird die Partitionstabelle neu geschrieben, stellen Sie also sicher, dass Sie vorher einen Snapshot Ihres Volumes erstellt haben.
+
+    Führen Sie anschließend erneut den Befehl `print` aus, um dies zu bestätigen.
+    :::
 
     Da die Disk gerade erst vergrößert wurde, stellt `parted` fest, dass der GPT-Header nicht mehr mit der neuen Diskgröße übereinstimmt, und fordert Sie auf, dies zu korrigieren. Antworten Sie bei beiden Warnungen mit `Fix`:
 
@@ -273,6 +285,8 @@ admin@server:~$ sudo umount /mnt/vdb
     ```
 
     Notieren Sie sich die Partitionsnummer und den oben angezeigten `Start`-Wert (in diesem Beispiel Partition `1`, beginnend bei `1049kB`).
+
+    Wie bei der vorherigen Methode wird beim Löschen und Neuerstellen der Partition nur die Partitionstabelle neu geschrieben – Ihre Daten bleiben erhalten, sofern Sie beim Erstellen der neuen Partition denselben oben notierten `Start`-Wert eingeben.
 
     Führen Sie anschließend den folgenden Befehl aus, um `parted` im interaktiven Modus zu öffnen:
 
@@ -338,6 +352,26 @@ admin@server:~$ sudo umount /mnt/vdb
     (parted) quit
     Information: You may need to update /etc/fstab.
     ```
+
+    Beim Neuerstellen der Partition wird ihr eine neue Partitions-GUID zugewiesen. Falls `/etc/fstab` (oder eine andere Mount-Konfiguration) diese Partition über `PARTUUID=` referenziert, aktualisieren Sie den Wert.
+
+    Führen Sie zunächst den folgenden Befehl aus, um den neuen Wert zu finden:
+
+    ```bash
+    admin@server:~$ sudo blkid /dev/vdb1
+    ```
+
+    ```console
+    /dev/vdb1: UUID="a1b2c3d4-e5f6-7890-abcd-ef1234567890" TYPE="ext4" PARTUUID="9f8e7d6c-01"
+    ```
+
+    Öffnen Sie anschließend `/etc/fstab`, um sie zu aktualisieren:
+
+    ```bash
+    admin@server:~$ sudo nano /etc/fstab
+    ```
+
+    Mounts, die die Partition über die Dateisystem-UUID (Standard bei den meisten Cloud-Images) oder den Gerätenamen referenzieren, sind davon nicht betroffen.
   </Tab>
 </Tabs>
 
@@ -395,7 +429,7 @@ Hängen Sie das Volume zunächst wieder an die Instanz an. Klicken Sie dazu in d
 
 Stellen Sie eine Remotedesktopverbindung (RDP) zu Ihrer Windows-Instanz her.
 
-Klicken Sie nach der Anmeldung mit der rechten Maustaste auf die Schaltfläche <code className="action">Startmenü</code> und öffnen Sie <code className="action">Datenträgerverwaltung</code>.
+Klicken Sie nach der Anmeldung mit der rechten Maustaste auf die Schaltfläche <code className="action">Start</code> und öffnen Sie <code className="action">Datenträgerverwaltung</code>.
 
 <img className="thumbnail" alt="windows" src="/images/public-cloud/compute/increase-the-size-of-an-additional-disk/resize-win-01.png" loading="lazy" />
 

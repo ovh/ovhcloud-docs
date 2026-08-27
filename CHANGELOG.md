@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.08.26.2
+
+### Fixes
+- **account:** clarify e-invoicing FAQ and shorten SIRET guide title
+
+### Documentation
+- 5 guides updated across fr
+
 ## 2026.08.26.1
 
 ### Features
