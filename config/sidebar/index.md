@@ -1707,7 +1707,6 @@
                 + [Configure the DNS of your Domain Name](web-cloud/domains/api-domain-dns)
             + [Migration](web-cloud-domains-api-migration)
                 + [Transfer a Domain Name](web-cloud/domains/api-domain-transfer)
-        + [MCP](web-cloud/domains/mcp-domain-getting-started){label=MCP}
         + [Domain names](products/web-cloud-domains-domain-names){landing=web-cloud/domains/landing-page-domain-names}
             + [Getting started](web-cloud-domains-domain-names-getting-started)
                 + [FAQ Domain names and DNS](web-cloud/domains/faq-domain-dns)
@@ -1717,6 +1716,7 @@
                 + [How to get information about a domain name with WHOIS](web-cloud/domains/domain-whois)
                 + [How do I configure the WHOIS display for a domain name?](web-cloud/domains/domain-configure-whois-listing)
                 + [How to export the list of your domain names in CSV](web-cloud/domains/domain-csv-list)
+                + [Getting started with the MCP server for domain names](web-cloud/domains/mcp-domain-getting-started)
             + [Configuration](web-cloud-domains-domain-names-configuration)
                 + [Domain names contacts management](web-cloud-domains-domain-names-configuration-changing-a-domain-name-owner-trade)
                     + [Changing the owner of a domain name](web-cloud/domains/trade-domain)
