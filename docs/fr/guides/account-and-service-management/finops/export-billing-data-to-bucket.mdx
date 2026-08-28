@@ -1,14 +1,14 @@
 ---
 title: Exporter vos données de facturation vers un bucket
-description: Découvrez comment configurer un export quotidien de vos données de facturation — au format FOCUS — vers un bucket compatible S3 que vous possédez, via l'API OVHcloud
-lastUpdated: 2026-07-21
+description: Découvrez comment configurer un export quotidien ou horaire de vos données de facturation — au format FOCUS — vers un bucket compatible S3 que vous possédez, via l'API OVHcloud
+lastUpdated: 2026-08-28
 ---
 
 import Api from '@components/Api';
 
 ## Objectif
 
-OVHcloud peut transmettre vos données de facturation, converties au standard ouvert **FOCUS**, vers un bucket de stockage objet compatible S3<sup>1</sup> que **vous** possédez. Une fois configuré, l'export s'exécute **automatiquement chaque jour** : aucun téléchargement manuel, aucun clic dans l'espace client — vos données arrivent dans votre bucket sous forme de fichier CSV, prêt pour vos outils FinOps.
+OVHcloud peut transmettre vos données de facturation, converties au standard ouvert **FOCUS**, vers un bucket de stockage objet compatible S3<sup>1</sup> que **vous** possédez. Une fois configuré, l'export s'exécute **automatiquement chaque jour** — ou **chaque heure** si vous le souhaitez : aucun téléchargement manuel, aucun clic dans l'espace client — vos données arrivent dans votre bucket sous forme de fichier CSV, prêt pour vos outils FinOps.
 
 **Ce guide vous explique comment créer, suivre, modifier et supprimer cette configuration d'export via l'API OVHcloud.**
 
@@ -34,12 +34,12 @@ L'export fonctionne avec n'importe quel bucket compatible S3 — il n'est pas n�
 
 ## Fonctionnement de l'export
 
-La configuration est une **ressource déclarative**. Vous décrivez la *cible* souhaitée (votre bucket, l'heure quotidienne, la politique de fichier) et OVHcloud converge vers celle-ci :
+La configuration est une **ressource déclarative**. Vous décrivez la *cible* souhaitée (votre bucket, la périodicité de l'export, la politique de fichier) et OVHcloud converge vers celle-ci :
 
 1. Vous **créez** la configuration avec les informations du bucket (`POST`).
 2. OVHcloud la **valide** en se connectant réellement à votre bucket et en vérifiant qu'il est accessible avec les identifiants que vous avez fournis.
 3. Lorsque la validation réussit, la ressource passe à l'état **`READY`** ; si OVHcloud ne parvient pas à joindre votre bucket, elle passe à **`ERROR`**.
-4. Chaque jour, à l'**heure que vous avez choisie**, OVHcloud régénère vos données pour le mois en cours et téléverse le fichier dans votre bucket.
+4. À chaque exécution planifiée — **chaque jour à l'heure que vous avez choisie**, ou **chaque heure** — OVHcloud régénère vos données pour le mois en cours et téléverse le fichier dans votre bucket.
 
 Comme la validation implique un véritable test de connexion, OVHcloud traite la création et les modifications de manière **asynchrone** : l'API répond immédiatement avec un statut `CREATING` (ou `UPDATING`), et vous **interrogez** (poll) la ressource jusqu'à ce qu'elle atteigne `READY`.
 
@@ -63,6 +63,7 @@ curl -X POST "https://eu.api.ovh.com/v2/finops/bucketExport" \
     "targetSpec": {
       "exportHour": 6,
       "filePolicy": "CREATE",
+      "period": "DAILY",
       "bucketConfiguration": {
         "accessKey": "MY_ACCESS_KEY",
         "secretKey": "MY_SECRET_KEY",
@@ -83,8 +84,9 @@ Les valeurs `endpointURL` et `region` ci-dessus utilisent celles d'OVHcloud Obje
 
 | Champ | Requis | Description |
 |-------|--------|-------------|
-| `exportHour` | **Oui** | Heure de la journée, `0`–`23` (UTC), à laquelle l'export quotidien s'exécute. |
-| `filePolicy` | Non | `CREATE` (par défaut) conserve un fichier par jour ; `REPLACE` conserve un seul fichier par mois, écrasé à chaque exécution. Voir [Disposition des fichiers](#file-layout-in-your-bucket). |
+| `exportHour` | **Oui** | Heure de la journée, `0`–`23` (UTC), à laquelle l'export quotidien s'exécute. Avec `period: HOURLY`, la valeur n'est pas utilisée. |
+| `filePolicy` | Non | `CREATE` (par défaut) conserve un fichier par exécution ; `REPLACE` conserve un seul fichier par mois, écrasé à chaque exécution. Voir [Disposition des fichiers](#file-layout-in-your-bucket). |
+| `period` | Non | `DAILY` (par défaut) exécute un export par jour, à `exportHour` ; `HOURLY` exécute un export chaque heure. Voir [Choisir la périodicité de l'export](#choosing-the-export-period). |
 | `bucketConfiguration.accessKey` | **Oui** | Clé d'accès de votre bucket. |
 | `bucketConfiguration.secretKey` | **Oui** | Clé secrète de votre bucket. |
 | `bucketConfiguration.bucketName` | Non | Nom du bucket cible. |
@@ -94,6 +96,40 @@ Les valeurs `endpointURL` et `region` ci-dessus utilisent celles d'OVHcloud Obje
 
 :::warning
 Votre **clé secrète est en écriture seule** : OVHcloud la chiffre à la réception et ne la **renvoie jamais**. Dans chaque réponse, le champ `secretKey` est masqué par `"***"`, tandis qu'OVHcloud renvoie la clé d'accès en clair.
+:::
+
+### Choisir la périodicité de l'export <a name="choosing-the-export-period"></a>
+
+Le champ `period` définit la fréquence à laquelle OVHcloud exporte vos données :
+
+- **`DAILY`** (par défaut) — un export par jour, à l'`exportHour` que vous avez définie (UTC). Si vous omettez `period`, OVHcloud utilise ce mode.
+- **`HOURLY`** — un export chaque heure, 24h/24.
+
+Chaque exécution couvre la même fenêtre, quelle que soit la périodicité : le mois en cours jusqu'à l'instant de l'exécution. La périodicité change uniquement la fréquence à laquelle OVHcloud rafraîchit vos données et, avec `filePolicy: CREATE`, le nombre de fichiers que vous obtenez (voir [Disposition des fichiers](#file-layout-in-your-bucket)). Pour créer un export horaire, envoyez la même requête avec `period` à `HOURLY` :
+
+```bash
+curl -X POST "https://eu.api.ovh.com/v2/finops/bucketExport" \
+  -H "Authorization: Bearer $OVH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetSpec": {
+      "exportHour": 0,
+      "filePolicy": "CREATE",
+      "period": "HOURLY",
+      "bucketConfiguration": {
+        "accessKey": "MY_ACCESS_KEY",
+        "secretKey": "MY_SECRET_KEY",
+        "bucketName": "my-finops-export",
+        "endpointURL": "s3.gra.io.cloud.ovh.net",
+        "region": "gra",
+        "pathPrefix": "./"
+      }
+    }
+  }'
+```
+
+:::info
+Les configurations créées avant l'apparition du champ `period` se comportent comme `DAILY`. Dans leurs réponses, `period` vaut `"DAILY"` ou est absent (`null`) — les deux ont la même signification.
 :::
 
 ### La réponse
@@ -108,6 +144,7 @@ L'API répond `201 Created` avec la ressource. Notez l'`id` (vous l'utiliserez p
   "targetSpec": {
     "exportHour": 6,
     "filePolicy": "CREATE",
+    "period": "DAILY",
     "bucketConfiguration": {
       "accessKey": "MY_ACCESS_KEY",
       "secretKey": "***",
@@ -140,7 +177,7 @@ curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e358
   -H "Authorization: Bearer $OVH_API_TOKEN"
 ```
 
-- **`READY`** — OVHcloud a joint votre bucket et la configuration est active. La prochaine exécution quotidienne téléversera vos données.
+- **`READY`** — OVHcloud a joint votre bucket et la configuration est active. La prochaine exécution planifiée téléversera vos données.
 - **`ERROR`** — la validation a échoué (le plus souvent, OVHcloud n'a pas pu joindre votre bucket avec les identifiants que vous avez fournis). Consultez la section « [Erreurs fréquentes](#frequent-errors) ».
 
 ### Inspecter le détail du provisionnement
@@ -169,25 +206,37 @@ Une tâche comporte un tableau `errors` ; lorsqu'un test de connexion échoue, 
 
 ## Étape 3 — Récupérer vos fichiers exportés
 
-Une fois la configuration en `READY`, OVHcloud téléverse un fichier CSV dans votre bucket **une fois par jour, à l'`exportHour` que vous avez définie (UTC)**.
+Une fois la configuration en `READY`, OVHcloud téléverse un fichier CSV dans votre bucket à la fréquence définie par `period` : **une fois par jour, à l'`exportHour` que vous avez définie (UTC)**, ou **une fois par heure**.
 
 - **Contenu** : vos données de facturation converties au standard **FOCUS 1.3**, au format CSV.
-- **Fenêtre** : chaque exécution couvre le **mois calendaire en cours jusqu'à cet instant** (du 1er du mois à maintenant). Le fichier grossit donc au fil du mois à mesure qu'OVHcloud ingère de nouvelles données de facturation.
+- **Fenêtre** : chaque exécution — quotidienne ou horaire — couvre le **mois calendaire en cours jusqu'à cet instant** (du 1er du mois à maintenant). Le fichier grossit donc au fil du mois à mesure qu'OVHcloud ingère de nouvelles données de facturation.
 
 ### Disposition des fichiers dans votre bucket <a name="file-layout-in-your-bucket"></a>
 
-La clé d'objet dépend de votre `filePolicy` :
+La clé d'objet dépend de votre `period` et de votre `filePolicy` :
 
-| `filePolicy` | Clé d'objet | Comportement |
-|--------------|-------------|--------------|
-| `CREATE` (par défaut) | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/<DD>/focus.csv` | Un **nouveau fichier daté chaque jour** ; OVHcloud conserve les jours précédents. |
-| `REPLACE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/focus.csv` | Un **seul fichier par mois**, qu'OVHcloud écrase à chaque exécution. |
+| `period` | `filePolicy` | Clé d'objet | Comportement |
+|----------|--------------|-------------|--------------|
+| `DAILY` (par défaut) | `CREATE` (par défaut) | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/<DD>/focus.csv` | Un **nouveau fichier daté chaque jour** ; OVHcloud conserve les jours précédents. |
+| `DAILY` | `REPLACE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/focus.csv` | Un **seul fichier par mois**, qu'OVHcloud écrase chaque jour. |
+| `HOURLY` | `CREATE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/<DD>/<HH>/focus.csv` | Un **nouveau fichier chaque heure**, dans un sous-dossier nommé d'après l'heure UTC de l'exécution ; OVHcloud conserve les heures précédentes. |
+| `HOURLY` | `REPLACE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/focus.csv` | Un **seul fichier par mois**, qu'OVHcloud écrase chaque heure. |
 
-Un `pathPrefix` égal à `"./"` écrit à la **racine du bucket** (aucun dossier supplémentaire). Par exemple, avec `pathPrefix: "./"` et la politique `CREATE` par défaut, vos données du 15 juin 2026 arrivent à :
+Un `pathPrefix` égal à `"./"` écrit à la **racine du bucket** (aucun dossier supplémentaire). Par exemple, avec `pathPrefix: "./"` et les valeurs par défaut (`DAILY`, `CREATE`), vos données du 15 juin 2026 arrivent à :
 
 ```text
 <your-nichandle>/2026/06/15/focus.csv
 ```
+
+Avec `period: HOURLY` et `filePolicy: CREATE`, l'exécution de 14h00 UTC du même jour arrive à :
+
+```text
+<your-nichandle>/2026/06/15/14/focus.csv
+```
+
+:::tip
+Avec `HOURLY` et `CREATE`, vous obtenez jusqu'à 24 fichiers par jour, et chacun contient l'intégralité du mois en cours. Si seules les données les plus récentes vous intéressent, préférez `filePolicy: REPLACE` : vous conservez un seul fichier par mois, toujours à jour.
+:::
 
 ## Gérer une configuration existante
 
@@ -205,6 +254,7 @@ curl -X PUT "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-88
     "targetSpec": {
       "exportHour": 8,
       "filePolicy": "CREATE",
+      "period": "DAILY",
       "bucketConfiguration": {
         "accessKey": "MY_ACCESS_KEY",
         "secretKey": "MY_SECRET_KEY",
@@ -216,6 +266,8 @@ curl -X PUT "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-88
     }
   }'
 ```
+
+Pour passer un export existant en mode horaire, envoyez le même `PUT` avec `"period": "HOURLY"`. Pour revenir à un export par jour, définissez `period` à `DAILY` (ou omettez-le) et indiquez l'`exportHour` souhaitée.
 
 :::info
 Pendant qu'OVHcloud valide une modification, la réponse conserve votre configuration **précédente** dans `currentState` et affiche la configuration **demandée** dans `targetSpec`. OVHcloud ne modifie pas votre export actif tant que la nouvelle configuration n'a pas atteint `READY`. Si la validation échoue, la ressource passe à `ERROR` et la configuration précédente reste en vigueur.
@@ -241,7 +293,7 @@ curl -X DELETE "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1
   -H "Authorization: Bearer $OVH_API_TOKEN"
 ```
 
-La suppression arrête l'export quotidien. OVHcloud ne supprime **pas** les fichiers déjà écrits dans votre bucket.
+La suppression arrête l'export. OVHcloud ne supprime **pas** les fichiers déjà écrits dans votre bucket.
 
 ## Référence : valeurs de statut de la ressource
 
@@ -249,7 +301,7 @@ La suppression arrête l'export quotidien. OVHcloud ne supprime **pas** les fich
 |--------|---------------|
 | `CREATING` | OVHcloud a accepté la configuration et la valide. |
 | `UPDATING` | OVHcloud a accepté une modification et la valide. |
-| `READY` | La configuration est valide et active ; les exports quotidiens s'exécutent. |
+| `READY` | La configuration est valide et active ; les exports s'exécutent à la périodicité configurée (`period`). |
 | `ERROR` | La dernière création ou modification a échoué à la validation (par exemple, bucket injoignable). |
 | `DELETING` | OVHcloud supprime la configuration. |
 
@@ -263,8 +315,9 @@ La plupart des échecs se manifestent par une ressource bloquée en **`ERROR`** 
 | Le statut passe à `ERROR`, le message mentionne un accès refusé / une signature / un « forbidden » | **Identifiants incorrects ou insuffisants** — la clé d'accès ou la clé secrète est erronée, ou les identifiants n'ont pas d'accès en écriture au bucket. | Revérifiez la **clé d'accès** et la **clé secrète**, et confirmez qu'elles peuvent écrire dans le bucket. OVHcloud ne renvoie jamais la clé secrète : renvoyez-la donc en entier lors du `PUT` de correction. |
 | Le statut passe à `ERROR`, le message mentionne le bucket | **`bucketName` ou `region` incorrects**, ou le bucket n'existe pas / n'est pas joignable. | Vérifiez le nom du bucket et la région, ainsi que l'existence du bucket pour ces identifiants. |
 | `404 Not Found` sur un `id` de configuration | La configuration n'existe pas, ou elle appartient à un autre compte. | Vérifiez l'`id` et que vous vous authentifiez avec le compte qui le possède. |
-| Aucun fichier n'apparaît dans le bucket | L'exécution quotidienne n'a pas encore eu lieu, ou le statut n'est pas `READY`. | L'export s'exécute une fois par jour à `exportHour` (UTC) ; confirmez que la ressource est en `READY` et attendez la prochaine exécution. |
-| `400 Bad Request` à la création/modification | Un champ requis est manquant (`accessKey`, `secretKey`) ou le corps ne contient pas de `targetSpec`. | Envoyez un `targetSpec` complet, y compris les identifiants du bucket. |
+| Aucun fichier n'apparaît dans le bucket | La prochaine exécution n'a pas encore eu lieu, ou le statut n'est pas `READY`. | L'export s'exécute une fois par jour à `exportHour` (UTC) avec `period: DAILY`, ou une fois par heure avec `HOURLY` ; confirmez que la ressource est en `READY` et attendez la prochaine exécution. |
+| Des fichiers arrivent chaque heure alors que vous avez défini une `exportHour` | La configuration a `period: HOURLY`, qui exporte chaque heure, quelle que soit l'`exportHour`. | Envoyez un `PUT` avec `period` à `DAILY` (ou omis) pour revenir à un export par jour, à `exportHour`. |
+| `400 Bad Request` à la création/modification | Un champ requis est manquant (`exportHour`, `accessKey`, `secretKey`), `period` a une valeur autre que `DAILY` ou `HOURLY`, ou le corps ne contient pas de `targetSpec`. | Envoyez un `targetSpec` complet, y compris les identifiants du bucket, et vérifiez l'orthographe de `period`. |
 
 :::info
 Après avoir corrigé une configuration en `ERROR`, envoyez un `PUT` corrigé (voir [La modifier](#update-it)) et interrogez à nouveau la ressource jusqu'à ce qu'elle atteigne `READY`. La configuration précédente reste en vigueur jusqu'à ce qu'OVHcloud valide la nouvelle.
