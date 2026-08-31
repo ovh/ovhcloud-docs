@@ -1,15 +1,142 @@
 # Changelog
 
+## 2026.08.28
+
+### Documentation
+- 58 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.27
+
+### Maintenance
+- **scripts:** apply Biome formatting to 5 drifted files
+
+### Documentation
+- 113 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.26.2
+
+### Fixes
+- **account:** clarify e-invoicing FAQ and shorten SIRET guide title
+
+### Documentation
+- 5 guides updated across fr
+
+## 2026.08.26.1
+
+### Features
+- **i18n:** translate the Pulumi backend state guide to FR + fix stale Pulumi links (#668)
+- Update tooltip component guardrails (#665)
+
+### Fixes
+- **docs:** repair truncated info callout in deploy-go-operator
+- **docs:** describe AI & ML screenshots in alt text
+- **docs:** replace placeholder alt text in three AI guides
+
+### Documentation
+- 107 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.26
+
+### Features
+- **nav:** add Logs Data Platform landing page, replace overview (#651)
+- **vps:** document the Modrinth mods catalog and Minecraft Forge (#653)
+- **i18n:** translate remaining FR backlog guides
+- **i18n:** translate Block Storage and Object Storage guides to FR
+- **i18n:** translate Quantum Computing guides to FR
+- **bare-metal-cloud/dedicated-servers/partitioning-ovh:** partial diskgroups cleaning
+- **i18n:** translate Managed Private Registry guides to FR
+- **i18n:** translate Dedicated Servers guides to FR
+- **i18n:** translate Managed Rancher Service guides to FR
+
+### Fixes
+- **docs:** repair headings broken by a non-breaking space in all locales
+- **docs:** correct mechanical defects found while translating to FR
+- **pci:** correct the Service definition in the MPR responsibility model
+- **i18n:** restore EN symlinks for the MPR IAM authentication guide
+- **i18n:** correct the Service definition in the FR MPR responsibility model
+
+### Maintenance
+- **links:** use the /links key for Professional Services URLs
+
+### Documentation
+- 817 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.25.1
+
+### Features
+- **account:** add e-invoicing error guide (FR) (#599)
+- upgrade stack
+
+### Fixes
+- **components:** improve tooltip pagefind, parsing, search, react
+
+### Documentation
+- 49 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.25
+
+### Features
+- add screenshots and Control Panel links to the Backup Licenses guides
+
+### Fixes
+- proofread the Backup Licenses screenshots and Control Panel links
+- **account:** update SIRET guide after review feedback
+
+### Documentation
+- 79 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.24
+
+### Features
+- **mass-translate:** translate the Managed Kubernetes family to FR (#613)
+
+### Fixes
+- **hosted-private-cloud:** delete the KMS CipherTrust Manager guide
+- **hosted-private-cloud:** hide the KMS CipherTrust Manager guide
+- **managed-kubernetes:** repoint FR in-page anchors to translated headings
+- **scripts:** correct locale-availability route keys on Windows
+- **mass-translate:** correct MKS source defects found while translating to FR (#614)
+- **occ:** remove duplicate body fragment PT
+
+### Documentation
+- 1061 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.20
+
+### Features
+- **sidebar:** cross-list VMware key concepts under Managed VMware
+- **i18n:** translate the Logs Data Platform family to French
+- **i18n:** translate AI & Machine Learning guides to French
+
+### Fixes
+- **account:** clarify invoice re-issue requires a support request
+- **account:** clarify SIRET update does not re-issue past invoices
+- **logs-data-platform:** formalise the register of the EN guides
+- **logs-data-platform:** correct EN source defects found while translating
+- **i18n:** align FR with the source-defect fixes for the AI guides
+- **docs:** normalise heading, casing and boilerplate defects in AI guides
+- **i18n:** correct three typos in AI guide descriptions
+- **i18n:** correct a typo in the transfer-learning guide description
+- **i18n:** close unbalanced backtick in the FR flux-models placeholder
+- **docs:** correct EN source defects in AI & Machine Learning guides
+
+### Maintenance
+- update installation architecture notes
+
+### Documentation
+- 761 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.08.19
 
 ### Features
 - **i18n:** translate Public Cloud Analytics guides to French
 
 ### Fixes
+- **account:** correct CP-NAV button label in VAT guide
 - **docs:** correct EN source defects in Public Cloud Analytics guides
 
 ### Documentation
-- 76 guides updated across de, en, es, fr, it, pl, pt
+- 77 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.08.18
 

@@ -62,6 +62,8 @@ Lors de l’utilisation des guides OVHcloud, veuillez tenir compte des points su
   - Les systèmes d’exploitation et les interfaces utilisateur (Windows, Debian, Plesk, etc.).
   - Tout autre logiciel tiers (clients FTP, logiciels de messagerie, etc.).
   - Les services proposés par d’autres fournisseurs (DNS, API, interfaces utilisateur, etc.).
+  - Le matériel personnel utilisé avec nos services VoIP (téléphone IP, iPBX, etc.).
+  - Le matériel personnel utilisé avec nos offres d’accès internet (modem, routeur, etc.).
 
 Pour recevoir l’assistance appropriée en cas de problème, suivez ces recommandations :
 

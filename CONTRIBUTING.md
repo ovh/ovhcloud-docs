@@ -353,7 +353,7 @@ import Tooltip from '@components/Tooltip';
 | `LinkCard` | Card link with title + description; auto-detects internal vs external |
 | `Carousel` | Scrollable carousel of items (title, details, link, icon) |
 | `GuidedTour` | Interactive guided tour (screenshots + spotlight annotations) |
-| `Tooltip` | Hover tooltip — `<Tooltip content="**markdown** allowed">word</Tooltip>` |
+| `Tooltip` | Hover tooltip. Glossary-backed: `<Tooltip term="vrack">vRack</Tooltip>` (canonical key from [config/glossary/en.yaml](config/glossary/en.yaml); aliases are not lookup keys). One-off note: `<Tooltip content="**markdown** allowed">word</Tooltip>`. **Do not hand-tag glossary terms** — tagging happens during the proofread pass. |
 | `AIChatbot` | Federated AI chatbot module (rare; usually only on landing pages) |
 
 See [components/](components/) for the full list of props.

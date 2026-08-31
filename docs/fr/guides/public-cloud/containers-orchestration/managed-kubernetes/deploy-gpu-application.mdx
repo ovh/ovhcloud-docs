@@ -1,1 +1,278 @@
-../../../../../en/guides/public-cloud/containers-orchestration/managed-kubernetes/deploy-gpu-application.mdx
+---
+title: Déployer une application GPU sur OVHcloud Managed Kubernetes Service
+description: Découvrez comment déployer une application GPU sur OVHcloud Managed Kubernetes
+lastUpdated: 2026-07-22
+---
+
+## Objectif
+
+Dans ce tutoriel, nous allons vous montrer comment déployer une application GPU sur un cluster OVHcloud Managed Kubernetes.
+
+Les GPU fournissent la puissance de calcul nécessaire aux tâches d'IA/ML et de Deep Learning impliquant des calculs intensifs, comme la reconnaissance d'image, le traitement du langage naturel (NLP), ainsi que d'autres tâches gourmandes en calcul comme le transcodage vidéo et le traitement d'image.
+
+L'utilisation de GPU avec Kubernetes vous permet d'étendre la scalabilité de Kubernetes aux applications d'IA/ML.
+
+## Avant de commencer
+
+Ce tutoriel suppose que vous disposez déjà d'un cluster OVHcloud Managed Kubernetes fonctionnel, ainsi que de connaissances de base sur son utilisation. Pour en savoir plus sur ces sujets, consultez le [guide de démarrage rapide d'OVHcloud Managed Kubernetes Service](/guides/public-cloud/containers-orchestration/managed-kubernetes/deploy-hello-world).
+
+Vous devez également avoir [Helm](https://docs.helm.sh/) installé sur votre poste de travail et sur votre cluster. Consultez le tutoriel [comment installer Helm sur OVHcloud Managed Kubernetes Service](/guides/public-cloud/containers-orchestration/managed-kubernetes/install-helm).
+
+## Prérequis
+
+Pour tirer le meilleur parti des GPU sur OVHcloud Managed Kubernetes, de la manière la plus économique possible, et pour profiter de l'autoscaling du cluster, nous recommandons de créer des pools de nœuds GPU distincts dans vos clusters Kubernetes.
+
+<img className="thumbnail" alt="Pool de nœuds GPU" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/gpu-node-pool.png" loading="lazy" />
+
+L'opérateur GPU que vous allez installer doit s'exécuter sur des nœuds Kubernetes équipés de GPU.
+
+Vous devez donc créer un pool de nœuds avec le type de flavor `t1`.
+
+Si vous disposez déjà d'un cluster OVHcloud Kubernetes avec un pool de nœuds utilisant le type de flavor `t1`, vous pouvez ignorer l'étape suivante « Création d'un pool de nœuds GPU avec autoscaling ».
+
+:::warning
+Les machines virtuelles GPU sont extrêmement puissantes et significativement plus coûteuses que les nœuds standards. Si vous utilisez généralement OVHcloud Public Cloud à petite échelle et/ou si vous êtes un nouvel utilisateur, vous devrez peut-être [augmenter votre quota Public Cloud](/guides/public-cloud/cross-functional/increasing-public-cloud-quota) pour accéder à ce type de machines pour votre projet. Notez également que ces machines ne sont disponibles que dans certaines de nos régions Public Cloud.
+
+Notez aussi que si les worker nodes (qu'ils soient ajoutés manuellement ou via l'autoscaler du cluster) sont créés en quelques minutes, le passage au statut prêt de nos worker nodes GPU peut prendre un peu plus d'une heure.
+:::
+
+{/* CP-NAV-START:publiccloud-projects */}
+---
+
+### Accès à l'espace client OVHcloud
+
+- **Lien direct :** <ManagerLink to="/#/pci/projects">Public Cloud Projects</ManagerLink>
+- **Pour accéder à vos services :** <code className="action">Public Cloud</code> > sélectionnez votre projet
+
+---
+{/* CP-NAV-END:publiccloud-projects */}
+
+## En pratique
+
+### Création d'un pool de nœuds GPU avec autoscaling
+
+Accédez à l'interface d'administration de vos clusters OVHcloud Managed Kubernetes en cliquant sur <code className="action">Managed Kubernetes Service</code> dans le menu de gauche.
+
+<img className="thumbnail" alt="Sélectionnez votre cluster" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/create-a-nodepool-1.png" loading="lazy" />
+
+Cliquez sur votre cluster, puis sur l'onglet <code className="action">Pools de nœuds</code>.
+
+Vous allez créer votre pool de nœuds GPU spécial.
+Cliquez sur <code className="action">Ajouter un pool de nœuds</code>.
+
+Saisissez ensuite un nom pour votre pool de nœuds GPU, `gpu-node-pool` par exemple.
+
+<img className="thumbnail" alt="Nommez votre pool de nœuds GPU" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/create-a-nodepool-2.png" loading="lazy" />
+
+Sélectionnez une flavor pour votre nouveau pool de nœuds, puis cliquez sur l'onglet <code className="action">GPU</code>. Vous pouvez choisir « T1-45 » par exemple.
+
+<img className="thumbnail" alt="Sélectionnez une flavor pour votre pool de nœuds GPU" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/create-a-nodepool-3.png" loading="lazy" />
+
+À l'étape suivante, définissez la taille de votre pool de nœuds GPU.
+Vous pouvez activer la fonctionnalité <code className="action">Autoscaling</code>.
+Dans ce cas, définissez la taille minimale et maximale du pool, par exemple 3 au minimum et 10 au maximum.
+
+<img className="thumbnail" alt="Définissez une taille et l'autoscaling pour votre pool de nœuds GPU" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/create-a-nodepool-4.png" loading="lazy" />
+
+Choisissez ensuite le mode de facturation `Horaire` pour ce pool de nœuds GPU.
+
+<img className="thumbnail" alt="Mode de facturation" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/create-a-nodepool-5.png" loading="lazy" />
+
+La création du pool de nœuds est maintenant en cours. Elle devrait être disponible en quelques minutes dans votre espace client OVHcloud.
+
+Lorsque le pool de nœuds est à l'état `OK`, si vous affichez les labels du pool de nœuds, vous pouvez vérifier que les nœuds du nouveau `gpu-node-pool` sont correctement étiquetés.
+
+```bash
+kubectl get node --show-labels | grep "node.k8s.ovh/type=gpu"
+```
+
+<img className="thumbnail" alt="Nœuds GPU" src="/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/create-a-nodepool-6.png" loading="lazy" />
+
+### NVIDIA GPU Operator
+
+Le [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) utilise l'[Operator Framework](https://github.com/operator-framework/getting-started) au sein de Kubernetes pour automatiser la gestion de tous les composants logiciels NVIDIA nécessaires au provisionnement des GPU. Ces composants incluent les pilotes NVIDIA (pour activer CUDA), le device plugin Kubernetes pour les GPU, le NVIDIA Container Runtime, l'étiquetage automatique des nœuds, la supervision basée sur DCGM, et d'autres.
+
+![NVIDIA GPU Kubernetes Operator](/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/nvidia-gpu-operator.jpeg)
+
+Si cet opérateur vous intéresse, n'hésitez pas à consulter la [documentation officielle du NVIDIA GPU operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/overview.html).
+
+### Installer le chart Helm du NVIDIA GPU Operator
+
+Pour ce tutoriel, nous utilisons le [chart Helm NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator/tree/master/deployments/gpu-operator) disponible sur le [dépôt NVIDIA](https://github.com/nvidia/). Le chart est [entièrement configurable](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/getting-started.html), mais nous utilisons ici la configuration par défaut, avec seulement l'ensemble minimal de personnalisations pour qu'il fonctionne correctement sur OVHcloud Managed Kubernetes Service.
+
+Ajoutez le dépôt Helm NVIDIA :
+
+:::info
+Le chart Helm Nvidia a changé d'emplacement. Si vous avez déjà ajouté un dépôt nommé `nvidia`, vous pouvez le supprimer : `helm repo remove nvidia`.
+
+:::
+
+
+```bash
+helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+helm repo update
+```
+
+Cela ajoutera le dépôt NVIDIA et mettra à jour tous vos dépôts : 
+
+```console
+$ helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+helm repo update
+"nvidia" has been added to your repositories
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "nvidia" chart repository
+[...]
+Update Complete. ⎈Happy Helming!⎈
+```
+
+Installez le GPU Operator dans le namespace `gpu-operator` :
+
+```bash
+helm install gpu-operator nvidia/gpu-operator -n gpu-operator --create-namespace --wait
+```
+
+:::info
+Nous recommandons d'utiliser la dernière version de pilote publiée par NVIDIA suivant le format `*-5.15.0-*-generic-ubuntu22.04`, disponible dans le [catalogue de pilotes NVIDIA NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/driver/-/tags).
+
+Exemple : `595-5.15.0-185-generic-ubuntu22.04`. Définissez-la à l'aide de `driver.version` dans les [valeurs du chart gpu-operator](https://github.com/NVIDIA/gpu-operator/blob/c37a3850b40db6dbd850aa75119dd479f75935ec/deployments/gpu-operator/values.yaml).
+
+:::
+
+Vous devriez avoir un GPU operator installé et en cours d'exécution :
+
+```console
+$ helm install gpu-operator nvidia/gpu-operator -n gpu-operator --create-namespace --wait
+
+NAME: gpu-operator
+LAST DEPLOYED: Tue Apr 25 09:59:59 2023
+NAMESPACE: gpu-operator
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+
+$ kubectl get pod -n gpu-operator
+NAME                                                          READY   STATUS      RESTARTS   AGE
+gpu-feature-discovery-8xzzw                                   1/1     Running     0          22m
+gpu-feature-discovery-kxtlh                                   1/1     Running     0          22m
+gpu-feature-discovery-wdvr7                                   1/1     Running     0          22m
+gpu-operator-689dbf694b-clz7f                                 1/1     Running     0          23m
+gpu-operator-node-feature-discovery-master-7db9bfdd5b-9w2hj   1/1     Running     0          23m
+gpu-operator-node-feature-discovery-worker-2wpmm              1/1     Running     0          23m
+gpu-operator-node-feature-discovery-worker-4bsn7              1/1     Running     0          23m
+gpu-operator-node-feature-discovery-worker-9klx5              1/1     Running     0          23m
+gpu-operator-node-feature-discovery-worker-gn62n              1/1     Running     0          23m
+gpu-operator-node-feature-discovery-worker-hdzpx              1/1     Running     0          23m
+nvidia-container-toolkit-daemonset-hvx6x                      1/1     Running     0          22m
+nvidia-container-toolkit-daemonset-lhmxn                      1/1     Running     0          22m
+nvidia-container-toolkit-daemonset-tjrb2                      1/1     Running     0          22m
+nvidia-cuda-validator-fcfwn                                   0/1     Completed   0          18m
+nvidia-cuda-validator-mdbml                                   0/1     Completed   0          18m
+nvidia-cuda-validator-sv979                                   0/1     Completed   0          17m
+nvidia-dcgm-exporter-fvn8h                                    1/1     Running     0          22m
+nvidia-dcgm-exporter-mt5qh                                    1/1     Running     0          22m
+nvidia-dcgm-exporter-n65kl                                    1/1     Running     0          22m
+nvidia-device-plugin-daemonset-hwc95                          1/1     Running     0          22m
+nvidia-device-plugin-daemonset-wr5td                          1/1     Running     0          22m
+nvidia-device-plugin-daemonset-zzzkm                          1/1     Running     0          22m
+nvidia-device-plugin-validator-4k5wd                          0/1     Completed   0          17m
+nvidia-device-plugin-validator-rjkzd                          0/1     Completed   0          17m
+nvidia-device-plugin-validator-swdrr                          0/1     Completed   0          17m
+nvidia-driver-daemonset-2jsmv                                 1/1     Running     0          22m
+nvidia-driver-daemonset-5zq44                                 1/1     Running     0          22m
+nvidia-driver-daemonset-v6qgx                                 1/1     Running     0          22m
+nvidia-operator-validator-kk6nd                               1/1     Running     0          22m
+nvidia-operator-validator-m9p9k                               1/1     Running     0          22m
+nvidia-operator-validator-s6czx                               1/1     Running     0          22m
+```
+
+### Vérifier l'installation du GPU Operator
+
+Lorsque le GPU operator est actif et en cours d'exécution, il ajoute des labels `nvidia.com/gpu` sur les nœuds GPU.
+
+Vous pouvez vérifier les nouveaux labels avec la commande :
+
+```bash
+kubectl get nodes --show-labels | grep "nvidia.com/gpu"
+```
+
+Les nouveaux labels ne devraient apparaître que sur vos nœuds GPU :
+
+![Labels NVIDIA des nœuds GPU](/images/public-cloud/containers-orchestration/managed-kubernetes/deploying-gpu-application/gpu-nodes-labels.png)
+
+### Exécuter des applications GPU d'exemple
+
+Vous pouvez maintenant exécuter une application/workload GPU sur votre cluster.
+
+Pour configurer les Pods afin qu'ils consomment des GPU, vous devez utiliser une limite de ressource dans votre fichier manifeste YAML. Vous devez spécifier une limite de ressource dans une spécification de Pod à l'aide de la paire clé-valeur suivante :
+
+```bash
+Key: nvidia.com/gpu
+Value: Number of GPUs to consume
+```
+
+Créez un fichier manifeste YAML `vector.yaml` avec le contenu suivant :
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cuda-vectoradd
+spec:
+  restartPolicy: OnFailure
+  containers:
+  - name: cuda-vectoradd
+    image: "nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda11.7.1"
+    resources:
+      limits:
+         nvidia.com/gpu: 1
+```
+
+Appliquez-le :
+
+```bash
+kubectl apply -f vector.yaml -n default
+```
+
+Puis observez le démarrage du Pod :
+
+```bash
+kubectl get pod -n default -w
+```
+
+Vous devriez obtenir un résultat comme celui-ci :
+
+```console
+$ kubectl apply -f vector.yaml -n default
+pod/cuda-vectoradd created
+
+$ kubectl get pod -n default -w
+NAME             READY   STATUS              RESTARTS   AGE
+cuda-vectoradd   0/1     ContainerCreating   0          4s
+cuda-vectoradd   0/1     Completed   0          35s
+```
+
+Une fois que `cuda-vectoradd` a démarré, exécuté et terminé sa tâche, consultez les logs avec la commande suivante :
+
+```bash
+kubectl logs cuda-vectoradd -n default
+```
+
+```console
+$ kubectl logs cuda-vectoradd -n default
+[Vector addition of 50000 elements]
+Copy input data from the host memory to the CUDA device
+CUDA kernel launch with 196 blocks of 256 threads
+Copy output data from the CUDA device to the host memory
+Test PASSED
+Done
+```
+
+Notre premier workload GPU vient de démarrer et a terminé sa tâche dans notre cluster OVHcloud Managed Kubernetes.
+
+## Aller plus loin
+
+Pour en savoir plus sur l'utilisation pratique de votre cluster Kubernetes, consultez notre [documentation OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/overview).
+
+Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) pour obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l’équipe Professional Services.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

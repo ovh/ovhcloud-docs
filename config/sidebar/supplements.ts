@@ -33,7 +33,10 @@ const localizedUrls: Record<string, Record<Locale, string>> = {
 export function getHeaderItems(locale: Locale): SidebarItem[] {
   return [
     { sectionHeaderText: 'sidebar.documentation' } as SidebarItem,
-    { text: 'sidebar.apiReference', link: 'https://api.eu.ovhcloud.com/console/' },
+    {
+      text: 'sidebar.apiReference',
+      link: 'https://api.eu.ovhcloud.com/console/',
+    },
     {
       text: 'sidebar.productChangelog',
       link: localizedUrls.changelog[locale],

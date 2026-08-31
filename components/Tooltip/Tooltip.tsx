@@ -23,6 +23,16 @@ interface TooltipProps {
   placement?: 'top' | 'bottom';
 }
 
+// Definitions come from MDX and the committed glossary, but they are still
+// plain text: escape first so a literal `&`, `<` or `"` renders as text rather than markup, and cannot break out
+// of the href attribute below. The transforms then insert the only real tags.
+const escapeHtml = (raw: string): string =>
+  raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
 /**
  * Internal hrefs (`/guides/...`) are localized through Rspress routing and
  * stay in-tab; only external links get the new-tab treatment. Glossary
@@ -33,7 +43,7 @@ function parseSimpleMarkdown(
   text: string,
   localizeHref: (href: string) => string,
 ): string {
-  return text
+  return escapeHtml(text)
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
@@ -60,13 +70,14 @@ export function Tooltip({
   const localizeHref = useLocalizeHref();
   // An unknown key renders the trigger as plain text (see the `!resolved`
   // guard below) rather than an empty overlay — a stale key degrades, never
-  // breaks the page. `glossary:validate` is what catches it at build time.
+  // breaks the page. It should never reach production either:
+  // plugins/remarkNoUnresolvedTerm.ts fails the build on an unresolved
+  // term=, and `pnpm glossary:validate` sweeps every locale plus orphans.
   const resolved = content ?? (term ? glossary[term]?.definition : undefined);
   const id = useId();
   const triggerRef = useRef<HTMLSpanElement>(null);
   const popupRef = useRef<HTMLSpanElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isTouch = useRef(false);
   const tooltipId = `tooltip-${id}`;
 
   useEffect(() => setMounted(true), []);
@@ -160,6 +171,13 @@ export function Tooltip({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setIsOpen(false);
+      return;
+    }
+    // role="button" contract: Enter and Space must activate it.
+    // preventDefault stops Space from scrolling the page.
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsOpen((prev) => !prev);
     }
   };
 
@@ -182,21 +200,15 @@ export function Tooltip({
     closeTimer.current = setTimeout(() => setIsOpen(false), 200);
   };
 
-  // Touch browsers synthesise a mouseenter/mouseleave pair around the tap
-  // before firing click. Without this guard the first tap ran open() and then
-  // the click handler toggled it straight back shut — so nothing appeared
-  // until a second tap. Record the pointer type on pointerdown and let touch
-  // taps be handled by onClick alone.
-  const handlePointerDown = (e: React.PointerEvent) => {
-    isTouch.current = e.pointerType === 'touch' || e.pointerType === 'pen';
+  // Touch browsers synthesise an enter/leave pair around a tap before firing
+  // click, which would open the popup and then toggle it straight back shut.
+  // Pointer events carry pointerType, so hover can be scoped to a real mouse
+  // without tracking any state — touch taps are governed by onClick alone.
+  const handlePointerEnter = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') open();
   };
-  const handleMouseEnter = () => {
-    if (isTouch.current) return;
-    open();
-  };
-  const handleMouseLeave = () => {
-    if (isTouch.current) return;
-    closeSoon();
+  const handlePointerLeave = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') closeSoon();
   };
 
   if (!resolved) {
@@ -211,11 +223,14 @@ export function Tooltip({
       role="button"
       tabIndex={0}
       aria-describedby={isOpen ? tooltipId : undefined}
-      onPointerDown={handlePointerDown}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      // Touch taps focus the trigger too; onClick already governs them.
-      onFocus={handleMouseEnter}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      // Only KEYBOARD focus should open it: a touch tap also focuses the
+      // trigger, and onClick already governs that path. :focus-visible is
+      // exactly this distinction.
+      onFocus={(e) => {
+        if (e.target.matches(':focus-visible')) open();
+      }}
       // Keyboard users must be able to Tab INTO the popup's links, so only
       // close when focus leaves the trigger/popup subtree entirely.
       // The popup is portalled, so it is NOT inside currentTarget any more —
@@ -240,7 +255,12 @@ export function Tooltip({
       {children}
       {/* Portalled to <body>: see the positioning effect above — the doc
           column is a scroll container and would clip the popup. Only mounted
-          while open, and only in the browser (SSR has no document). */}
+          while open, and only in the browser (SSR has no document).
+          The `mounted && isOpen` gate is LOAD-BEARING for search: it keeps
+          definition text out of the pre-rendered HTML, so Pagefind never
+          indexes it (scripts/combine-builds.ts indexes `.rp-doc`). Do not
+          render the popup unconditionally; data-pagefind-ignore below is the
+          belt-and-braces guarantee if that ever changes. */}
       {mounted &&
         isOpen &&
         createPortal(
@@ -248,8 +268,9 @@ export function Tooltip({
             ref={popupRef}
             id={tooltipId}
             role="tooltip"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
+            data-pagefind-ignore
+            onPointerEnter={handlePointerEnter}
+            onPointerLeave={handlePointerLeave}
             className="tooltip-popup tooltip-popup--visible"
             data-placement={actualPlacement}
             // biome-ignore lint/security/noDangerouslySetInnerHtml: content comes from MDX files and the committed glossary, not user input

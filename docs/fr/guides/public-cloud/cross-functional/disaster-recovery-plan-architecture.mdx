@@ -1,0 +1,149 @@
+---
+title: Plan de reprise d'activité - Mécanismes et architectures de référence
+description: Découvrez comment concevoir un plan de reprise d'activité pour une application Public Cloud en répliquant le trafic et les données vers une seconde région
+lastUpdated: 2026-08-24
+---
+
+## Objectif
+
+Déployer une application dans une région 3-AZ, ou dans une architecture en haute disponibilité, la protège contre la perte d'un serveur, d'une baie ou d'une zone de disponibilité. Cela ne la protège pas contre la perte d'une région entière. Une panne réseau majeure sur une région Public Cloud rend injoignables toutes les ressources qui y sont hébergées, et vos utilisateurs finaux subissent une indisponibilité totale.
+
+Se prémunir contre ce scénario nécessite un **site de secours** : une seconde région Public Cloud, prête à servir le trafic dès que la région de production tombe.
+
+**Ce guide explique comment construire un plan de reprise d'activité (PRA) sur deux régions Public Cloud : comment servir le trafic entrant depuis les deux sites, et comment garder vos données disponibles dans les deux.**
+
+## Prérequis
+
+- Un [projet Public Cloud](/guides/public-cloud/cross-functional/create-a-public-cloud-project) dans votre compte OVHcloud
+- Deux régions Public Cloud pour votre déploiement : une pour la production, une pour la reprise d'activité (Gravelines et Strasbourg, par exemple)
+- Avoir accès à l'<ManagerLink to="/#/pci/projects">espace client OVHcloud</ManagerLink> et aux [API OVHcloud](/guides/manage-and-operate/api/first-steps)
+- Des objectifs de reprise définis pour votre application (RTO et RPO)
+
+## En pratique
+
+### Comprendre le risque d'une panne régionale
+
+Le schéma ci-dessous présente un déploiement Public Cloud classique, et ce qu'il devient lorsque la région subit une panne réseau majeure :
+
+<img className="thumbnail" alt="Panne régionale sur une région Public Cloud" src="/images/public-cloud/cross-functional/disaster-recovery-plan-architecture/01-regional-failure.png" loading="lazy" />
+
+Tous les composants perdent leur connectivité réseau en même temps : instances, nœuds Managed Kubernetes Service, gateway, Floating IP, Load Balancer, Managed Databases, Block Storage, File Storage, Managed Private Registry et Object Storage. Quelle que soit la résilience mise en place à l'intérieur d'une seule région, le résultat est le même : votre service est indisponible.
+
+Étendre le déploiement à une seconde région soulève deux questions :
+
+- Comment servir le trafic entrant depuis deux sites en même temps ?
+- Comment garder les mêmes données disponibles dans deux régions en même temps ?
+
+Les sections suivantes répondent à chacune d'elles.
+
+### Servir le trafic entrant depuis deux sites
+
+Le premier défi concerne l'ingress : le trafic doit continuer à circuler lorsque l'un des deux sites disparaît.
+
+L'[IP Load Balancer OVHcloud](/guides/network/load-balancer/use-presentation) répond à ce besoin. Le Public Cloud Load Balancer est un service régional : il tombe donc avec sa région. L'IP Load Balancer, lui, peut pointer vers des backends situés dans deux sites géographiques différents en même temps (Gravelines et Strasbourg, par exemple) et continue à servir le trafic depuis le site encore disponible.
+
+:::info
+L'IP Load Balancer est le seul produit de répartition de charge OVHcloud capable de distribuer le trafic sur deux régions en même temps. Tous les autres produits Public Cloud sont régionaux ou zonaux, ce qui implique de créer une ressource dédiée dans chaque région.
+:::
+
+### Choisir entre réplication et sauvegarde/restauration
+
+Le second défi concerne les données. Deux mécanismes permettent de les rendre disponibles dans la région de secours :
+
+- **La réplication** copie les données en continu vers la seconde région. Comme les données y sont déjà présentes lorsque l'incident survient, la reprise est rapide. Privilégiez cette option chaque fois que le produit la propose.
+- **La sauvegarde/restauration** reconstruit les données dans la seconde région à partir d'une sauvegarde. La reprise est plus lente, et il est difficile de prévoir de combien : une base de données soumise à de nombreuses écritures doit d'abord restaurer la sauvegarde, puis rejouer toutes les transactions pour retrouver l'état qui était le sien juste avant l'incident.
+
+Le tableau ci-dessous indique le mécanisme disponible pour chaque produit Public Cloud :
+
+| Produit | Mécanisme de PRA |
+|---------|------------------|
+| Managed Databases for PostgreSQL | Réplication (réplication de tables) |
+| Object Storage | Réplication (réplication de bucket) |
+| Managed Private Registry | Réplication (réplication d'images) |
+| Managed Databases (moteurs autres que PostgreSQL) | Sauvegarde/restauration |
+| Instances | Sauvegarde/restauration |
+| Block Storage | Sauvegarde/restauration |
+| File Storage | Sauvegarde/restauration |
+
+### Managed Databases
+
+#### PostgreSQL : réplication de tables
+
+Public Cloud Databases for PostgreSQL intègre un mécanisme de réplication de tables, qui maintient synchronisées deux bases de données hébergées dans deux régions différentes :
+
+<img className="thumbnail" alt="Réplication de tables PostgreSQL entre deux régions" src="/images/public-cloud/cross-functional/disaster-recovery-plan-architecture/02-postgresql-tables-replication.png" loading="lazy" />
+
+**Avantages :**
+
+- Les données sont déjà présentes sur le site de secours.
+- La perte de données est minimale.
+- Le point de terminaison de la base de secours est connu à l'avance, puisque la base existe déjà.
+
+**Inconvénients :**
+
+- Les deux côtés doivent partager le même schéma de tables.
+- La réplication se configure table par table : il faut donc s'assurer qu'aucune n'est oubliée.
+- Le coût : vous payez deux bases de données en fonctionnement.
+
+#### Autres moteurs de base de données : sauvegarde/restauration
+
+:::info
+Vous pouvez aussi utiliser la sauvegarde/restauration avec Public Cloud Databases for PostgreSQL, par exemple si vous préférez n'exploiter qu'une seule base de données.
+:::
+
+Lorsque le moteur ne propose aucun mécanisme de réplication, la sauvegarde/restauration est la seule option. Public Cloud Databases permet de stocker vos sauvegardes dans deux emplacements, que vous définissez via les API OVHcloud. Choisissez la région qui héberge la base de données, ainsi que la région où la base de secours sera créée :
+
+<img className="thumbnail" alt="Sauvegarde et restauration d'une base de données managée dans une seconde région" src="/images/public-cloud/cross-functional/disaster-recovery-plan-architecture/03-managed-database-backup-restore.png" loading="lazy" />
+
+**Avantage :**
+
+- Le coût : vous ne payez qu'une seule base de données en fonctionnement.
+
+**Inconvénients :**
+
+- Le point de terminaison de la nouvelle base de secours ne peut pas être connu à l'avance.
+- La restauration peut être longue, et cette durée est difficile à prévoir.
+
+Pour en savoir plus sur la gestion de vos sauvegardes, consultez [Sauvegardes automatiques des bases de données Public Cloud](/guides/public-cloud/databases/backups) et [Restaurer la sauvegarde d'une base de données Public Cloud](/guides/public-cloud/databases/restore-backup).
+
+### Object Storage
+
+OVHcloud Object Storage intègre un mécanisme de réplication hors site : vous créez une règle de réplication d'un bucket vers un autre, et les deux buckets peuvent se trouver dans des régions différentes, ce qui correspond exactement au besoin d'un PRA.
+
+Pour la mettre en place, suivez notre guide [Object Storage - Maîtrisez la réplication asynchrone sur vos buckets](/guides/storage-and-backup/object-storage/s3-asynchronous-replication).
+
+### Managed Private Registry
+
+Le Managed Private Registry OVHcloud repose sur le projet open source Harbor. Comme Object Storage, il propose une réplication asynchrone intégrée qui répond à un usage de PRA : les artefacts poussés vers le registre de production sont répliqués vers le registre de la région de secours, si bien que les clusters Managed Kubernetes Service des deux régions récupèrent les mêmes images.
+
+<img className="thumbnail" alt="Réplication des artefacts entre deux Managed Private Registries" src="/images/public-cloud/cross-functional/disaster-recovery-plan-architecture/04-private-registry-replication.png" loading="lazy" />
+
+Pour créer les règles de réplication, consultez la [documentation Harbor sur la réplication](https://goharbor.io/docs/2.15.0/administration/configuring-replication/).
+
+:::warning
+Les deux registres ont des FQDN différents. Assurez-vous que chaque site récupère ses images depuis le bon registre lors du déploiement de votre application.
+:::
+
+### Exemple d'implémentation
+
+En combinant les mécanismes ci-dessus, on obtient un déploiement complet sur deux régions. Notre guide [Plan de reprise d'activité - Exemple d'implémentation](/guides/public-cloud/cross-functional/disaster-recovery-plan-implementation) en détaille un de bout en bout, construit sur :
+
+- Des clusters Managed Kubernetes Service
+- Des Managed Databases for PostgreSQL et Valkey
+- Un IP Load Balancer et un Public Cloud Load Balancer
+- Des buckets Object Storage
+
+## Aller plus loin
+
+- [Plan de reprise d'activité - Exemple d'implémentation](/guides/public-cloud/cross-functional/disaster-recovery-plan-implementation)
+- [Résilience 3-AZ : Mécanismes et architectures de référence](/guides/public-cloud/cross-functional/deployments-modes-reference-architecture)
+- [Comparaison et résilience des modes de déploiement - Comprendre les régions 3-AZ / 1-AZ / Local Zones](/guides/public-cloud/cross-functional/deployment-modes-comparison-resilience-details)
+- [Comment étendre un réseau privé OVHcloud à travers les régions Public Cloud](/guides/public-cloud/network-services/extend-private-network-multi-regions)
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+## Nous voulons vos retours !
+
+N’hésitez pas à nous faire part de vos questions, retours et suggestions pour améliorer le service :
+
+- Sur le [serveur Discord OVHcloud](https://discord.gg/ovhcloud)
