@@ -61,6 +61,7 @@
             + [Unknown transaction or issuer](account-and-service-management/managing-billing-payments-and-services/understand-unknown-invoice)
             + [Purchase Order (PO)](account-and-service-management/managing-billing-payments-and-services/purchase-order)
             + [Payer une commande en tant qu’administration publique](account-and-service-management/managing-billing-payments-and-services/public-administration)
+            + [Entering a commitment number on your purchase order](account-and-service-management/managing-billing-payments-and-services/commitment-number)
             + [Correcting a bank details error](account-and-service-management/managing-billing-payments-and-services/correct-bank-details-error)
             + [Renseigner votre numéro de SIRET et mettre à jour votre taux de TVA](account-and-service-management/managing-billing-payments-and-services/update-vat-rate)
             + [Understanding and correcting electronic invoicing errors](account-and-service-management/managing-billing-payments-and-services/electronic-invoicing-errors)
