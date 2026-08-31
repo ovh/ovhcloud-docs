@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.08.31
+
+### Fixes
+- **i18n:** add EN fallback symlinks for 6 sidebar guides
+
+### Documentation
+- 32 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.08.28
 
 ### Documentation
