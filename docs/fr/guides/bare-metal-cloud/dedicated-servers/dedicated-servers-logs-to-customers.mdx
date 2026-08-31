@@ -1,0 +1,230 @@
+---
+title: Configurer le transfert des logs pour les serveurs dédiés OVHcloud
+description: Transférez les logs de votre serveur dédié OVHcloud vers Logs Data Platform, puis interrogez, visualisez et archivez-les depuis votre propre data stream.
+lastUpdated: 2026-08-31
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objectif
+
+Ce guide vous explique comment activer le transfert des logs de votre serveur dédié OVHcloud vers Logs Data Platform (LDP), une plateforme qui vous aide à stocker, archiver, interroger et visualiser vos logs.
+
+Pour en savoir plus sur Logs Data Platform avant de lire ce guide, consultez le [guide d'introduction à Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/introduction).
+
+**Dans ce guide, vous apprendrez à :**
+
+- Consulter les logs de votre serveur dédié en temps réel.
+- Créer un abonnement qui transfère ces logs vers un data stream Logs Data Platform.
+- Interroger et visualiser les logs transférés.
+- Gérer et supprimer vos abonnements.
+
+:::info
+Les logs décrits dans ce guide concernent l'**installation du système d'exploitation** sur votre serveur et sont générés par OVHcloud pendant cette installation. Il ne s'agit **pas** des logs système produits par le système d'exploitation une fois celui-ci en fonctionnement.
+
+Pour centraliser les logs produits par votre propre système d'exploitation, consultez le guide [Envoyer les logs Linux vers Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/log-linux).
+:::
+
+## Glossaire
+
+- **Logs Data Platform :** une plateforme de gestion de logs entièrement gérée et sécurisée par OVHcloud. Pour plus d'informations, consultez la page de présentation de la solution [Logs Data Platform](/links/manage-operate/ldp).
+- **Data Stream :** une partition logique de logs que vous créez dans un compte LDP et que vous utiliserez lors de l'ingestion, de la visualisation ou de l'interrogation de vos logs. Plusieurs sources peuvent être stockées dans le même data stream, et c'est l'unité qui peut être utilisée pour définir un pipeline de logs (politique de rétention, archivage, streaming live, etc.), des droits d'accès et des politiques d'alertes.
+- **Transfert de logs :** fonctionnalité intégrée à un produit OVHcloud pour ingérer les logs de ses services dans un *Data Stream* d'un compte LDP appartenant au même compte OVHcloud. Cette fonctionnalité doit être activée par le client et par service.
+- **Abonnement au transfert de logs :** lors de l'activation du transfert de logs pour un service OVHcloud donné vers un *Data Stream* LDP donné, un *Abonnement* est créé et attaché au *Data Stream* pour une gestion ultérieure par le client.
+
+## Prérequis
+
+- Un compte Logs Data Platform (LDP) avec au moins un *Stream* actif configuré. Ce guide vous accompagne dans toutes les étapes nécessaires : [Quick start for Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start).
+    - Si vous ne connaissez pas toutes les possibilités de configuration d'un *Stream* LDP, créez-en un nouveau avec les options par défaut (indexation et websocket activés, stockage longue durée désactivé) pour suivre ce guide.
+- Un [serveur dédié OVHcloud](/guides/bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server) opérationnel.
+- Un accès à l'[espace client OVHcloud](/links/manager).
+- Le compte LDP et le serveur dédié doivent appartenir au même compte OVHcloud.
+
+## Concepts et limites
+
+**Quels sont les logs d'un serveur dédié ?**
+
+Les logs transférés contiennent les détails de l'installation du système d'exploitation sur votre serveur.
+
+Le transfert de logs est disponible sur toutes les gammes de serveurs dédiés.
+
+### Types de logs
+
+Les logs sont regroupés par *types*, et chaque type fait l'objet d'un abonnement distinct. Un serveur dédié expose actuellement un seul type :
+
+| Type | Nom affiché | Description |
+|------|-------------|-------------|
+| `install` | Operating system installation logs | Détails de l'installation du système d'exploitation sur votre serveur. |
+
+Vous pouvez récupérer la liste des types disponibles sur votre serveur avec l'appel API suivant :
+
+<Api version="v2" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/log/kind"} />
+
+Pour obtenir le détail d'un type, y compris les champs supplémentaires qu'il retourne, utilisez l'appel API suivant :
+
+<Api version="v2" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/log/kind/\{name\}"} />
+
+### Contenu des logs
+
+En complément des champs communs à tous les logs ingérés par Logs Data Platform, le type `install` retourne les champs suivants :
+
+| Nom du champ | Description | Type |
+|--------------|-------------|------|
+| `level` | Niveau de criticité de l'entrée de log, selon les valeurs de sévérité syslog standard : `2` (critical), `4` (warning), `6` (info). | Number |
+| `os` | Système d'exploitation en cours d'installation. | String |
+| `serviceName` | Nom du serveur dédié sur lequel l'installation est effectuée. | String |
+| `status` | Étape en cours de l'opération : `ola-group-doing`, `os-install-start`, `os-install-failed` ou `os-install-ok`. | String |
+
+:::info
+La liste des valeurs de `status` ci-dessus correspond à l'état actuel et est amenée à évoluer.
+:::
+
+{/* DRAFT: To verify — descriptions de `os` et `serviceName` uniquement. Ces deux noms de champs proviennent de `additionalReturnedFields` dans la réponse de `GET /dedicated/server/{serviceName}/log/kind/install`, mais leurs descriptions sont déduites des noms et doivent encore être confirmées par l'équipe produit. `level` et `status` sont confirmés. */}
+
+Pour les champs communs à tous les logs, consultez le guide [Field naming convention](/guides/manage-and-operate/observability/logs-data-platform/field-naming-conventions).
+
+## En pratique
+
+L'activation du transfert est gratuite, mais l'utilisation du service Logs Data Platform vous est facturée selon la grille tarifaire standard. Pour connaître les tarifs de LDP, consultez la page de présentation de [Logs Data Platform](/links/manage-operate/ldp).
+
+### Activer le transfert de logs
+
+<Tabs>
+<Tab label="Via l'espace client OVHcloud">
+
+{/* DRAFT: To verify — l'onglet `Logs` a été observé dans le nouvel espace client à l'adresse `#/bare-metal/dedicated/{serviceName}/logs`. Confirmer qu'il est disponible en production avant publication ; sinon, remplacer cette section par la phrase utilisée dans le guide Load Balancer : « Cette fonctionnalité n'est pas encore disponible dans l'espace client. » */}
+
+Connectez-vous à votre <ManagerLink to="/">espace client OVHcloud</ManagerLink> et accédez à la section **Bare Metal Cloud**. Sélectionnez **Serveurs dédiés**, puis choisissez le serveur dont vous souhaitez transférer les logs.
+
+Cliquez sur l'onglet <code className="action">Logs</code>.
+
+La page est divisée en deux panneaux :
+
+- À gauche, le panneau **live-tail** affiche les logs de votre serveur en temps réel.
+- À droite, le panneau des **abonnements** liste vos abonnements actifs et vous permet d'en créer de nouveaux.
+
+Un serveur dédié n'exposant qu'un seul type de logs, aucun sélecteur de type n'est affiché au-dessus des panneaux.
+
+Pour transférer vos logs vers Logs Data Platform, cliquez sur <code className="action">S'abonner</code> dans le panneau des abonnements (ou sur <code className="action">S'abonner à un autre data stream</code> si vous disposez déjà d'un abonnement actif).
+
+Sélectionnez le compte Logs Data Platform dans la liste déroulante en haut à gauche, puis sélectionnez le data stream cible dans le tableau. Cliquez sur <code className="action">S'abonner</code> sur la ligne correspondante.
+
+Seuls les logs générés **après** la création de l'abonnement sont envoyés vers votre data stream.
+
+Pour une description détaillée des panneaux live-tail et abonnements, communs à tous les produits compatibles avec OVHcloud Service Logs, consultez le guide [Introduction to OVHcloud Service Logs with Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/service-logs).
+
+</Tab>
+<Tab label="Via l'API OVHcloud">
+
+Vous devez définir le *Stream* cible de l'un de vos comptes LDP vers lequel vous souhaitez transférer vos logs. L'activation du transfert crée un abonnement pour cet identifiant de stream.
+
+#### Étape 1 - Récupérer le Stream cible (et son identifiant)
+
+Listez les data streams de votre compte Logs Data Platform (saisissez l'identifiant LDP sous la forme `ldp-xx-xxxx` dans le champ `serviceName`) :
+
+<Api version="v1" section="/dbaas/logs" method="GET" route={"/dbaas/logs/\{serviceName\}/output/graylog/stream"} />
+
+Obtenez le détail d'un data stream :
+
+<Api version="v1" section="/dbaas/logs" method="GET" route={"/dbaas/logs/\{serviceName\}/output/graylog/stream/\{streamId\}"} />
+
+#### Étape 2 - Créer votre abonnement
+
+Utilisez l'appel API suivant pour créer un abonnement :
+
+<Api version="v2" section="/dedicated/server" method="POST" route={"/dedicated/server/\{serviceName\}/log/subscription"} />
+
+:::info
+Vous devez remplacer :
+
+- **serviceName** : il s'agit du nom interne de votre serveur dédié, sous la forme `nsxxxxx.ip-xx-xx-xx.eu`. Vous le trouverez sur la page de gestion du serveur dédié dans l'espace client OVHcloud ou à l'aide de l'appel API suivant :
+
+<Api version="v2" section="/dedicated/server" method="GET" route={"/dedicated/server"} />
+:::
+
+La requête POST attend un payload contenant :
+
+- `kind` : le type de log que vous souhaitez transférer. Consultez la section [Types de logs](#types-de-logs) ci-dessus.
+- `streamId` : le data stream cible de votre compte LDP vers lequel transférer les logs de votre serveur dédié.
+
+```shell
+POST /dedicated/server/{serviceName}/log/subscription
+{
+  "kind": "install", // Le seul type actuellement disponible sur un serveur dédié.
+  "streamId": "198ef9d5-c320-4000-8bee-236623da5b80" // Le streamID du Stream ciblé.
+}
+```
+
+Vous obtenez un `operationId` en réponse :
+
+```shell
+{
+  "operationId": "f550aa1c-89ab-4b1a-81ae-4fba4959966f",
+  "serviceName": "ldp-xx-xxxx"
+}
+```
+
+Vous pouvez utiliser l'`operationId` pour récupérer le `subscriptionId` à des fins de gestion ultérieure avec l'appel API suivant :
+
+<Api version="v1" section="/dbaas/logs" method="GET" route={"/dbaas/logs/\{serviceName\}/operation/\{operationId\}"} />
+
+Une fois l'opération terminée, les abonnements peuvent également être récupérés avec l'appel API suivant :
+
+<Api version="v2" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/log/subscription"} />
+
+Une fois le `subscriptionId` obtenu, vous pouvez en consulter le détail avec l'appel API suivant :
+
+<Api version="v2" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/log/subscription/\{subscriptionId\}"} />
+
+```shell
+GET /dedicated/server/{serviceName}/log/subscription/{subscriptionId}
+
+{
+  "createdAt": "2026-08-31T07:42:50.645Z",
+  "kind": "string",
+  "resource": {
+    "name": "string",
+    "type": "string"
+  },
+  "serviceName": "string",
+  "streamId": "string",
+  "subscriptionId": "198efa11-f150-4000-8e8d-871b1e482b80",
+  "updatedAt": "2026-08-31T07:42:50.645Z"
+}
+```
+
+</Tab>
+</Tabs>
+
+### Comment utiliser les logs de votre serveur dédié
+
+Vos logs sont désormais ingérés et stockés dans votre data stream Logs Data Platform. Vous pouvez les interroger et créer des tableaux de bord pour en obtenir une représentation graphique à l'aide de l'interface web de Graylog.
+
+- Dans l'espace client OVHcloud, récupérez le nom d'utilisateur LDP (par exemple `logs-xxxx`) et son mot de passe sur la page d'accueil de votre compte Logs Data Platform. Vous pouvez consulter le guide [Quick start for Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start).
+- Ouvrez l'interface web de Graylog. Vous en trouverez le lien sur la page d'accueil de votre compte ou via votre point d'accès, selon la région de votre compte (par exemple, la région Gravelines correspond à `https://gra1.logs.ovh.com/`).
+- Connectez-vous à Graylog avec votre nom d'utilisateur et votre mot de passe Logs Data Platform.
+- Effectuez vos recherches dans les logs du data stream de votre compte Logs Data Platform. Consultez la documentation [Graylog writing search queries](https://go2docs.graylog.org/current/making_sense_of_your_log_data/writing_search_queries.html) pour le détail de la syntaxe de recherche.
+
+Pour en savoir plus sur l'exploitation de vos logs avec Logs Data Platform, notamment la configuration d'alertes, la consultation des logs en temps réel via WebSocket, la création de visualisations avec OpenSearch Dashboards, l'intégration avec l'API OpenSearch et la connexion à Grafana, consultez le [guide d'introduction à Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/introduction).
+
+### Comment gérer vos abonnements
+
+À tout moment, vous pouvez récupérer les abonnements attachés à votre data stream Logs Data Platform et désactiver le transfert en annulant votre abonnement sur votre stream, afin que ce dernier ne reçoive plus les logs de votre serveur dédié.
+
+Cette opération ne supprime pas les logs stockés avant l'annulation de l'abonnement : les données stockées dans un stream de logs sont immuables, sauf si vous supprimez le stream dans son intégralité.
+
+Pour supprimer votre abonnement, utilisez l'appel API suivant :
+
+<Api version="v2" section="/dedicated/server" method="DELETE" route={"/dedicated/server/\{serviceName\}/log/subscription/\{subscriptionId\}"} />
+
+## Aller plus loin
+
+[Introduction to OVHcloud Service Logs with Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/service-logs)
+
+[Quick start for Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start)
+
+[Archiver vos logs en stockage à froid](/guides/manage-and-operate/observability/logs-data-platform/archive-cold-storage)
+
+Si vous avez besoin d'une formation ou d'une assistance technique pour mettre en œuvre nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) afin d'obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l'équipe Professional Services.
+
+Echangez avec notre [communauté d'utilisateurs](/links/community).
