@@ -61,6 +61,7 @@
             + [Unknown transaction or issuer](account-and-service-management/managing-billing-payments-and-services/understand-unknown-invoice)
             + [Purchase Order (PO)](account-and-service-management/managing-billing-payments-and-services/purchase-order)
             + [Payer une commande en tant qu’administration publique](account-and-service-management/managing-billing-payments-and-services/public-administration)
+            + [Entering a commitment number on your purchase order](account-and-service-management/managing-billing-payments-and-services/commitment-number)
             + [Correcting a bank details error](account-and-service-management/managing-billing-payments-and-services/correct-bank-details-error)
             + [Renseigner votre numéro de SIRET et mettre à jour votre taux de TVA](account-and-service-management/managing-billing-payments-and-services/update-vat-rate)
             + [Understanding and correcting electronic invoicing errors](account-and-service-management/managing-billing-payments-and-services/electronic-invoicing-errors)
@@ -838,7 +839,7 @@
             + [How to prevent your emails from being marked as spam](bare-metal-cloud/dedicated-servers/mail-sending-optimization)
     + [Storage and Backup](products/public-cloud-storage)
         + [Object Storage](products/public-cloud-storage-object-storage)
-            + [S3 compatible](products/public-cloud-storage-object-storage-s3)
+            + [S3 compatible](products/public-cloud-storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
                 + [Key Concepts](products/public-cloud-storage-object-storage-s3-key-concepts)
                     + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
                     + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
@@ -939,6 +940,7 @@
                 + [Creating a volume from a backup](public-cloud/compute/storage-create-volume-from-backup)
                 + [Increasing the size of an additional disk](public-cloud/compute/increase-the-size-of-an-additional-disk)
                 + [Test disk speed](public-cloud/compute/test-disk-speed)
+                + [Configure Classic Multi-Attach Block Storage with OCFS2](public-cloud/compute/storage-classic-multi-attach-ocfs2)
             + [Migration](public-cloud-storage-block-storage-migration)
                 + [Migrating a Block Storage volume to an encrypted LUKS volume](public-cloud/compute/migrating-non-encrypted-to-encrypted-volume)
                 + [Change your Block Storage volume type](public-cloud/compute/switch-volume-type)
@@ -2271,7 +2273,7 @@
 + Storage and Backup
     + [Object Storage](products/storage-object-storage)
         + [Overview](storage-and-backup/object-storage/overview)
-        + [S3 compatible](products/storage-object-storage-s3)
+        + [S3 compatible](products/storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
             + [Key Concepts](products/storage-object-storage-s3-key-concepts)
                 + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
                 + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
@@ -2422,6 +2424,7 @@
                 + [Creating a volume from a backup](public-cloud/compute/storage-create-volume-from-backup)
                 + [Increasing the size of an additional disk](public-cloud/compute/increase-the-size-of-an-additional-disk)
                 + [Test disk speed](public-cloud/compute/test-disk-speed)
+                + [Configure Classic Multi-Attach Block Storage with OCFS2](public-cloud/compute/storage-classic-multi-attach-ocfs2)
             + [Migration](storage-block-storage-block-volume-migration)
                 + [Migrating a Block Storage volume to an encrypted LUKS volume](public-cloud/compute/migrating-non-encrypted-to-encrypted-volume)
                 + [Change your Block Storage volume type](public-cloud/compute/switch-volume-type)
