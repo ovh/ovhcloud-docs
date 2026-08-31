@@ -1,0 +1,367 @@
+---
+title: How to update the backup S3 buckets
+description: Find out how to change the S3 object storage buckets used by the OPCP platform backups
+lastUpdated: 2026-07-08
+---
+
+## Objective
+
+Your **OVHcloud On-Prem Cloud Platform (OPCP)** stores its platform backups in an external **S3<sup>1</sup>-compatible object storage**. These backups cover the critical components required to restore the control plane, namely:
+
+- the internal **databases** (`db`),
+- the **persistent volumes** (`pv`),
+- the **Terraform state** (`tfState`),
+- the **KMS auto-unsealer shares** (`kmsShares`).
+
+You may need to change the object storage buckets or endpoint used for these backups in several situations: migrating to a new S3 endpoint or region, moving to a different object storage provider, renaming buckets, or adjusting the retention policy.
+
+This guide explains how to update the backup S3 buckets in the OPCP configuration, redeploy the control plane, and re-initialize the **Velero** / **Kopia** backup repositories so they point to the new object storage location.
+
+:::warning
+This procedure modifies the backup configuration of the platform and re-initializes the backup repositories. Existing backups stored in the **previous** buckets are **not** migrated automatically. Make sure the previous backups are no longer needed (or have been copied over) before starting, and perform this operation during a maintenance window.
+:::
+
+## Requirements
+
+- An operational [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) infrastructure.
+- Administrative access to the OPCP controller with the `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl` and `velero` tools installed and configured.
+- The connection details of the **target** S3 object storage: endpoint URL, region, and the names of the buckets to use for the backups.
+- A maintenance window, as the control plane is redeployed during the operation.
+
+## Instructions
+
+### 1. Running a pre-flight diagnostic
+
+Before making any change, check that the platform is healthy. The `opcp-diag` tool runs a series of platform checks:
+
+```bash
+opcp-diag run -p
+```
+
+Only proceed once the diagnostic passes. This gives you a clean baseline to compare against once the operation is complete.
+
+### 2. Updating the backup configuration
+
+Open the OPCP configuration in your editor:
+
+```bash
+opcp-cli config edit
+```
+
+Locate the `backups` section and update it with the new object storage endpoint and bucket names:
+
+```yaml
+...
+backups:
+  endpoint:
+    region: yourRegion
+    url: "url.of.your.s3.service"
+  db:
+    enabled: true
+    retention: "30d"
+    bucket: "opcp01-backups-db-region"
+  pv:
+    enabled: true
+    retention: "720h0m0s"
+    bucket: "opcp01-backups-pv-region"
+    tfState:
+      retention: "720h0m0s"
+    kmsShares:
+      retention: "720h0m0s"
+...
+```
+
+The fields to review are:
+
+- **`endpoint.region`** / **`endpoint.url`**: the region and URL of the target S3-compatible service.
+- **`db.bucket`**: the bucket storing the database backups, with its `retention` (here `30d`).
+- **`pv.bucket`**: the bucket storing the persistent volume backups, with its `retention` (here `720h0m0s`, i.e. 30 days).
+- **`pv.tfState.retention`** / **`pv.kmsShares.retention`**: the retention applied to the Terraform state and KMS shares backups.
+
+:::info
+Retention values can be expressed either as a day-based duration (for example `30d`) or as a Go duration string (for example `720h0m0s`, which is also 30 days). Keep the format used by the existing configuration.
+:::
+
+Save and close the file. The command only **updates** the stored configuration; it does **not** apply it yet. The change is applied in the next step with `opcp-cli deploy`. The CLI reports when the edit is done:
+
+```bash
+✅ Command 'edit' completed in 1m12.081606602s
+```
+
+### 3. Applying the new configuration
+
+Apply the updated configuration:
+
+```bash
+opcp-cli deploy
+```
+
+This command does **not** redeploy the entire control plane: it only runs the convergence needed to apply your change, that is, it updates the Velero backup configuration and the database backup configuration.
+
+The operation can take several minutes. Wait until you see the confirmation:
+
+```bash
+...
+✅ Deployment of control plane terminated
+✅ Command 'deploy' completed in 10m19.19421549s
+```
+
+You can follow the deployment in real time in a separate terminal by tailing the CLI log:
+
+```bash
+tail -F /var/log/opcp-cli/opcp-cli.log | jq .msg
+```
+
+### 4. Waiting for reconciliation
+
+The platform relies on **Flux** (GitOps reconciliation) and **Terraform** to converge to the new desired state. Wait until every resource has reconciled.
+
+List any resources that are not yet ready:
+
+```bash
+flux get all -A --status-selector ready=false
+flux get all -A --status-selector ready=unknown
+```
+
+Check the state of the Terraform reconciliations:
+
+```bash
+tfctl get
+```
+
+Wait for these commands to report no pending or failing resources. If a resource stays blocked, you may occasionally need to restart the relevant pods — be patient, reconciliation can take a while.
+
+### 5. Verifying the backup storage location
+
+Once reconciliation is complete, confirm that Velero now points to the new bucket and that the storage location is `Available`:
+
+```bash
+velero backup-location get
+```
+
+```bash
+NAME              PROVIDER   BUCKET/PREFIX               PHASE       LAST VALIDATED                  ACCESS MODE   DEFAULT
+backup-location   aws        opcp01-backups-velero-region   Available   2026-07-07 12:30:41 +0000 UTC   ReadWrite     true
+```
+
+The `PHASE` must be `Available`. It can take a few minutes after the deployment before the storage location is validated and becomes `Available`, so wait a moment and run the command again if needed. If it stays in another state, re-check the endpoint and bucket configuration from step 2 and the credentials of the S3 service.
+
+### 6. Re-initializing the Velero backup repositories
+
+The **Kopia** backup repositories used by Velero are bound to the previous object storage location. To make Velero recreate them against the new buckets, you need to delete the existing repositories and restart the Velero components.
+
+First, list the current backup repositories:
+
+```bash
+kubectl -n velero get backuprepositories -A
+```
+
+```bash
+NAMESPACE   NAME                                     AGE    REPOSITORY TYPE
+velero      glance-backup-location-kopia-jqj4d       215d   kopia
+velero      ironic-backup-location-kopia-w46h4       215d   kopia
+velero      kms-backup-location-kopia-jxdvz          215d   kopia
+velero      monitoring-backup-location-kopia-hqjnt   215d   kopia
+```
+
+Delete all of them:
+
+```bash
+kubectl -n velero delete backuprepositories --all
+```
+
+```bash
+backuprepository.velero.io "glance-backup-location-kopia-jqj4d" deleted from velero namespace
+backuprepository.velero.io "ironic-backup-location-kopia-w46h4" deleted from velero namespace
+backuprepository.velero.io "kms-backup-location-kopia-jxdvz" deleted from velero namespace
+backuprepository.velero.io "monitoring-backup-location-kopia-hqjnt" deleted from velero namespace
+```
+
+Confirm that no repository remains:
+
+```bash
+kubectl -n velero get backuprepositories -A
+```
+
+```bash
+No resources found
+```
+
+Restart the Velero deployment and the `node-agent` daemonset so they re-create the repositories against the new buckets:
+
+```bash
+kubectl -n velero rollout restart deployment/velero
+kubectl -n velero rollout restart daemonset/node-agent
+```
+
+:::info
+A `Warning` message may be displayed when restarting these workloads. It is expected and can be safely ignored.
+:::
+
+Check that the Velero and `node-agent` pods have restarted and are `Running`:
+
+```bash
+kubectl get pod -n velero
+```
+
+```bash
+NAME                                                              READY   STATUS      RESTARTS   AGE
+...
+node-agent-p92tl                                                  1/1     Running     0          62s
+node-agent-pkhwn                                                  1/1     Running     0          58s
+node-agent-qk6j2                                                  1/1     Running     0          60s
+...
+velero-5f7fd4c8b8-rqprb                                           1/1     Running     0          68s
+```
+
+### 7. Triggering a first backup for each schedule
+
+The platform defines several backup schedules. List them to confirm they are enabled:
+
+```bash
+velero get schedule
+```
+
+```bash
+NAME                             STATUS    CREATED                         SCHEDULE    BACKUP TTL   LAST BACKUP   SELECTOR                                 PAUSED
+kms-autounsealer-shares-backup   Enabled   2025-12-03 13:30:21 +0000 UTC   0 * * * *   720h0m0s     34m ago       kms-autounsealer-shares-backup=enabled   false
+pvs-backup                       Enabled   2025-12-03 13:30:21 +0000 UTC   0 * * * *   720h0m0s     34m ago       backup=true                              false
+tfstate-backup                   Enabled   2025-12-03 13:30:21 +0000 UTC   0 * * * *   720h0m0s     34m ago       tfstate=true                             false
+```
+
+Rather than waiting for the next scheduled run, trigger an immediate backup from each schedule. The `--wait` flag makes the command block until the backup completes.
+
+Back up the KMS auto-unsealer shares:
+
+```bash
+velero create backup --from-schedule kms-autounsealer-shares-backup --wait
+```
+
+Back up the persistent volumes:
+
+```bash
+velero create backup --from-schedule pvs-backup --wait
+```
+
+Back up the Terraform state:
+
+```bash
+velero create backup --from-schedule tfstate-backup --wait
+```
+
+Each command ends with a `Backup completed with status: Completed.` message. For example:
+
+```bash
+Backup request "pvs-backup-20260707123616" submitted successfully.
+Waiting for backup to complete. You may safely press ctrl-c to stop waiting - your backup will continue in the background.
+........................................................................................................................................................
+Backup completed with status: Completed. You may check for more information using the commands `velero backup describe pvs-backup-20260707123616` and `velero backup logs pvs-backup-20260707123616`.
+```
+
+### 8. Verifying the backups and the recreated repositories
+
+Confirm that all three backups completed without errors:
+
+```bash
+velero get backup
+```
+
+```bash
+NAME                                            STATUS      ERRORS   WARNINGS   CREATED                         EXPIRES   STORAGE LOCATION   SELECTOR
+kms-autounsealer-shares-backup-20260707123604   Completed   0        0          2026-07-07 12:36:04 +0000 UTC   29d       backup-location    kms-autounsealer-shares-backup=enabled
+pvs-backup-20260707123616                       Completed   0        0          2026-07-07 12:36:16 +0000 UTC   29d       backup-location    backup=true
+tfstate-backup-20260707123915                   Completed   0        0          2026-07-07 12:39:15 +0000 UTC   29d       backup-location    tfstate=true
+```
+
+Check that Velero has recreated the Kopia backup repositories against the new buckets (they should now show a recent `AGE`):
+
+```bash
+kubectl -n velero get backuprepositories
+```
+
+```bash
+NAME                                     AGE     REPOSITORY TYPE
+glance-backup-location-kopia-6sdt6       5m20s   kopia
+ironic-backup-location-kopia-hnbjh       5m18s   kopia
+kms-backup-location-kopia-567f6          5m17s   kopia
+monitoring-backup-location-kopia-kvmjv   5m15s   kopia
+```
+
+### 9. Backing up the databases
+
+The internal databases are managed by **CloudNativePG** and backed up separately, to the `barmanObjectStore` that now points to the new bucket. Trigger a database backup for each database.
+
+:::info
+The commands below use the `placement-db` database in the `placement` namespace as an example. Repeat them for the other databases, adapting the database name and its namespace accordingly.
+:::
+
+```bash
+kubectl cnpg backup placement-db -n placement
+```
+
+```bash
+backup/placement-db-20260707124646 created
+```
+
+Confirm that it reaches the `completed` state:
+
+```bash
+kubectl get backups -n placement
+```
+
+```bash
+...
+placement-db-20260707124646   5s      placement-db   barmanObjectStore   completed
+```
+
+### 10. Checking that data has been written to the new buckets
+
+The previous steps report that the backups completed from the platform's point of view. As an additional check, verify that the objects were actually created in the **new** S3 buckets.
+
+Using your usual S3 client or object storage interface, browse each backup bucket and confirm that new objects have appeared since the operation. You should see recently dated objects corresponding to the database, persistent volume, Terraform state and KMS shares backups you triggered. This confirms that the backups are actually stored on the new object storage.
+
+### 11. Final verification
+
+Run the diagnostic again to confirm the platform is healthy after the change:
+
+```bash
+opcp-diag run -p
+```
+
+Finally, confirm that the scheduled backups now run automatically on their new location. After the next scheduled run, `velero get backup` should show the newly created backups alongside the ones you triggered manually:
+
+```bash
+velero get backup
+```
+
+```bash
+NAME                                            STATUS      ERRORS   WARNINGS   CREATED                         EXPIRES   STORAGE LOCATION   SELECTOR
+kms-autounsealer-shares-backup-20260707130021   Completed   0        0          2026-07-07 13:00:21 +0000 UTC   29d       backup-location    kms-autounsealer-shares-backup=enabled
+kms-autounsealer-shares-backup-20260707123604   Completed   0        0          2026-07-07 12:36:04 +0000 UTC   29d       backup-location    kms-autounsealer-shares-backup=enabled
+pvs-backup-20260707130021                       Completed   0        0          2026-07-07 13:00:22 +0000 UTC   29d       backup-location    backup=true
+pvs-backup-20260707123616                       Completed   0        0          2026-07-07 12:36:16 +0000 UTC   29d       backup-location    backup=true
+tfstate-backup-20260707130021                   Completed   0        0          2026-07-07 13:00:30 +0000 UTC   29d       backup-location    tfstate=true
+tfstate-backup-20260707123915                   Completed   0        0          2026-07-07 12:39:15 +0000 UTC   29d       backup-location    tfstate=true
+```
+
+Likewise, the database backups continue automatically:
+
+```bash
+kubectl get backups -n placement
+```
+
+```bash
+...
+placement-db-20260707124646   20m     placement-db   barmanObjectStore   completed
+placement-db-20260707130000   6m54s   placement-db   barmanObjectStore   completed
+```
+
+Your OPCP platform backups now target the new S3 buckets.
+
+## Go further
+
+For training or technical assistance implementing our solutions, contact your sales representative or visit our [Professional Services](/links/professional-services) page to request a quote and have your project analyzed by our experts.
+
+Join our [community of users](/links/community).
+
+<sup>1</sup>: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.

@@ -1,0 +1,1439 @@
+---
+title: Plan de reprise d'activité - Exemple d'implémentation
+description: Déployez Nextcloud sur deux régions Public Cloud avec des services managés, et basculez vers le site de secours lorsque la région de production tombe
+lastUpdated: 2026-08-24
+---
+
+## Objectif
+
+Faire tourner Nextcloud sur une seule instance est simple, mais n'offre aucune protection : dès que cette instance, ou l'hôte qui l'exécute, tombe en panne, le service devient indisponible pour tous les utilisateurs. Rendre le déploiement résilient à l'intérieur d'une seule région ne résout qu'une partie du problème. Cela ne couvre pas la perte de la région elle-même.
+
+Ce guide construit un déploiement qui répond à trois exigences :
+
+- Nextcloud est en haute disponibilité, avec l'indisponibilité la plus courte possible.
+- Le moins d'infrastructure possible est administré à la main : les services managés sont donc utilisés partout où ils existent.
+- Un site de secours prend le relais en cas de panne globale du site de production, avec les RTO et RPO les plus faibles possibles.
+
+**Ce guide explique comment déployer Nextcloud sur deux régions OVHcloud Public Cloud avec des services managés, maintenir les deux sites synchronisés, et basculer de l'un vers l'autre.**
+
+## Prérequis
+
+### Services OVHcloud
+
+- Un [projet Public Cloud](/guides/public-cloud/cross-functional/create-a-public-cloud-project) dans votre compte OVHcloud
+- Un [quota](/guides/public-cloud/cross-functional/increasing-public-cloud-quota) suffisant dans les deux régions pour deux clusters Managed Kubernetes, quatre clusters Managed Databases, deux instances et deux gateways
+- Un [IP Load Balancer](/links/network/load-balancer) (Pack 2 ou supérieur)
+- Un [vRack](/guides/public-cloud/network-services/vrack) contenant à la fois votre projet Public Cloud et votre IP Load Balancer
+- Un nom de domaine dont la [zone DNS](/guides/web-cloud/domains/dns-zone-general-information) est hébergée chez OVHcloud, utilisé pour exposer Nextcloud et pour répondre au challenge DNS-01 de Let's Encrypt
+- Des clés d'application des API OVHcloud disposant des droits DNS listés plus bas, créées comme décrit dans [Premiers pas avec les API OVHcloud](/guides/manage-and-operate/api/first-steps#create-your-app-keys)
+
+### Outils locaux
+
+| Outil | Utilisé pour | Documentation |
+|-------|--------------|---------------|
+| CLI OVHcloud (`ovhcloud`) | Créer les ressources Public Cloud | [Premiers pas avec la CLI OVHcloud](/guides/manage-and-operate/cli/getting-started) |
+| CLI OpenStack (`openstack`) | Créer les share networks Manila | [Préparer l'environnement pour utiliser l'API OpenStack](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment) |
+| `kubectl` | Appliquer les manifestes sur les deux clusters | [Configurer kubectl sur un cluster OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/configure-kubectl) |
+| `helm` | Installer les charts | [Installer et utiliser Helm sur OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/install-helm) |
+| `jq` | Analyser la sortie JSON des CLI | [Site de jq](https://jqlang.org/) |
+| `ssh` et `ssh-keygen` | Se connecter aux bastions | N/A |
+
+### Configurer la CLI OVHcloud
+
+La plupart des commandes de ce guide utilisent la CLI OVHcloud. Installez-la et créez vos identifiants d'API comme expliqué dans [Premiers pas avec la CLI OVHcloud](/guides/manage-and-operate/cli/getting-started) :
+
+```bash
+ovhcloud login
+```
+
+Aucune des commandes ci-dessous ne passe d'identifiant de projet : la CLI doit donc savoir sur quel projet Public Cloud travailler. Listez vos projets :
+
+```bash
+ovhcloud cloud project list
+```
+
+Définissez ensuite celui que vous souhaitez comme projet par défaut, soit avec la variable d'environnement `OVH_CLOUD_PROJECT_SERVICE`, soit avec la clé `default_cloud_project` de la section `[ovh-cli]` de votre fichier `~/.ovh.conf`. Remplacez `<YOUR_PROJECT_ID>` par l'identifiant renvoyé par la commande précédente :
+
+```bash
+export OVH_CLOUD_PROJECT_SERVICE=<YOUR_PROJECT_ID>
+```
+
+### Configurer la CLI OpenStack
+
+Les share networks Manila sont créés avec la CLI OpenStack, qui s'authentifie avec un utilisateur OpenStack et non avec votre compte OVHcloud :
+
+1. Créez un utilisateur OpenStack dans votre projet, comme décrit dans [Gestion des utilisateurs OpenStack](/guides/public-cloud/cross-functional/create-and-delete-a-user).
+2. Installez le client et ses dépendances en suivant [Préparer l'environnement pour utiliser l'API OpenStack](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment).
+3. Téléchargez le fichier `openrc.sh` de votre projet depuis l'espace client OVHcloud et chargez-le, comme décrit dans [Charger les variables d'environnement OpenStack](/guides/public-cloud/cross-functional/compute-set-openstack-environment-variables). Il s'agit de la commande `source openrc.sh` au début du déploiement.
+
+:::info
+Les commandes `openstack share` utilisées dans ce guide proviennent du client Manila, qui n'est pas toujours installé avec le client OpenStack. Si la commande n'est pas reconnue, installez `python-manilaclient` dans le même environnement.
+:::
+
+## En pratique
+
+### Comprendre le problème
+
+#### Un déploiement sur une seule instance tombe avec son hôte
+
+La façon la plus rapide de déployer Nextcloud consiste à faire tourner tous les composants (reverse proxy, application, cache, base de données et volume de données) sur une seule instance Public Cloud ou un seul VPS. Si cette instance, ou l'hôte qui l'exécute, tombe en panne, Nextcloud tombe avec elle :
+
+<img className="thumbnail" alt="Nextcloud sur un seul VPS, indisponible après la panne de son hôte" src="/images/public-cloud/cross-functional/disaster-recovery-plan-implementation/01-single-vps-failure.png" loading="lazy" />
+
+L'instance reste indisponible jusqu'à ce que l'hôte soit réparé ou que l'instance soit redémarrée sur un autre hôte. Pendant toute cette durée, vos utilisateurs finaux n'ont plus accès au service.
+
+#### Un déploiement résilient survit à la perte d'un nœud
+
+Nextcloud peut être déployé de façon beaucoup plus résiliente : en rendant chaque composant applicatif hautement disponible (base de données, cache, Nextcloud lui-même), et en rendant également l'infrastructure sous-jacente redondante (plusieurs instances réparties sur des hôtes différents, ingress redondant).
+
+Les produits Public Cloud suivants couvrent ces besoins :
+
+- Un cluster Managed Kubernetes Service (MKS) pour exécuter Nextcloud
+- Un cluster Managed Databases pour PostgreSQL ou MySQL
+- Un volume Public Cloud File Storage, partagé entre les réplicas Nextcloud
+- Un Public Cloud Load Balancer pour le trafic entrant
+- Une Public Cloud Gateway pour exposer publiquement le load balancer
+
+L'infrastructure obtenue ressemble à ceci :
+
+<img className="thumbnail" alt="Déploiement Nextcloud résilient survivant à la perte d'un nœud MKS" src="/images/public-cloud/cross-functional/disaster-recovery-plan-implementation/02-resilient-deployment-node-failure.png" loading="lazy" />
+
+Ici, l'hôte qui exécute l'un des nœuds MKS s'arrête brutalement. Comme l'infrastructure a été conçue pour ce risque, Nextcloud continue de fonctionner et les utilisateurs finaux poursuivent leur travail.
+
+### Survivre à la perte d'une région
+
+Un déploiement résilient reste hébergé dans un seul emplacement, et cet emplacement peut tomber dans son ensemble, lors d'une panne réseau majeure du Public Cloud, par exemple :
+
+<img className="thumbnail" alt="Panne réseau régionale rendant tout le déploiement indisponible" src="/images/public-cloud/cross-functional/disaster-recovery-plan-implementation/03-regional-network-outage.png" loading="lazy" />
+
+Tous les composants perdent leur connectivité réseau en même temps et Nextcloud devient injoignable. C'est précisément contre cela qu'un **site de secours** protège. En construire un soulève trois questions, auxquelles répondent les sections suivantes : comment gérer l'ingress sur deux sites, comment maintenir la base de données synchronisée, et comment répliquer les fichiers des utilisateurs finaux.
+
+#### Ingress : IP Load Balancer
+
+Le trafic doit continuer à circuler lorsqu'un site entier disparaît. L'[IP Load Balancer OVHcloud](/guides/network/load-balancer/use-presentation) (IPLB) répond à ce besoin : il peut être rattaché à des backends situés dans deux sites différents en même temps (Gravelines et Strasbourg, par exemple), si bien que la même IP publique peut servir l'un ou l'autre site.
+
+:::info
+L'IP Load Balancer est le seul produit de répartition de charge OVHcloud capable de couvrir deux régions en même temps. Tous les autres produits Public Cloud utilisés ici sont régionaux ou zonaux : une ressource dédiée doit donc être créée dans chaque région.
+:::
+
+#### Base de données : réplication logique PostgreSQL
+
+Managed Databases for MySQL ne propose pas de réplication de données entre régions, ce qui ne laisserait que la sauvegarde/restauration comme option, avec des RTO/RPO loin d'être optimaux. Nextcloud prend également en charge PostgreSQL, et PostgreSQL fournit un mécanisme de réplication logique intégré : ce guide utilise donc **Managed Databases for PostgreSQL**.
+
+:::warning
+La réplication logique ne réplique pas la base de données dans son ensemble : elle réplique table par table. Vous devez vous assurer que toutes les tables Nextcloud sont incluses dans la publication, et que le schéma de ces tables est identique sur les deux sites.
+:::
+
+#### Fichiers des utilisateurs finaux : réplication Object Storage
+
+File Storage ne peut pas répliquer les données entre régions : les fichiers des utilisateurs finaux sont donc stockés dans **Object Storage**, qui dispose d'un mécanisme de réplication intégré. Nextcloud peut être configuré pour utiliser un bucket Object Storage comme stockage principal, ce qui permet aux deux sites de partager le même contenu de fichiers.
+
+#### Architecture cible
+
+En rassemblant le tout, on obtient l'architecture sur deux régions suivante. La région A sert le trafic, la région B héberge un site de secours entièrement provisionné, et une troisième région héberge le bucket de sauvegarde :
+
+<img className="thumbnail" alt="Architecture Nextcloud sur deux régions avec un IP Load Balancer" src="/images/public-cloud/cross-functional/disaster-recovery-plan-implementation/04-two-region-architecture.png" loading="lazy" />
+
+Si la région A tombe, le trafic est redirigé vers l'infrastructure déjà provisionnée dans la région B :
+
+<img className="thumbnail" alt="Bascule vers la région de secours" src="/images/public-cloud/cross-functional/disaster-recovery-plan-implementation/05-failover-to-drp-region.png" loading="lazy" />
+
+### Déployer l'infrastructure
+
+La suite de ce guide déploie cette architecture avec GRA11 comme région de production et SBG5 comme région de secours.
+
+Commencez par charger vos identifiants OpenStack et par définir les variables utilisées tout au long du guide. Adaptez les valeurs suivantes à votre propre déploiement :
+
+- `REGION_PROD` et `REGION_DRP` : les régions de production et de secours. Si vous les changez, adaptez en conséquence le `--nodes-pattern.region` des bases de données, les régions des buckets et les points de terminaison Object Storage utilisés dans les commandes Nextcloud.
+- `VLAN_ID` : le VLAN du vRack partagé par les deux réseaux privés.
+
+```bash
+source openrc.sh
+export VLAN_ID=1
+export REGION_PROD=GRA11
+export REGION_DRP=SBG5
+```
+
+:::info
+Chaque étape ci-dessous est exécutée deux fois, une fois par région. Gardez le même shell ouvert du début à la fin : les variables définies au fil des commandes sont réutilisées par les suivantes.
+:::
+
+#### Réseau
+
+Créez les réseaux privés. Les deux utilisent le même identifiant de VLAN afin d'appartenir au même vRack :
+
+```bash
+ovhcloud cloud network private vrack create "$REGION_PROD" \
+  --name "private-network-prod" \
+  --vlan-id "$VLAN_ID" \
+  --wait
+
+ovhcloud cloud network private vrack create "$REGION_DRP" \
+  --name "private-network-drp" \
+  --vlan-id "$VLAN_ID" \
+  --wait
+```
+
+Récupérez leurs identifiants :
+
+```bash
+NETWORK_ID_PROD=$(ovhcloud cloud network private vrack list \
+  --filter 'name=="private-network-prod"' \
+  --output json | jq -r .[0].id)
+
+NETWORK_ID_DRP=$(ovhcloud cloud network private vrack list \
+  --filter 'name=="private-network-drp"' \
+  --output json | jq -r .[0].id)
+```
+
+Créez les sous-réseaux. Ils partagent le même CIDR mais le découpent en deux moitiés, afin que chaque région attribue des adresses issues de sa propre plage :
+
+```bash
+ovhcloud cloud network private vrack subnet create "$NETWORK_ID_PROD" \
+  --region "$REGION_PROD" \
+  --name "private-subnet-prod" \
+  --cidr 10.1.0.0/16 \
+  --gateway-ip 10.1.0.1 \
+  --enable-gateway-ip \
+  --enable-dhcp \
+  --allocation-pools 10.1.0.2:10.1.127.254 \
+  --dns-name-servers 213.186.33.99
+
+ovhcloud cloud network private vrack subnet create "$NETWORK_ID_DRP" \
+  --region "$REGION_DRP" \
+  --name "private-subnet-drp" \
+  --cidr 10.1.0.0/16 \
+  --gateway-ip 10.1.128.1 \
+  --enable-gateway-ip \
+  --enable-dhcp \
+  --allocation-pools 10.1.128.2:10.1.253.254 \
+  --dns-name-servers 213.186.33.99
+```
+
+Récupérez les identifiants des sous-réseaux :
+
+```bash
+SUBNET_ID_PROD=$(ovhcloud cloud network private vrack subnet list "$NETWORK_ID_PROD" \
+  --region "$REGION_PROD" --output json | jq -r .[0].id)
+
+SUBNET_ID_DRP=$(ovhcloud cloud network private vrack subnet list "$NETWORK_ID_DRP" \
+  --region "$REGION_DRP" --output json | jq -r .[0].id)
+```
+
+Créez les gateways :
+
+```bash
+ovhcloud cloud network gateway create "$REGION_PROD" \
+  --name gateway-prod \
+  --model s \
+  --network-id "$NETWORK_ID_PROD" \
+  --subnet-id "$SUBNET_ID_PROD" \
+  --wait
+
+ovhcloud cloud network gateway create "$REGION_DRP" \
+  --name gateway-drp \
+  --model s \
+  --network-id "$NETWORK_ID_DRP" \
+  --subnet-id "$SUBNET_ID_DRP" \
+  --wait
+```
+
+Récupérez les identifiants des gateways :
+
+```bash
+GATEWAY_ID_PROD=$(ovhcloud cloud network gateway list --filter 'name=="gateway-prod"' --output json | jq -r .[0].id)
+
+GATEWAY_ID_DRP=$(ovhcloud cloud network gateway list --filter 'name=="gateway-drp"' --output json | jq -r .[0].id)
+```
+
+#### Clusters Managed Kubernetes Service
+
+Créez un cluster par région, rattaché au réseau privé de cette région :
+
+```bash
+ovhcloud cloud managed-kubernetes create \
+  --name cluster-prod \
+  --region "$REGION_PROD" \
+  --version 1.34 \
+  --plan free \
+  --kube-proxy-mode ipvs \
+  --private-network-id "$NETWORK_ID_PROD" \
+  --nodes-subnet-id "$SUBNET_ID_PROD" \
+  --private-network.routing-as-default
+
+ovhcloud cloud managed-kubernetes create \
+  --name cluster-drp \
+  --region "$REGION_DRP" \
+  --version 1.34 \
+  --plan free \
+  --kube-proxy-mode ipvs \
+  --private-network-id "$NETWORK_ID_DRP" \
+  --nodes-subnet-id "$SUBNET_ID_DRP" \
+  --private-network.routing-as-default
+```
+
+Récupérez les identifiants des clusters :
+
+```bash
+CLUSTER_ID_PROD=$(ovhcloud cloud managed-kubernetes list \
+  --filter 'name=="cluster-prod"' --output json | jq -r .[0].id)
+
+CLUSTER_ID_DRP=$(ovhcloud cloud managed-kubernetes list \
+  --filter 'name=="cluster-drp"' --output json | jq -r .[0].id)
+```
+
+Attendez que les deux clusters remontent le statut `READY` :
+
+```bash
+ovhcloud cloud managed-kubernetes get "$CLUSTER_ID_PROD" --output 'status'
+
+ovhcloud cloud managed-kubernetes get "$CLUSTER_ID_DRP" --output 'status'
+```
+
+Créez les node pools :
+
+```bash
+ovhcloud cloud managed-kubernetes nodepool create "$CLUSTER_ID_PROD" \
+  --name node-pool \
+  --flavor-name b3-8 \
+  --desired-nodes 3 \
+  --min-nodes 0 \
+  --max-nodes 5
+
+ovhcloud cloud managed-kubernetes nodepool create "$CLUSTER_ID_DRP" \
+  --name node-pool \
+  --flavor-name b3-8 \
+  --desired-nodes 3 \
+  --min-nodes 0 \
+  --max-nodes 5
+```
+
+Téléchargez les fichiers kubeconfig :
+
+```bash
+ovhcloud cloud managed-kubernetes kubeconfig generate "$CLUSTER_ID_PROD" > ~/.kube/cluster-prod.yaml
+export KUBECONFIG_PROD=~/.kube/cluster-prod.yaml
+
+ovhcloud cloud managed-kubernetes kubeconfig generate "$CLUSTER_ID_DRP" > ~/.kube/cluster-drp.yaml
+export KUBECONFIG_DRP=~/.kube/cluster-drp.yaml
+```
+
+Vérifiez que les nœuds ont bien rejoint les clusters :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD get node
+
+kubectl --kubeconfig $KUBECONFIG_DRP get node
+```
+
+#### Managed Databases
+
+##### PostgreSQL
+
+Créez un cluster PostgreSQL par région, joignable uniquement depuis le sous-réseau privé :
+
+```bash
+ovhcloud cloud managed-database create \
+  --engine postgresql \
+  --version 17 \
+  --plan production \
+  --description postgresql-prod \
+  --nodes-pattern.flavor b3-8 \
+  --nodes-pattern.number 2 \
+  --nodes-pattern.region GRA \
+  --network-id "$NETWORK_ID_PROD" \
+  --subnet-id "$SUBNET_ID_PROD" \
+  --ip-restrictions 10.1.0.0/16
+
+ovhcloud cloud managed-database create \
+  --engine postgresql \
+  --version 17 \
+  --plan production \
+  --description postgresql-drp \
+  --nodes-pattern.flavor b3-8 \
+  --nodes-pattern.number 2 \
+  --nodes-pattern.region SBG \
+  --network-id "$NETWORK_ID_DRP" \
+  --subnet-id "$SUBNET_ID_DRP" \
+  --ip-restrictions 10.1.0.0/16
+```
+
+Récupérez leurs identifiants :
+
+```bash
+PG_ID_PROD=$(ovhcloud cloud managed-database list \
+  --filter 'description=="postgresql-prod"' --output json | jq -r .[0].id)
+
+PG_ID_DRP=$(ovhcloud cloud managed-database list \
+  --filter 'description=="postgresql-drp"' --output json | jq -r .[0].id)
+```
+
+Attendez que les deux remontent le statut `READY` :
+
+```bash
+ovhcloud cloud managed-database get "$PG_ID_PROD" --output 'status'
+
+ovhcloud cloud managed-database get "$PG_ID_DRP" --output 'status'
+```
+
+Créez la base de données `nextcloud` sur les deux clusters :
+
+```bash
+ovhcloud cloud managed-database database create "$PG_ID_PROD" --name nextcloud
+
+ovhcloud cloud managed-database database create "$PG_ID_DRP" --name nextcloud
+```
+
+Réinitialisez le mot de passe de l'utilisateur `avnadmin` pour l'obtenir :
+
+```bash
+PG_USER_ID_PROD=$(ovhcloud cloud managed-database user list "$PG_ID_PROD" --output json \
+  | jq -r '.[] | select(.username=="avnadmin" or .name=="avnadmin") | .id')
+PG_PASS_PROD=$(ovhcloud cloud managed-database user credentials-reset "$PG_ID_PROD" "$PG_USER_ID_PROD" --output json | jq -r .message | tail -n 1 | cut -d ' ' -f 2)
+
+PG_USER_ID_DRP=$(ovhcloud cloud managed-database user list "$PG_ID_DRP" --output json \
+  | jq -r '.[] | select(.username=="avnadmin" or .name=="avnadmin") | .id')
+PG_PASS_DRP=$(ovhcloud cloud managed-database user credentials-reset "$PG_ID_DRP" "$PG_USER_ID_DRP" --output json | jq -r .message | tail -n 1 | cut -d ' ' -f 2)
+```
+
+Récupérez les points de terminaison :
+
+```bash
+PG_HOST_PROD=$(ovhcloud cloud managed-database get "$PG_ID_PROD" --output json | jq -r '.endpoints[] | select(.component=="postgresql") | .domain')
+PG_PORT_PROD=$(ovhcloud cloud managed-database get "$PG_ID_PROD" --output json | jq -r '.endpoints[] | select(.component=="postgresql") | .port')
+
+PG_HOST_DRP=$(ovhcloud cloud managed-database get "$PG_ID_DRP" --output json | jq -r '.endpoints[] | select(.component=="postgresql") | .domain')
+PG_PORT_DRP=$(ovhcloud cloud managed-database get "$PG_ID_DRP" --output json | jq -r '.endpoints[] | select(.component=="postgresql") | .port')
+```
+
+##### Valkey
+
+Nextcloud utilise Valkey comme cache. Créez un cluster par région :
+
+```bash
+ovhcloud cloud managed-database create \
+  --engine valkey \
+  --version 8.1 \
+  --plan production \
+  --description valkey-prod \
+  --nodes-pattern.flavor b3-8 \
+  --nodes-pattern.number 2 \
+  --nodes-pattern.region GRA \
+  --network-id "$NETWORK_ID_PROD" \
+  --subnet-id "$SUBNET_ID_PROD" \
+  --ip-restrictions 10.1.0.0/16
+
+ovhcloud cloud managed-database create \
+  --engine valkey \
+  --version 8.1 \
+  --plan production \
+  --description valkey-drp \
+  --nodes-pattern.flavor b3-8 \
+  --nodes-pattern.number 2 \
+  --nodes-pattern.region SBG \
+  --network-id "$NETWORK_ID_DRP" \
+  --subnet-id "$SUBNET_ID_DRP" \
+  --ip-restrictions 10.1.0.0/16
+```
+
+Récupérez leurs identifiants :
+
+```bash
+VK_ID_PROD=$(ovhcloud cloud managed-database list \
+  --filter 'description=="valkey-prod"' --output json | jq -r .[0].id)
+
+VK_ID_DRP=$(ovhcloud cloud managed-database list \
+  --filter 'description=="valkey-drp"' --output json | jq -r .[0].id)
+```
+
+Attendez que les deux remontent le statut `READY` :
+
+```bash
+ovhcloud cloud managed-database get "$VK_ID_PROD" --output 'status'
+
+ovhcloud cloud managed-database get "$VK_ID_DRP" --output 'status'
+```
+
+Réinitialisez le mot de passe de l'utilisateur `default` pour l'obtenir :
+
+```bash
+VK_USER_ID_PROD=$(ovhcloud cloud managed-database user list "$VK_ID_PROD" --output json \
+  | jq -r '.[] | select(.username=="default" or .name=="default") | .id')
+VK_PASS_PROD=$(ovhcloud cloud managed-database user credentials-reset "$VK_ID_PROD" "$VK_USER_ID_PROD" --output json | jq -r .message | tail -n 1 | cut -d ' ' -f 2)
+
+VK_USER_ID_DRP=$(ovhcloud cloud managed-database user list "$VK_ID_DRP" --output json \
+  | jq -r '.[] | select(.username=="default" or .name=="default") | .id')
+VK_PASS_DRP=$(ovhcloud cloud managed-database user credentials-reset "$VK_ID_DRP" "$VK_USER_ID_DRP" --output json | jq -r .message | tail -n 1 | cut -d ' ' -f 2)
+```
+
+Récupérez les points de terminaison :
+
+```bash
+VK_HOST_PROD=$(ovhcloud cloud managed-database get "$VK_ID_PROD" --output json | jq -r '.endpoints[0].domain')
+VK_PORT_PROD=$(ovhcloud cloud managed-database get "$VK_ID_PROD" --output json | jq -r '.endpoints[0].port')
+
+VK_HOST_DRP=$(ovhcloud cloud managed-database get "$VK_ID_DRP" --output json | jq -r '.endpoints[0].domain')
+VK_PORT_DRP=$(ovhcloud cloud managed-database get "$VK_ID_DRP" --output json | jq -r '.endpoints[0].port')
+```
+
+#### Object Storage
+
+Trois buckets sont nécessaires : un pour les fichiers de production, un pour leur réplica sur le site de secours, et un dans une troisième région pour les sauvegardes Velero. Chacun dispose de son propre utilisateur et de ses propres identifiants S3<sup>1</sup>.
+
+Créez les utilisateurs et leurs clés d'accès :
+
+```bash
+USER_ID_PROD=$(ovhcloud cloud user create \
+  --description "user-prod that is used to create S3 access key" \
+  --roles objectstore_operator \
+  --output json | jq 'select(.details.id != null) | .details.id')
+sleep 1 && CRED_PROD=$(ovhcloud cloud storage object credentials create "$USER_ID_PROD" --output json)
+S3_ACCESS_KEY_PROD=$(jq -r '.access' <<<"$CRED_PROD")
+S3_SECRET_KEY_PROD=$(jq -r '.secret' <<<"$CRED_PROD")
+
+USER_ID_DRP=$(ovhcloud cloud user create \
+  --description "user-drp that is used to create S3 access key" \
+  --roles objectstore_operator \
+  --output json | jq 'select(.details.id != null) | .details.id')
+sleep 1 && CRED_DRP=$(ovhcloud cloud storage object credentials create "$USER_ID_DRP" --output json)
+S3_ACCESS_KEY_DRP=$(jq -r '.access' <<<"$CRED_DRP")
+S3_SECRET_KEY_DRP=$(jq -r '.secret' <<<"$CRED_DRP")
+
+USER_ID_BACKUP=$(ovhcloud cloud user create \
+  --description "user-backup that is used to create S3 access key" \
+  --roles objectstore_operator \
+  --output json | jq 'select(.details.id != null) | .details.id')
+sleep 1 && CRED_BACKUP=$(ovhcloud cloud storage object credentials create "$USER_ID_BACKUP" --output json)
+S3_ACCESS_KEY_BACKUP=$(jq -r '.access' <<<"$CRED_BACKUP")
+S3_SECRET_KEY_BACKUP=$(jq -r '.secret' <<<"$CRED_BACKUP")
+```
+
+Créez les buckets. Le versioning est activé sur les deux buckets Nextcloud, car la réplication l'exige :
+
+```bash
+SUFFIX=$(tr -dc 'a-z0-9' </dev/urandom | head -c8; echo)
+
+ovhcloud cloud storage object create GRA \
+  --name "bucket-prod-${SUFFIX}" \
+  --owner-id "$USER_ID_PROD" \
+  --versioning-status enabled \
+  --encryption-sse-algorithm AES256
+
+ovhcloud cloud storage object create SBG \
+  --name "bucket-drp-${SUFFIX}" \
+  --owner-id "$USER_ID_DRP" \
+  --versioning-status enabled \
+  --encryption-sse-algorithm AES256
+
+ovhcloud cloud storage object create RBX \
+  --name "bucket-backup-${SUFFIX}" \
+  --owner-id "$USER_ID_BACKUP" \
+  --versioning-status disabled \
+  --encryption-sse-algorithm AES256
+```
+
+Créez une règle de réplication sur chaque bucket Nextcloud, comme décrit dans [Object Storage - Maîtrisez la réplication asynchrone sur vos buckets](/guides/storage-and-backup/object-storage/s3-asynchronous-replication). Les deux règles sont créées dès maintenant, mais seule celle de production est active. La seconde est le chemin de retour utilisé lors d'une bascule :
+
+| Bucket | Identifiant de la règle | Statut | Cible |
+|--------|-------------------------|--------|-------|
+| Bucket de production | `nextcloud` | activée | Bucket de secours |
+| Bucket de secours | `nextcloud` | désactivée | Bucket de production |
+
+Attachez une politique S3 à chaque utilisateur, en ne lui donnant accès qu'à son propre bucket :
+
+```bash
+ovhcloud cloud user s3-policy create "$USER_ID_PROD" --policy "$(cat <<JSON
+{
+   "Statement": [
+     {
+       "Sid": "AdminContainer",
+       "Effect": "Allow",
+       "Action": ["s3:*"],
+       "Resource": [
+         "arn:aws:s3:::bucket-prod-${SUFFIX}",
+         "arn:aws:s3:::bucket-prod-${SUFFIX}/*"
+       ]
+     }
+   ]
+}
+JSON
+)"
+
+ovhcloud cloud user s3-policy create "$USER_ID_DRP" --policy "$(cat <<JSON
+{
+   "Statement": [
+     {
+       "Sid": "AdminContainer",
+       "Effect": "Allow",
+       "Action": ["s3:*"],
+       "Resource": [
+         "arn:aws:s3:::bucket-drp-${SUFFIX}",
+         "arn:aws:s3:::bucket-drp-${SUFFIX}/*"
+       ]
+     }
+   ]
+}
+JSON
+)"
+
+ovhcloud cloud user s3-policy create "$USER_ID_BACKUP" --policy "$(cat <<JSON
+{
+   "Statement": [
+     {
+       "Sid": "AdminContainer",
+       "Effect": "Allow",
+       "Action": ["s3:*"],
+       "Resource": [
+         "arn:aws:s3:::bucket-backup-${SUFFIX}",
+         "arn:aws:s3:::bucket-backup-${SUFFIX}/*"
+       ]
+     }
+   ]
+}
+JSON
+)"
+```
+
+#### File Storage
+
+Nextcloud stocke les fichiers des utilisateurs finaux dans Object Storage, mais ses réplicas partagent malgré tout un volume `ReadWriteMany` pour les données applicatives. Ce volume est fourni par File Storage à travers le driver CSI Manila.
+
+Installez le driver sur les deux clusters :
+
+```bash
+helm install csi-driver-nfs csi-driver-nfs \
+  --kubeconfig $KUBECONFIG_PROD \
+  --repo https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts \
+  -n kube-system
+helm install openstack-manila-csi openstack-manila-csi \
+  --kubeconfig $KUBECONFIG_PROD \
+  --repo https://kubernetes.github.io/cloud-provider-openstack \
+  -n kube-system
+
+helm install csi-driver-nfs csi-driver-nfs \
+  --kubeconfig $KUBECONFIG_DRP \
+  --repo https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts \
+  -n kube-system
+helm install openstack-manila-csi openstack-manila-csi \
+  --kubeconfig $KUBECONFIG_DRP \
+  --repo https://kubernetes.github.io/cloud-provider-openstack \
+  -n kube-system
+```
+
+Créez un utilisateur dédié au driver :
+
+```bash
+MANILA_USER=$(ovhcloud cloud user create \
+  --description "User for the Manila CSI driver" \
+  --roles share_operator \
+  --output json)
+
+MANILA_USERNAME=$(jq -r 'select(.details.username != null) | .details.username' <<<"$MANILA_USER")
+MANILA_PASSWORD=$(jq -r 'select(.details.password != null) | .details.password' <<<"$MANILA_USER")
+```
+
+Stockez ses identifiants dans chaque cluster. Remplacez le paramètre suivant avant d'exécuter les commandes :
+
+- `<YOUR_PROJECT_ID>` : l'identifiant de votre projet Public Cloud, affiché dans l'espace client OVHcloud.
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-manila-secrets
+  namespace: default
+stringData:
+  os-authURL: "https://auth.cloud.ovh.net/v3"
+  os-region: "$REGION_PROD"
+  os-userName: "$MANILA_USERNAME"
+  os-password: "$MANILA_PASSWORD"
+  os-domainName: "default"
+  os-projectID: "<YOUR_PROJECT_ID>"
+  os-projectDomainID: "default"
+EOF
+
+kubectl --kubeconfig $KUBECONFIG_DRP apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-manila-secrets
+  namespace: default
+stringData:
+  os-authURL: "https://auth.cloud.ovh.net/v3"
+  os-region: "$REGION_DRP"
+  os-userName: "$MANILA_USERNAME"
+  os-password: "$MANILA_PASSWORD"
+  os-domainName: "default"
+  os-projectID: "<YOUR_PROJECT_ID>"
+  os-projectDomainID: "default"
+EOF
+```
+
+Créez les share networks :
+
+```bash
+export OS_REGION_NAME=$REGION_PROD
+SHARE_ID_PROD=$(openstack share network create \
+  --name share-network-prod \
+  --neutron-net-id "$NETWORK_ID_PROD" \
+  --neutron-subnet-id "$SUBNET_ID_PROD" \
+  -f value -c id)
+
+export OS_REGION_NAME=$REGION_DRP
+SHARE_ID_DRP=$(openstack share network create \
+  --name share-network-drp \
+  --neutron-net-id "$NETWORK_ID_DRP" \
+  --neutron-subnet-id "$SUBNET_ID_DRP" \
+  -f value -c id)
+```
+
+Créez la ConfigMap du driver sur les deux clusters :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manila-csi-runtimeconf-cm
+  namespace: default
+  annotations:
+    meta.helm.sh/release-name: manila-csi
+    meta.helm.sh/release-namespace: default
+  labels:
+    app.kubernetes.io/managed-by: Helm
+data:
+  runtimeconfig.json: |
+    {
+      "nfs": {
+        "matchExportLocationAddress": "10.1.0.0/16"
+      }
+    }
+EOF
+
+kubectl --kubeconfig $KUBECONFIG_DRP apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manila-csi-runtimeconf-cm
+  namespace: default
+  annotations:
+    meta.helm.sh/release-name: manila-csi
+    meta.helm.sh/release-namespace: default
+  labels:
+    app.kubernetes.io/managed-by: Helm
+data:
+  runtimeconfig.json: |
+    {
+      "nfs": {
+        "matchExportLocationAddress": "10.1.0.0/16"
+      }
+    }
+EOF
+```
+
+Créez la StorageClass sur les deux clusters :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD apply -f - <<EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-manila-nfs
+provisioner: nfs.manila.csi.openstack.org
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  type: standard-1az
+  shareNetworkID: "$SHARE_ID_PROD"
+  nfs-shareClient: "10.1.0.0/16"
+  csi.storage.k8s.io/provisioner-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/node-stage-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+EOF
+
+kubectl --kubeconfig $KUBECONFIG_DRP apply -f - <<EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-manila-nfs
+provisioner: nfs.manila.csi.openstack.org
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  type: standard-1az
+  shareNetworkID: "$SHARE_ID_DRP"
+  nfs-shareClient: "10.1.0.0/16"
+  csi.storage.k8s.io/provisioner-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/node-stage-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+EOF
+```
+
+#### Outillage Kubernetes
+
+##### HAProxy Ingress Controller
+
+L'ingress controller est exposé à travers un Public Cloud Load Balancer interne, que l'IP Load Balancer utilisera plus tard comme backend :
+
+```bash
+helm --kubeconfig $KUBECONFIG_PROD install haproxy kubernetes-ingress \
+  --repo https://haproxytech.github.io/helm-charts \
+  -n haproxy-controller --create-namespace \
+  --set controller.service.type=LoadBalancer \
+  --set controller.ingressClassResource.default=true \
+  --set 'controller.service.annotations.service\.beta\.kubernetes\.io/openstack-internal-load-balancer=true'
+
+helm --kubeconfig $KUBECONFIG_DRP install haproxy kubernetes-ingress \
+  --repo https://haproxytech.github.io/helm-charts \
+  -n haproxy-controller --create-namespace \
+  --set controller.service.type=LoadBalancer \
+  --set controller.ingressClassResource.default=true \
+  --set 'controller.service.annotations.service\.beta\.kubernetes\.io/openstack-internal-load-balancer=true'
+```
+
+##### Cert-Manager
+
+Installez Cert-Manager sur les deux clusters :
+
+```bash
+helm --kubeconfig $KUBECONFIG_PROD install cert-manager cert-manager \
+  --repo https://charts.jetstack.io \
+  -n cert-manager --create-namespace \
+  --set crds.enabled=true \
+  --set crds.keep=false
+
+helm --kubeconfig $KUBECONFIG_DRP install cert-manager cert-manager \
+  --repo https://charts.jetstack.io \
+  -n cert-manager --create-namespace \
+  --set crds.enabled=true \
+  --set crds.keep=false
+```
+
+Comme les deux clusters servent le même nom d'hôte, les certificats Let's Encrypt sont émis via un challenge DNS-01. Créez des [clés d'application des API OVHcloud](/guides/manage-and-operate/api/first-steps#create-your-app-keys) avec les droits suivants :
+
+- `GET` sur `/domain/zone`
+- `GET` sur `/domain/zone/*/record`
+- `GET` sur `/domain/zone/*/record/*`
+- `POST` sur `/domain/zone/*/record`
+- `DELETE` sur `/domain/zone/*/record/*`
+- `POST` sur `/domain/zone/*/refresh`
+
+Installez le webhook OVH sur les deux clusters. Remplacez les paramètres suivants avant d'exécuter les commandes :
+
+- `<YOUR_DNS_DOMAIN>` : le nom de domaine dont la zone DNS est hébergée chez OVHcloud, par exemple `example.com`.
+- `<APP_KEY>`, `<APP_SECRET>` et `<CONSUMER_KEY>` : la clé d'application, le secret d'application et la clé de consommateur créés précédemment.
+- `<YOUR_EMAIL>` : l'adresse e-mail utilisée pour le compte Let's Encrypt.
+
+```bash
+helm --kubeconfig $KUBECONFIG_PROD install cert-manager-webhook-ovh cert-manager-webhook-ovh \
+  --repo https://aureq.github.io/cert-manager-webhook-ovh/ \
+  -n cert-manager \
+  --set groupName=<YOUR_DNS_DOMAIN> \
+  --set issuers[0].name=letsencrypt-production \
+  --set issuers[0].create=true \
+  --set issuers[0].kind=ClusterIssuer \
+  --set issuers[0].acmeServerUrl=https://acme-v02.api.letsencrypt.org/directory \
+  --set issuers[0].ovhEndpointName=ovh-eu \
+  --set issuers[0].ovhAuthenticationMethod=application \
+  --set issuers[0].ovhAuthentication.applicationKey=<APP_KEY> \
+  --set issuers[0].ovhAuthentication.applicationSecret=<APP_SECRET> \
+  --set issuers[0].ovhAuthentication.applicationConsumerKey=<CONSUMER_KEY> \
+  --set issuers[0].email=<YOUR_EMAIL> \
+  --set issuers[1].name=letsencrypt-staging \
+  --set issuers[1].create=true \
+  --set issuers[1].kind=ClusterIssuer \
+  --set issuers[1].acmeServerUrl=https://acme-staging-v02.api.letsencrypt.org/directory \
+  --set issuers[1].ovhEndpointName=ovh-eu \
+  --set issuers[1].ovhAuthenticationMethod=application \
+  --set issuers[1].ovhAuthentication.applicationKey=<APP_KEY> \
+  --set issuers[1].ovhAuthentication.applicationSecret=<APP_SECRET> \
+  --set issuers[1].ovhAuthentication.applicationConsumerKey=<CONSUMER_KEY> \
+  --set issuers[1].email=<YOUR_EMAIL>
+
+helm --kubeconfig $KUBECONFIG_DRP install cert-manager-webhook-ovh cert-manager-webhook-ovh \
+  --repo https://aureq.github.io/cert-manager-webhook-ovh/ \
+  -n cert-manager \
+  --set groupName=<YOUR_DNS_DOMAIN> \
+  --set issuers[0].name=letsencrypt-production \
+  --set issuers[0].create=true \
+  --set issuers[0].kind=ClusterIssuer \
+  --set issuers[0].acmeServerUrl=https://acme-v02.api.letsencrypt.org/directory \
+  --set issuers[0].ovhEndpointName=ovh-eu \
+  --set issuers[0].ovhAuthenticationMethod=application \
+  --set issuers[0].ovhAuthentication.applicationKey=<APP_KEY> \
+  --set issuers[0].ovhAuthentication.applicationSecret=<APP_SECRET> \
+  --set issuers[0].ovhAuthentication.applicationConsumerKey=<CONSUMER_KEY> \
+  --set issuers[0].email=<YOUR_EMAIL> \
+  --set issuers[1].name=letsencrypt-staging \
+  --set issuers[1].create=true \
+  --set issuers[1].kind=ClusterIssuer \
+  --set issuers[1].acmeServerUrl=https://acme-staging-v02.api.letsencrypt.org/directory \
+  --set issuers[1].ovhEndpointName=ovh-eu \
+  --set issuers[1].ovhAuthenticationMethod=application \
+  --set issuers[1].ovhAuthentication.applicationKey=<APP_KEY> \
+  --set issuers[1].ovhAuthentication.applicationSecret=<APP_SECRET> \
+  --set issuers[1].ovhAuthentication.applicationConsumerKey=<CONSUMER_KEY> \
+  --set issuers[1].email=<YOUR_EMAIL>
+```
+
+##### Velero
+
+Velero copie les objets Kubernetes et les volumes du cluster de production dans le bucket de sauvegarde, afin qu'ils puissent être restaurés sur le cluster de secours :
+
+```bash
+helm --kubeconfig $KUBECONFIG_PROD install velero velero \
+  --repo https://vmware-tanzu.github.io/helm-charts/ \
+  -n velero --create-namespace \
+  --set deployNodeAgent=true \
+  --set configuration.features=EnableCSI \
+  --set configuration.defaultVolumesToFsBackup=true \
+  --set configuration.backupStorageLocation[0].provider=aws \
+  --set configuration.backupStorageLocation[0].bucket="bucket-backup-$SUFFIX" \
+  --set-string configuration.backupStorageLocation[0].config.region=rbx \
+  --set-string configuration.backupStorageLocation[0].config.s3ForcePathStyle=true \
+  --set-string configuration.backupStorageLocation[0].config.s3Url=https://s3.rbx.io.cloud.ovh.net \
+  --set configuration.volumeSnapshotLocation[0].provider=aws \
+  --set initContainers[0].name=velero-plugin-for-aws \
+  --set initContainers[0].image=velero/velero-plugin-for-aws:v1.12.2 \
+  --set initContainers[0].volumeMounts[0].name=plugins \
+  --set initContainers[0].volumeMounts[0].mountPath=/target \
+  --set-string credentials.secretContents.cloud="$(printf '[default]\naws_access_key_id=%s\naws_secret_access_key=%s' "$S3_ACCESS_KEY_BACKUP" "$S3_SECRET_KEY_BACKUP")" \
+  --set kubectl.image.repository=docker.io/bitnamilegacy/kubectl \
+  --set-string kubectl.image.tag=latest
+
+helm --kubeconfig $KUBECONFIG_DRP install velero velero \
+  --repo https://vmware-tanzu.github.io/helm-charts/ \
+  -n velero --create-namespace \
+  --set deployNodeAgent=true \
+  --set configuration.features=EnableCSI \
+  --set configuration.defaultVolumesToFsBackup=true \
+  --set configuration.backupStorageLocation[0].provider=aws \
+  --set configuration.backupStorageLocation[0].bucket="bucket-backup-$SUFFIX" \
+  --set-string configuration.backupStorageLocation[0].config.region=rbx \
+  --set-string configuration.backupStorageLocation[0].config.s3ForcePathStyle=true \
+  --set-string configuration.backupStorageLocation[0].config.s3Url=https://s3.rbx.io.cloud.ovh.net \
+  --set configuration.volumeSnapshotLocation[0].provider=aws \
+  --set initContainers[0].name=velero-plugin-for-aws \
+  --set initContainers[0].image=velero/velero-plugin-for-aws:v1.12.2 \
+  --set initContainers[0].volumeMounts[0].name=plugins \
+  --set initContainers[0].volumeMounts[0].mountPath=/target \
+  --set-string credentials.secretContents.cloud="$(printf '[default]\naws_access_key_id=%s\naws_secret_access_key=%s' "$S3_ACCESS_KEY_BACKUP" "$S3_SECRET_KEY_BACKUP")" \
+  --set kubectl.image.repository=docker.io/bitnamilegacy/kubectl \
+  --set-string kubectl.image.tag=latest
+```
+
+Créez la VolumeSnapshotClass utilisée par Velero sur les deux clusters :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD apply -f - <<EOF
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-cinder-snapclass-in-use-v1-velero
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+deletionPolicy: Delete
+driver: cinder.csi.openstack.org
+parameters:
+  force-create: "true"
+EOF
+
+kubectl --kubeconfig $KUBECONFIG_DRP apply -f - <<EOF
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-cinder-snapclass-in-use-v1-velero
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+deletionPolicy: Delete
+driver: cinder.csi.openstack.org
+parameters:
+  force-create: "true"
+EOF
+```
+
+#### IP Load Balancer
+
+Commandez un [IP Load Balancer Pack 2](/links/network/load-balancer), puis configurez-le depuis l'espace client OVHcloud.
+
+Servir des backends situés dans deux régions repose sur une configuration multi-zones, décrite dans [Configurer le Load Balancer OVHcloud en plusieurs zones](/guides/network/load-balancer/zones).
+
+##### Configuration du vRack
+
+Placez l'IP Load Balancer dans le même vRack que votre projet Public Cloud, comme décrit dans [Configuration d'un vRack sur le load balancer](/guides/network/load-balancer/configure-vrack), puis configurez son réseau privé :
+
+| Paramètre | Valeur |
+|-----------|--------|
+| VLAN | `1` |
+| Sous-réseau | `10.1.0.0/16` |
+| Plage d'IP NAT | `10.1.254.0/24` |
+
+##### Ferme de serveurs
+
+Dans l'onglet <code className="action">Fermes de serveurs</code>, cliquez sur <code className="action">Ajouter une ferme de serveurs</code> et utilisez les paramètres suivants :
+
+| Paramètre | Valeur |
+|-----------|--------|
+| Protocole | `TCP` |
+| Port | `443` |
+| Datacenter | `ALL` |
+| Réseau privé | Identifiant de votre réseau privé |
+
+Récupérez l'adresse IP externe du Public Cloud Load Balancer de chaque cluster :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD get svc -n haproxy-controller \
+  -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}'
+
+kubectl --kubeconfig $KUBECONFIG_DRP get svc -n haproxy-controller \
+  -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}'
+```
+
+Ajoutez les deux comme serveurs de la ferme, en remplaçant `<EXTERNAL_IP_PUBLIC_CLOUD_LB_PROD>` et `<EXTERNAL_IP_PUBLIC_CLOUD_LB_DRP>` par les deux adresses renvoyées ci-dessus :
+
+| Nom | Adresse IPv4 | Port |
+|-----|--------------|------|
+| `prod` | `<EXTERNAL_IP_PUBLIC_CLOUD_LB_PROD>` | `443` |
+| `drp` | `<EXTERNAL_IP_PUBLIC_CLOUD_LB_DRP>` | `443` |
+
+Désactivez ensuite le serveur `drp` avec son interrupteur, afin que seul le site de production reçoive du trafic.
+
+##### Frontend
+
+Dans l'onglet <code className="action">Frontends</code>, cliquez sur <code className="action">Ajouter un frontend</code> et utilisez les paramètres suivants :
+
+| Paramètre | Valeur |
+|-----------|--------|
+| Protocole | `TCP` |
+| Port | `443` |
+| Datacenter | `ALL` |
+| Ferme de serveurs par défaut | Identifiant de la ferme de serveurs créée ci-dessus |
+
+Appliquez la configuration de l'IP Load Balancer pour la rendre effective.
+
+##### Enregistrement DNS
+
+Créez un enregistrement A `nextcloud` dans votre zone DNS, pointant vers l'adresse IP publique de l'IP Load Balancer.
+
+#### Déployer Nextcloud sur le cluster de production
+
+Remplacez les paramètres suivants avant d'exécuter la commande :
+
+- `<YOUR_DNS_DOMAIN>` : le nom de domaine dont la zone DNS est hébergée chez OVHcloud. L'enregistrement A créé précédemment rend Nextcloud accessible à l'adresse `nextcloud.<YOUR_DNS_DOMAIN>`.
+- `<YOUR_ADMIN_PASSWORD>` : le mot de passe du compte administrateur `admin-demo` de Nextcloud.
+- `54ghne6d.eu-west-par.container-registry.ovh.net` : le registre qui héberge l'image Nextcloud. Faites pointer `image.registry` et `image.repository` vers votre propre registre, ou supprimez les deux options pour récupérer l'image depuis le registre par défaut du chart.
+
+:::warning
+Le mot de passe administrateur est passé en ligne de commande : il se retrouve donc dans l'historique de votre shell et dans les valeurs de la release Helm. Utilisez un mot de passe dédié et changez-le après la première connexion.
+:::
+
+```bash
+helm --kubeconfig $KUBECONFIG_PROD install nextcloud nextcloud \
+  --repo https://nextcloud.github.io/helm/ \
+  --version 8.6.1 \
+  -n nextcloud --create-namespace \
+  --timeout 20m \
+  --set livenessProbe.initialDelaySeconds=600 \
+  --set image.registry=54ghne6d.eu-west-par.container-registry.ovh.net \
+  --set image.repository=library/nextcloud \
+  --set nextcloud.host="nextcloud.<YOUR_DNS_DOMAIN>" \
+  --set nextcloud.username=admin-demo \
+  --set nextcloud.password='<YOUR_ADMIN_PASSWORD>' \
+  --set 'nextcloud.configs.custom\.config\.php=<?php $CONFIG = array ('"'"'trusted_domains'"'"' => ['"'"'*'"'"']);' \
+  --set internalDatabase.enabled=false \
+  --set externalDatabase.enabled=true \
+  --set externalDatabase.type=postgresql \
+  --set externalDatabase.host="$PG_HOST_PROD:$PG_PORT_PROD" \
+  --set externalDatabase.database=nextcloud \
+  --set externalDatabase.user=avnadmin \
+  --set-string externalDatabase.password="$PG_PASS_PROD" \
+  --set redis.enabled=false \
+  --set externalRedis.enabled=true \
+  --set externalRedis.host="tls://$VK_HOST_PROD" \
+  --set externalRedis.port="$VK_PORT_PROD" \
+  --set-string externalRedis.password="$VK_PASS_PROD" \
+  --set nextcloud.extraEnv[0].name=HOME \
+  --set nextcloud.extraEnv[0].value=/usr/local/share/ca-certificates/ \
+  --set nextcloud.extraEnv[1].name=REDIS_HOST_USER \
+  --set nextcloud.extraEnv[1].value=default \
+  --set nextcloud.extraEnv[2].name=OVERWRITEPROTOCOL \
+  --set nextcloud.extraEnv[2].value=https \
+  --set nextcloud.extraEnv[3].name=OVERWRITECLIURL \
+  --set nextcloud.extraEnv[3].value="https://nextcloud.<YOUR_DNS_DOMAIN>" \
+  --set ingress.enabled=true \
+  --set ingress.className=haproxy \
+  --set ingress.path=/ \
+  --set 'ingress.annotations.cert-manager\.io/cluster-issuer=letsencrypt-production' \
+  --set 'ingress.annotations.kubernetes\.io/ingress\.class=haproxy' \
+  --set 'ingress.annotations.haproxy\.org/timeout-server=300s' \
+  --set ingress.tls[0].hosts[0]="nextcloud.<YOUR_DNS_DOMAIN>" \
+  --set ingress.tls[0].secretName=nextcloud-tls \
+  --set nextcloud.objectStore.s3.enabled=true \
+  --set-string nextcloud.objectStore.s3.accessKey="$S3_ACCESS_KEY_PROD" \
+  --set-string nextcloud.objectStore.s3.secretKey="$S3_SECRET_KEY_PROD" \
+  --set nextcloud.objectStore.s3.host=s3.gra.io.cloud.ovh.net \
+  --set nextcloud.objectStore.s3.region=gra \
+  --set nextcloud.objectStore.s3.bucket="bucket-prod-$SUFFIX" \
+  --set nextcloud.objectStore.s3.autoCreate=false \
+  --set persistence.enabled=true \
+  --set persistence.storageClass=csi-manila-nfs \
+  --set persistence.size=150Gi \
+  --set persistence.accessMode=ReadWriteMany \
+  --set resources.requests.cpu=250m \
+  --set resources.requests.memory=512Mi \
+  --set resources.limits.cpu=1000m \
+  --set resources.limits.memory=1Gi \
+  --set replicaCount=2 \
+  --set hpa.enabled=true \
+  --set hpa.cputhreshold=60 \
+  --set hpa.minPods=2 \
+  --set hpa.maxPods=10
+```
+
+#### Bastions et réplication PostgreSQL
+
+Les bases de données ne sont joignables que depuis le réseau privé : chaque région reçoit donc une instance bastion disposant du client PostgreSQL. Le bastion de production met également en place la réplication logique vers le site de secours via son script cloud-init : il liste les tables Nextcloud (`oc_*`), crée une publication pour celles-ci, copie leur schéma vers la base de secours, et crée l'abonnement correspondant.
+
+Créez une clé SSH pour les bastions :
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/bastion -N ""
+```
+
+Enregistrez-la dans les deux régions :
+
+```bash
+ovhcloud cloud ssh-key create \
+  --region "$REGION_PROD" \
+  --name bastion-key \
+  --public-key "$(cat ~/.ssh/bastion.pub)"
+
+ovhcloud cloud ssh-key create \
+  --region "$REGION_DRP" \
+  --name bastion-key \
+  --public-key "$(cat ~/.ssh/bastion.pub)"
+```
+
+Créez le bastion de production, qui configure aussi la réplication :
+
+```bash
+BASTION_IMAGE_PROD=$(ovhcloud cloud reference list-images --region "$REGION_PROD" --os-type linux --filter 'name=="Ubuntu 24.04"' --output json | jq -r .[0].id)
+BASTION_FLAVOR_PROD=$(ovhcloud cloud reference list-flavors --filter "region==\"$REGION_PROD\" && name==\"b3-8\"" --output json | jq -r .[0].id)
+ovhcloud cloud instance create $REGION_PROD \
+  --name bastion-prod \
+  --boot-from.image "$BASTION_IMAGE_PROD" \
+  --flavor "$BASTION_FLAVOR_PROD" \
+  --billing-period hourly \
+  --network.private.id "$NETWORK_ID_PROD" \
+  --network.private.subnet-id "$SUBNET_ID_PROD" \
+  --network.private.gateway.id "$GATEWAY_ID_PROD" \
+  --network.private.floating-ip.create.description bastion-prod-fip \
+  --ssh-key.name "bastion-key" \
+  --wait \
+  --user-data "$(cat <<EOF
+#cloud-config
+package_update: true
+apt:
+  sources:
+     pgdg.list:
+       source: deb http://apt.postgresql.org/pub/repos/apt noble-pgdg main
+       keyid: B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+packages:
+- postgresql-client-17
+runcmd:
+- |
+  set -eu
+  echo '[INFO] discovering oc_* tables on $PG_HOST_PROD'
+  TABLES=\$(PGPASSWORD='$PG_PASS_PROD' psql -h '$PG_HOST_PROD' -p '$PG_PORT_PROD' -U avnadmin -d nextcloud -tAc "SELECT string_agg(quote_ident(tablename), ',' ORDER BY tablename) FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'oc\\_%'")
+  echo '[INFO] creating publication pub_source_tables'
+  PGPASSWORD='$PG_PASS_PROD' psql -h '$PG_HOST_PROD' -p '$PG_PORT_PROD' -U avnadmin -d nextcloud -c "CREATE PUBLICATION pub_source_tables FOR TABLE \$TABLES WITH (publish='insert,update,delete');"
+  echo '[INFO] dumping schema from $PG_HOST_PROD'
+  PGPASSWORD='$PG_PASS_PROD' pg_dump --schema-only --no-publications -h '$PG_HOST_PROD' -p '$PG_PORT_PROD' -U avnadmin -d nextcloud -t 'oc_*' > /home/ubuntu/origin_tables.sql
+  echo '[INFO] preparing subscriber $PG_HOST_DRP'
+  PGPASSWORD='$PG_PASS_DRP' psql -h '$PG_HOST_DRP' -p '$PG_PORT_DRP' -U avnadmin -d nextcloud -c "CREATE EXTENSION IF NOT EXISTS aiven_extras CASCADE;"
+  PGPASSWORD='$PG_PASS_PROD' psql -h '$PG_HOST_PROD' -p '$PG_PORT_PROD' -U avnadmin -d nextcloud -c "CREATE EXTENSION IF NOT EXISTS aiven_extras CASCADE;"
+  PGPASSWORD='$PG_PASS_DRP' psql -h '$PG_HOST_DRP' -p '$PG_PORT_DRP' -U avnadmin -d nextcloud -a -f /home/ubuntu/origin_tables.sql
+  PGPASSWORD='$PG_PASS_DRP' psql -h '$PG_HOST_DRP' -p '$PG_PORT_DRP' -U avnadmin -d nextcloud -c "SELECT * FROM aiven_extras.pg_create_subscription('dest_subscription', 'host=$PG_HOST_PROD password=$PG_PASS_PROD port=$PG_PORT_PROD dbname=nextcloud user=avnadmin', 'pub_source_tables', 'dest_slot', TRUE, TRUE);"
+EOF
+)"
+```
+
+Créez le bastion de secours, qui n'a besoin que du client PostgreSQL :
+
+```bash
+BASTION_IMAGE_DRP=$(ovhcloud cloud reference list-images --region "$REGION_DRP" --os-type linux --filter 'name=="Ubuntu 24.04"' --output json | jq -r .[0].id)
+BASTION_FLAVOR_DRP=$(ovhcloud cloud reference list-flavors --filter "region==\"$REGION_DRP\" && name==\"b3-8\"" --output json | jq -r .[0].id)
+ovhcloud cloud instance create $REGION_DRP \
+   --name bastion-drp \
+   --boot-from.image "$BASTION_IMAGE_DRP" \
+   --flavor "$BASTION_FLAVOR_DRP" \
+   --billing-period hourly \
+   --network.private.id "$NETWORK_ID_DRP" \
+   --network.private.subnet-id "$SUBNET_ID_DRP" \
+   --network.private.gateway.id "$GATEWAY_ID_DRP" \
+   --network.private.floating-ip.create.description bastion-drp-fip \
+   --ssh-key.name "bastion-key" \
+   --wait \
+   --user-data "$(cat <<EOF
+#cloud-config
+package_update: true
+apt:
+   sources:
+     pgdg.list:
+       source: deb http://apt.postgresql.org/pub/repos/apt noble-pgdg main
+       keyid: B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+packages:
+- postgresql-client-17
+EOF
+)"
+```
+
+Relevez l'adresse IP publique de chaque bastion dans l'espace client OVHcloud, puis stockez-les. Remplacez les paramètres suivants avant d'exécuter les commandes :
+
+- `<BASTION_PUBLIC_IP_PROD>` : la Floating IP de l'instance `bastion-prod`.
+- `<BASTION_PUBLIC_IP_DRP>` : la Floating IP de l'instance `bastion-drp`.
+
+```bash
+BASTION_IP_PROD=<BASTION_PUBLIC_IP_PROD>
+
+BASTION_IP_DRP=<BASTION_PUBLIC_IP_DRP>
+```
+
+#### Répliquer la configuration Nextcloud vers le cluster de secours
+
+Nextcloud génère sa propre configuration au premier démarrage. Pour donner la même configuration au cluster de secours, sauvegardez-la sur le cluster de production avec Velero, puis restaurez-la de l'autre côté.
+
+Créez la sauvegarde :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD apply -f - <<EOF
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: nextcloud-config
+  namespace: velero
+  annotations:
+    velero.io/resource-timeout: 10m0s
+  labels:
+    velero.io/storage-location: default
+spec:
+  includedNamespaces:
+    - nextcloud
+  includedResources:
+    - pv
+    - pvc
+    - pod
+    - deployment
+    - cm
+  excludedResources:
+    - volumesnapshots.snapshot.storage.k8s.io
+    - volumesnapshotcontents.snapshot.storage.k8s.io
+  defaultVolumesToFsBackup: true
+  snapshotMoveData: false
+  storageLocation: default
+  volumeSnapshotLocations:
+    - default
+  csiSnapshotTimeout: 10m0s
+  itemOperationTimeout: 4h0m0s
+  ttl: 720h0m0s
+  volumeGroupSnapshotLabelKey: velero.io/volume-group
+  hooks: {}
+  metadata: {}
+EOF
+```
+
+Attendez qu'elle atteigne la phase `Completed` :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD -n velero get backup nextcloud-config \
+  -o jsonpath='{.status.phase}{"\n"}' -w
+```
+
+Restaurez-la sur le cluster de secours :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_DRP apply -f - <<EOF
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  name: nextcloud-config
+  namespace: velero
+spec:
+  backupName: nextcloud-config
+  includedNamespaces:
+    - '*'
+  itemOperationTimeout: 4h0m0s
+  hooks: {}
+EOF
+```
+
+Attendez que la restauration atteigne la phase `Completed` :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_DRP -n velero get restore nextcloud-config \
+  -o jsonpath='{.status.phase}{"\n"}' -w
+```
+
+#### Déployer Nextcloud sur le cluster de secours
+
+La commande est la même que pour la production, à trois différences près : les points de terminaison et identifiants du site de secours, le bucket de secours à Strasbourg, et `--take-ownership`, qui permet à Helm d'adopter les ressources restaurées par Velero.
+
+Remplacez les paramètres suivants avant d'exécuter la commande, en utilisant les mêmes valeurs que sur le cluster de production :
+
+- `<YOUR_DNS_DOMAIN>` : le nom de domaine dont la zone DNS est hébergée chez OVHcloud.
+- `<YOUR_ADMIN_PASSWORD>` : le mot de passe du compte administrateur `admin-demo` de Nextcloud.
+- `54ghne6d.eu-west-par.container-registry.ovh.net` : le registre qui héberge l'image Nextcloud.
+
+```bash
+helm --kubeconfig "$KUBECONFIG_DRP" install nextcloud nextcloud \
+  --repo https://nextcloud.github.io/helm/ \
+  --version 8.6.1 \
+  -n nextcloud --create-namespace \
+  --timeout 20m \
+  --take-ownership \
+  --set livenessProbe.initialDelaySeconds=600 \
+  --set image.registry=54ghne6d.eu-west-par.container-registry.ovh.net \
+  --set image.repository=library/nextcloud \
+  --set nextcloud.host="nextcloud.<YOUR_DNS_DOMAIN>" \
+  --set nextcloud.username=admin-demo \
+  --set nextcloud.password='<YOUR_ADMIN_PASSWORD>' \
+  --set 'nextcloud.configs.custom\.config\.php=<?php $CONFIG = array ('"'"'trusted_domains'"'"' => ['"'"'*'"'"']);' \
+  --set internalDatabase.enabled=false \
+  --set externalDatabase.enabled=true \
+  --set externalDatabase.type=postgresql \
+  --set externalDatabase.host="$PG_HOST_DRP:$PG_PORT_DRP" \
+  --set externalDatabase.database=nextcloud \
+  --set externalDatabase.user=avnadmin \
+  --set-string externalDatabase.password="$PG_PASS_DRP" \
+  --set redis.enabled=false \
+  --set externalRedis.enabled=true \
+  --set externalRedis.host="tls://$VK_HOST_DRP" \
+  --set externalRedis.port="$VK_PORT_DRP" \
+  --set-string externalRedis.password="$VK_PASS_DRP" \
+  --set nextcloud.extraEnv[0].name=HOME \
+  --set nextcloud.extraEnv[0].value=/usr/local/share/ca-certificates/ \
+  --set nextcloud.extraEnv[1].name=REDIS_HOST_USER \
+  --set nextcloud.extraEnv[1].value=default \
+  --set nextcloud.extraEnv[2].name=OVERWRITEPROTOCOL \
+  --set nextcloud.extraEnv[2].value=https \
+  --set nextcloud.extraEnv[3].name=OVERWRITECLIURL \
+  --set nextcloud.extraEnv[3].value="https://nextcloud.<YOUR_DNS_DOMAIN>" \
+  --set ingress.enabled=true \
+  --set ingress.className=haproxy \
+  --set ingress.path=/ \
+  --set 'ingress.annotations.cert-manager\.io/cluster-issuer=letsencrypt-production' \
+  --set 'ingress.annotations.kubernetes\.io/ingress\.class=haproxy' \
+  --set 'ingress.annotations.haproxy\.org/timeout-server=300s' \
+  --set ingress.tls[0].hosts[0]="nextcloud.<YOUR_DNS_DOMAIN>" \
+  --set ingress.tls[0].secretName=nextcloud-tls \
+  --set nextcloud.objectStore.s3.enabled=true \
+  --set-string nextcloud.objectStore.s3.accessKey="$S3_ACCESS_KEY_DRP" \
+  --set-string nextcloud.objectStore.s3.secretKey="$S3_SECRET_KEY_DRP" \
+  --set nextcloud.objectStore.s3.host=s3.sbg.io.cloud.ovh.net \
+  --set nextcloud.objectStore.s3.region=sbg \
+  --set nextcloud.objectStore.s3.bucket="bucket-drp-$SUFFIX" \
+  --set nextcloud.objectStore.s3.autoCreate=false \
+  --set persistence.enabled=true \
+  --set persistence.storageClass=csi-manila-nfs \
+  --set persistence.size=150Gi \
+  --set persistence.accessMode=ReadWriteMany \
+  --set resources.requests.cpu=250m \
+  --set resources.requests.memory=512Mi \
+  --set resources.limits.cpu=1000m \
+  --set resources.limits.memory=1Gi \
+  --set replicaCount=2 \
+  --set hpa.enabled=true \
+  --set hpa.cputhreshold=60 \
+  --set hpa.minPods=2 \
+  --set hpa.maxPods=10
+```
+
+### Basculer de GRA11 vers SBG5
+
+Le site de secours est désormais entièrement provisionné et maintenu synchronisé. Basculer consiste à inverser le sens des deux réplications et à changer le backend de l'IP Load Balancer.
+
+#### Bascule
+
+Simulez un incident en réduisant le déploiement de production à zéro réplica :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD scale deploy/nextcloud --replicas=0 -n nextcloud
+```
+
+Arrêtez la réplication de la base de production vers la base de secours, depuis le bastion de secours :
+
+```bash
+ssh ubuntu@$BASTION_IP_DRP "PGPASSWORD=$PG_PASS_DRP psql -h $PG_HOST_DRP -p $PG_PORT_DRP -U avnadmin -d nextcloud -c \"SELECT * FROM aiven_extras.pg_drop_subscription('dest_subscription', FALSE);\""
+```
+
+Démarrez la réplication dans le sens inverse, de la base de secours vers la base de production :
+
+```bash
+ssh ubuntu@$BASTION_IP_DRP "PGPASSWORD='$PG_PASS_PROD' psql -h '$PG_HOST_PROD' -p '$PG_PORT_PROD' -U avnadmin -d nextcloud -c \"SELECT * FROM aiven_extras.pg_create_subscription('dest_subscription', 'host=$PG_HOST_DRP password=$PG_PASS_DRP port=$PG_PORT_DRP dbname=nextcloud user=avnadmin', 'pub_source_tables', 'dest_slot', TRUE, TRUE);\""
+```
+
+Puis, dans l'espace client OVHcloud :
+
+1. Désactivez la règle de réplication sur le bucket Object Storage de production.
+2. Activez la règle de réplication sur le bucket Object Storage de secours.
+3. Désactivez le serveur backend `prod` dans l'IP Load Balancer.
+4. Activez le serveur backend `drp` dans l'IP Load Balancer.
+
+Nextcloud est maintenant servi depuis SBG5, sur la même URL.
+
+#### Retour à la normale
+
+Une fois la région de production de nouveau disponible, inversez les quatre mêmes opérations.
+
+Redémarrez le déploiement de production :
+
+```bash
+kubectl --kubeconfig $KUBECONFIG_PROD scale deploy/nextcloud --replicas=2 -n nextcloud
+```
+
+Arrêtez la réplication de la base de secours vers la base de production, depuis le bastion de production :
+
+```bash
+ssh ubuntu@$BASTION_IP_PROD "PGPASSWORD=$PG_PASS_PROD psql -h $PG_HOST_PROD -p $PG_PORT_PROD -U avnadmin -d nextcloud -c \"SELECT * FROM aiven_extras.pg_drop_subscription('dest_subscription', FALSE);\""
+```
+
+Relancez la réplication de la base de production vers la base de secours :
+
+```bash
+ssh ubuntu@$BASTION_IP_PROD "PGPASSWORD='$PG_PASS_DRP' psql -h '$PG_HOST_DRP' -p '$PG_PORT_DRP' -U avnadmin -d nextcloud -c \"SELECT * FROM aiven_extras.pg_create_subscription('dest_subscription', 'host=$PG_HOST_PROD password=$PG_PASS_PROD port=$PG_PORT_PROD dbname=nextcloud user=avnadmin', 'pub_source_tables', 'dest_slot', TRUE, TRUE);\""
+```
+
+Puis, dans l'espace client OVHcloud :
+
+1. Désactivez la règle de réplication sur le bucket Object Storage de secours.
+2. Activez la règle de réplication sur le bucket Object Storage de production.
+3. Désactivez le serveur backend `drp` dans l'IP Load Balancer.
+4. Activez le serveur backend `prod` dans l'IP Load Balancer.
+
+## Aller plus loin
+
+- [Plan de reprise d'activité - Mécanismes et architectures de référence](/guides/public-cloud/cross-functional/disaster-recovery-plan-architecture)
+- [Résilience 3-AZ : Mécanismes et architectures de référence](/guides/public-cloud/cross-functional/deployments-modes-reference-architecture)
+- [Object Storage - Maîtrisez la réplication asynchrone sur vos buckets](/guides/storage-and-backup/object-storage/s3-asynchronous-replication)
+- [Sauvegardes automatiques des bases de données Public Cloud](/guides/public-cloud/databases/backups)
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+## Nous voulons vos retours !
+
+N’hésitez pas à nous faire part de vos questions, retours et suggestions pour améliorer le service :
+
+- Sur le [serveur Discord OVHcloud](https://discord.gg/ovhcloud)
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.

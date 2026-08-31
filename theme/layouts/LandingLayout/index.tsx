@@ -1,3 +1,4 @@
+import { ProductBanner } from '@components/ProductBanner';
 import { useFrontmatter, useI18n } from '@rspress/core/runtime';
 import { DocContent, getCustomMDXComponent } from '@rspress/core/theme';
 import { DocFooter, IconMenu, SvgWrapper } from '@rspress/core/theme-original';
@@ -5,9 +6,9 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ProductBanner } from '@components/ProductBanner';
 import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
+import { ProductPdfButton } from 'theme/components/ProductPdfButton';
 import { Sidebar } from 'theme/components/Sidebar';
 import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
@@ -83,7 +84,6 @@ function useLandingSidebarMenu() {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              onKeyUp={() => setIsSidebarOpen(false)}
               className="rp-sidebar-menu__mask"
               aria-label="Close sidebar"
             />,
@@ -157,16 +157,21 @@ export function LandingLayout(props: LandingLayoutProps) {
               </div>
             )}
 
+            {/* Whole-product PDF download — shown only when the page declares a
+                `pdf:` frontmatter ref (the button returns null otherwise). The
+                Ask-AI/llms cluster is intentionally absent from landing pages, so
+                this is mounted directly here rather than via that slot. */}
+            <div className="rp-landing-pdf">
+              <ProductPdfButton />
+            </div>
+
             {/* MDX body — rendered through DocContent so markdown headings,
                 lists, callouts, etc. keep their styling and the custom MDX
                 component mapping. `.rp-doc` scopes the doc-content styles;
                 isOverviewPage suppresses the fallback auto-H1 (the banner /
                 landing header is our single H1). */}
             <div className="rp-landing-layout__body rp-doc rspress-doc">
-              <DocContent
-                components={getCustomMDXComponent()}
-                isOverviewPage
-              />
+              <DocContent components={getCustomMDXComponent()} isOverviewPage />
             </div>
 
             {/* Reused overview footer */}

@@ -35,6 +35,32 @@ DEV_LOCALES=fr,en pnpm dev       # French + English (default)
 Only active locales have their content compiled, sidebar generated, and routes registered.
 This significantly reduces SSR time on the large MDX codebase.
 
+### Scoping to a route subtree (`DEV_PATH`) — blank-page fallback
+
+If `pnpm dev` shows a **blank page on every route** (browser console: `ChunkLoadError`
+on `_rspress_virtual-page-data...`), use this as a fallback to the classic `pnpm dev`.
+
+Cause: Rspress v2 inlines the page-data (frontmatter + toc + metadata) of *every* route
+into a single virtual chunk the browser must load before any page renders. With ~1635
+routes/locale that chunk is 10MB+ and exceeds the chunk-load timeout, so nothing mounts.
+`DEV_LOCALES` alone does not fix this (one locale is still ~10MB).
+
+`DEV_PATH` restricts the scanned routes to one subtree under `docs/{locale}/guides/`,
+shrinking the chunk below the timeout:
+
+```bash
+DEV_PATH=web-cloud/web-hosting pnpm dev          # one product
+DEV_PATH=web-cloud pnpm dev                       # one universe
+DEV_PATH=web-cloud/web-hosting DEV_LOCALES=en pnpm dev   # leanest: one product, one locale
+```
+
+EN-only web-hosting drops the chunk from ~10.4MB/1635 routes to ~3.3MB/122 routes; the
+page renders and the initial build goes from ~5s to ~0.2s.
+
+- **Opt-in:** unset `DEV_PATH` keeps the original full-tree behaviour. No effect on production builds.
+- **Caveat:** only the scoped subtree exists in dev — links to guides *outside* it 404 locally
+  (they resolve normally in production). Set `DEV_PATH` to cover whatever you need to click through.
+
 ### Dev Performance Notes
 
 With 9500+ MDX files, dev SSR is ~9s per page (Rspress MDX compilation overhead).

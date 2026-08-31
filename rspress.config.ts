@@ -11,6 +11,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import type { Locale } from './config/shared';
@@ -18,7 +19,10 @@ import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromCache } from './plugins/lastUpdatedFromCache';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
+import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -72,6 +76,40 @@ const excludedLocales = allLocales
   .filter((l) => !devLocales.includes(l.lang))
   .map((l) => l.lang);
 
+// Dev performance: optionally scope dev to a single route subtree.
+// Rspress v2 inlines the page-data (frontmatter + toc + metadata) of EVERY
+// route into one virtual chunk that the client must load before any page
+// renders. With ~1635 routes/locale that chunk is ~10MB+ and exceeds the
+// browser's chunkLoadingTimeout → blank page. Restricting the scanned routes
+// shrinks that chunk to the subtree you are working on.
+//
+//   DEV_PATH=web-cloud/web-hosting pnpm dev    # only that product
+//   DEV_PATH=web-cloud pnpm dev                # the whole universe
+//
+// The value is a path under `docs/{locale}/guides/`. When unset, the full
+// tree is served (original behaviour). Has no effect on production builds.
+//
+// NOTE: rspress's `route.exclude` does NOT honour `!`-negation re-includes,
+// so we cannot say "exclude everything, then add back X". Instead we exclude
+// the SIBLINGS at every level of the target path, which leaves the target
+// subtree (and the locale's index pages) as the only thing scanned.
+const devPath = (process.env.DEV_PATH || '').replace(/^\/+|\/+$/g, '');
+const pathExcludes = devPath
+  ? activeLocales.flatMap((l) => {
+      const segments = devPath.split('/');
+      // At each level, exclude that level's contents but keep the branch that
+      // leads to the target. e.g. for guides/web-cloud/web-hosting:
+      //   {l}/guides/*  except web-cloud   → exclude {l}/guides/!(web-cloud)
+      //   {l}/guides/web-cloud/* except web-hosting → !(web-hosting)
+      const excludes = [`${l.lang}/guides/!(${segments[0]})/**`];
+      for (let i = 1; i < segments.length; i++) {
+        const prefix = segments.slice(0, i).join('/');
+        excludes.push(`${l.lang}/guides/${prefix}/!(${segments[i]})/**`);
+      }
+      return excludes;
+    })
+  : [];
+
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
   plugins: [pluginLastUpdatedFromCache()],
@@ -83,10 +121,48 @@ export default defineConfig({
       // components/Analytics) to guarantee React hydration completes first.
       tags: [
         {
+          // Trailing-slash normalization — mirrors rspress.config.build.ts.
+          // Strips a trailing slash from locale-prefixed paths and replace()s
+          // to the canonical no-slash URL before React mounts (no 404 flash).
+          // Excludes `/` and bare locale roots (`/fr/`, `/en/`, …).
+          tag: 'script',
+          head: true,
+          append: false,
+          children: [
+            '(function(){var p=location.pathname;',
+            'if(/^\\/(fr|en|de|es|it|pl|pt)\\/.+\\/$/.test(p)){',
+            'location.replace(p.replace(/\\/+$/,"")+location.search+location.hash);',
+            '}})();',
+          ].join(''),
+        },
+        {
           tag: 'script',
           head: true,
           append: true,
           attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+        },
+        // OVHcloud CMP — mirrors rspress.config.build.ts (early <head> consent
+        // gate). Intentional divergences from prod: (1) dev serves multiple
+        // locales from one instance, so we omit `locale` and let the CMP fall
+        // back to navigator.language / en-GB; (2) environment is 'preproduction'
+        // so local dev never writes test consents to the production API.
+        {
+          tag: 'script',
+          head: true,
+          append: true,
+          children:
+            "window.__cmpConfig={region:'EU',environment:'preproduction'," +
+            "scripts:['https://analytics.ovh.com/ovh/ovh_delta.js','https://analytics.ovh.com/ovh/ovh_tags.js']};",
+        },
+        {
+          // Absolute URL — the bundle is served by the OVHcloud server farms.
+          tag: 'script',
+          head: true,
+          append: true,
+          attrs: {
+            src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
+            defer: true,
+          },
         },
       ],
     },
@@ -110,6 +186,21 @@ export default defineConfig({
         imports: true,
       },
     },
+    tools: {
+      rspack: {
+        // react-router guards a code path with Vite's `import.meta.hot`. Rspack
+        // implements HMR through `import.meta.webpackHot`, so it reports `hot`
+        // as an unknown `import.meta` property and substitutes `undefined` —
+        // which is exactly what the guard wants (the branch is dead outside
+        // Vite, and it is additionally gated on `isSpaMode`, never set here).
+        // Harmless, but printed on every dev start, so filter it out.
+        //
+        // Not needed in rspress.config.build.ts: that config sets
+        // `logLevel: 'error'`, which already hides build warnings.
+        // Remove once react-router stops shipping the Vite-only guard.
+        ignoreWarnings: [/Accessing unknown `import\.meta` property 'hot'/],
+      },
+    },
   },
   globalStyles: path.join(__dirname, 'styles/index.css'),
   // Default zoom applies to every `.rspress-doc img`. Let images opt out with
@@ -125,14 +216,23 @@ export default defineConfig({
   lang: activeLocales[0]?.lang || 'fr',
   locales: [...activeLocales],
   markdown: {
-    remarkPlugins: [remarkNoManagerHardcoded, remarkCpNavGate],
+    remarkPlugins: [
+      remarkNoManagerHardcoded,
+      remarkNoApiHardcoded,
+      remarkNoUnresolvedFragments,
+      remarkNoUnresolvedTerm,
+      remarkCpNavGate,
+    ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
       path.join(__dirname, 'components/Api/index.tsx'),
       path.join(__dirname, 'components/ManagerLink/ManagerLink.tsx'),
+      path.join(__dirname, 'components/ApiLink/ApiLink.tsx'),
+      path.join(__dirname, 'components/CreateToken/CreateToken.tsx'),
       path.join(__dirname, 'components/Tooltip/Tooltip.tsx'),
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
+      path.join(__dirname, 'components/Banner/Banner.tsx'),
     ],
     link: {
       checkDeadLinks: true,
@@ -156,12 +256,17 @@ export default defineConfig({
       ],
     },
   },
-  // In dev, resolve /links/ to the first active locale (default: fr)
-  replaceRules: generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
+  // In dev, resolve [[fragment:]] and /links/ to the first active locale
+  // (default: fr). Fragment rules MUST come first so (/links/key) tokens
+  // inside fragment bodies resolve in the same pass.
+  replaceRules: [
+    ...generateFragmentRules((activeLocales[0]?.lang || 'fr') as Locale),
+    ...generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
+  ],
 
   route: {
     cleanUrls: true,
-    exclude: excludedLocales.map((l) => `${l}/**/*`),
+    exclude: [...excludedLocales.map((l) => `${l}/**/*`), ...pathExcludes],
   },
   ssg: { experimentalWorker: true },
   llms: true,
@@ -187,7 +292,7 @@ export default defineConfig({
     ],
     footer: {
       message:
-        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" onclick="window.tC&&window.tC.privacyCenter&&window.tC.privacyCenter.showPrivacyCenter();return false">Privacy center</a></div>',
+        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>',
     },
   },
 });

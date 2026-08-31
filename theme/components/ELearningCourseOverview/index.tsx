@@ -135,7 +135,11 @@ export function CourseVideo({ video }: { video?: string }) {
   );
 }
 
-export function CourseServices({ services }: { services?: CourseServicesData }) {
+export function CourseServices({
+  services,
+}: {
+  services?: CourseServicesData;
+}) {
   if (!services?.items || services.items.length === 0) return null;
   return (
     <section className="rp-elearning-course-overview__services">

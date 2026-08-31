@@ -1,0 +1,297 @@
+---
+title: Getting started with NFS Subdir External Provisioner and OVHcloud File Storage Service
+description: Find out how to use the NFS Subdir External Provisioner to provision Kubernetes persistent volumes from an OVHcloud File Storage Service NFS share.
+lastUpdated: 2026-06-23
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objective
+
+This guide explains how to deploy the [NFS Subdir External Provisioner](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner) on a Kubernetes cluster to dynamically provision persistent volumes from an [OVHcloud File Storage Service](/guides/storage-and-backup/file-storage/file-storage-service/getting-started) NFS share.
+
+This approach is compatible with [OVHcloud Managed Kubernetes Service (MKS)](/links/public-cloud/kubernetes) and self-managed Kubernetes environments running on OVHcloud Public Cloud instances.
+
+The NFS Subdir External Provisioner does not manage the lifecycle of the underlying NFS share. Instead, it automatically creates a dedicated subdirectory inside an existing share for each PersistentVolumeClaim (PVC), making storage available to pods with `ReadWriteMany` (RWX) access. This approach is simpler to operate than Manila CSI but trades off features such as snapshots and per-PVC capacity enforcement.
+
+## Architecture
+
+When a PVC is created against the provisioner's StorageClass, the provisioner pod mounts the NFS share root, creates a subdirectory named after the PVC, and binds a PersistentVolume (PV) to it. Pods then mount only their subdirectory, not the entire share.
+
+```text
+OVHcloud File Storage Service share
+  └── /shares/share-<UUID>/                 ← NFS root (nfs.path)
+        ├── ns1-pvc-a-pvc-<UUID>/           ← PVC "pvc-a" in namespace "ns1"
+        ├── ns1-pvc-b-pvc-<UUID>/           ← PVC "pvc-b" in namespace "ns1"
+        └── archived-ns1-pvc-c-pvc-<UUID>/  ← deleted PVC (archiveOnDelete=true)
+```
+
+## Requirements
+
+- A Kubernetes cluster whose nodes are deployed on a private network with access to the File Storage Service share — compatible with OVHcloud Managed Kubernetes Service (MKS) and self-managed Kubernetes clusters running on OVHcloud Public Cloud instances
+- An [OVHcloud File Storage Service](/guides/storage-and-backup/file-storage/file-storage-service/getting-started) NFS share in the same region and on the same private network as your cluster
+- [Helm](https://docs.helm.sh/) installed on your workstation — see the [How to install Helm on OVHcloud Managed Kubernetes Service](/guides/public-cloud/containers-orchestration/managed-kubernetes/install-helm) guide
+- Basic knowledge of operating a Kubernetes cluster — see the [Deploying a Hello World application](/guides/public-cloud/containers-orchestration/managed-kubernetes/deploy-hello-world) guide
+- **Optional** — [OVHcloud CLI](https://github.com/ovh/ovhcloud-cli) for command-line management of the share and ACL
+
+## Instructions
+
+### Step 1 - Retrieve your File Storage Service share export path
+
+If you have not yet created a share, follow the [File Storage Service getting started guide](/guides/storage-and-backup/file-storage/file-storage-service/getting-started) to create an NFS share on your private network.
+
+Once the share is in `available` status, retrieve its NFS export path. The path follows this format:
+
+```text
+<NFS_SERVER>:/shares/share-<UUID>
+```
+
+For example: `10.1.0.12:/shares/share-abc12345-def6-4abc-8def-123456abcdef`
+
+Split it into 2 components and note them for the following steps:
+
+- `NFS_SERVER` — the IP address part (e.g. `10.1.0.12`)
+- `NFS_PATH` — the path part (e.g. `/shares/share-abc12345-def6-4abc-8def-123456abcdef`)
+
+<Tabs>
+  <Tab label="Via the OVHcloud Control Panel">
+    Go to <code className="action">Storage & backup</code> > <code className="action">File Storage</code>, click your share, and find the `Mount Path` on the <code className="action">General information</code> tab.
+  </Tab>
+
+  <Tab label="Via the OVHcloud CLI">
+    ```bash
+    # List shares to find the share ID
+    ovhcloud cloud storage file share list \
+      --cloud-project <PROJECT_ID> \
+      --region <REGION>
+
+    # Retrieve the share details including the NFS export path
+    ovhcloud cloud storage file share get <SHARE_ID> \
+      --cloud-project <PROJECT_ID> \
+      --region <REGION>
+    ```
+
+    Note the NFS export path from the output and split it into `NFS_SERVER` and `NFS_PATH` as described above.
+  </Tab>
+</Tabs>
+
+### Step 2 - Grant Kubernetes node access to the share
+
+The provisioner pod and every node that will mount NFS volumes must be allowed to reach the share. Add an ACL entry covering your cluster's private network subnet.
+
+:::info
+The File Storage Service is only accessible from OVHcloud IPs (Public Cloud instances, Managed Kubernetes Service). A single CIDR rule for your cluster subnet covers all nodes without listing individual IPs.
+:::
+
+<Tabs>
+  <Tab label="Via the OVHcloud Control Panel">
+    Click your share, go to the <code className="action">Access Control List (ACL)</code> tab, then click <code className="action">Add a new access</code>. Enter the CIDR range of your cluster's private network (e.g. `10.1.0.0/24`) and select the `Read and write` permission.
+
+    Verify that the ACL entry is in `active` status before continuing.
+  </Tab>
+  <Tab label="Via the OVHcloud CLI">
+    ```bash
+    ovhcloud cloud storage file share acl create <SHARE_ID> \
+      --cloud-project <PROJECT_ID> \
+      --region <REGION> \
+      --access-level rw \
+      --access-to <CIDR>
+    ```
+
+    Verify the ACL status:
+
+    ```bash
+    ovhcloud cloud storage file share acl list <SHARE_ID> \
+      --cloud-project <PROJECT_ID> \
+      --region <REGION>
+    ```
+
+    Wait until the entry is in `active` status before continuing.
+  </Tab>
+</Tabs>
+
+### Step 3 - Install the NFS Subdir External Provisioner
+
+Add the Helm repository:
+
+```bash
+helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner
+helm repo update
+```
+
+Install the provisioner, replacing `<NFS_SERVER>` and `<NFS_PATH>` with the values retrieved in Step 1:
+
+```bash
+helm install nfs-subdir nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+  --namespace nfs-provisioner \
+  --create-namespace \
+  --set nfs.server=<NFS_SERVER> \
+  --set nfs.path=<NFS_PATH> \
+  --set storageClass.name=nfs-subdir \
+  --set storageClass.reclaimPolicy=Delete \
+  --set storageClass.archiveOnDelete=false
+```
+
+:::info
+`archiveOnDelete=false` permanently removes subdirectory data when the PVC is deleted. Set it to `true` to rename deleted PVC directories to `archived-*` instead, preserving the data at the cost of continued share consumption.
+:::
+
+Verify the provisioner pod is running:
+
+```bash
+kubectl -n nfs-provisioner get pods
+```
+
+```console
+$ kubectl -n nfs-provisioner get pods
+NAME                                                          READY   STATUS    RESTARTS   AGE
+nfs-subdir-nfs-subdir-external-provisioner-6d4bfc8b4-xkjlp   1/1     Running   0          30s
+```
+
+### Step 4 - Inspect the StorageClass
+
+The Helm chart creates a StorageClass automatically. Inspect it to confirm the configuration:
+
+```bash
+kubectl get storageclass nfs-subdir -o yaml
+```
+
+```console
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-subdir
+provisioner: cluster.local/nfs-subdir-nfs-subdir-external-provisioner
+parameters:
+  archiveOnDelete: "false"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+```
+
+`volumeBindingMode: Immediate` means a PV is provisioned as soon as the PVC is created, regardless of whether any pod has claimed it yet.
+
+### Step 5 - Create PersistentVolumeClaims
+
+Create a PVC using the `nfs-subdir` StorageClass:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-shared-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs-subdir
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+Apply it:
+
+```bash
+kubectl apply -f nfs-pvc.yaml
+```
+
+:::warning
+The `storage` request is **not enforced** by the NFS Subdir External Provisioner — it is recorded as metadata only. All PVCs share the full capacity of the underlying File Storage Service share. Size your share according to your total expected usage across all PVCs.
+:::
+
+Verify the PVC is bound:
+
+```bash
+kubectl get pvc nfs-shared-pvc
+```
+
+```console
+$ kubectl get pvc nfs-shared-pvc
+NAME             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+nfs-shared-pvc   Bound    pvc-1a2b3c4d-5e6f-7890-abcd-ef1234567890   5Gi        RWX            nfs-subdir     5s
+```
+
+### Step 6 - Test with a shared workload
+
+Deploy 2 Nginx replicas that mount the same PVC to verify `ReadWriteMany` access:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nfs-test
+  template:
+    metadata:
+      labels:
+        app: nfs-test
+    spec:
+      volumes:
+        - name: shared-data
+          persistentVolumeClaim:
+            claimName: nfs-shared-pvc
+      containers:
+        - name: nginx
+          image: nginx:stable
+          volumeMounts:
+            - name: shared-data
+              mountPath: /usr/share/nginx/html
+```
+
+```bash
+kubectl apply -f nfs-deployment.yaml
+kubectl get pods -l app=nfs-test
+```
+
+```console
+$ kubectl get pods -l app=nfs-test
+NAME                        READY   STATUS    RESTARTS   AGE
+nfs-test-74c5d6d8c6-fvbnm   1/1     Running   0          20s
+nfs-test-74c5d6d8c6-qwxyz   1/1     Running   0          20s
+```
+
+Write a file from the first pod and confirm it is visible from the second:
+
+```bash
+POD1=$(kubectl get pods -l app=nfs-test -o jsonpath='{.items[0].metadata.name}')
+POD2=$(kubectl get pods -l app=nfs-test -o jsonpath='{.items[1].metadata.name}')
+
+kubectl exec "$POD1" -- sh -c 'echo "shared via NFS" > /usr/share/nginx/html/index.html'
+kubectl exec "$POD2" -- cat /usr/share/nginx/html/index.html
+```
+
+```console
+shared via NFS
+```
+
+Both pods read and write the same subdirectory on the NFS share, confirming RWX access across nodes.
+
+## Limitations
+
+- **No capacity enforcement**: The `storage` field in a PVC is metadata only. All PVCs from a given StorageClass share the total capacity of the underlying NFS share.
+- **No volume snapshots**: The provisioner does not support the `VolumeSnapshot` API. Use [Manila CSI](/guides/storage-and-backup/file-storage/file-storage-service/getting-started) if you need snapshot support.
+- **No volume resize**: PVCs cannot be resized after creation.
+- **No `ReadWriteOnce` quota isolation**: For single-pod `ReadWriteOnce` use cases with capacity enforcement, OVHcloud Block Storage (`csi-cinder-high-speed`) is more suitable.
+- **Archived directories accumulate**: With `archiveOnDelete=true`, deleted PVC data is renamed but not removed. Capacity is consumed until you manually clean the archived directories.
+
+## Best practices
+
+- **One Helm release per environment**: Deploy separate provisioner instances (e.g. `nfs-subdir-dev`, `nfs-subdir-prod`) pointing to different shares or paths to avoid cross-environment data mixing.
+- **Use `pathPattern` for readable directory names**: Set `storageClass.pathPattern` to `${.PVC.namespace}/${.PVC.name}` to generate human-readable subdirectory structures. See the [NFS Subdir External Provisioner documentation](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner) for the full list of template variables.
+- **Choose `archiveOnDelete` deliberately**: Decide up front whether deleted PVC data should be preserved (`true`) or removed (`false`). Mixing policies after data exists on the share can cause confusion.
+- **Monitor share capacity**: Because per-PVC quotas are not enforced, monitor your File Storage Service share size in the OVHcloud Control Panel or via the [OVHcloud API](/guides/manage-and-operate/api/first-steps) and resize it before it fills up.
+- **Match NFS mount options to File Storage Service capabilities**: OVHcloud File Storage Service supports NFS v4. If you need to override mount options (e.g. `nfsvers=4,hard,timeo=600`), set them via `storageClass.mountOptions` in the Helm values.
+
+## Go further
+
+- [File Storage Service — Getting started](/guides/storage-and-backup/file-storage/file-storage-service/getting-started)
+- [Persistent Volumes on OVHcloud Managed Kubernetes Service](/guides/public-cloud/containers-orchestration/managed-kubernetes/set-up-persistent-volume)
+- [Configuring multi-attach persistent volumes with OVHcloud NAS-HA](/guides/public-cloud/containers-orchestration/managed-kubernetes/configure-multi-attach-persistent-volumes-nas-ha)
+- [NFS Subdir External Provisioner on GitHub](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner)
+
+For training or technical assistance implementing our solutions, contact your sales representative or visit our [Professional Services](/links/professional-services) page to request a quote and have your project analyzed by our experts.
+
+Join our [community of users](/links/community).
