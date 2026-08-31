@@ -839,7 +839,7 @@
             + [How to prevent your emails from being marked as spam](bare-metal-cloud/dedicated-servers/mail-sending-optimization)
     + [Storage and Backup](products/public-cloud-storage)
         + [Object Storage](products/public-cloud-storage-object-storage)
-            + [S3 compatible](products/public-cloud-storage-object-storage-s3)
+            + [S3 compatible](products/public-cloud-storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
                 + [Key Concepts](products/public-cloud-storage-object-storage-s3-key-concepts)
                     + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
                     + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
@@ -2273,7 +2273,7 @@
 + Storage and Backup
     + [Object Storage](products/storage-object-storage)
         + [Overview](storage-and-backup/object-storage/overview)
-        + [S3 compatible](products/storage-object-storage-s3)
+        + [S3 compatible](products/storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
             + [Key Concepts](products/storage-object-storage-s3-key-concepts)
                 + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
                 + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
