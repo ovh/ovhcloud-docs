@@ -2,11 +2,14 @@
 
 ## 2026.08.31
 
+### Features
+- **billing:** add FR guide for entering a commitment number
+
 ### Fixes
 - **i18n:** add EN fallback symlinks for 6 sidebar guides
 
 ### Documentation
-- 32 guides updated across de, en, es, fr, it, pl, pt
+- 60 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.08.28
 
