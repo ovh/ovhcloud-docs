@@ -3,13 +3,15 @@
 ## 2026.08.31
 
 ### Features
+- **object-storage:** add Object Storage landing page (#697)
+- **block storage:** new guide about configuration of ocfs2 (#344)
 - **billing:** add FR guide for entering a commitment number
 
 ### Fixes
 - **i18n:** add EN fallback symlinks for 6 sidebar guides
 
 ### Documentation
-- 60 guides updated across de, en, es, fr, it, pl, pt
+- 146 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.08.28
 
