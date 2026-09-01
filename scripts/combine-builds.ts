@@ -448,7 +448,12 @@ const EXCLUDE_SELECTORS =
   '.rp-sidebar, .rp-outline, .rp-nav, .rp-doc-layout__sidebar, ' +
   '.rp-doc-layout__outline, .rspress-breadcrumbs, .rp-doc-footer, ' +
   '.rp-home-layout__content, .rp-search-button, .rp-callout__title, button, ' +
-  '.header-anchor, [data-pagefind-ignore], .ovh-api-main, .ovh-api-region-select';
+  '.header-anchor, [data-pagefind-ignore], .ovh-api-main, .ovh-api-region-select, ' +
+  // The "View as Markdown" / PDF / Ask-AI toolbar renders inside `.rp-doc`
+  // right after the <h1>. `button` covers the two <button> controls, but the
+  // Markdown link is an <a> and leaked its label into every result excerpt.
+  // Excluding the container covers anything added to the toolbar later.
+  '.rp-llms-container, .rp-llms-view-options__trigger';
 
 const indexResults = await Promise.allSettled(
   builtLocales.map(async (locale) => {
