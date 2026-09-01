@@ -2,8 +2,11 @@
 
 ## 2026.09.01
 
+### Fixes
+- **account:** replace non-standard e-invoicing motif codes
+
 ### Documentation
-- 29 guides updated across de, en, es, fr, it, pl, pt
+- 32 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.08.31
 
