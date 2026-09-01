@@ -1,1 +1,469 @@
-../../../../en/guides/public-cloud/ai-machine-learning/ai-endpoints-batch-mode.mdx
+---
+title: AI Endpoints - Utiliser le mode Batch
+description: Découvrez comment exécuter de grands volumes de requêtes d'inférence de manière asynchrone sur OVHcloud AI Endpoints à l'aide de l'API Batch compatible OpenAI
+lastUpdated: 2026-07-21
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+:::info
+AI Endpoints est couvert par les **[Conditions particulières OVHcloud Public Cloud](https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-fr.pdf)** (voir l’Annexe 10 – « Conditions spécifiques – AI Endpoints »).
+:::
+
+## Introduction
+
+[AI Endpoints](/links/public-cloud/ai-endpoints) est une plateforme serverless proposée par OVHcloud qui offre un accès simplifié à une sélection de modèles d'IA pré-entraînés, mondialement reconnus.
+
+L'**API Batch** (`/v1/batches`) est une route **compatible OpenAI** qui vous permet de soumettre un grand nombre de requêtes d'inférence en un seul job asynchrone, plutôt que de les envoyer une par une via des endpoints synchrones tels que `/v1/chat/completions` ou `/v1/responses`.
+
+Le mode Batch est idéal lorsque vous n'avez pas besoin d'une réponse immédiate, mais souhaitez plutôt traiter un volume important de prompts (évaluations, étiquetage hors ligne, génération de contenu à grande échelle, préparation de jeux de données, etc.) de manière **économique** et **orientée débit**. Les jobs Batch disposent par défaut d'une fenêtre de complétion de **48 heures**. Tout job non terminé dans ce délai expirera. Vous pouvez choisir entre 24, 48 et 72 heures.
+
+<img className="thumbnail" alt="AI Endpoints batch mode workflow diagram" src="/images/public-cloud/ai-machine-learning/ai-endpoints-batch-mode/batch-mode-workflow.png" loading="lazy" />
+
+## Objectif
+
+Ce guide explique la route `/v1/batches` sur [AI Endpoints](/links/public-cloud/ai-endpoints), notamment :
+
+- Le déroulement type d'un workflow batch de bout en bout
+- La préparation d'un fichier d'entrée JSONL
+- Des exemples d'utilisation en **Python**, **JavaScript** et **cURL**
+- La récupération et l'analyse des résultats du batch
+- Les limites connues de la plateforme
+
+**Ce guide explique comment utiliser l'API `/v1/batches` pour exécuter des requêtes d'inférence de manière asynchrone sur OVHcloud AI Endpoints.**
+
+## Prérequis
+
+- Accès à l'<ManagerLink to="/">espace client OVHcloud</ManagerLink>
+- Un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud
+- Une clé API AI Endpoints (voir [AI Endpoints - Premiers pas](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started))
+
+Les exemples fournis dans ce guide peuvent être utilisés avec l'un des environnements suivants :
+
+<Tabs>
+  <Tab label="Python">
+    Un environnement [Python](https://www.python.org/) avec le [client openai](https://pypi.org/project/openai/).
+
+    ```sh
+    pip install openai
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    Un environnement [Node.js](https://nodejs.org/en) avec le SDK officiel [openai](https://www.npmjs.com/package/openai).
+
+    ```sh
+    npm install openai
+    ```
+  </Tab>
+  <Tab label="cURL">
+    Un terminal standard avec cURL installé sur votre système.
+  </Tab>
+</Tabs>
+
+## Authentification
+
+Les exemples fournis dans ce guide utilisent le mode authentifié et supposent que la variable d'environnement `AI_ENDPOINT_API_KEY` est définie. Le mode anonyme n'est pas disponible avec les endpoints batch et files.
+
+Pour spécifier votre propre clé API, définissez-la dans l'environnement (`export AI_ENDPOINT_API_KEY='your_api_key'`).
+
+Consultez le guide [AI Endpoints - Premiers pas](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started) pour plus de détails sur l'authentification.
+
+## Fonctionnement du mode Batch
+
+Un job batch est traité en **quatre étapes** :
+
+1. **Préparer** un fichier JSONL où chaque ligne décrit une requête unique (modèle, endpoint, corps).
+2. **Envoyer** ce fichier à AI Endpoints via l'API Files (`/v1/files`) avec `purpose="batch"`.
+3. **Créer** un batch (`/v1/batches`) référençant le fichier envoyé et l'endpoint cible.
+4. **Interroger** le statut du batch jusqu'à ce qu'il soit `completed`, puis **télécharger** le fichier de sortie (et le fichier d'erreurs, le cas échéant).
+
+<img className="thumbnail" alt="Schéma des quatre étapes du cycle de vie d'un job batch" src="/images/public-cloud/ai-machine-learning/ai-endpoints-batch-mode/batch-mode-lifecycle.png" loading="lazy" />
+
+Chaque ligne du fichier d'entrée est traitée indépendamment. Les réponses réussies sont écrites dans le **fichier de sortie**, les échecs dans le **fichier d'erreurs**. Les deux fichiers sont récupérés via l'API Files.
+
+## Préparer le fichier d'entrée (JSONL)
+
+Le fichier d'entrée doit être au format [JSON Lines](https://jsonlines.org/) (`.jsonl`) : un objet JSON par ligne, sans virgule finale ni tableau englobant.
+
+:::warning
+**Limites du mode Batch :**
+
+- **Taille de fichier :** 200 Mo maximum par fichier d'entrée
+- **Entrées :** 50 000 entrées (requêtes) maximum par batch
+- **Concurrence :** 5 batchs simultanés en cours maximum
+
+Si vous devez traiter plus de 50 000 requêtes ou des fichiers de plus de 200 Mo, répartissez votre charge de travail sur plusieurs batchs.
+:::
+
+Chaque ligne représente **une requête indépendante** et doit contenir les champs suivants :
+
+| Champ       | Description                                                                                               |
+|-------------|-----------------------------------------------------------------------------------------------------------|
+| `custom_id` | Une chaîne unique de votre choix. Elle est renvoyée dans la sortie afin que vous puissiez corréler chaque résultat à son entrée. |
+| `method`    | Méthode HTTP de l'endpoint ciblé, généralement `POST`.                                                    |
+| `url`       | Le chemin relatif de l'endpoint d'inférence à appeler, par exemple `/v1/chat/completions` ou `/v1/responses`.                   |
+| `body`      | Le corps JSON qui serait normalement envoyé à l'endpoint synchrone (même schéma que `/v1/chat/completions` ou `/v1/responses`). |
+
+Exemple de fichier `requests.jsonl` avec deux requêtes :
+
+```json
+{"custom_id": "request-1", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "gpt-oss-20b", "messages": [{"role": "user", "content": "Summarise the plot of Hamlet in two sentences."}]}}
+{"custom_id": "request-2", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "gpt-oss-20b", "messages": [{"role": "user", "content": "Translate 'Good morning' into French, Spanish and German."}]}}
+```
+
+:::info
+Les valeurs de `custom_id` doivent être **uniques au sein d'un même batch**. C'est le seul moyen fiable d'associer les sorties à vos entrées d'origine, car l'ordre du fichier de sortie n'est pas garanti.
+:::
+
+## Démarrage rapide
+
+Les exemples suivants parcourent le cycle de vie complet d'un batch : envoi du fichier d'entrée, création du batch, vérification de son statut et téléchargement des résultats.
+
+### 1. Envoyer le fichier d'entrée
+
+Envoyez le fichier `.jsonl` à l'API Files avec `purpose="batch"`. La réponse contient un identifiant de fichier (par exemple `file-abc123`) que vous référencerez lors de la création du batch.
+
+<Tabs>
+  <Tab label="Python">
+    ```python
+    import os
+    from openai import OpenAI
+
+    api_key = os.environ["AI_ENDPOINT_API_KEY"]  # export AI_ENDPOINT_API_KEY='your_api_key'
+
+    client = OpenAI(
+        base_url="https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+        api_key=api_key,
+    )
+
+    batch_input_file = client.files.create(
+        file=open("requests.jsonl", "rb"),
+        purpose="batch",
+    )
+
+    print(batch_input_file.id)
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    ```javascript
+    import fs from "node:fs";
+    import OpenAI from "openai";
+
+    const client = new OpenAI({
+      baseURL: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+      apiKey: process.env.AI_ENDPOINT_API_KEY || "", // Read from environment variable
+    });
+
+    const batchInputFile = await client.files.create({
+      file: fs.createReadStream("requests.jsonl"),
+      purpose: "batch",
+    });
+
+    console.log(batchInputFile.id);
+    ```
+  </Tab>
+  <Tab label="cURL">
+    ```sh
+    curl https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/files \
+      -H "Authorization: Bearer $AI_ENDPOINT_API_KEY" \
+      -F purpose="batch" \
+      -F file="@requests.jsonl"
+    ```
+  </Tab>
+</Tabs>
+
+### 2. Créer le batch
+
+Créez un batch en référençant l'identifiant du fichier envoyé, l'endpoint cible et la fenêtre de complétion.
+
+<Tabs>
+  <Tab label="Python">
+    ```python
+    batch = client.batches.create(
+        input_file_id=batch_input_file.id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h",
+        metadata={"description": "Evaluation run - April 2026"},
+    )
+
+    print(batch.id, batch.status)
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    ```javascript
+    const batch = await client.batches.create({
+      input_file_id: batchInputFile.id,
+      endpoint: "/v1/chat/completions",
+      completion_window: "24h",
+      metadata: { description: "Evaluation run - April 2026" },
+    });
+
+    console.log(batch.id, batch.status);
+    ```
+  </Tab>
+  <Tab label="cURL">
+    ```sh
+    curl https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/batches \
+      -H "Authorization: Bearer $AI_ENDPOINT_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "input_file_id": "file-abc123",
+        "endpoint": "/v1/chat/completions",
+        "completion_window": "24h",
+        "metadata": {"description": "Evaluation run - April 2026"}
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+La réponse contient l'objet batch avec son identifiant et un statut initial (généralement `validating`).
+
+### 3. Vérifier le statut du batch
+
+Les batchs sont asynchrones. Interrogez l'objet batch jusqu'à ce qu'il atteigne un état final (`completed`, `failed`, `expired` ou `cancelled`).
+
+<Tabs>
+  <Tab label="Python">
+    ```python
+    import time
+
+    while True:
+        current = client.batches.retrieve(batch.id)
+        print(current.status, current.request_counts)
+        if current.status in ("completed", "failed", "expired", "cancelled"):
+            break
+        time.sleep(30)
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    ```javascript
+    while (true) {
+      const current = await client.batches.retrieve(batch.id);
+      console.log(current.status, current.request_counts);
+      if (["completed", "failed", "expired", "cancelled"].includes(current.status)) break;
+      await new Promise((r) => setTimeout(r, 30_000));
+    }
+    ```
+  </Tab>
+  <Tab label="cURL">
+    ```sh
+    curl https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/batches/batch_abc123 \
+      -H "Authorization: Bearer $AI_ENDPOINT_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+Un objet batch progresse à travers les états suivants :
+
+| Statut        | Signification                                                                               |
+|---------------|---------------------------------------------------------------------------------------|
+| `validating`  | Le fichier d'entrée est en cours de validation avant le démarrage du traitement.                           |
+| `failed`      | Le fichier d'entrée n'a pas passé la validation.                                               |
+| `in_progress` | Le batch est en cours de traitement.                                               |
+| `finalizing`  | Le traitement est terminé. Les résultats sont en cours de compilation dans le fichier de sortie.              |
+| `completed`   | Le batch s'est terminé avec succès. Le fichier de sortie (et le fichier d'erreurs le cas échéant) sont prêts.       |
+| `expired`     | Le batch n'a pas pu être terminé dans la fenêtre de complétion demandée.              |
+| `cancelling`  | Une annulation a été demandée et est en cours d'application.                               |
+| `cancelled`   | Le batch a été annulé par l'utilisateur.                                             |
+
+Le champ `request_counts` indique les compteurs `total`, `completed` et `failed` pour les requêtes individuelles. C'est le moyen le plus simple de suivre la progression.
+
+### 4. Télécharger les résultats
+
+Une fois que le batch atteint l'état `completed`, l'objet batch expose deux identifiants de fichiers :
+
+- `output_file_id` : fichier JSONL contenant les réponses réussies.
+- `error_file_id` : fichier JSONL contenant les requêtes échouées (présent uniquement si au moins une requête a échoué).
+
+Récupérez leur contenu via l'API Files :
+
+<Tabs>
+  <Tab label="Python">
+    ```python
+    final = client.batches.retrieve(batch.id)
+
+    if final.output_file_id:
+        output = client.files.content(final.output_file_id)
+        with open("results.jsonl", "wb") as f:
+            f.write(output.read())
+
+    if final.error_file_id:
+        errors = client.files.content(final.error_file_id)
+        with open("errors.jsonl", "wb") as f:
+            f.write(errors.read())
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    ```javascript
+    import fs from "node:fs";
+
+    const finalBatch = await client.batches.retrieve(batch.id);
+
+    if (finalBatch.output_file_id) {
+      const output = await client.files.content(finalBatch.output_file_id);
+      fs.writeFileSync("results.jsonl", Buffer.from(await output.arrayBuffer()));
+    }
+
+    if (finalBatch.error_file_id) {
+      const errors = await client.files.content(finalBatch.error_file_id);
+      fs.writeFileSync("errors.jsonl", Buffer.from(await errors.arrayBuffer()));
+    }
+    ```
+  </Tab>
+  <Tab label="cURL">
+    ```sh
+    curl https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/files/file-xyz789/content \
+      -H "Authorization: Bearer $AI_ENDPOINT_API_KEY" \
+      -o results.jsonl
+    ```
+  </Tab>
+</Tabs>
+
+:::info
+Les fichiers de sortie et d'erreurs sont automatiquement supprimés après 15 jours.
+:::
+
+## Format du fichier de sortie
+
+Chaque ligne du fichier de sortie est un objet JSON correspondant à une ligne d'entrée, avec la structure suivante :
+
+```json
+{
+  "id": "batch_req_abc123",
+  "custom_id": "request-1",
+  "response": {
+    "status_code": 200,
+    "request_id": "req_...",
+    "body": {
+      "id": "chatcmpl-...",
+      "object": "chat.completion",
+      "model": "gpt-oss-20b",
+      "choices": [
+        {
+          "index": 0,
+          "message": {"role": "assistant", "content": "..."},
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {"prompt_tokens": 42, "completion_tokens": 128, "total_tokens": 170}
+    }
+  },
+  "error": null
+}
+```
+
+Le champ `body` reflète exactement ce que l'endpoint synchrone aurait renvoyé pour la requête correspondante, ce qui signifie que vous pouvez réutiliser le même code d'analyse que celui déjà utilisé pour `/v1/chat/completions` ou `/v1/responses`.
+
+Utilisez le champ `custom_id` pour associer chaque réponse à votre entrée d'origine, car l'ordre du fichier de sortie n'est pas garanti.
+
+Les requêtes échouées sont écrites dans le **fichier d'erreurs** avec un objet `error` renseigné à la place de `response.body`.
+
+## Lister et annuler des batchs
+
+### Lister vos batchs
+
+<Tabs>
+  <Tab label="Python">
+    ```python
+    for b in client.batches.list(limit=20):
+        print(b.id, b.status, b.created_at)
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    ```javascript
+    const page = await client.batches.list({ limit: 20 });
+    for (const b of page.data) {
+      console.log(b.id, b.status, b.created_at);
+    }
+    ```
+  </Tab>
+  <Tab label="cURL">
+    ```sh
+    curl "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/batches?limit=20" \
+      -H "Authorization: Bearer $AI_ENDPOINT_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+### Annuler un batch
+
+Un batch peut être annulé tant qu'il est dans l'état `validating` ou `in_progress`. Les requêtes déjà traitées restent disponibles dans le fichier de sortie.
+
+<Tabs>
+  <Tab label="Python">
+    ```python
+    client.batches.cancel(batch.id)
+    ```
+  </Tab>
+  <Tab label="JavaScript">
+    ```javascript
+    await client.batches.cancel(batch.id);
+    ```
+  </Tab>
+  <Tab label="cURL">
+    ```sh
+    curl -X POST https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/batches/batch_abc123/cancel \
+      -H "Authorization: Bearer $AI_ENDPOINT_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+## Quand utiliser le mode Batch
+
+Le mode Batch est adapté lorsque :
+
+- Vous avez un **volume important** de prompts à traiter (milliers à millions).
+- Vous n'avez **pas** besoin d'une réponse en temps réel : un résultat sous quelques heures est acceptable.
+- Votre charge de travail est **massivement parallélisable** : chaque requête est indépendante des autres.
+
+Les cas d'usage typiques incluent :
+
+- **L'annotation et l'étiquetage de jeux de données** (classification, tagging, résumé).
+- **L'évaluation hors ligne** d'un modèle ou d'un prompt sur un jeu de données de référence.
+- **La génération de contenu en masse** (descriptions produits, contenu SEO, traductions).
+- **L'enrichissement rétrospectif** de logs, tickets, ou de tout corpus historique.
+
+Pour les charges de travail interactives (interfaces de chat, outils à faible latence, agents en temps réel), privilégiez les routes synchrones [`/v1/chat/completions`](/guides/public-cloud/ai-machine-learning/ai-endpoints-capabilities) ou [`/v1/responses`](/guides/public-cloud/ai-machine-learning/ai-endpoints-responses-api).
+
+## Limites de l'endpoint
+
+L'endpoint `/v1/batches` est encore en cours de développement et toutes les fonctionnalités ne sont pas forcément encore disponibles.
+Si vous êtes intéressé par des fonctionnalités spécifiques que vous souhaiteriez nous voir prioriser, faites-le nous savoir sur le [serveur Discord](https://discord.gg/ovhcloud) OVHcloud.
+
+### Quotas du mode Batch
+
+| Limite | Valeur |
+|------------|-------|
+| Taille de fichier maximale | 200 Mo par fichier d'entrée |
+| Nombre maximal d'entrées par batch | 50 000 requêtes |
+| Nombre maximal de batchs simultanés | 5 en cours |
+
+Si votre charge de travail dépasse les limites de taille de fichier ou de nombre d'entrées, répartissez-la sur plusieurs batchs. Les batchs au-delà de la limite de concurrence doivent attendre qu'un emplacement se libère.
+
+### Limites de la plateforme
+
+- Toutes les requêtes au sein d'un même batch doivent cibler le **même endpoint** (celui déclaré à la création du batch).
+- Un batch ne peut pas référencer des modèles indisponibles dans le [catalogue](/links/public-cloud/ai-endpoints-catalog) AI Endpoints.
+- Actuellement, nous n'acceptons les requêtes batch que pour nos modèles de **LLM et d'embeddings**.
+- Les fichiers d'entrée doivent être des JSONL valides avec des valeurs `custom_id` uniques ; les lignes malformées entraînent le passage du batch à l'état `failed` lors de la validation.
+- Le `completion_window` accepte `24h`, `48h` et `72h`. Les batchs ne pouvant pas être terminés dans cette fenêtre passent à l'état `expired`.
+- Les fichiers de sortie et d'erreurs sont soumis à la politique de rétention de l'**API Files**. Téléchargez-les dès que possible une fois le batch `completed`.
+- Les limites spécifiques à chaque modèle (longueur de contexte, sorties structurées, appel de fonctions, etc.) documentées pour la route synchrone s'appliquent également aux requêtes correspondantes au sein d'un batch.
+
+## Conclusion
+
+L'**API Batch** offre un moyen économique et asynchrone d'exécuter de grands volumes de requêtes d'inférence sur **AI Endpoints** d'OVHcloud. En réutilisant le même corps de requête que les endpoints synchrones, elle s'intègre naturellement aux intégrations existantes basées sur `v1/chat/completions` ou `v1/responses`.
+
+Pour maximiser le taux de réussite, vérifiez les fonctionnalités prises en charge pour le modèle choisi dans le [catalogue AI Endpoints](/links/public-cloud/ai-endpoints-catalog), conservez des valeurs `custom_id` uniques, et corrélez toujours les résultats via `custom_id` plutôt que de vous fier à l'ordre des fichiers.
+
+## Aller plus loin
+
+Parcourez la [documentation AI Endpoints](/guides/public-cloud/ai-machine-learning/overview) complète pour découvrir d'autres guides et tutoriels.
+
+Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) pour obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l’équipe Professional Services.
+
+## Nous voulons vos retours !
+
+N’hésitez pas à nous faire part de vos questions, retours et suggestions pour améliorer le service :
+
+- Sur le [serveur Discord OVHcloud](https://discord.gg/ovhcloud)

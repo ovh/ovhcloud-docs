@@ -11,7 +11,10 @@ const LOCALE_CODES = new Set(['fr', 'en', 'de', 'es', 'it', 'pl', 'pt']);
 function localeAndPathFromLink(link: string) {
   const parts = link.split('/').filter(Boolean);
   if (LOCALE_CODES.has(parts[0])) {
-    return { locale: parts[0], pathWithoutLocale: `/${parts.slice(1).join('/')}` };
+    return {
+      locale: parts[0],
+      pathWithoutLocale: `/${parts.slice(1).join('/')}`,
+    };
   }
   return { locale: 'fr', pathWithoutLocale: link };
 }
@@ -33,6 +36,12 @@ export function NavScreenLangs() {
 
   return (
     <>
+      {/*
+        Must stay a <div role="button"> — this whole menu is rendered inside
+        NavHamburger's own <button>, and a nested <button> is invalid HTML
+        (React hydration error). Hence the manual keyboard handling below.
+      */}
+      {/* biome-ignore lint/a11y/useSemanticElements: nested inside NavHamburger's <button>, can't be a real <button> */}
       <div
         role="button"
         tabIndex={0}
@@ -75,8 +84,13 @@ export function NavScreenLangs() {
             // Resolve at render time so the `href` itself points to the
             // correct destination (locale home if page missing in target locale).
             // SEO robots and JS-disabled clients get the same final URL.
-            const { locale, pathWithoutLocale } = localeAndPathFromLink(item.link);
-            const resolvedHref = resolveLocaleSwitchUrl(pathWithoutLocale, locale);
+            const { locale, pathWithoutLocale } = localeAndPathFromLink(
+              item.link,
+            );
+            const resolvedHref = resolveLocaleSwitchUrl(
+              pathWithoutLocale,
+              locale,
+            );
             return isActive ? (
               <span
                 key={item.text}

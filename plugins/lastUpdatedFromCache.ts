@@ -45,37 +45,41 @@ function formatDate(timestamp: number, lang: string): string {
 }
 
 /**
- * Read the `lastUpdated` or `updated` frontmatter field from an MDX file.
- * Returns a timestamp (ms) or null if not found.
+ * Coerce a frontmatter date value to a timestamp (ms), or null.
+ *
+ * The value comes straight from the YAML parser, so an unquoted `2026-08-12`
+ * arrives as a Date while a quoted one arrives as a string — handle both, plus
+ * an already-numeric epoch.
  */
-function readFrontmatterDate(filepath: string): number | null {
-  try {
-    const head = fs.readFileSync(filepath, 'utf-8').slice(0, 1000);
-    const fmMatch = head.match(/^---\s*\n([\s\S]*?)\n---/);
-    if (!fmMatch) return null;
-
-    const fm = fmMatch[1];
-    // Try lastUpdated first, then updated
-    const dateMatch =
-      fm.match(/^lastUpdated:\s*(.+)$/m) || fm.match(/^updated:\s*(.+)$/m);
-    if (!dateMatch) return null;
-
-    const dateStr = dateMatch[1].trim().replace(/['"]/g, '');
-    const ts = new Date(dateStr).getTime();
+function toTimestamp(value: unknown): number | null {
+  if (value instanceof Date) {
+    const ts = value.getTime();
     return Number.isNaN(ts) ? null : ts;
-  } catch {
-    return null;
   }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const ts = new Date(value.trim()).getTime();
+    return Number.isNaN(ts) ? null : ts;
+  }
+  return null;
 }
 
 export function pluginLastUpdatedFromCache(): RspressPlugin {
   return {
     name: 'plugin-last-updated-from-cache',
     async extendPageData(pageData) {
-      const { _filepath, lang } = pageData;
+      const { _filepath, lang, frontmatter } = pageData;
 
-      // Priority 1: frontmatter lastUpdated/updated field
-      const fmDate = readFrontmatterDate(_filepath);
+      // Priority 1: frontmatter lastUpdated/updated field. Rspress has already
+      // parsed the frontmatter by the time extendPageData runs (see
+      // node/runtimeModule/pageData/createPageData.js — extractPageData
+      // populates `frontmatter`, then extendPageData is awaited), so reading it
+      // here avoids re-reading every MDX file from disk.
+      const fmDate =
+        toTimestamp(frontmatter?.lastUpdated) ??
+        toTimestamp(frontmatter?.updated);
       if (fmDate) {
         pageData.lastUpdatedTime = formatDate(fmDate, lang || 'en');
         return;

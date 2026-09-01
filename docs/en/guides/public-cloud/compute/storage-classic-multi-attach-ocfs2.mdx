@@ -1,0 +1,236 @@
+---
+title: Configure Classic Multi-Attach Block Storage with OCFS2
+description: Learn how to set up a shared OCFS2 cluster filesystem across multiple instances using a Classic Multi-Attach Block Storage volume in 3AZ regions
+lastUpdated: 2026-06-22
+---
+
+## Introduction
+
+When using [Classic Multi-Attach Block Storage](/guides/public-cloud/compute/storage-classic-multi-attach-3az), multiple instances can read and write to the same volume simultaneously. Standard filesystems such as EXT4 or XFS are not designed for concurrent multi-node access and can lead to data corruption in this scenario.
+
+OCFS2 (Oracle Cluster File System 2) is a cluster-aware filesystem that coordinates concurrent writes across nodes, making it a suitable choice for Classic Multi-Attach volumes.
+
+This guide walks through creating a 3-node OCFS2 cluster backed by a single `classic-multiattach` block volume in a 3AZ Public Cloud region.
+
+:::warning
+The `classic-multiattach` volume type is only available in 3AZ regions (e.g., Paris).
+:::
+
+## Requirements
+
+- An [OpenStack client installed and configured](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment)
+- An OVHcloud Public Cloud project in a 3AZ region
+
+## Architecture overview
+
+The setup consists of 3 instances — one per availability zone — all attached to the same multi-attach volume, connected via a shared private network.
+
+```text
+3AZ Public Cloud Region
+┌──────────────────────────────────────────────────────────────┐
+│  Zone A           │  Zone B           │  Zone C              │
+│  ┌─────────────┐  │  ┌─────────────┐  │  ┌─────────────┐     │
+│  │ Instance A  │  │  │ Instance B  │  │  │ Instance C  │     │
+│  └──────┬──────┘  │  └──────┬──────┘  │  └──────┬──────┘     │
+│         │         │         │         │         │            │
+│  ┌──────┴─────────┴─────────┴─────────┴─────────┴─────────┐  │
+│  │              Private Network (OCFS2 cluster)           │  │
+│  └─────────────────────────┬──────────────────────────────┘  │
+│                            │                                 │
+│                ┌───────────┴────────────┐                    │
+│                │  Block Volume          │                    │
+│                │  (classic-multiattach) │                    │
+│                └────────────────────────┘                    │
+│  ┌──────────┐                                                │
+│  │ Gateway  │  (internet access)                             │
+│  └──────────┘                                                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Create the infrastructure
+
+**Create a private network and subnet**
+
+```bash
+openstack network create \
+  --provider-network-type vrack \
+  --provider-segment 10 \
+  classic-multiattach-private-network
+
+openstack subnet create \
+  --dhcp \
+  --network classic-multiattach-private-network \
+  --subnet-range 10.1.0.0/16 \
+  --dns-nameserver 213.186.33.99 \
+  classic-multiattach-private-subnet
+```
+
+**Create a gateway**
+
+```bash
+openstack router create --external-gateway Ext-Net classic-multiattach-gateway
+openstack router add subnet classic-multiattach-gateway classic-multiattach-private-subnet
+```
+
+**Create the multi-attach block volume**
+
+```bash
+openstack volume create \
+  --size 10 \
+  --type classic-multiattach \
+  classic-multiattach-block-volume
+```
+
+**Create an SSH keypair** (skip if you already have one)
+
+```bash
+openstack keypair create --public-key ~/.ssh/id_rsa.pub classic-multiattach-keypair
+```
+
+**Create three instances, one per availability zone**
+
+```bash
+for i in {a..c}; do
+  openstack server create \
+    --flavor b3-8 \
+    --image 'Ubuntu 24.04' \
+    --network classic-multiattach-private-network \
+    --key-name classic-multiattach-keypair \
+    --availability-zone $(echo $OS_REGION_NAME | tr '[:upper:]' '[:lower:]')-$i \
+    classic-multiattach-instance-$i
+done
+```
+
+**Attach the volume to all three instances**
+
+```bash
+for i in {a..c}; do
+  openstack server add volume classic-multiattach-instance-$i classic-multiattach-block-volume
+done
+```
+
+**Attach a floating IP to instance-a** (for SSH access)
+
+```bash
+openstack floating ip create Ext-Net
+openstack server add floating ip classic-multiattach-instance-a <YOUR_FLOATING_IP>
+```
+
+**Retrieve the private IP of each instance**
+
+```bash
+for i in {a..c}; do
+  echo -n "classic-multiattach-instance-$i: " && \
+  openstack server show classic-multiattach-instance-$i -c addresses -f json \
+    | jq -r '.addresses."classic-multiattach-private-network"[0]'
+done
+```
+
+Note down the three private IPs — you will need them in the OCFS2 configuration.
+
+## Configure OCFS2
+
+The following steps must be performed on **all three instances**. Start with instance-a (via floating IP), then SSH from instance-a to instance-b and instance-c using agent forwarding.
+
+**SSH to instance-a**
+
+```bash
+ssh -A ubuntu@<YOUR_FLOATING_IP>
+```
+
+### On each instance: install OCFS2
+
+```bash
+sudo apt-get update
+sudo apt-get install ocfs2-tools linux-modules-extra-$(uname -r)
+```
+
+### On each instance: create the cluster configuration
+
+```bash
+sudo vim /etc/ocfs2/cluster.conf
+```
+
+```ini
+cluster:
+  name = ocfs2
+  heartbeat_mode = local
+  node_count = 3
+
+node:
+  number = 1
+  name = classic-multiattach-instance-a
+  ip_address = <YOUR_INSTANCE_A_PRIVATE_IP>
+  ip_port = 7777
+  cluster = ocfs2
+
+node:
+  number = 2
+  name = classic-multiattach-instance-b
+  ip_address = <YOUR_INSTANCE_B_PRIVATE_IP>
+  ip_port = 7777
+  cluster = ocfs2
+
+node:
+  number = 3
+  name = classic-multiattach-instance-c
+  ip_address = <YOUR_INSTANCE_C_PRIVATE_IP>
+  ip_port = 7777
+  cluster = ocfs2
+```
+
+### On each instance: enable the O2CB cluster service
+
+```bash
+sudo sed -i 's/O2CB_ENABLED=false/O2CB_ENABLED=true/' /etc/default/o2cb
+sudo systemctl restart o2cb
+```
+
+### On instance-a only: format the volume with OCFS2
+
+This step must be performed **once only** on one node.
+
+The `-N` option sets the maximum number of node slots for the filesystem. This value can be increased later with `tunefs.ocfs2`, but it can never be reduced, so it is set here to match the 3 nodes used in this cluster.
+
+```bash
+sudo mkfs.ocfs2 -N 3 /dev/sdb
+```
+
+### On each instance: mount the filesystem
+
+```bash
+sudo mount.ocfs2 /dev/sdb /mnt
+sudo -s
+echo "/dev/sdb /mnt ocfs2 _netdev,defaults 0 0" >> /etc/fstab
+exit
+```
+
+## Verify the cluster
+
+**On instance-a**, write a test file:
+
+```bash
+cd /mnt
+sudo touch test
+```
+
+**SSH to instance-b** from instance-a:
+
+```bash
+ssh ubuntu@<YOUR_INSTANCE_B_PRIVATE_IP>
+```
+
+**Verify the file is visible**:
+
+```bash
+ls -la /mnt/test
+```
+
+If the file appears, the OCFS2 cluster is functioning correctly and the shared volume is accessible from all nodes.
+
+## Go further
+
+- For automated deployment using Terraform, see the [public-cloud-examples repository](https://github.com/ovh/public-cloud-examples/tree/main/storage/block-storage-classic-multiattach-ocfs2)
+- [Proper usage and limitations of Classic Multi-Attach Block Storage](/guides/public-cloud/compute/storage-classic-multi-attach-3az)
+
+Join our [community of users](/links/community).

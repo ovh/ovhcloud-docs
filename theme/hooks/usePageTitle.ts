@@ -15,9 +15,7 @@ export function usePageTitle(pageTitle: string | undefined): void {
   const { site } = useSite();
   const localesData = useLocaleSiteData();
   const mainTitle = site.title || localesData.title || '';
-  const title = pageTitle
-    ? `${pageTitle.trim()} - ${mainTitle}`
-    : mainTitle;
+  const title = pageTitle ? `${pageTitle.trim()} - ${mainTitle}` : mainTitle;
   useHead({
     title,
     meta: [{ property: 'og:title', content: title }],

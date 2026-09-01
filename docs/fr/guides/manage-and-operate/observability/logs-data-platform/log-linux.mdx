@@ -1,1 +1,163 @@
-../../../../../en/guides/manage-and-operate/observability/logs-data-platform/log-linux.mdx
+---
+title: Envoyer des logs avec un forwarder - Syslog-ng 3.12.1+ (Linux)
+description: Découvrez comment envoyer les logs de votre instance Linux vers Logs Data Platform
+lastUpdated: 2024-03-08
+---
+
+## Objectif
+
+Vous avez un serveur, un Raspberry Pi, une instance cloud ou toute autre machine tournant sous **Linux**, et vous souhaitez suivre vos logs simplement ? Vous n'avez jamais installé de collecteur de logs et Graylog est nouveau pour vous ?
+
+Alors ce tutoriel est fait pour vous !
+
+Dans ce tutoriel, nous allons vous montrer comment envoyer les logs de votre instance Linux vers Logs Data Platform. Ne vous inquiétez pas, ce sera plus simple que vous ne le pensez.
+
+## Prérequis
+
+- Une instance basée sur **Linux** (serveur, VPS, instance Cloud, Raspberry Pi, etc.). Les lignes de commande de ce tutoriel concerneront **DEBIAN 12**.
+- Un accès root à cette instance
+- [Avoir activé votre compte Logs Data Platform](https://www.ovh.com/fr/order/express/#/new/express/resume?products=~%28~%28planCode~%27logs-account~productId~%27logs%29)
+- [Avoir créé au moins un flux et récupéré son jeton](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start)
+
+## En pratique
+
+### Pourquoi ?
+
+Sous Linux, les logs sont générés automatiquement pour une grande variété d'actions : utilisation excessive de ressources, téléchargements de fichiers, tentatives de connexion, panne réseau, et à peu près tout le reste. Mais les logs peuvent être difficiles à lire sans les bons outils. Avec cette plateforme, vous pourrez trier vos logs et créer des tableaux de bord utiles (ou originaux).
+
+### Que sont les logs ?
+
+Voici quelques exemples de logs provenant d'une instance OVHcloud Public Cloud sous **Debian 12** :
+
+```text
+ Jan 27 12:21:15 server syslog-ng[29512]: syslog-ng starting up; version='3.8.1'
+ Jan 27 12:21:15 server syslog-ng[29512]: Syslog connection established; fd='10', server='AF_INET(51.38.195.65:6514)', local='AF_INET(0.0.0.0:0)'
+ Jan 29 15:32:23 server sshd[9563]: Received disconnect from 211.110.82.180: 11: Bye Bye [preauth]
+ Jan 29 18:39:24 server sshd[29694]: Failed password for root from 59.45.79.51 port 39827 ssh2
+```
+
+Conclusion : beaucoup d'informations, avec une date, un processus, une description, mais difficile à suivre.
+
+### Configurer votre compte
+
+La première chose à faire est de configurer votre compte Logs Data Platform : [créez votre utilisateur](https://www.ovh.com/fr/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs)), un flux et un tableau de bord. Vérifiez que tout fonctionne déjà parfaitement. Nous avons rédigé un guide indépendant à ce sujet ; merci de le lire et de revenir ici ensuite : [Démarrage rapide](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start). Vous l'avez lu ? Passons alors à l'étape suivante !
+
+### Installer et configurer un collecteur de logs
+
+Supposons donc que vous disposiez de votre instance Linux. Ce tutoriel **NE COUVRE PAS** entièrement la configuration des autres variantes de syslog ni des autres systèmes d'exploitation. Veuillez vous référer à leur propre documentation pour savoir comment configurer une source, un filtre et une destination externe pour les logs. Vous pouvez tout de même lire l'intégralité de ce document pour comprendre comment la configuration est construite. Cette configuration devrait néanmoins fonctionner avec toute version de syslog-ng supérieure à 3.12.1.
+
+Nous allons installer un collecteur de logs. Qu'est-ce que c'est ? C'est un outil qui collecte les logs depuis n'importe quelle source, les traite et les livre vers diverses destinations, comme Logs Data Platform.
+
+Dans cette section, nous allons installer Syslog-ng :
+
+- Connectez-vous à votre instance Linux
+- Installez syslog-ng ainsi que les derniers certificats
+- Vérifiez que votre version de syslog-ng est supérieure à 3.12.1 (utilisez **syslog-ng --version** pour le confirmer).
+
+```bash
+$ debian@server:~$ sudo apt-get install syslog-ng ca-certificates
+```
+
+- Une fois cette étape terminée, nous allons le configurer pour qu'il livre les logs à la plateforme
+- Créez un nouveau fichier de configuration syslog-ng nommé ldp.conf avec un éditeur de texte (ici, nous utilisons nano à titre d'exemple)
+
+```bash
+$ debian@server:~$ sudo nano /etc/syslog-ng/conf.d/ldp.conf
+```
+
+- Copiez-collez cette configuration. N'oubliez pas de remplacer **`<YOUR X-OVH-TOKEN VALUE>`** par le jeton d'écriture de votre flux et **`<YOUR LDP CLUSTER>`** par l'adresse de votre cluster Logs Data Platform.
+
+```console
+rewrite ovh-token {
+    # Ceci ajoute X-OVH-TOKEN en tant que donnée structurée personnalisée définie par la RFC 5424.
+    # remplacez <YOUR X-OVH-TOKEN VALUE> par la valeur de votre X-OVH-TOKEN.
+    set("<YOUR X-OVH-TOKEN VALUE>", value(".SDATA.token@29084.X-OVH-TOKEN"));
+};
+
+destination ovhPaaSLogs {
+    # Change <YOUR LDP CLUSTER> by your Logs Data Platform cluster address.
+    # L'adresse est disponible dans votre espace client Logs Data Platform
+    # L'adresse de votre cluster LDP a la forme suivante : <RegionX>.logs.ovh.com
+    network("<YOUR LDP CLUSTER>"
+        port(6514)
+        transport("tls")
+        flags(syslog-protocol)
+        ts_format("iso")
+        frac-digits(6)
+        tls(peer-verify("required-trusted") ca_dir("/etc/ssl/certs/"))
+        keep-alive(yes)
+        so_keepalive(yes)
+    );
+};
+
+## you can use this destination for debugging purpose
+#destination debugfile {
+#    file("/var/log/debugpaaslogs.log"
+#      flags(syslog-protocol)
+#    );
+#};
+
+log { source(s_src); rewrite(ovh-token); destination(ovhPaaSLogs); };
+#log { source(s_src); rewrite(ovh-token); destination(debugfile); };
+```
+
+:::warning
+Si vous envoyez vos logs syslog-ng vers l'un de vos **outils de collecte de données dédiés**, vous devrez effectuer une étape supplémentaire.
+
+- Copiez le **certificat de l'outil de collecte de données** depuis la page d'accueil du Manager, dans la section Configuration SSL, et collez-le dans le fichier « /usr/local/share/ca-certificates/ldp.pem »
+- Assurez-vous que les permissions de ce fichier sont bien réglées sur 644
+
+<pre class="highlight language-console"><code class="language-console">$ debian@server:~$ sudo chmod 644 /usr/share/ca-certificates/ldp.pem</code></pre>
+
+- Importez ce certificat dans le référentiel de CA de confiance de votre système
+
+<pre class="highlight language-console"><code class="language-console">$ debian@server:~$ sudo update-ca-certificates</code></pre>
+:::
+
+
+Passons en revue cette configuration.
+
+**REWRITE** : ceci définira votre X-OVH-TOKEN en tant que donnée structurée RFC 5424. Vous pouvez récupérer le jeton d'écriture de votre flux en vous rendant dans l'onglet <code className="action">Flux de données</code> de l'espace client OVHcloud, puis en sélectionnant <code className="action">Copier le jeton d'écriture</code> sur le flux souhaité.
+
+**DESTINATION** : c'est ici que nous livrerons les logs en quasi temps réel. Ici, nous avons deux destinations : la première est l'endpoint distant de Logs Data Platform, la seconde, mise en commentaire, est un fichier local à des fins de débogage uniquement. Vous pouvez trouver l'adresse de votre cluster Logs Data Platform en vous rendant sur la page d'accueil de l'espace client OVHcloud, dans la configuration du **point d'accès**. À des fins de débogage, vous pouvez décommenter la section « debugfile » pour vérifier que l'ensemble du pipeline fonctionne correctement. Cela écrira dans le fichier de destination local. Étant donné que l'écriture dans un fichier local peut consommer beaucoup de ressources d'E/S, nous recommandons de ne pas utiliser cette sortie de débogage en production.
+
+**LOG** : cette directive spécifie l'ensemble du pipeline : « s_src » => « ovh-token » => « ovhPaasLogs ».
+
+
+- Enregistrez le fichier, fermez nano et redémarrez syslog-ng.
+
+```bash
+$ debian@server:~$ sudo systemctl restart syslog-ng.service
+```
+
+### Passons aux tableaux de bord Graylog
+
+Récapitulons : vous avez une instance Linux, et elle envoie des logs localement et à distance, grâce au collecteur de logs syslog-ng. Nous envoyons deux types de flux : internal() et system()
+
+La dernière étape consiste à créer un tableau de bord affichant les résultats :
+
+- Connectez-vous au Manager de Logs Data Platform, assurez-vous que vous disposez d'un flux et que le jeton dans le fichier de configuration syslog est correct. Assurez-vous qu'un tableau de bord a bien été créé.
+- Rendez-vous sur votre flux en utilisant le bouton <code className="action">Accès Graylog</code> situé dans le menu **...** de votre flux, ou accédez directement à l'accès Graylog de votre cluster.
+- Une fois sur Graylog, rendez-vous dans l'onglet Stream, cliquez sur votre flux. Dans le coin supérieur gauche, choisissez une plage de 1 jour et cliquez sur le bouton vert pour lancer la recherche.
+- Vous devriez obtenir des résultats similaires à ceci :
+
+<img className="thumbnail" alt="Vue de recherche Graylog" src="/images/manage-and-operate/observability/logs-data-platform/ingestion-syslog-ng/search.png" loading="lazy" />
+
+- Dans le coin supérieur droit de l'histogramme, cliquez sur <code className="action">Add to dashboard</code>.
+
+Vous venez de créer le premier widget de votre tableau de bord. Créons maintenant un diagramme circulaire :
+
+- Sur la gauche, cliquez sur le petit triangle bleu devant « facility »
+- Cliquez sur « Quick Values »
+- Un diagramme circulaire apparaîtra ; vous pouvez également l'ajouter à votre tableau de bord
+
+Bien joué, deuxième widget ajouté !
+
+La fonctionnalité la plus intéressante est la possibilité de combiner des critères selon ce qui compte pour vous. Par exemple, `facility:auth AND level:6`. Pourquoi ne pas [créer une alerte](/guides/manage-and-operate/observability/logs-data-platform/alerting) sur cette condition ?
+
+## Aller plus loin
+
+- Pour bien démarrer : [Démarrage rapide](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start)
+- Documentation : Guides
+- Hub communautaire : [communauté d'utilisateurs](/links/community)
+- Créer un compte : [Essayez !](/links/manage-operate/logs-data-platform)

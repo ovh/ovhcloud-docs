@@ -9,6 +9,7 @@ import { IconArrowRight as ArrowRight, SvgWrapper } from '@theme-original';
 import clsx from 'clsx';
 import type React from 'react';
 import { SidebarDivider } from './SidebarDivider';
+import { useActiveBranch } from './useActiveBranch';
 import './SidebarGroup.scss';
 import { SidebarItem as SidebarItemComp, SidebarItemRaw } from './SidebarItem';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
@@ -62,13 +63,28 @@ export interface SidebarGroupProps {
 
 export function SidebarGroup(props: SidebarGroupProps) {
   const activeMatcher = useActiveMatcher();
+  const { activeId, notifyClick, shouldForceCollapse, notifyManualToggle } =
+    useActiveBranch();
   const { item, depth, id, setSidebarData, className } = props;
-  const active = item.link && activeMatcher(item.link);
-  const { collapsed = false, collapsible = true } =
+  // A linked category can itself be multi-located: highlight it only when it
+  // is the single resolved-active instance, not merely a route match.
+  const active = item.link && activeMatcher(item.link) && id === activeId;
+  const { collapsed: rawCollapsed = false, collapsible = true } =
     item as NormalizedSidebarGroup;
+  // A "wrong" branch of a multi-located guide is forced collapsed even though
+  // Rspress auto-expanded it (see ActiveBranchProvider). Otherwise honour the
+  // group's own collapse state (config default + user toggles).
+  const collapsed = shouldForceCollapse(id) || rawCollapsed;
 
   const toggleCollapse = (): void => {
-    // update collapsed state
+    // Toggle the *effective* collapsed state (force-collapse included), not just
+    // the raw flag. Otherwise expanding a branch that is being force-collapsed
+    // (the "wrong" branch of a multi-located guide) would only flip the
+    // underlying flag while the force kept it visually collapsed — the user
+    // would click and nothing would open.
+    const willBeCollapsed = !collapsed;
+    // Let an explicit user action override / restore the automatic suppression.
+    notifyManualToggle(id, willBeCollapsed);
     setSidebarData((sidebarData) => {
       const newSidebarData = [...sidebarData];
       const indexes = id.split('-').map(Number);
@@ -80,7 +96,7 @@ export function SidebarGroup(props: SidebarGroupProps) {
         current = (current as NormalizedSidebarGroup).items[index];
       }
       if ('items' in current) {
-        current.collapsed = !current.collapsed;
+        current.collapsed = willBeCollapsed;
       }
       return newSidebarData;
     });
@@ -98,13 +114,13 @@ export function SidebarGroup(props: SidebarGroupProps) {
         depth={depth}
         onClick={(e) => {
           // Linked category (has a landing page): let the underlying <Link>
-          // handle navigation. We only ensure the group expands — clicking the
-          // row never collapses it (the chevron does that). This gives the
-          // "navigate + keep expanded" behaviour for landing categories.
+          // handle navigation, but also toggle the group so a click on the
+          // row behaves like a container category — expand on the way in,
+          // collapse on the way back. This keeps navigate + toggle in sync
+          // whether the row is currently collapsed or expanded.
           if (item.link) {
-            if (collapsible && collapsed) {
-              toggleCollapse();
-            }
+            notifyClick(id);
+            collapsible && toggleCollapse();
             return;
           }
           // Container-only category: clicking the row toggles expand/collapse.
@@ -173,6 +189,7 @@ export function SidebarGroup(props: SidebarGroupProps) {
               <SidebarItemComp
                 // biome-ignore lint/suspicious/noArrayIndexKey: sidebar items have no stable unique ID
                 key={index}
+                id={`${id}-${index}`}
                 item={item}
                 depth={depth + 1}
                 className="rp-sidebar-item--group-item"
