@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.09.01.1
+
+### Fixes
+- **theme:** keep "View as Markdown" label out of the search index
+
+### Documentation
+- 25 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.01
 
 ### Fixes
