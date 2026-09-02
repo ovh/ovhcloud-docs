@@ -453,7 +453,11 @@ const EXCLUDE_SELECTORS =
   // right after the <h1>. `button` covers the two <button> controls, but the
   // Markdown link is an <a> and leaked its label into every result excerpt.
   // Excluding the container covers anything added to the toolbar later.
-  '.rp-llms-container, .rp-llms-view-options__trigger';
+  // `.rp-page-toolbar` / `.rp-landing-toolbar` are the same cluster mounted by
+  // layouts that render their own <h1> (LandingLayout), where it sits outside
+  // `.rp-doc`; listed so the exclusion holds if that markup ever moves inside.
+  '.rp-llms-container, .rp-llms-view-options__trigger, ' +
+  '.rp-page-toolbar, .rp-landing-toolbar';
 
 const indexResults = await Promise.allSettled(
   builtLocales.map(async (locale) => {
