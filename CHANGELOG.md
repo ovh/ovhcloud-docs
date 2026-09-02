@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.09.02
+
+### Features
+- **theme:** add markdown/PDF/AI buttons to landing pages
+
+### Fixes
+- **theme:** align product-PDF button with the toolbar and redraw its icon
+- **theme:** keep landing-page toolbar out of .md export and search
+
 ## 2026.09.01.1
 
 ### Fixes
