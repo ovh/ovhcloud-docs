@@ -8,10 +8,6 @@
  * seeded with a TODO marker so `pnpm fragment:validate` reports the gaps until
  * the bodies are written. English is created first because it is the fallback
  * every other locale resolves to.
- *
- * Writing the localised bodies is a translation task (`/translate` operates on
- * these .md files directly); replacing existing hand-written blocks in guides
- * is a sweep task (`/fragmentize`), never a side effect of scaffolding.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';

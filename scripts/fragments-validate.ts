@@ -82,7 +82,6 @@ for (const key of keys) {
   // stray files in the key directory
   const kdir = path.join(FRAGMENTS_DIR, key);
   for (const f of fs.readdirSync(kdir)) {
-    if (f === 'fragment.yaml') continue; // reserved for per-fragment metadata
     if (!/^[a-z]{2}\.md$/.test(f)) {
       errors.push(`${key}/${f}: unexpected file (expected <locale>.md)`);
     } else if (!LOCALES.includes(f.slice(0, 2) as Locale)) {
