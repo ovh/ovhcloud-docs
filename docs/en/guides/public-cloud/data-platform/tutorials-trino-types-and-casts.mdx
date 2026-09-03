@@ -1,0 +1,93 @@
+---
+title: Trino data types and casts
+description: Whatever path you take to query your project over Trino, the SQL editor of the Explorer, a Trino consumer, or an external tool
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+Whatever path you take to query your project over [Trino](https://trino.io/), the SQL editor of the [Explorer](/guides/public-cloud/data-platform/lakehouse-manager-explorer), a [Trino consumer](/guides/public-cloud/data-platform/connectors-consumers-trino), or an external tool, the types you manipulate are the **Trino types**, not the logical types you see in the [Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-attributes). Most of the time the two line up, but a few cases require an explicit `CAST` at `INSERT` time.
+
+## Data types: Lakehouse to Trino
+
+The table below maps each Lakehouse type to the Trino type it is exposed as:
+
+| Lakehouse type    | Trino type      | Notes                                         |
+|-------------------|-----------------|-----------------------------------------------|
+| `integer`         | `INTEGER`       | 32-bit signed integer                         |
+| `bigint`          | `BIGINT`        | 64-bit signed integer                         |
+| `real` / `float`  | `REAL`          | 32-bit floating point                         |
+| `double`          | `DOUBLE`        | 64-bit floating point                         |
+| `decimal`         | `DECIMAL(p, s)` | Precision and scale are preserved             |
+| `varchar`         | `VARCHAR`       | Unbounded unless a length was set at creation |
+| `boolean`         | `BOOLEAN`       |                                               |
+| `date`            | `DATE`          |                                               |
+| `timestamp`       | `TIMESTAMP`     | Timezone-naive                                |
+
+:::info
+The exact Trino type of a column, including any length or precision, is whatever the table was **created** with. When in doubt, run `SHOW CREATE TABLE <catalog>.<schema>.<table>;`. Any `CAST` in an `INSERT` should target that type, not the logical type you see in the Lakehouse Manager.
+:::
+
+### Implicit coercions (no CAST needed)
+
+Trino widens these types automatically, so you can insert the source value directly:
+
+- `INTEGER` → `BIGINT`
+- `REAL` → `DOUBLE`
+- `DECIMAL` → a wider `DECIMAL`
+- `VARCHAR(n)` → unbounded `VARCHAR`: a literal such as `'foo'` is a `VARCHAR(3)` and coerces to an Iceberg string without any change
+- `DATE` → `TIMESTAMP`
+
+### Casts you must write explicitly
+
+Trino will **not** coerce these on its own. An `INSERT` without a `CAST` returns `TYPE_MISMATCH`:
+
+- `VARCHAR` → numeric or date: `CAST('1' AS INTEGER)`, `CAST('2026-05-26' AS DATE)`
+- numeric → `VARCHAR`: `CAST(x AS VARCHAR)`
+- `TIMESTAMP` ↔ `TIMESTAMP WITH TIME ZONE` (any change in timezone-awareness)
+- `DECIMAL(p1, s1)` → `DECIMAL(p2, s2)` when the precision or scale differs and truncation is possible
+- Complex types: there is no coercion between `ROW` values of different structures, you have to rebuild the `ROW(...)` field by field
+
+## Inserting typed values
+
+### Use a valid literal form
+
+`INT '1'` is **not** valid Trino syntax. `INT` is accepted as an alias of `INTEGER` in a *column declaration*, but not in the *typed-literal* form `TYPE 'value'`.
+
+To insert an integer, use any of:
+
+```sql
+INSERT INTO t VALUES (1);                    -- native integer literal
+INSERT INTO t VALUES (INTEGER '1');          -- typed literal, canonical type name
+INSERT INTO t VALUES (CAST('1' AS INTEGER)); -- explicit cast
+```
+
+:::info
+Reading the same column never raises an error, because no typed literal is evaluated on `SELECT`. Only the `INT 'x'` form breaks the parser.
+:::
+
+### Troubleshooting TYPE_MISMATCH on VARCHAR inserts
+
+`CAST(x AS VARCHAR)` produces an unbounded `VARCHAR`, which is compatible with an Iceberg string column. If you still get a `TYPE_MISMATCH`, check the following, in order:
+
+1. **The target column may not be unbounded.** If the table was created through Trino with `VARCHAR(50)`, the connector keeps that length constraint. Confirm with `DESCRIBE catalog.schema.table;` or `SHOW CREATE TABLE catalog.schema.table;`. If the column is `varchar(50)`, cast to `CAST(x AS VARCHAR(50))`.
+2. **Column order or count.** Without an explicit column list, Trino maps values by position and raises `TYPE_MISMATCH` as soon as one downstream column no longer matches, and the error sometimes points at the wrong expression. Always prefer:
+   ```sql
+   INSERT INTO t (col_a, col_b, col_c) VALUES (...);
+   ```
+3. **Complex types.** `CAST(... AS VARCHAR)` on a `ROW`, `ARRAY` or `MAP` fails. Convert field by field, or use `json_format(CAST(... AS JSON))`.
+4. **Generated columns and timestamps.** A `VARCHAR` does not coerce implicitly to `TIMESTAMP` or `DATE`. A `TYPE_MISMATCH` that appears to be on a `VARCHAR` can actually come from another column in the same `VALUES` clause.
+
+:::warning
+If the mismatch persists, collect `SHOW CREATE TABLE`, the full `INSERT` statement and the exact error message before opening a support ticket. That is enough to pinpoint the faulty column.
+:::
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

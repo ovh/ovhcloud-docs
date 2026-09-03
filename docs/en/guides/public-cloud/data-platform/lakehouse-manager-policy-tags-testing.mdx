@@ -1,0 +1,201 @@
+---
+title: "Testing & Troubleshooting"
+description: This page covers how to test policy tag access control and troubleshoot common errors
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+This page covers how to test policy tag access control and troubleshoot common errors. For an overview of policy tags and the gate chain, see [Policy Tags Overview](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags). For CEL condition patterns, see [CEL Conditions & Access Patterns](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions).
+
+## Table of Contents
+
+1. [Testing Access Control](#testing-access-control)
+2. [Troubleshooting and Common Errors](#troubleshooting-and-common-errors)
+
+## Testing Access Control
+
+This walkthrough uses the dataset from the [Getting Started tutorial](/guides/public-cloud/data-platform/landing-page-getting-started) and the `access_level` policy tag.
+
+<img className="thumbnail" alt="Testing Access Control — Grantaccess" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-6.png" loading="lazy" />
+
+### Prerequisites
+
+You need a user account with the following roles assigned:
+
+1. **Organization Level**: `Organization Viewer`: Allows the user to view the platform and projects.
+2. **Project Level**: `AM Admin`: Grants permissions to access the Explorer and run SQL queries.
+
+### Setup
+
+Bind the following policy tags:
+
+-   **Dataset level:** `access_level: level 1` on the entire dataset.
+-   **Table level:** `access_level: level 2` on the table `chicago_calendar_full`.
+-   **Attribute level:** `access_level: level 3` on the `bridge` attribute in `chicago_calendar_full`.
+-   **No Policy Tag:** The `stations_rides` table has no tag (it will inherit `level 1` from the dataset).
+
+<img className="thumbnail" alt="Setup — Grantaccess" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-7.png" loading="lazy" />
+
+Verify the bindings in the policy tag menu:
+
+<img className="thumbnail" alt="Setup — Grantaccess (2)" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-8.png" loading="lazy" />
+
+### Test 1: User with `level 1` only
+
+Grant the user `access_level: level 1` using the [Grant Access UI](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions#using-the-grant-access-ui).
+
+<img className="thumbnail" alt="Test 1: User with level 1 only — Grantaccess" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-5.png" loading="lazy" />
+
+Then, edit the CEL condition in the IAM to enforce tags at **all three levels**:
+
+```text
+Service == "adac" && (
+  (PolicyTags.access_level == "level 1" && Resource == "dataset")
+  || (PolicyTags.access_level == "level 1" && Resource == "table")
+  || (PolicyTags.access_level == "level 1" && Resource == "attribute")
+)
+```
+
+This CEL checks `level 1` at every level. Since the dataset has `level 1` and untagged tables/attributes inherit it, this user can access inherited resources but not `level 2` or `level 3` resources.
+
+Open the [Explorer](/guides/public-cloud/data-platform/lakehouse-manager-explorer) in SQL mode as the test user.
+
+**Show catalogs:**
+```
+SHOW CATALOGS
+```
+Expected: The dataset appears in the catalog list.
+
+<img className="thumbnail" alt="Test 1: User with level 1 only — Showcatalogs" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/showcatalogs.png" loading="lazy" />
+
+**Read an untagged table (inherits `level 1` from dataset):**
+```sql
+SELECT * FROM stations_rides
+```
+Expected: **Success**. The table has no tag, inherits `level 1` from the dataset, and the user's CEL matches `level 1` at all levels.
+
+<img className="thumbnail" alt="Test 1: User with level 1 only — Selectstationsrides" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/selectstationsrides.png" loading="lazy" />
+
+**Read the `level 2` table:**
+```sql
+SELECT * FROM chicago_calendar_full
+```
+Expected: **Error**. The user passes the dataset gate (`level 1`) but fails the table gate (table has `level 2`, CEL only checks for `level 1`).
+
+<img className="thumbnail" alt="Test 1: User with level 1 only — Selectchicago error" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/selectchicago_error.png" loading="lazy" />
+
+### Test 2: User with `level 1` + `level 2`
+
+Grant the user `access_level: level 2` in addition to `level 1`.
+
+<img className="thumbnail" alt="Test 2: User with level 1 + level 2 — Grantaccess" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-9.png" loading="lazy" />
+
+Update the CEL condition to include `level 2` at the table and attribute levels:
+
+```text
+Service == "adac" && (
+  (PolicyTags.access_level == "level 1" && Resource == "dataset")
+  || (PolicyTags.access_level in ["level 1", "level 2"] && Resource == "table")
+  || (PolicyTags.access_level in ["level 1", "level 2"] && Resource == "attribute")
+)
+```
+
+This CEL enforces tags at all three levels. At the attribute level, it checks for `level 1` or `level 2`, but `bridge` has `level 3`, so it will be denied.
+
+**Read the `level 2` table with SELECT \*:**
+```sql
+SELECT * FROM chicago_calendar_full
+```
+Expected: **Error**. The user passes the dataset and table gates, but `SELECT *` includes the `bridge` attribute which has `level 3`. The CEL only allows `level 1` or `level 2` at the attribute level.
+
+<img className="thumbnail" alt="Test 2: User with level 1 + level 2 — Selectchicago error" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/selectchicago_error.png" loading="lazy" />
+
+**Read the table excluding the restricted attribute:**
+```sql
+SELECT date, public_holiday, christmas_holidays, weekend, sport_holidays, summer_holidays, month, week_day_label, autumn_holidays, spring_holidays, temperature, cloud_cover, humidity, week_day, wind_speed FROM chicago_calendar_full
+```
+Expected: **Success**. All selected attributes either have `level 1` or `level 2` tags (or inherit from the table), and the CEL matches.
+
+<img className="thumbnail" alt="Test 2: User with level 1 + level 2 — Selectchicago" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/selectchicago.png" loading="lazy" />
+
+**Read only the restricted attribute:**
+```sql
+SELECT bridge FROM chicago_calendar_full
+```
+Expected: **Error**: `bridge` has `level 3`, and the CEL only allows `level 1` or `level 2` at the attribute level.
+
+<img className="thumbnail" alt="Test 2: User with level 1 + level 2 — Selectbridge" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/selectbridge.png" loading="lazy" />
+
+### Test 3: Demonstrating that pass-throughs disable enforcement
+
+To understand the difference between enforced and pass-through levels, try this CEL with the same user (`level 1` + `level 2`):
+
+```text
+Service == "adac" && (
+  (PolicyTags.access_level == "level 1" && Resource == "dataset")
+  || (PolicyTags.access_level in ["level 1", "level 2"] && Resource == "table")
+  || Resource == "attribute"
+)
+```
+
+Note the **attribute level is now a pass-through** (`|| Resource == "attribute"`).
+
+```sql
+SELECT bridge FROM chicago_calendar_full
+```
+Expected: **Success**, even though `bridge` has `level 3` and the user doesn't have `level 3`, the CEL does not check tags at the attribute level. The pass-through means all attributes are accessible.
+
+:::warning
+This test demonstrates why pass-throughs must be used carefully. If you need attribute-level restrictions, the CEL **must** check tags at `Resource == "attribute"`.
+:::
+
+### Further testing
+
+Try these variations:
+
+-   Grant `level 3` to the user (updating the CEL to include `level 3` at all levels) and verify `SELECT *` works on `chicago_calendar_full`.
+-   Remove `level 1` from the user's CEL and verify they **cannot access anything**, not even the `level 2` table, because the dataset gate requires `level 1`.
+-   Try accessing a table with only `level 2` (no `level 1`) to confirm the gate chain blocks at the dataset level.
+
+## Troubleshooting and Common Errors
+
+### User cannot access a table despite having the correct tag
+
+**Most common cause:** The CEL condition is missing Resource scoping. The Grant Access UI generates a CEL without `Resource` constraints, so the tag check runs at every level of the gate chain. If the tag is only on the table (not the dataset), the dataset-level check fails.
+
+**Fix:** Edit the CEL condition in the IAM to include Resource scoping. See [Writing CEL Conditions Manually](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions#writing-cel-conditions-manually).
+
+### User has the table-level tag but gets denied
+
+**Cause:** The gate chain is cumulative. The user must also satisfy the dataset-level tag. Having only the table tag is not sufficient. The dataset gate must pass first.
+
+**Fix:** Ensure the user's CEL covers all levels in the chain, or grant the user the dataset-level tag as well.
+
+### `SELECT *` fails but selecting specific columns works
+
+**Cause:** One or more attributes in the table have a higher-level policy tag that the user doesn't have. `SELECT *` includes all attributes, so the restricted attribute's gate fails.
+
+**Fix:** Explicitly list the columns the user has access to, excluding the restricted attribute(s). Or grant the user the required attribute-level tag.
+
+### User can see the dataset in `SHOW CATALOGS` but cannot query any tables
+
+**Cause:** The dataset-level gate may pass, but every table in the dataset has tags that the user doesn't have.
+
+**Fix:** Verify the user has tags matching both the dataset and the target table(s). Remember that untagged tables inherit the dataset's tag.
+
+### CEL condition uses `PolicyTags.<key>` but the resource has no such tag
+
+**Cause:** If the CEL checks `PolicyTags.sensitivity == "high"` and the resource has no `sensitivity` tag at all, the check fails (the attribute doesn't exist).
+
+**Fix:** Use `has(PolicyTags.sensitivity)` to check for existence first, or scope the check to specific resource levels with `Resource ==`.
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

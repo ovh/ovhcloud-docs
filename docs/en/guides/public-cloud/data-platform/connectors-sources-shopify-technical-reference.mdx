@@ -1,0 +1,515 @@
+---
+title: "Shopify: Technical Reference"
+description: This is the technical companion to the main Shopify connector documentation
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+This is the technical companion to the main [Shopify connector](/guides/public-cloud/data-platform/connectors-sources-shopify) documentation. It covers authentication internals, the full endpoint reference, pagination, rate limits, output format, and limitations, everything needed to integrate the connector into a data pipeline.
+
+## Authentication
+
+### Supported Modes
+
+The connector supports two interchangeable authentication modes that both end up sending an `X-Shopify-Access-Token` header on every API request.
+
+| Mode | Fields filled in the UI | What the connector does |
+|---|---|---|
+| **Direct token** | `shop` + `access_token` | Sends the token as-is. |
+| **OAuth client_credentials** | `shop` + `client_id` + `client_secret` | Exchanges the credentials at the Shopify OAuth endpoint, then uses the resulting offline access token. |
+
+If `access_token` is filled, it takes priority. The OAuth exchange is skipped.
+
+### Token Formats
+
+| Prefix | Source | Notes |
+|---|---|---|
+| `shpat_…` | Legacy "Develop apps" flow in the Shopify admin | Token revealed once in the UI |
+| `shpua_…` | Output of the `client_credentials` OAuth grant | Offline access token, non-expiring while the app is installed |
+
+Both prefixes are valid in the **Access Token** field and are used identically by the connector.
+
+### Deprecated authentication methods
+
+| Method | Why |
+|---|---|
+| API key (`?key=…` query string) | Removed by Shopify |
+| Storefront access token | Different audience (customer browsing); not accepted by the Admin API |
+| OAuth `authorization_code` flow with redirect | Designed for distributed public apps, not for a server-to-server data pipeline |
+
+### Custom App Approval
+
+For Customer / Order / DraftOrder / AbandonedCheckout / FulfillmentOrder data, Shopify requires **Protected Customer Data** approval at the app level. On a development store this is granted instantly when the merchant ticks the relevant boxes in the Dev Dashboard. On production stores distributed via the App Store, Shopify reviews the request manually.
+
+When the approval is missing, the API returns `ACCESS_DENIED` errors on the affected fields. The connector treats these as expected and returns whatever data was successfully fetched (with the restricted fields blanked out).
+
+## Architecture
+
+The connector returns raw JSON from the Shopify GraphQL API. The platform takes over from there. It auto-discovers the schema from the JSON payload, flattens nested objects into dot-notation columns (slugified to lowercase with underscores), and stores the result in the lakehouse, queryable via Trino. Any new field Shopify adds to a node appears automatically on the next extraction.
+
+The connector itself is responsible for:
+
+| Responsibility | Behavior |
+|---|---|
+| **Auth** | Builds the `X-Shopify-Access-Token` header from either the direct token or an OAuth exchange |
+| **Endpoint routing** | Maps the selected endpoint type to a built-in GraphQL query |
+| **Pagination** | Loops `first: N, after: cursor` while `pageInfo.hasNextPage` is true |
+| **Cost-based back-off** | Reads `extensions.cost.throttleStatus`, sleeps if the next request would exceed available budget |
+| **Throttling** | Catches `THROTTLED` GraphQL errors and HTTP 429, retries with `Retry-After` |
+| **Field-level access denials** | Returns the partial data with restricted fields removed (instead of failing) |
+
+### API Version
+
+All requests target the `2026-04` version of the Shopify Admin GraphQL API. Update [Shopify's release notes](https://shopify.dev/changelog) before pinning to a newer version, schema changes can rename fields or change types.
+
+## Endpoint Reference
+
+Every paginated endpoint shares the same call shape:
+
+```http
+POST https://{shop}.myshopify.com/admin/api/2026-04/graphql.json
+{ "query": "...", "variables": { "first": 100, "after": null } }
+```
+
+The connector iterates pages until `pageInfo.hasNextPage == false` or the user-specified `max_items` cap is reached.
+
+For each endpoint below, "Output" is **Raw JSON**: the full GraphQL `node` object, with nested fields preserved. The platform flattens it downstream.
+
+### products
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `products(first, after, sortKey: CREATED_AT)`
+
+**Default fields:** `id`, `handle`, `title`, `description`, `vendor`, `productType`, `status`, `tags`, timestamps, `totalInventory`, `tracksInventory`, `featuredImage`, `options`, `seo`, `onlineStoreUrl`, `priceRangeV2`.
+
+### product_variants
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `productVariants(first, after)`: top-level since API 2022-07; no parent product ID required.
+
+**Default fields:** `id`, `sku`, `title`, `position`, `price`, `compareAtPrice`, `barcode`, `taxable`, `inventoryQuantity`, `availableForSale`, timestamps, `selectedOptions`, parent `product` ref, `image`.
+
+### collections
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `collections(first, after)`: unified view of manual + smart collections.
+
+**Default fields:** `id`, `handle`, `title`, `description`, `updatedAt`, `sortOrder`, `productsCount`, `seo`, `image`.
+
+### customers
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `customers(first, after)`
+
+**Default fields:** `id`, `firstName`, `lastName`, `email`, `phone`, `state`, `note`, `tags`, timestamps, `verifiedEmail`, `numberOfOrders`, `amountSpent`, `defaultAddress`, `lifetimeDuration`.
+
+PII fields (firstName, lastName, email, phone, defaultAddress.zip) require Protected Customer Data approval. Without it the rows still come through with those fields blanked out.
+
+### customer_segment_members
+
+| Parameter | Type | Required |
+|---|---|---|
+| `segment_id` | text | **Yes**: Shopify GID, e.g. `gid://shopify/Segment/12345` |
+| `max_items` | number | No |
+
+**Root field:** `customerSegmentMembers(first, after, segmentId: $segment_id)`
+
+Use the `segments` endpoint first to discover segment IDs.
+
+### orders
+
+| Parameter | Type | Required |
+|---|---|---|
+| `query_filter` | text | No (default `status:any`) |
+| `max_items` | number | No |
+
+**Root field:** `orders(first, after, query: $query_filter, sortKey: CREATED_AT)`
+
+`query_filter` accepts [Shopify search syntax](https://shopify.dev/docs/api/usage/search-syntax) (e.g. `created_at:>=2026-01-01`, `financial_status:paid`).
+
+**Default fields:** `id`, `name`, `legacyResourceId`, lifecycle timestamps, `displayFinancialStatus`, `displayFulfillmentStatus`, money sets (totalPrice, subtotalPrice, totalTax, totalDiscounts, totalRefunded, totalShippingPrice), `customer`, addresses, `channelInformation`.
+
+### draft_orders
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `draftOrders(first, after)`
+
+**Default fields:** `id`, `name`, `status`, `email`, `note2`, timestamps, money sets, `customer`, `shippingAddress`.
+
+### abandoned_checkouts
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `abandonedCheckouts(first, after)`
+
+**Default fields:** `id`, `name`, `abandonedCheckoutUrl`, timestamps, money sets, `customer`.
+
+### fulfillment_orders
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `fulfillmentOrders(first, after)`
+
+**Default fields:** `id`, `status`, `requestStatus`, timestamps, `destination` (address fields), `assignedLocation`, parent `order`.
+
+### tender_transactions
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `tenderTransactions(first, after)`
+
+**Default fields:** `id`, `paymentMethod`, `processedAt`, `remoteReference`, `test`, `amount`, parent `order`, `user`.
+
+### locations
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `locations(first, after)`
+
+**Default fields:** `id`, `name`, `isActive`, timestamps, `fulfillsOnlineOrders`, `shipsInventory`, `legacyResourceId`, `address`.
+
+### inventory_items
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `inventoryItems(first, after)`
+
+**Default fields:** `id`, `sku`, `tracked`, `requiresShipping`, timestamps, `countryCodeOfOrigin`, `harmonizedSystemCode`, `unitCost`, parent `variant` + `product`.
+
+### segments
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `segments(first, after)`
+
+**Default fields:** `id`, `name`, `query` (segment definition expression), `creationDate`, `lastEditDate`.
+
+### companies
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `companies(first, after)`: B2B only; returns empty if B2B is not enabled on the store.
+
+**Default fields:** `id`, `name`, `externalId`, `note`, timestamps, `locationsCount`, `ordersCount`, `totalSpent`.
+
+### company_locations
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `companyLocations(first, after)`: B2B only.
+
+**Default fields:** `id`, `name`, `externalId`, `note`, timestamps, addresses, parent `company`.
+
+### price_lists
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `priceLists(first, after)`: B2B / wholesale.
+
+**Default fields:** `id`, `name`, `currency`, `parent.adjustment`, linked `catalog`.
+
+### catalogs
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `catalogs(first, after)`: B2B catalog assignments.
+
+**Default fields:** `id`, `title`, `status`, linked `priceList`.
+
+### markets
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `markets(first, after)`: multi-region configuration.
+
+**Default fields:** `id`, `name`, `handle`, `enabled`, `primary`, `webPresence.rootUrls`, `currencySettings.baseCurrency`.
+
+### discount_nodes
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `discountNodes(first, after)`: union of automatic + code + manual discounts.
+
+**Default fields:** `id`, plus a typed `discount` payload using inline fragments for `DiscountAutomaticBasic`, `DiscountAutomaticBxgy`, `DiscountCodeBasic`, `DiscountCodeBxgy`, `DiscountCodeFreeShipping`, `DiscountAutomaticFreeShipping`. Each variant exposes `title`, `status`, `startsAt`, `endsAt`, usage counts.
+
+### code_discount_nodes
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `codeDiscountNodes(first, after)`: code discounts only.
+
+Same field shape as `discount_nodes`, restricted to the `DiscountCode*` types.
+
+### gift_cards
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `giftCards(first, after)`: Shopify Plus only.
+
+**Default fields:** `id`, `enabled`, `expiresOn`, timestamps, `lastCharacters`, `note`, `balance`, `initialValue`, owning `customer`.
+
+### selling_plan_groups
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `sellingPlanGroups(first, after)`: subscription plans.
+
+**Default fields:** `id`, `name`, `description`, `createdAt`, `merchantCode`, `appId`, `summary`, `productsCount`, `options`.
+
+### marketing_events
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `marketingEvents(first, after)`: campaign tracking.
+
+**Default fields:** `id`, `type`, `remoteId`, `startedAt`, `endedAt`, `manageUrl`, `previewUrl`, UTM fields, owning `app`.
+
+### publications
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `publications(first, after)`: sales-channel publications.
+
+**Default fields:** `id`, `name`, `supportsFuturePublishing`, owning `app`.
+
+### payouts / disputes / balance_transactions
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root path:** `shopifyPaymentsAccount.{payouts | disputes | balanceTransactions}(first, after)`. Shopify Payments must be enabled on the store. The connector returns an empty list (with a warning) when `shopifyPaymentsAccount` is null.
+
+**Default fields (payouts):** `id`, `status`, `issuedAt`, `net`, summary breakdown.
+**Default fields (disputes):** `id`, `status`, `initiatedAt`, `amount`, `reasonDetails`.
+**Default fields (balance_transactions):** `id`, `type`, `transactionDate`, `test`, `amount`, `fee`, `net`.
+
+### metaobjects
+
+| Parameter | Type | Required |
+|---|---|---|
+| `metaobject_type` | text | **Yes**: the metaobject definition's `type` (e.g. `recipe`) |
+| `max_items` | number | No |
+
+**Root field:** `metaobjects(first, after, type: $metaobject_type)`
+
+Use the `metaobject_definitions` endpoint first to list the available types.
+
+**Default fields:** `id`, `handle`, `type`, `displayName`, `updatedAt`, `capabilities.publishable.status`, `fields[].{key, value, type, jsonValue}`.
+
+### metaobject_definitions
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `metaobjectDefinitions(first, after)`
+
+**Default fields:** `id`, `type`, `name`, `displayNameKey`, `description`, nested `fieldDefinitions`.
+
+### metafield_definitions
+
+| Parameter | Type | Required |
+|---|---|---|
+| `owner_type` | select | **Yes**: one of PRODUCT, PRODUCTVARIANT, CUSTOMER, ORDER, COLLECTION, ARTICLE, BLOG, PAGE, SHOP, LOCATION, COMPANY, COMPANY_LOCATION, MARKET |
+| `max_items` | number | No |
+
+**Root field:** `metafieldDefinitions(first, after, ownerType: $owner_type)`
+
+**Default fields:** `id`, `namespace`, `key`, `name`, `description`, `ownerType`, `type.name`, `pinnedPosition`.
+
+### articles / blogs / pages / url_redirects / files
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+Standard paginated content endpoints. Each returns the typed `node` object, see the [Shopify GraphQL reference](https://shopify.dev/docs/api/admin-graphql/latest) for the exact field shape per type. The connector requests a sensible default field subset per endpoint (handle, title, body/summary, timestamps, publication status, ..).
+
+For `files`, the query uses inline fragments for `MediaImage`, `Video`, and `GenericFile`, so the output includes a media-type-specific payload alongside `id`, `alt`, `createdAt`, `fileStatus`.
+
+### events
+
+| Parameter | Type | Required |
+|---|---|---|
+| `max_items` | number | No |
+
+**Root field:** `events(first, after, sortKey: CREATED_AT, reverse: true)`: shop audit log.
+
+**Default fields:** `id`, `message`, `createdAt`, `appTitle`, `attributeToApp`, `attributeToUser`, `criticalAlert`.
+
+### staff_members / delivery_profiles / fulfillment_services
+
+Standard endpoints with a `max_items` parameter. `fulfillment_services` is unusual. The data is nested under `shop.fulfillmentServices` and is returned as a list (not paginated). The connector handles the special path automatically.
+
+### shop
+
+No parameters. Returns a one-element list with the store's metadata, id, name, domain, currency, timezone, plan, billing address, primary domain, feature flags, timestamps. Useful as a small reference table.
+
+### custom_query
+
+| Parameter | Type | Required |
+|---|---|---|
+| `query` | textarea | **Yes** |
+| `variables` | json | No (default `{}`) |
+| `connection_path` | text | No (default = auto-detect) |
+| `max_items` | number | No |
+
+Run any GraphQL query against the Admin API. Constraints:
+
+1. The query **must** declare `$first: Int!` and `$after: String` as variables.
+2. It **must** paginate one connection with `pageInfo { hasNextPage endCursor }`.
+3. Either provide `connection_path` (dot-path to the connection from the data root, e.g. `products`, `shop.metafields`) or let the connector auto-detect the first `edges`/`pageInfo` connection in the response.
+
+The connector substitutes `$first` (defaults to 250 or `max_items` when set) and `$after` (cursor from the previous page), then loops until `pageInfo.hasNextPage` is false.
+
+`variables` lets you pass additional parameters used by your query (e.g. `{"query": "tag:vip"}` for a customer search filter). `$first` / `$after` are reserved.
+
+Validation runs at extract time, invalid queries (missing variables) raise a clear error before the first HTTP call.
+
+## Pagination
+
+All paginated endpoints use **cursor-based pagination** (Relay-style connections). The connector loops:
+
+```json
+{
+  edges { node { ... } }
+  pageInfo { hasNextPage endCursor }
+}
+```
+
+With `first: 100` (default page size, capped at 250) and `after: <previous endCursor>`. The loop ends when `hasNextPage == false` or the user-specified `max_items` is reached.
+
+Single-object endpoints (`shop`) and the nested list `fulfillment_services` skip pagination. The connector wraps the response in a one-element list.
+
+## Rate Limits
+
+The Shopify Admin GraphQL API uses **cost-based** rate limiting (not requests-per-second). Every query has a point cost computed from its connection sizes; each store has a per-app bucket that refills at a fixed rate.
+
+| Plan | Bucket | Restore rate |
+|---|---|---|
+| Standard / Shopify / Advanced | 100 pts | 100 pts/s |
+| Shopify Plus | 1,000 pts | 1,000 pts/s |
+| Enterprise | 2,000 pts | 2,000 pts/s |
+
+Refer to [Shopify's official rate-limit documentation](https://shopify.dev/docs/api/usage/rate-limits) for current details.
+
+### Throttle Handling
+
+The connector handles throttling in three ways:
+
+1. **Pre-emptive sleep**: after every response, it inspects `extensions.cost.throttleStatus`. If the next page's cost would exceed the currently available budget, it sleeps for the time needed to refill.
+2. **GraphQL `THROTTLED` errors**: Shopify sometimes returns HTTP 200 with a `THROTTLED` error in the body. The connector retries after a short back-off.
+3. **HTTP 429**: rare, but handled with `Retry-After`. The connector retries up to 5 times before raising.
+
+## Output Format
+
+### Raw JSON
+
+The connector returns the contents of `edges[].node` as a list of dicts, exactly as Shopify GraphQL returned them. Nested objects (addresses, money sets, child arrays) are preserved.
+
+Example product node (truncated):
+
+```json
+{
+  "id": "gid://shopify/Product/123",
+  "handle": "snowboard",
+  "title": "All-mountain snowboard",
+  "vendor": "Acme",
+  "productType": "Snowboard",
+  "status": "ACTIVE",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "totalInventory": 42,
+  "featuredImage": {
+    "url": "https://cdn.shopify.com/.../snowboard.jpg",
+    "altText": "Snowboard front view"
+  },
+  "priceRangeV2": {
+    "minVariantPrice": { "amount": "299.00", "currencyCode": "EUR" }
+  }
+}
+```
+
+### Flattened in the lakehouse
+
+The platform automatically flattens nested objects into dot-notation columns, then slugifies them:
+
+| Raw JSON path | Lakehouse column |
+|---|---|
+| `id` | `id` |
+| `featuredImage.url` | `featuredimage_url` |
+| `priceRangeV2.minVariantPrice.amount` | `pricerangev2_minvariantprice_amount` |
+
+List-of-object fields (e.g. `tags`, `options`) are exploded automatically, one row per list element.
+
+## Limitations
+
+- **GIDs are strings, not integers.** Shopify identifiers come as `gid://shopify/Resource/12345`: keep them as strings in your downstream queries.
+- **No bulk operations.** Very large extractions (millions of records) page synchronously through the GraphQL API. For multi-million-row stores, write a `custom_query` against `bulkOperationRunQuery` instead, or extract incrementally with a date filter (`query_filter`).
+- **Shopify Payments endpoints require enrollment.** `payouts`, `disputes`, `balance_transactions` return empty lists if Shopify Payments isn't activated on the store.
+- **Protected Customer Data field-level approval.** Without it, customer / order rows return with PII fields (firstName, lastName, email, phone, zip) blanked out, but the rows themselves are returned. Approve the relevant data categories in the Dev Dashboard to get full PII.
+- **Sub-resources require `custom_query`.** Per-order transactions / refunds / fulfillments and per-product metafields aren't dedicated endpoints. They are accessible via `custom_query` if you write a nested GraphQL.
+- **B2B endpoints return empty without B2B.** `companies`, `company_locations`, `catalogs`, `price_lists` return `[]` on stores without B2B enabled. No error, just empty.
+- **`gift_cards` is Shopify Plus only.** Lower plans receive `ACCESS_DENIED` and the connector returns an empty list.
+- **Field set is fixed per endpoint.** Each built-in endpoint has a default field selection. To customize fields (more or fewer), use `custom_query`.
+- **Shopify GraphQL changelog.** The connector is pinned to API version `2026-04`. Field renames or removals in newer versions are not picked up automatically, review [Shopify's release notes](https://shopify.dev/changelog) before bumping the version.
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

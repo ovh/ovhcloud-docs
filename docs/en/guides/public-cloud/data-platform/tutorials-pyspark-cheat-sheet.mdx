@@ -1,0 +1,552 @@
+---
+title: "PySpark Cheat Sheet: Essential and Advanced Functions on OVHcloud Data Platform"
+description: This cheat sheet provides a concise guide to essential and advanced PySpark functions for data processing on the OVHcloud Data Platform
+lastUpdated: 2026-09-03
+---
+
+## Introduction
+
+This cheat sheet provides a concise guide to essential and advanced PySpark functions for data processing on the **OVHcloud Data Platform**. It uses the NYC Yellow Taxi Trip Records for January 2025 (`yellow_tripdata_2025_01.parquet`, ~3.5M records) and the Taxi Zone Lookup Table (`taxi_zone_lookup.csv`, 265 records) as practical examples.
+
+Aimed at intermediate users, it covers core functions (`filter`, `select`, `groupBy`, `join`, `udf`) and advanced ones (`window`, `pivot`, `approx_count_distinct`, `collect_list`, `explode`, `regexp_replace`) for complex transformations and analytics. These examples demonstrate practical applications, making this a versatile reference for any dataset.
+
+## Requirements
+
+Before diving in, ensure you have:
+
+-   **Datasets**: (`yellow_tripdata_2025_01.parquet`, `taxi_zone_lookup.csv`) available in your Connectors and accessible in the Lakehouse Manager. You can download these from the [official NYC TLC Trip Record Data website](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
+-   **Notebook**: A PySpark-enabled Jupyter notebook.
+
+## Setup Instructions
+
+1.  **Connectors**: Create a source named "NYC-taxi", upload your files (`yellow_tripdata_2025_01.parquet`, `taxi_zone_lookup.csv`), and extract their schemas.
+2.  **Lakehouse Manager**: Create corresponding tables in the Lakehouse Manager.
+3.  **DPE (Data Processing Engine)**: Ensure the data is loaded into these tables within the DPE.
+4.  **Notebook**: Start a PySpark Jupyter notebook within the OVHcloud Data Platform.
+
+## Table of Contents
+
+## PySpark Functions Cheat Sheet
+
+### Step 1: Initializing Spark and Loading Data
+
+**Code Block**
+
+```python
+from forepaas.dwh import connect
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, unix_timestamp, hour, when, count, avg, udf, approx_count_distinct, collect_list, explode, regexp_replace, row_number
+from pyspark.sql.types import FloatType
+from pyspark.sql.window import Window
+from forepaas.dwh.common import request as dwh_request, DwhRequestException
+import io
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Set up variables (DATASET, PROJECT_ID, YEAR, MONTH)
+DATASET = "default_dataset"
+PROJECT_ID = "PROJECT_ID" # Make sure to replace this with your actual PROJECT_ID
+YEAR = "2025"
+MONTH = "01"
+
+# Initialize SparkSession
+spark = SparkSession.builder.appName("PySpark_Advanced_Cheat_Sheet").getOrCreate()
+logging.info(f"Spark Version: {spark.version}")
+
+# Connect to Lakehouse
+cn_prim = connect("dwh/default_dataset/")
+
+# Load data
+taxi_df = cn_prim.query(f"SELECT * FROM db_{PROJECT_ID}_{DATASET}.{DATASET}.yellow_tripdata_{YEAR}_{MONTH}")
+zones_df = cn_prim.query(f"SELECT LocationID, Borough, Zone FROM db_{PROJECT_ID}_{DATASET}.{DATASET}.taxi_zone_lookup")
+taxi_df.cache()
+zones_df.cache()
+logging.info(f"Taxi Records: {taxi_df.count()}")
+logging.info(f"Zones Records: {zones_df.count()}")
+```
+
+**Functions Used in this Code Block:**
+
+-   `SparkSession.builder.appName().getOrCreate()`:
+    -   **What**: Initializes the PySpark session and DataFrame API, which is the entry point for using Spark functionalities.
+    -   **Benefit**: Sets up the environment for distributed data processing.
+
+-   `cn_prim = connect("dwh/default_dataset/")`:
+    -   **What**: Establishes a connection to your specified Lakehouse dataset using the `forepaas.dwh` library.
+    -   **Benefit**: Allows you to query and interact with tables stored in your Lakehouse.
+
+-   `cn_prim.query(sql_query)`:
+    -   **What**: Executes an SQL query against tables accessible via the `cn_prim` connection. It retrieves the data as a Spark DataFrame.
+    -   **Benefit**: Provides a simple way to load data from your Connectors and Lakehouse into a Spark DataFrame.
+
+-   `DataFrame.cache()`:
+    -   **What**: Marks the DataFrame to be cached in memory the first time it's computed. Subsequent actions on this DataFrame will read from cache.
+    -   **Benefit**: Significantly speeds up operations on the same DataFrame, especially useful for iterative algorithms or multiple transformations on a large dataset (~3.5M records).
+
+-   `DataFrame.count()`:
+    -   **What**: Triggers the computation and returns the total number of rows in the DataFrame.
+    -   **Benefit**: Used here to quickly verify that the data has been loaded and to check the record count.
+
+**Output of this Code Block:**
+
+-   Spark Version (e.g., `Spark Version: 3.4.1`)
+-   `Taxi Records: ~3,500,000` (actual count may vary slightly)
+-   `Zones Records: 265`
+
+### Step 2: Clean and Transform Data
+
+**Code Block**
+
+```python
+# Clean and transform
+cleaned_df = taxi_df \
+    .filter(
+        (col("tpep_pickup_datetime").isNotNull()) &
+        (col("fare_amount") > 0) &
+        (col("trip_distance") > 0)
+    ) \
+    .select(
+        "tpep_pickup_datetime",
+        "tpep_dropoff_datetime",
+        "trip_distance",
+        "fare_amount",
+        col("pulocationid").cast("double").alias("pulocationid"),
+        regexp_replace(col("store_and_fwd_flag"), "^[Yy]$", "Yes").alias("store_and_fwd_flag")
+    ) \
+    .withColumn(
+        "trip_duration",
+        unix_timestamp("tpep_dropoff_datetime") - unix_timestamp("tpep_pickup_datetime")
+    ) \
+    .withColumn(
+        "pickup_hour",
+        hour("tpep_pickup_datetime")
+    ) \
+    .withColumn(
+        "trip_duration",
+        when(col("trip_duration") > 3600, 3600).otherwise(col("trip_duration"))
+    ) \
+    .filter(col("trip_duration") >= 60)
+
+logging.info(f"Cleaned Records: {cleaned_df.count()}")
+```
+
+**Functions Used in this Code Block:**
+
+-   `DataFrame.filter(condition)`:
+    -   **What**: Filters rows of the DataFrame based on a given condition, returning a new DataFrame with only the rows that satisfy the condition.
+    -   **Benefit**: Essential for data cleansing, removing invalid or irrelevant records.
+
+-   `pyspark.sql.functions.col(column_name)`:
+    -   **What**: References a column in a DataFrame, allowing you to apply various transformations and operations to it.
+    -   **Benefit**: Provides a way to build expressions involving DataFrame columns.
+
+-   `DataFrame.select(columns)`:
+    -   **What**: Projects a set of expressions (columns or column-based transformations) and returns a new DataFrame containing only these selected columns.
+    -   **Benefit**: Useful for column subsetting and reducing the DataFrame's size by selecting only relevant fields.
+
+-   `Column.cast(dataType)`:
+    -   **What**: Converts the data type of a column to the specified `dataType`.
+    -   **Benefit**: Ensures data type compatibility for calculations or downstream processes (e.g., casting `pulocationid` to `double`).
+
+-   `pyspark.sql.functions.regexp_replace(column, pattern, replacement)`:
+    -   **What**: Replaces all occurrences of a string pattern within a column's text data with a specified replacement string.
+    -   **Benefit**: Excellent for data standardization and cleaning string fields (e.g., converting "Y" to "Yes").
+
+-   `DataFrame.withColumn(colName, col)`:
+    -   **What**: Returns a new DataFrame by adding a new column or replacing an existing column with the specified expression.
+    -   **Benefit**: Key for feature engineering and creating new derived columns on the fly.
+
+-   `pyspark.sql.functions.unix_timestamp(timestamp_column)`:
+    -   **What**: Converts a timestamp string or timestamp column into Unix timestamp (seconds since 1970-01-01 00:00:00 UTC).
+    -   **Benefit**: Facilitates numerical time calculations, such as computing trip durations by subtracting timestamps.
+
+-   `pyspark.sql.functions.hour(timestamp_column)`:
+    -   **What**: Extracts the hour component from a timestamp column.
+    -   **Benefit**: Useful for temporal analysis, allowing you to identify hourly patterns or trends in the data.
+
+-   `pyspark.sql.functions.when(condition, value).otherwise(other_value)`:
+    -   **What**: Implements conditional logic. If the `condition` is true, the column takes `value`; otherwise, it takes `other_value`. Can be chained.
+    -   **Benefit**: Effective for handling outliers, applying business rules, or categorizing data based on specific conditions (e.g., capping `trip_duration`).
+
+**Output of this Code Block:**
+
+-   `Cleaned Records: ~2,700,000 – ~2,800,000` (actual count may vary based on data quality).
+
+### Step 3: Custom Logic with UDF (User-Defined Function)
+
+**Code Block**
+
+```python
+# UDF for fare efficiency (fare per minute)
+def fare_efficiency(fare, duration):
+    return fare / (duration / 60) if duration > 0 else 0.0
+
+fare_efficiency_udf = udf(fare_efficiency, FloatType())
+
+# Apply UDF
+transformed_df = cleaned_df \
+    .withColumn("fare_efficiency", fare_efficiency_udf(col("fare_amount"), col("trip_duration")))
+
+transformed_df.show(5)
+```
+
+**Functions Used in this Code Block:**
+
+-   `udf(func, returnType)`:
+    -   **What**: Registers a Python function as a User-Defined Function (UDF) in PySpark. This allows you to apply custom Python logic to Spark DataFrame columns.
+    -   **Benefit**: Enables tailored, complex calculations that might not be available in native PySpark functions (e.g., calculating "fare per minute" using custom logic).
+
+-   `FloatType()` (from `pyspark.sql.types`):
+    -   **What**: Specifies the return data type of the UDF as a Float (single-precision floating-point number).
+    -   **Benefit**: Ensures that the output of your custom function is correctly typed in the Spark DataFrame.
+
+-   `DataFrame.withColumn(colName, col)`:
+    -   **What**: (Re-used from Step 2) Adds a new column or replaces an existing one based on the result of an expression.
+    -   **Benefit**: Here, it's used to apply the newly defined `fare_efficiency_udf` to create the `fare_efficiency` column.
+
+**Output of this Code Block:**
+
+-   A `DataFrame.show(5)` output, displaying the first 5 rows of `transformed_df`, including the newly added `fare_efficiency` column.
+    -   Example: If `fare_amount` is 15.0 and `trip_duration` is 600 seconds (10 minutes), `fare_efficiency` would be 1.5 ($/min).
+
+### Step 4: Advanced Window Functions and Joins
+
+**Code Block**
+
+```python
+# Define window for ranking trips by fare within borough
+window_spec = Window.partitionBy("pickup_borough").orderBy(col("fare_amount").desc())
+
+# Join with zones and rank trips
+joined_df = transformed_df \
+    .join(
+        zones_df,
+        transformed_df.pulocationid == zones_df.LocationID,
+        "left"
+    ) \
+    .withColumnRenamed("Borough", "pickup_borough") \
+    .drop("LocationID") \
+    .filter(col("pickup_borough").isNotNull()) \
+    .withColumn("fare_rank", row_number().over(window_spec))
+
+logging.info(f"Joined Records: {joined_df.count()}")
+joined_df.filter(col("fare_rank") <= 3).show()
+```
+
+**Functions Used in this Code Block:**
+
+-   `Window.partitionBy(*cols).orderBy(*cols)`:
+    -   **What**: Defines a window specification. `partitionBy` divides the rows into groups, and `orderBy` defines the logical order of rows within each partition.
+    -   **Benefit**: Crucial for enabling advanced analytical operations (like ranking, lead/lag, cumulative sums) that operate on a defined subset of rows.
+
+-   `pyspark.sql.functions.row_number()`:
+    -   **What**: A window function that assigns a unique, sequential number to each row within its partition, based on the ordering defined in the window specification.
+    -   **Benefit**: Perfect for ranking records (e.g., identifying the top N records based on a metric, like top fares).
+
+-   `DataFrame.join(other_df, on=None, how=None)`:
+    -   **What**: Combines two DataFrames based on a specified join condition (`on`) and join type (`how`, e.g., "inner", "left", "right").
+    -   **Benefit**: Enriches data by bringing together related information from different sources (e.g., joining taxi trip data with zone lookup data).
+
+-   `DataFrame.withColumnRenamed(existing, new)`:
+    -   **What**: Returns a new DataFrame by renaming an existing column.
+    -   **Benefit**: Helps clarify schema and improves readability, especially after joins where column names might be ambiguous.
+
+-   `DataFrame.drop(*cols)`:
+    -   **What**: Returns a new DataFrame with the specified columns dropped.
+    -   **Benefit**: Helps manage DataFrame size and complexity by removing unnecessary columns, saving memory.
+
+**Output of this Code Block:**
+
+-   `Joined Records: ~2,600,000 – ~2,700,000` (actual count may vary).
+-   A `DataFrame.show()` output, displaying rows where `fare_rank` is less than or equal to 3, showing the top 3 fares per borough.
+
+### Step 5: Aggregate and Pivot Data
+
+**Code Block**
+
+```python
+# Aggregate: unique zones and trips per borough
+agg_df = joined_df \
+    .groupBy("pickup_borough") \
+    .agg(
+        approx_count_distinct("pulocationid").alias("unique_zones"),
+        count("*").alias("num_trips")
+    )
+
+# Pivot: avg fare by hour and borough
+pivot_df = joined_df \
+    .groupBy("pickup_hour") \
+    .pivot("pickup_borough") \
+    .agg(avg("fare_amount")) \
+    .orderBy("pickup_hour")
+
+agg_df.show()
+pivot_df.show()
+```
+
+**Functions Used in this Code Block:**
+
+-   `DataFrame.groupBy(*cols)`:
+    -   **What**: Groups the DataFrame by one or more specified columns, preparing for aggregate computations.
+    -   **Benefit**: Enables summarization and analysis of data based on distinct categories or dimensions.
+
+-   `DataFrame.agg(*exprs)`:
+    -   **What**: Applies aggregate functions to the grouped data, computing summary statistics.
+    -   **Benefit**: Used to calculate metrics like counts, sums, averages, etc., for each group.
+
+-   `pyspark.sql.functions.approx_count_distinct(column)`:
+    -   **What**: Returns an approximate count of distinct items in a group. It uses the HyperLogLog++ algorithm.
+    -   **Benefit**: Significantly faster and more memory-efficient than `countDistinct` for very large datasets when an exact count isn't strictly necessary.
+
+-   `pyspark.sql.functions.count(column)`:
+    -   **What**: Counts the number of non-null values in a column or, with `count("*")`, counts all rows in a group.
+    -   **Benefit**: Tallies the size of each aggregated group or the occurrences of specific values.
+
+-   `DataFrame.pivot(pivot_column)`:
+    -   **What**: Rotates (pivots) a DataFrame, transforming unique values from a specified column into new columns. Requires a subsequent aggregation.
+    -   **Benefit**: Creates wide tables that are often more suitable for reporting and cross-sectional analysis, allowing direct comparison of values across categories.
+
+-   `pyspark.sql.functions.avg(column)`:
+    -   **What**: Computes the average value of a numerical column.
+    -   **Benefit**: Provides a central tendency measure for quantitative data within each group.
+
+-   `DataFrame.orderBy(*cols, ascending=True)`:
+    -   **What**: Sorts the rows of the DataFrame based on one or more columns in ascending or descending order.
+    -   **Benefit**: Organizes the output for better readability and to present data in a logical sequence.
+
+**Output of this Code Block:**
+
+-   `agg_df.show()`: Displays a table with `pickup_borough`, `unique_zones` (approximate), and `num_trips` (e.g., Manhattan might show ~60 unique zones and ~2M trips).
+-   `pivot_df.show()`: Displays a pivoted table showing `pickup_hour` as rows and `pickup_borough` as columns, with the average `fare_amount` in each cell.
+
+### Step 6: Collect and Explode Lists
+
+**Code Block**
+
+```python
+# Collect zones per borough
+list_df = joined_df \
+    .groupBy("pickup_borough") \
+    .agg(collect_list("Zone").alias("zones_list"))
+
+# Explode zones list
+exploded_df = list_df \
+    .select("pickup_borough", explode(col("zones_list")).alias("zone"))
+
+exploded_df.show(10)
+```
+
+**Functions Used in this Code Block:**
+
+-   `pyspark.sql.functions.collect_list(column)`:
+    -   **What**: An aggregation function that gathers all non-null values from a specified column within each group into a Python list.
+    -   **Benefit**: Useful for creating array-like structures where each element corresponds to a record from the original group.
+
+-   `pyspark.sql.functions.explode(array_column)`:
+    -   **What**: Transforms a column containing arrays (lists) or maps into individual rows for each element in the array/map. If an array has `N` elements, it creates `N` rows for that original row.
+    -   **Benefit**: Flattens nested data structures, allowing individual elements to be processed or viewed as separate records.
+
+**Output of this Code Block:**
+
+-   A `DataFrame.show(10)` output, displaying a table with `pickup_borough` and an `exploded` `zone` column, where each distinct zone for a borough gets its own row (e.g., for Manhattan, you'd see multiple rows like "Manhattan | Midtown", "Manhattan | Upper East Side", etc.).
+
+### Step 7: Save DataFrame to Bucket and Create Table (Advanced)
+
+**Code Block**
+
+```python
+def create_table_from_this_dataframe(dataframe, dataset, table_name, bucket, source_bucket):
+    logging.info(f"We will create a source (bucket) - {source_bucket} where we will store the new table - {table_name} - and automatically load it")
+
+    # Creating bucket to store the table
+    cn_datastore = connect('data_store')
+    logging.info(f"{cn_datastore.list()} - Before creating new bucket")
+    cn_datastore.create_bucket(bucket)
+    logging.info(f"{cn_datastore.list()} - After adding new bucket")
+    cn_bucket = connect('data_store/' + bucket)
+
+    get_dbs = dwh_request(f"v4/databases", method="GET")
+    data = get_dbs.json()
+    db_exist = next((item['_id'] for item in data if item.get('display_name') == source_bucket and item.get("package") == "data-store"), None)
+
+    if db_exist is None:
+        # Creating source where we will use the new bucket created to get access to the table
+        new_source = {"type":"protocol","package":"data-store","parameters":{"path":"","bucket":bucket},"default":False,"level":"source","display_name":source_bucket}
+        new_source_bucket = dwh_request(f"v4/databases", method="POST", json=new_source)
+        logging.info(f"New source added with the bucket: {bucket} - source name: {source_bucket}")
+    else:
+        logging.info("Source already exist")
+
+    # Call to API - To get dataset id
+    get_database_id = dwh_request(f"v4/databases", method="GET")
+    database_all = get_database_id.json()
+    # Filter to get the corresponding _id for the database
+    dataset_id = next((item['_id'] for item in database_all if item.get('name') == dataset), None)
+
+    logging.info(f"dataset_id : {dataset_id}")
+
+    # Convert table to Pandas and serialize to CSV in BytesIO
+    try:
+        # Convert to Pandas DataFrame
+        table = dataframe.toPandas()
+
+        # Create BytesIO buffer and write CSV
+        data = io.BytesIO()
+        table.to_csv(data, index=False, encoding='utf-8')
+        data.seek(0)  # Reset buffer position
+
+        # Upload to bucket
+        file_path = f"{table_name}.csv"
+        etag = cn_bucket.put(file_path, data, data.getbuffer().nbytes)
+        logging.info(f"DataFrame uploaded to bucket {bucket}/{file_path} with ETag: {etag}")
+
+        # Verify bucket contents
+        files = cn_bucket.list()
+        logging.info(f"Bucket contents: {files}")
+    except Exception as e:
+        logging.error(f"Failed to save to bucket: {e}")
+        raise
+
+    # Call to API - To add the file into the source
+    table_config = {"display_name":file_path,"progress":None,"physical_status":None,"parameters":{},"filename":file_path}
+    res_table = dwh_request(f"v4/databases/{source_bucket}/tables/{file_path}", method="PUT", json=table_config)
+
+    # Call to API - To get the corresponding ID for the file_path added in the source
+    get_template_catalog_object = dwh_request(f"v4/tables", method="GET")
+    data = get_template_catalog_object.json()
+    file_path_source_id = next((item['_id'] for item in data if item.get('filename') == file_path), None)
+
+    logging.info(f"file_path_source_id : {file_path_source_id}")
+
+    # In case the table already exist and you made some modification on it
+    auto_build_table_DELETE = dwh_request(f"v4/logical/objects/{table_name}", method="DELETE") 
+
+    # Call to API - To launch the build of the table on the corresponding dataset and load the specific data
+    config_build = {"database_id":dataset_id,"display_name":table_name,"name":table_name,"type":"prim","load_data":True,"build_table":True,"templated_from":"data_catalog","template_catalog_object":file_path_source_id}
+    auto_build_table = dwh_request(f"v4/logical/objects", method="POST", json=config_build)
+
+    logging.info(f"You can check the build of the table {table_name} on the Lakehouse Manager screen")
+
+# Use the function create_table_from_this_dataframe:
+create_table_from_this_dataframe(pivot_df,"default_dataset","taxi_pivot_table","new_bucket","new_source_bucket")
+```
+
+**Functions Used in this Code Block (and within `create_table_from_this_dataframe`):**
+
+-   `DataFrame.toPandas()`:
+    -   **What**: Converts a Spark DataFrame to a Pandas DataFrame. This collects all distributed data to the driver node.
+    -   **Benefit**: Enables the use of Pandas-specific functions for local data manipulation and file serialization (e.g., `to_csv`).
+    -   **Warning**: Use with caution on very large datasets as it can cause out-of-memory errors on the driver.
+
+-   `Pandas_DataFrame.to_csv(path_or_buffer, index=False, encoding='utf-8')`:
+    -   **What**: Writes the Pandas DataFrame to a comma-separated values (CSV) file.
+    -   **Benefit**: Serializes the data into a standard text format suitable for storage and retrieval.
+
+-   `io.BytesIO()`:
+    -   **What**: A class from Python's `io` module that creates an in-memory binary stream, acting like a file object.
+    -   **Benefit**: Allows you to write and read bytes as if you were interacting with a physical file, which is useful for direct data transfer to services without saving to disk.
+
+-   `cn_datastore.create_bucket(bucket_name)` (from `forepaas.dwh`):
+    -   **What**: Creates a new storage bucket within the OVHcloud Data Platform's data store.
+    -   **Benefit**: Provides a dedicated location to store files, including intermediate or final processed data.
+
+-   `cn_bucket.put(file_path, data, size)` (from `forepaas.dwh`):
+    -   **What**: Uploads data (typically from a BytesIO buffer) to a specified path within a connected bucket.
+    -   **Benefit**: Persists your processed data (e.g., the CSV from `pivot_df`) into OVHcloud cloud storage.
+
+-   `cn_bucket.list()` (from `forepaas.dwh`):
+    -   **What**: Retrieves a list of files and subdirectories within a connected bucket.
+    -   **Benefit**: Used for verification that files have been successfully uploaded to the bucket.
+
+-   `dwh_request(path, method, json)` (from `forepaas.dwh.common`):
+    -   **What**: A utility function to make direct HTTP API calls to the OVHcloud Data Platform's backend services.
+    -   **Benefit**: This function provides granular control to automate tasks like creating data sources, registering files in the Connectors, and triggering table builds in the Lakehouse Manager programmatically, which are not always exposed via the higher-level `connect` object.
+
+**Explanation of this Step's Process:**
+
+This advanced step showcases how to persist a processed Spark DataFrame (`pivot_df`) into a new table in the OVHcloud Data Platform's Lakehouse. It leverages a combination of PySpark, Pandas, and direct API calls:
+
+1.  **Bucket Creation**: A new bucket (`new_bucket`) is created in the OVHcloud data store if it doesn't already exist.
+2.  **Source Creation**: A new data source (`new_source_bucket`) is configured and linked to this bucket, allowing the Connectors to discover files within it.
+3.  **Data Serialization & Upload**: The `pivot_df` is converted to a Pandas DataFrame, then serialized into a CSV format within an in-memory buffer (`io.BytesIO`). This CSV data is then uploaded to the newly created bucket.
+4.  **Table Registration & Build**: Via direct API calls (`dwh_request`), the uploaded CSV file is registered as a "physical table" in the Connectors, and a "logical table" (`taxi_pivot_table`) is created in the Lakehouse Manager, triggering a data load from the registered source.
+
+:::warning
+**Warning**: This is a temporary solution for saving and creating tables, relying on direct API interactions. The OVHcloud Data Platform SDK is expected to be updated to include more native and simplified SQL transformation and direct storage capabilities in the future, reducing the need for manual API calls and Pandas conversions.
+:::
+
+### Step 8: Verify Table Existence
+
+**Code Block**
+
+```python
+# Verify table exists in Lakehouse
+try:
+    test_result = cn_prim.query(f"SELECT * FROM db_{PROJECT_ID}_{DATASET}.{DATASET}.taxi_pivot_table")
+    logging.info(f"taxi_pivot_table Records: {test_result.count()}")
+except Exception as e:
+    logging.error(f"Failed to query table - please ensure it's the correct table")
+```
+
+**Functions Used in this Code Block:**
+
+-   `cn_prim.query(sql_query)`:
+    -   **What**: (Re-used from Step 1) Executes an SQL query against tables in your Lakehouse through the established `cn_prim` connection, retrieving the result as a Spark DataFrame.
+    -   **Benefit**: Used here to confirm that the `taxi_pivot_table` was successfully created and is queryable in the Lakehouse.
+
+-   `DataFrame.count()`:
+    -   **What**: (Re-used from Step 1) Returns the total number of rows in the queried DataFrame.
+    -   **Benefit**: Confirms that the newly created table contains the expected data and records.
+
+**Output of this Code Block:**
+
+-   If successful: `taxi_pivot_table Records: [Number of rows in pivot_df]` (e.g., `taxi_pivot_table Records: 24` if 24 hours are present).
+-   If unsuccessful: An error message from the `logging.error` indicating that the table could not be queried.
+
+### Step 9: Clean Up and Stop Spark Session
+
+**Code Block**
+
+```python
+spark.catalog.clearCache()
+spark.stop()
+logging.info("Spark cache cleared and Spark session stopped.")
+```
+
+**Functions Used in this Code Block:**
+
+-   `SparkSession.catalog.clearCache()`:
+    -   **What**: Clears the Spark's internal cache, releasing memory occupied by cached DataFrames and RDDs.
+    -   **Benefit**: Essential for freeing up resources, especially after complex operations or when you no longer need the cached data. It helps prevent out-of-memory issues in long-running applications or interactive sessions.
+
+-   `SparkSession.stop()`:
+    -   **What**: Terminates the SparkSession, shutting down the SparkContext and releasing all associated resources.
+    -   **Benefit**: Ensures a clean shutdown of your Spark application, freeing up cluster resources. It's crucial to call this at the end of your Spark application to avoid resource leaks.
+
+**Output of this Code Block:**
+
+-   `INFO - Spark cache cleared and Spark session stopped.`
+    -   This message confirms that the cache has been cleared and the Spark session has been gracefully terminated. You will typically see further output from the notebook environment indicating that the kernel is idle or has shut down.
+
+## Conclusion and Next Steps
+
+This PySpark cheat sheet has provided a hands-on overview of essential and advanced functions for data processing on the OVHcloud Data Platform. You've seen how to initialize Spark, load and clean data, apply custom logic with UDFs, perform complex aggregations with window functions and pivots, and even manage data persistence to your Lakehouse.
+
+This guide serves as a practical reference to accelerate your PySpark development. To continue your journey and apply these skills to real-world scenarios, we encourage you to:
+
+-   **Explore the Tutorials**: Dive into the comprehensive [NYC Taxi Dataset Analysis tutorials](/guides/public-cloud/data-platform/tutorials-pyspark) to build end-to-end data pipelines and machine learning models.
+-   **Deepen Your Knowledge**: Consult the [official PySpark Documentation](https://spark.apache.org/docs/latest/api/python/) for in-depth details on all functions.
+
+Happy coding and data analyzing! 🚀
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

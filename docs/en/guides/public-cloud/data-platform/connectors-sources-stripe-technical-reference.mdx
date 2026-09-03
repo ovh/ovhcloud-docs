@@ -1,0 +1,345 @@
+---
+title: "Stripe: Technical Reference"
+description: This is the technical companion to the main Stripe connector documentation
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+This is the technical companion to the main [Stripe connector](/guides/public-cloud/data-platform/connectors-sources-stripe) documentation. It covers authentication internals, the full endpoint reference, pagination, rate limits, output format, and limitations, everything needed to integrate the connector into a data pipeline.
+
+## Authentication
+
+### Method
+
+Bearer token with the Stripe Secret API Key.
+
+```yaml
+Authorization: Bearer sk_test_XXXXXXXXXXXXXXXX
+```
+
+The key is set once when the connector initializes; every subsequent API call reuses the same authenticated session.
+
+### Key Formats
+
+| Prefix | Type | Usage |
+|--------|------|-------|
+| `sk_test_` | Secret key (test) | Sandbox, full API, fake data |
+| `sk_live_` | Secret key (live) | Production, real transactions |
+| `rk_test_` / `rk_live_` | Restricted key | Scoped permissions (read-only recommended) |
+| `pk_test_` / `pk_live_` | Publishable key | Client-side only, **cannot be used here** |
+
+### Health Check
+
+The connector's health check calls `GET /v1/balance`: a lightweight endpoint available on every Stripe account. A successful 200 response confirms the Secret key is valid.
+
+## Architecture
+
+### Raw JSON, platform-handled schema
+
+The connector returns raw JSON from the Stripe API, arrays of Stripe objects with their full nested structure. The platform takes over from there:
+
+1. Schema is auto-discovered from the JSON payload
+2. Nested objects are flattened into dot-notation columns
+3. Data is stored in the lakehouse, queryable via SQL
+
+You don't define a schema, list columns, or write any transformation code, any new field Stripe adds to an object appears automatically on the next extraction.
+
+### Uniform API, uniform connector
+
+Stripe's list endpoints are exceptionally uniform: every one returns the same envelope, `{"object":"list","data":[..],"has_more":bool}`, and uses the same cursor-based pagination. Because of this, the connector uses a single extraction path for all 76 supported resources. Adding a new resource means adding its API path to a registry; no new extraction logic is needed.
+
+### Endpoint resolution
+
+Endpoints are organized in the UI in three layers:
+
+1. **Domain groups** (`core`, `billing`, `products`, ...): you select a group, then pick the specific resource from a dropdown (e.g. `billing` → `invoices`).
+2. **Standalone endpoints** (`payment_methods`, `tax_registrations`, ...): the endpoint directly identifies the resource; no dropdown needed.
+3. **Custom endpoint** (`custom`): you type any Stripe API path (e.g. `issuing/settlements`) and the connector calls it with standard cursor pagination.
+
+Whichever path you choose, the extraction behavior is identical: authenticate, paginate, return raw JSON.
+
+### What the connector handles vs what the platform handles
+
+| Responsibility | Owner |
+|---------------|-------|
+| Authentication (Bearer token) | Connector |
+| Pagination (cursor, `has_more` loop) | Connector |
+| Automatic retry on 429 | Connector |
+| One-time fallback when an endpoint rejects `limit` | Connector |
+| Raw JSON output | Connector |
+| Schema discovery from JSON | Platform |
+| Flattening nested objects into columns | Platform |
+| Column naming (slugification, lowercase, underscores) | Platform |
+| Storage in the lakehouse | Platform |
+
+## Endpoint Reference
+
+All list endpoints follow the same pattern: `GET /v1/{resource}?limit=100&starting_after={cursor}`. Responses share the same envelope: `{"object":"list","data":[...],"has_more":bool,"url":"/v1/..."}`.
+
+The tables below document the 20 endpoints exposed in the UI and the Stripe resources they cover.
+
+### core
+
+Main payment resources. Single domain group with a "Resource Type" dropdown (14 options).
+
+| Resource | API path | Description |
+|----------|----------|-------------|
+| customers | `/v1/customers` | Customer profiles |
+| charges | `/v1/charges` | Charges (legacy, kept for backward compat) |
+| payment_intents | `/v1/payment_intents` | Modern payment flow (recommended over charges) |
+| balance_transactions | `/v1/balance_transactions` | All balance movements |
+| payouts | `/v1/payouts` | Bank payouts |
+| refunds | `/v1/refunds` | Refunds |
+| disputes | `/v1/disputes` | Payment disputes |
+| setup_intents | `/v1/setup_intents` | Setup flow for saving payment methods |
+| events | `/v1/events` | Webhook event log |
+| files | `/v1/files` | Uploaded files |
+| file_links | `/v1/file_links` | Shareable file URLs |
+| webhook_endpoints | `/v1/webhook_endpoints` | Configured webhook receivers |
+| payment_method_configurations | `/v1/payment_method_configurations` | Which payment methods to display |
+| payment_method_domains | `/v1/payment_method_domains` | Domain verification for methods |
+
+**UI options:** Resource Type (required, dropdown with the 14 resources above) + Max Items (optional).
+**Pagination:** cursor-based.
+**Output:** Raw JSON. Stripe list envelope.
+
+### products
+
+Catalog and pricing (7 options).
+
+| Resource | API path |
+|----------|----------|
+| products | `/v1/products` |
+| prices | `/v1/prices` |
+| coupons | `/v1/coupons` |
+| promotion_codes | `/v1/promotion_codes` |
+| tax_codes | `/v1/tax_codes` |
+| tax_rates | `/v1/tax_rates` |
+| shipping_rates | `/v1/shipping_rates` |
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based. **Output:** Raw JSON.
+
+### billing
+
+Recurring billing (11 options).
+
+| Resource | API path |
+|----------|----------|
+| subscriptions | `/v1/subscriptions` |
+| subscription_schedules | `/v1/subscription_schedules` |
+| invoices | `/v1/invoices` |
+| invoice_items | `/v1/invoiceitems` |
+| invoice_rendering_templates | `/v1/invoice_rendering_templates` |
+| credit_notes | `/v1/credit_notes` |
+| plans | `/v1/plans` |
+| quotes | `/v1/quotes` |
+| billing_meters | `/v1/billing/meters` |
+| billing_alerts | `/v1/billing/alerts` |
+| billing_credit_grants | `/v1/billing/credit_grants` |
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based. **Output:** Raw JSON.
+
+**Notable quirk:** per [Stripe's API docs](https://docs.stripe.com/api/subscriptions/list), the `subscriptions` list endpoint returns **all subscriptions that have not been canceled** by default (active, trialing, past_due, incomplete, unpaid, paused). Canceled subscriptions are excluded unless you ask for them explicitly. To include canceled ones, use the custom endpoint with `resource_path=subscriptions?status=canceled` or `?status=all`.
+
+### checkout
+
+Hosted checkout flows (2 options: `checkout_sessions`, `payment_links`).
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based.
+
+### connect
+
+Marketplace / platform resources (5 options: `accounts`, `application_fees`, `transfers`, `top_ups`, `country_specs`).
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based.
+
+### radar
+
+Fraud detection: requires Stripe Radar (3 options: `early_fraud_warnings`, `reviews`, `value_lists`).
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based.
+
+### issuing
+
+Card issuing: requires **Stripe Issuing** activation (7 options: authorizations, cardholders, cards, transactions, disputes, personalization_designs, physical_bundles).
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based.
+**Behavior if product is not enabled:** Stripe returns `400 Bad Request` with the message "Your account is not set up to use Issuing". The extraction fails, see [Limitations](#limitations).
+
+### treasury
+
+Money movement: requires **Stripe Treasury** activation (9 sub-resources).
+
+| Resource | API path |
+|----------|----------|
+| treasury_transactions | `/v1/treasury/transactions` |
+| treasury_transaction_entries | `/v1/treasury/transaction_entries` |
+| treasury_outbound_transfers | `/v1/treasury/outbound_transfers` |
+| treasury_outbound_payments | `/v1/treasury/outbound_payments` |
+| treasury_inbound_transfers | `/v1/treasury/inbound_transfers` |
+| treasury_received_credits | `/v1/treasury/received_credits` |
+| treasury_received_debits | `/v1/treasury/received_debits` |
+| treasury_credit_reversals | `/v1/treasury/credit_reversals` |
+| treasury_debit_reversals | `/v1/treasury/debit_reversals` |
+
+**UI options:** Resource Type (required) + Financial Account ID (required, format `fa_xxx`) + Max Items (optional). **Pagination:** cursor-based.
+
+### terminal
+
+Physical card readers (3 options: `terminal_locations`, `terminal_readers`, `terminal_configurations`).
+
+**UI options:** Resource Type (required) + Max Items (optional). **Pagination:** cursor-based.
+
+### identity
+
+Identity verification: requires **Stripe Identity** (2 options: `identity_verification_sessions`, `identity_verification_reports`).
+
+### climate
+
+Carbon removal: requires **Stripe Climate** (3 options: `climate_orders`, `climate_suppliers`, `climate_products`).
+
+### reporting
+
+Reports and Sigma (3 options: `report_runs`, `report_types`, `sigma_scheduled_query_runs`).
+
+**Notable quirk:** `/v1/reporting/report_types` rejects the `limit` parameter. The connector detects this, drops the parameter, and retries automatically. No action needed on your side.
+
+### payment_methods (filtered standalone)
+
+**UI options:** Customer ID (required, format `cus_xxx`) + Max Items (optional).
+Lists payment methods attached to a specific customer. Stripe requires the customer filter, if the Customer ID is missing, the connector returns an empty list instead of making the API call.
+
+### setup_attempts (filtered standalone)
+
+**UI options:** Setup Intent ID (required, format `seti_xxx`) + Max Items (optional).
+
+### subscription_items (filtered standalone)
+
+**UI options:** Subscription ID (required, format `sub_xxx`) + Max Items (optional).
+
+### financial_connections_transactions (filtered standalone)
+
+**UI options:** Account ID (required, format `fca_xxx`) + Max Items (optional).
+
+### financial_connections_accounts (standalone)
+
+**UI options:** Max Items only. Lists all Financial Connections accounts linked to the Stripe account.
+
+### tax_registrations (standalone)
+
+**UI options:** Max Items only.
+
+### treasury_financial_accounts (standalone)
+
+**UI options:** Max Items only. Note: the individual transaction endpoints are in the `treasury` domain group. This standalone endpoint is only for the accounts list itself.
+
+### custom
+
+**UI options:** Resource Path (required) + Max Items (optional).
+
+Free-text Stripe API path. The connector accepts the path with or without a leading `v1/` prefix, and calls the endpoint with standard cursor pagination.
+
+Example inputs:
+
+- `issuing/settlements` → `GET /v1/issuing/settlements`
+- `v1/capital/financing_offers` → `GET /v1/capital/financing_offers` (no double prefix)
+
+Use this endpoint for Stripe resources that aren't covered by a named endpoint yet, or for niche/beta endpoints where a named slot isn't warranted.
+
+## Pagination
+
+All list endpoints use Stripe's cursor-based pagination:
+
+```http
+GET /v1/{resource}?limit=100&starting_after={last_id}
+```
+
+Response:
+```json
+{
+  "object": "list",
+  "url": "/v1/...",
+  "has_more": true,
+  "data": [ ... ]
+}
+```
+
+Behavior you can expect:
+
+- The connector fetches 100 records per request (Stripe's maximum page size)
+- It continues paginating as long as Stripe reports `has_more: true`
+- It stops when `has_more` is `false`, or when Max Items is reached
+
+### No-limit fallback
+
+A small number of Stripe endpoints (notably `/v1/reporting/report_types`) don't accept the `limit` parameter. The connector detects the resulting 400 error, retries the request without `limit`, and continues the extraction transparently. You don't need to configure anything. The retry is automatic and only happens on the first request.
+
+See [Stripe Pagination docs](https://docs.stripe.com/api/pagination) for the complete specification.
+
+## Rate Limits
+
+Stripe documents rate limits at [docs.stripe.com/rate-limits](https://docs.stripe.com/rate-limits). Exact numbers depend on the endpoint and account type, refer to the official documentation for current limits.
+
+### Rate Limit Handling
+
+On `429 Too Many Requests`, the connector waits and retries automatically:
+
+1. It reads the `Retry-After` header sent by Stripe (in seconds)
+2. If the header is missing, it falls back to a 2-second wait
+3. It then retries the same request and continues the extraction
+
+All other error codes (400, 401, 403, 404, 500, etc.) propagate as failures. The connector does not catch or skip them. The extraction stops immediately with the error returned by Stripe.
+
+## Output Format
+
+### Raw JSON (connector output)
+
+The connector returns raw JSON from the Stripe API, arrays of Stripe objects with their full nested structure, matching Stripe's object schemas exactly.
+
+Every Stripe object contains:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique ID with type prefix (`cus_`, `ch_`, `sub_`, `pi_`, `in_`, etc.) |
+| `object` | Object type (`customer`, `charge`, `subscription`, ...) |
+| `created` | Unix timestamp (seconds) |
+| `livemode` | Boolean, test vs live mode |
+| `metadata` | User-defined key-value map |
+
+Resource-specific fields vary per object. Refer to [Stripe API reference](https://docs.stripe.com/api) for each object's schema.
+
+### Flattened output (lakehouse)
+
+The platform flattens the raw JSON into a flat table. Nested keys become column names with underscores:
+
+| Raw JSON path | Lakehouse column |
+|--------------|-----------------|
+| `id` | `id` |
+| `object` | `object` |
+| `created` | `created` |
+| `address.country` | `address_country` |
+| `metadata.custom_key` | `metadata_custom_key` |
+
+Column names are normalized: lowercase, dots and special characters replaced by underscores, always starting with a letter or underscore.
+
+## Limitations
+
+- **No deletion tracking**: the connector extracts the current state of each resource. Deleted objects are typically not returned by list endpoints. For an audit trail, extract `events` (which records deletions as `*.deleted` event types).
+- **Unix timestamps**: Stripe uses Unix seconds (integer), not ISO 8601 strings. Cast to timestamp in downstream queries.
+- **Stripe product gating**: Issuing, Treasury, Identity, Terminal, and Climate require the corresponding Stripe product to be activated on the account. If not activated, Stripe returns a 400 error with a message like "Your account is not set up to use X" and the extraction fails. The connector does not skip or retry.
+- **Permission errors are not skipped**: if Stripe returns a 403 (permission denied), for example, because your Restricted API Key lacks read access to a resource, the extraction fails immediately. The connector doesn't have special handling to turn 403s into empty results; it only retries on 429 rate-limit responses.
+- **`subscriptions` default filter**: per [Stripe's API docs](https://docs.stripe.com/api/subscriptions/list), the list endpoint returns all subscriptions that have not been canceled by default. To include canceled subscriptions, use the custom endpoint with `resource_path=subscriptions?status=canceled` or `?status=all`.
+- **Custom endpoint pagination**: the custom endpoint assumes Stripe's standard list response format (`{"object":"list","data":[...],"has_more":bool}`). Endpoints with a non-standard response shape (e.g. singletons like `/v1/balance`) will return an empty list.
+- **Test mode vs live mode isolation**: the Secret key determines which environment the connector reads from. `sk_test_` and `sk_live_` data are completely isolated. There is no cross-environment extraction.
+- **No automatic expansion**: Stripe supports `expand[]=field` to inline related objects, but the connector does not set this. Related objects appear as ID references in the output; join them downstream via a separate extraction.
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

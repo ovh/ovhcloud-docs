@@ -1,0 +1,647 @@
+---
+title: "HubSpot: Technical Reference"
+description: This is the technical companion to the main HubSpot connector documentation
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+This is the technical companion to the main [HubSpot connector](/guides/public-cloud/data-platform/connectors-sources-hubspot) documentation. It covers authentication internals, the full endpoint reference, scopes, pagination, output format, and limitations, everything needed to integrate the connector into a data pipeline.
+
+## Authentication
+
+### Supported Methods
+
+| Method | Format | Use case |
+|--------|--------|----------|
+| **Private App Token** (recommended) | `pat-na1-xxx` or `pat-eu1-xxx` | Server-side integrations |
+| **OAuth2 Access Token** | Standard OAuth bearer token | Public distributed apps |
+
+All methods use the same Bearer header:
+
+```http
+Authorization: Bearer {token}
+```
+
+### Deprecated authentication methods
+
+| Method | Why |
+|--------|-----|
+| API Key (`hapikey`) | Sunset since November 2022 |
+| Personal Access Key | CLI only, which returns 401 on REST API calls |
+
+### Credentials Format
+
+```json
+{
+  "token": "pat-eu1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+## Architecture
+
+The connector returns raw JSON from the HubSpot API. The platform takes over from there. It auto-discovers the schema from the JSON payload, flattens nested objects into dot-notation columns (slugified to lowercase with underscores), and stores the result in the lakehouse, queryable via Trino. Any new field HubSpot adds to an object appears automatically on the next extraction; you don't define a schema, list columns, or write any transformation code.
+
+The connector itself is responsible for authentication (Bearer token), endpoint routing, pagination (cursor or offset depending on the endpoint), and rate-limit retries.
+
+## CRM Object Types
+
+### 27 Standard Objects
+
+The connector exposes the 27 standard HubSpot CRM object types. Each is reachable via `/crm/v3/objects/{object_type}` (except owners, see below).
+
+#### Core CRM
+
+| Object Type | API Path |
+|-------------|----------|
+| `contacts` | `/crm/v3/objects/contacts` |
+| `companies` | `/crm/v3/objects/companies` |
+| `deals` | `/crm/v3/objects/deals` |
+| `tickets` | `/crm/v3/objects/tickets` |
+
+#### Engagements
+
+| Object Type | API Path |
+|-------------|----------|
+| `calls` | `/crm/v3/objects/calls` |
+| `emails` | `/crm/v3/objects/emails` |
+| `meetings` | `/crm/v3/objects/meetings` |
+| `notes` | `/crm/v3/objects/notes` |
+| `tasks` | `/crm/v3/objects/tasks` |
+| `communications` | `/crm/v3/objects/communications` |
+| `postal_mail` | `/crm/v3/objects/postal_mail` |
+
+#### E-commerce & Sales
+
+| Object Type | API Path |
+|-------------|----------|
+| `products` | `/crm/v3/objects/products` |
+| `line_items` | `/crm/v3/objects/line_items` |
+| `quotes` | `/crm/v3/objects/quotes` |
+
+#### Commerce
+
+| Object Type | API Path |
+|-------------|----------|
+| `invoices` | `/crm/v3/objects/invoices` |
+| `subscriptions` | `/crm/v3/objects/subscriptions` |
+| `orders` | `/crm/v3/objects/orders` |
+| `payments` | `/crm/v3/objects/payments` |
+
+#### Commerce Hub
+
+| Object Type | API Path |
+|-------------|----------|
+| `carts` | `/crm/v3/objects/carts` |
+| `discounts` | `/crm/v3/objects/discounts` |
+| `fees` | `/crm/v3/objects/fees` |
+| `taxes` | `/crm/v3/objects/taxes` |
+
+#### Sales Hub
+
+| Object Type | API Path | Notes |
+|-------------|----------|-------|
+| `leads` | `/crm/v3/objects/leads` | Sales Hub Pro+ |
+| `goals` | `/crm/v3/objects/goals` | |
+
+#### Service & Scheduling
+
+| Object Type | API Path | Notes |
+|-------------|----------|-------|
+| `feedback_submissions` | `/crm/v3/objects/feedback_submissions` | Service Hub |
+| `appointments` | `/crm/v3/objects/appointments` | Scheduling |
+| `services` | `/crm/v3/objects/services` | |
+
+### Special: Owners
+
+Owners use a dedicated endpoint (`GET /crm/v3/owners`) instead of `/crm/v3/objects/owners`. The connector handles this automatically when `object_type=owners` is selected.
+
+## Endpoint Reference
+
+### crm_objects
+
+Extract records from any CRM object type.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `object_type` | select | Yes | One of 27 CRM types + `owners` |
+| `max_items` | number | No | Maximum records to extract (empty = all) |
+| `properties_filter` | tags | No | Specific properties to fetch (empty = HubSpot default set) |
+
+**API**: `GET /crm/v3/objects/{object_type}?properties={props}&limit=100&after={cursor}`
+
+**Pagination**: Cursor-based (`paging.next.after`)
+
+**Output**: Raw JSON. Each record has `id`, `createdAt`, `updatedAt`, `archived`, and a nested `properties` dict containing all requested property values.
+
+**Properties behavior**:
+
+- Empty filter: fetches ALL properties via `GET /crm/v3/properties/{type}` first, then requests all of them
+- With filter: requests only the specified properties
+- HubSpot returns all property values as strings (even numbers and dates)
+
+| Object Type | Approx. Default Properties |
+|------------|---------------------------|
+| Contacts | ~370+ properties |
+| Companies | ~250+ properties |
+| Deals | ~200+ properties |
+
+### associations
+
+Extract relationships between CRM objects.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `from_type` | select | Yes | Source object type (14 options) |
+| `to_type` | select | Yes | Target object type (14 options) |
+| `max_items` | number | No | Max source records to process |
+
+**API**: `POST /crm/v4/associations/{from_type}/{to_type}/batch/read`
+
+**Pagination**: Cursor-based on source objects, batch POST for association lookup (max 1000 IDs per request)
+
+**Output**: Raw JSON. Each result contains `from` and `to` objects with IDs and association metadata.
+
+### association_definitions
+
+Get the available association types between two object types.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `from_type` | select | Yes | Source object type |
+| `to_type` | select | Yes | Target object type |
+
+**API**: `GET /crm/v4/associations/{from_type}/{to_type}/labels`
+
+**Pagination**: None (single GET)
+
+**Output**: Raw JSON, association type definitions with category, type ID, and label.
+
+### pipelines
+
+Extract pipeline definitions with their stages.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pipeline_object_type` | select | Yes | `deals` or `tickets` |
+
+**API**: `GET /crm/v3/pipelines/{pipeline_object_type}`
+
+**Pagination**: None (single GET, returns all pipelines)
+
+**Output**: Raw JSON. Each pipeline contains `id`, `label`, `displayOrder`, `createdAt`, `updatedAt`, and a nested `stages` array. The platform flattens stages into separate rows automatically.
+
+### pipeline_audit
+
+Audit log for a specific pipeline.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pipeline_object_type` | select | Yes | `deals` or `tickets` |
+| `pipeline_id` | text | Yes | Pipeline ID (use `pipelines` endpoint to find IDs) |
+
+**API**: `GET /crm/v3/pipelines/{object_type}/{pipeline_id}/audit`
+
+**Pagination**: None (single GET)
+
+**Output**: Raw JSON, audit entries as returned by the API.
+
+### properties_meta
+
+Extract the data dictionary (property schema) for an object type.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `property_object_type` | select | Yes | Object type (12 options) |
+
+**API**: `GET /crm/v3/properties/{property_object_type}`
+
+**Pagination**: None (single GET)
+
+**Output**: Raw JSON. Each property has `name`, `label`, `type`, `fieldType`, `groupName`, `description`, and more.
+
+### property_groups
+
+Extract property groups for an object type.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `property_object_type` | select | Yes | Object type (12 options) |
+
+**API**: `GET /crm/v3/properties/{property_object_type}/groups`
+
+**Pagination**: None (single GET)
+
+**Output**: Raw JSON, group definitions as returned by the API.
+
+### lists
+
+Extract list and segment definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum lists to extract |
+
+**API**: `GET /crm/v3/lists`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, list definitions as returned by the API.
+
+### list_memberships
+
+Get member record IDs from a specific list.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `list_id` | text | Yes | HubSpot List ID (ILS number, found in Contacts > Lists) |
+| `max_items` | number | No | Maximum members to extract |
+
+**API**: `GET /crm/v3/lists/{list_id}/memberships`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, membership records as returned by the API.
+
+### marketing_emails
+
+Extract marketing email definitions with statistics.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum emails to extract |
+
+**API**: `GET /marketing/v3/emails`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, email campaign data with nested statistics, flattened by the platform.
+
+### forms
+
+Extract form definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum forms to extract |
+
+**API**: `GET /marketing/v3/forms`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, form definitions as returned by the API.
+
+### form_submissions
+
+Extract submissions for a specific form.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `form_id` | text | Yes | Form ID (find in Marketing > Forms > form details URL) |
+| `max_items` | number | No | Maximum submissions to extract |
+
+**API**: `GET /form-integrations/v1/submissions/forms/{form_id}`
+
+**Pagination**: **Offset-based** (v1 API, uses `offset` + `hasMore`, NOT cursor-based)
+
+**Output**: Raw JSON, submission data as returned by the API.
+
+### conversations
+
+Extract conversation threads (chat, email, bot).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum threads to extract |
+
+**API**: `GET /conversations/v3/conversations/threads`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, thread data as returned by the API.
+
+**Requires**: Conversations scope + appropriate HubSpot plan
+
+### campaigns
+
+Extract marketing campaign definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum campaigns to extract |
+
+**API**: `GET /marketing/v3/campaigns`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, campaign data as returned by the API.
+
+### blog_posts
+
+Extract CMS blog articles.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum posts to extract |
+
+**API**: `GET /cms/v3/blogs/posts`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, blog post data (title, content, author, publish date, etc.).
+
+### site_pages
+
+Extract CMS website pages.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum pages to extract |
+
+**API**: `GET /cms/v3/pages/site-pages`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, page data as returned by the API.
+
+### landing_pages
+
+Extract CMS landing pages.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum pages to extract |
+
+**API**: `GET /cms/v3/pages/landing-pages`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, page data as returned by the API.
+
+### workflows
+
+Extract automation workflow definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum workflows to extract |
+
+**API**: `GET /automation/v3/workflows`
+
+**Pagination**: None (single GET, data key is `workflows`, not `results`)
+
+**Output**: Raw JSON, workflow definitions as returned by the API.
+
+### sequences
+
+Extract sales sequence definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum sequences to extract |
+
+**API**: `GET /automation/v4/sequences`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, sequence data as returned by the API.
+
+**Requires**: Sales Hub Pro+
+
+### users
+
+Extract account users.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum users to extract |
+
+**API**: `GET /settings/v3/users`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, user data as returned by the API.
+
+### imports
+
+Extract CRM import history.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum import records to extract |
+
+**API**: `GET /crm/v3/imports`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, import records as returned by the API.
+
+### crm_schemas
+
+Extract custom object schema definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum schemas to extract |
+
+**API**: `GET /crm/v3/schemas`
+
+**Pagination**: None (single GET)
+
+**Output**: Raw JSON, schema definitions as returned by the API.
+
+### custom_events
+
+Extract behavioral events for a specific CRM record.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `event_object_type` | select | Yes | CRM object type (contacts, companies, deals, tickets) |
+| `event_object_id` | text | Yes | HubSpot record ID |
+| `max_items` | number | No | Maximum events to extract |
+
+**API**: `GET /events/v3/events?objectType={type}&objectId={id}`
+
+**Pagination**: Cursor-based (with `extra_params`)
+
+**Output**: Raw JSON, event data as returned by the API.
+
+**Requires**: Marketing Hub Enterprise
+
+### timeline_events
+
+Extract timeline event templates for an integration app.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `app_id` | text | Yes | HubSpot App ID (found in developer account) |
+
+**API**: `GET /crm/v3/timeline/{app_id}/event-templates`
+
+**Pagination**: None (single GET)
+
+**Output**: Raw JSON, event template data as returned by the API.
+
+### hubdb_tables
+
+Extract HubDB table definitions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | No | Maximum tables to extract |
+
+**API**: `GET /cms/v3/hubdb/tables`
+
+**Pagination**: Cursor-based
+
+**Output**: Raw JSON, table definitions as returned by the API.
+
+## Scopes by Endpoint
+
+### CRM Objects
+
+| Object Type | Required Scope |
+|-------------|---------------|
+| contacts | `crm.objects.contacts.read` |
+| companies | `crm.objects.companies.read` |
+| deals | `crm.objects.deals.read` |
+| tickets | `tickets` |
+| products | `e-commerce` |
+| line_items | `crm.objects.line_items.read` |
+| quotes | `crm.objects.quotes.read` |
+| calls, emails, meetings, notes, tasks | `crm.objects.contacts.read` |
+| communications | `crm.objects.contacts.read` |
+| feedback_submissions | `crm.objects.feedback_submissions.read` |
+| leads | `crm.objects.leads.read` |
+| invoices | `crm.objects.invoices.read` |
+| subscriptions | `crm.objects.subscriptions.read` |
+| goals | `crm.objects.goals.read` |
+| orders | `crm.objects.orders.read` |
+| payments | `crm.objects.payments.read` |
+| owners | `crm.objects.owners.read` |
+
+### Other Endpoints
+
+| Endpoint | Required Scope |
+|----------|---------------|
+| pipelines, pipeline_audit | `crm.objects.deals.read` or `tickets` (depends on pipeline_object_type) |
+| properties_meta, property_groups | Same scope as the target object type |
+| lists, list_memberships | `crm.lists.read` |
+| marketing_emails | `content` |
+| forms, form_submissions | `forms` |
+| associations, association_definitions | Scopes for both the source and target object types |
+| campaigns | `content` |
+| blog_posts, site_pages, landing_pages | `content` |
+
+For endpoints not listed above (workflows, sequences, users, imports, crm_schemas, conversations, custom_events, hubdb_tables, timeline_events), refer to [HubSpot's scope reference](https://developers.hubspot.com/docs/api/working-with-oauth#scopes) for the authoritative scope name.
+
+## Pagination
+
+The connector uses three pagination strategies depending on the endpoint:
+
+### Cursor-based (most endpoints)
+
+```http
+GET /crm/v3/objects/contacts?limit=100&after=NTI1Cg==
+```
+
+Response:
+```json
+{
+  "results": [...],
+  "paging": {
+    "next": { "after": "NTI1Cg==" }
+  }
+}
+```
+
+When `paging.next.after` is absent, all data has been fetched.
+
+### Offset-based (form submissions only)
+
+```http
+GET /form-integrations/v1/submissions/forms/{id}?limit=50&offset=0
+```
+
+Response:
+```json
+{
+  "results": [...],
+  "hasMore": true,
+  "offset": 50
+}
+```
+
+When `hasMore` is false, all data has been fetched.
+
+### No pagination (single GET)
+
+Some endpoints return all data in a single response: `pipelines`, `pipeline_audit`, `properties_meta`, `property_groups`, `association_definitions`, `workflows`, `timeline_events`, `crm_schemas`.
+
+## Rate Limits
+
+### Limits by Plan
+
+Refer to [HubSpot's official rate limit documentation](https://developers.hubspot.com/docs/api/usage-details) for current limits. Limits vary by plan and API endpoint.
+
+### Rate Limit Handling
+
+The connector automatically handles `429 Too Many Requests` responses:
+
+1. Reads the `Retry-After` header (seconds to wait)
+2. Falls back to 10 seconds if header is missing
+3. Retries the request after waiting
+
+## Output Format
+
+### Raw JSON (connector output)
+
+The connector returns **raw JSON** from the HubSpot API via `handle_api_extraction(data, limit, return_type)`. The data is a list of dicts, exactly as returned by the API.
+
+Example CRM object (contacts):
+```json
+{
+  "id": "123",
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "updatedAt": "2024-03-20T14:22:00.000Z",
+  "archived": false,
+  "properties": {
+    "email": "john@example.com",
+    "firstname": "John",
+    "lastname": "Doe",
+    "createdate": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### Flattened output (lakehouse)
+
+The platform automatically flattens the raw JSON into a flat table. Nested keys become column names with underscores:
+
+| Raw JSON path | Lakehouse column |
+|--------------|-----------------|
+| `id` | `id` |
+| `createdAt` | `createdat` |
+| `properties.email` | `properties_email` |
+| `properties.firstname` | `properties_firstname` |
+
+Column names are **slugified**: lowercase, dots/special chars replaced by underscores, must start with a letter or underscore.
+
+## Limitations
+
+- **Property values are always strings**, even numbers and dates. Cast them in your downstream processing.
+- **Custom objects are not supported**: the `object_type` parameter is a fixed select list of 27 standard CRM types + owners. Custom object types cannot be extracted with this connector.
+- **Some object types require paid plans**: invoices, subscriptions, and goals may require Sales Hub or Commerce Hub. Leads require Sales Hub Professional+. Commerce objects (carts, discounts, fees, taxes) require Commerce Hub. The API returns 403 if unavailable.
+- **Form submissions use v1 API**: the only endpoint still on the legacy v1 API. Uses offset pagination instead of cursor-based.
+- **Behavioral events**: require Marketing Hub Enterprise and a specific record ID (cannot bulk-extract all events).
+- **Column names in lakehouse are slugified**: `properties.email` becomes `properties_email`. This is handled by the platform, not the connector.
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

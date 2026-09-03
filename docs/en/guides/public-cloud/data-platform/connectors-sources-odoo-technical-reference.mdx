@@ -1,0 +1,249 @@
+---
+title: "Odoo: Technical Reference"
+description: This is the technical companion to the main Odoo connector documentation
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+This is the technical companion to the main [Odoo connector](/guides/public-cloud/data-platform/connectors-sources-odoo) documentation. It covers authentication internals, the full endpoint reference, pagination, rate limits, output format, the domain filter language, version compatibility, and limitations, everything needed to integrate the connector into a data pipeline.
+
+## Authentication
+
+### Protocol
+
+The connector uses **JSON-RPC 2.0** via `POST {url}/jsonrpc`. All requests go to a single endpoint with different JSON bodies.
+
+### Credentials
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Odoo instance URL (e.g., `https://mycompany.odoo.com`) |
+| `login` | Yes | Odoo user email |
+| `api_key` | Yes | API key generated from your Odoo profile |
+| `database` | No | Auto-detected from `*.odoo.com` subdomain. Required for self-hosted. |
+
+### Auth Flow
+
+1. `configure()` calls `authenticate(db, login, api_key)` via JSON-RPC
+2. Returns `uid` (integer user ID)
+3. Every subsequent call passes `(db, uid, api_key)`: stateless, no session cookie
+
+### Odoo Online Requirement
+
+External API access requires the **Custom plan** on Odoo Online. Free and Standard plans do not include API access. See [Odoo Pricing](https://www.odoo.com/pricing).
+
+## Architecture
+
+The connector returns raw JSON from the Odoo JSON-RPC API. The platform takes over from there. It auto-discovers the schema from the JSON payload, flattens nested objects into columns, and stores the result in the lakehouse, queryable via Trino. Any new field that appears in your Odoo instance shows up automatically on the next extraction.
+
+The connector itself is responsible for authentication (JSON-RPC `authenticate` to obtain a `uid`), endpoint routing, data extraction (a single `search_read` call shared by every model), schema introspection (`fields_get`), offset-based pagination, and rate-limit retries.
+
+Because every Odoo model is reachable through the same `search_read` JSON-RPC call, the connector uses a single extraction path for all 26 predefined models, the `custom_model` endpoint, and any model surfaced through `model_fields`. Adding a new model means adding its name to the dropdown. No per-model code is needed.
+
+## Endpoint Reference
+
+### models
+
+Extract records from any of the 26 predefined Odoo models.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `object_type` | select | Yes | Odoo model (26 options) |
+| `fields_filter` | tags | No | Specific fields to include (empty = all) |
+| `domain_filter` | text | No | Odoo domain filter as JSON (empty = all records) |
+| `max_items` | number | No | Max records (empty = all) |
+
+**API call**: `execute_kw(model, "search_read", [domain], {fields, limit, offset, order})`
+
+**Pagination**: Offset-based (limit=80, offset increments by 80)
+
+**Output**: Raw JSON, list of dicts as returned by the Odoo API.
+
+**Predefined models (26):**
+
+| Domain | Models |
+|--------|--------|
+| Contacts | `res.partner` |
+| CRM | `crm.lead`, `crm.stage`, `crm.team` |
+| Sales | `sale.order`, `sale.order.line` |
+| Purchases | `purchase.order`, `purchase.order.line` |
+| Invoicing | `account.move`, `account.move.line`, `account.journal` |
+| Products | `product.template`, `product.product`, `product.category` |
+| Inventory | `stock.picking`, `stock.move`, `stock.warehouse`, `stock.location` |
+| HR | `hr.employee`, `hr.department` |
+| Projects | `project.project`, `project.task` |
+| System | `res.users`, `res.company`, `res.country`, `res.currency` |
+
+### custom_model
+
+Extract records from any Odoo model not in the predefined list.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `model_name` | text | Yes | Full technical model name (e.g., `helpdesk.ticket`) |
+| `fields_filter` | tags | No | Specific fields |
+| `domain_filter` | text | No | Domain filter as JSON |
+| `max_items` | number | No | Max records |
+
+**API call**: Same as `models`: `execute_kw(model_name, "search_read", ..)`
+
+**Output**: Raw JSON, same format as `models`.
+
+**Use cases**: `helpdesk.ticket`, `mrp.production`, `fleet.vehicle`, `event.event`, or any custom model.
+
+### model_fields
+
+Returns field definitions for any Odoo model (schema introspection).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `model_name` | text | Yes | Model to inspect (e.g., `res.partner`) |
+
+**API call**: `execute_kw(model_name, "fields_get", [], {attributes: [string, type, required, help, readonly, relation]})`
+
+**Output**: Raw JSON, list of dicts, each with `field_name`, `string` (label), `type`, `required`, `help`, `readonly`, `relation` (for relational fields).
+
+**Use case**: Discover available fields and their types before setting up `fields_filter` on a `models` or `custom_model` extraction.
+
+## Pagination
+
+The connector uses a single pagination strategy for all models:
+
+### Offset-based
+
+```
+Call 1: search_read(domain, {limit: 80, offset: 0, order: "id asc"})
+Call 2: search_read(domain, {limit: 80, offset: 80, order: "id asc"})
+Call 3: search_read(domain, {limit: 80, offset: 160, order: "id asc"})
+...until returned records < 80
+```
+
+- **Page size**: 80 (Odoo recommended)
+- **Order**: Always `id asc` for consistent pagination
+- **Stop condition**: Fewer records returned than the page size
+- **max_items**: When set, pagination stops as soon as enough records are collected, and the result is truncated to exactly `max_items`
+
+## Rate Limits
+
+Refer to your Odoo instance documentation for exact limits.
+
+| Environment | Approximate Limit |
+|-------------|-------------------|
+| Odoo Online (SaaS) | Varies by plan, refer to [Odoo documentation](https://www.odoo.com/documentation) |
+| Odoo.sh | Varies, refer to your instance configuration |
+| Self-hosted | Depends on server resources |
+
+The connector handles `429 Too Many Requests` automatically: reads the `Retry-After` header and waits before retrying. Falls back to 10 seconds if the header is missing.
+
+## Output Format
+
+### Raw JSON (connector output)
+
+The connector returns raw JSON from the Odoo API. Each record is a dict with all requested fields.
+
+Example (`res.partner`):
+```json
+{
+  "id": 8,
+  "name": "Acme Corp",
+  "email": "contact@acme.com",
+  "phone": "+33 1 23 45 67 89",
+  "is_company": true,
+  "country_id": [75, "France"],
+  "category_id": [1, 3]
+}
+```
+
+### Relational fields
+
+Odoo relational fields are returned as:
+
+- **Many2one**: `[id, display_name]` (e.g., `"country_id": [75, "France"]`)
+- **One2many / Many2many**: list of IDs (e.g., `"category_id": [1, 3]`)
+
+The platform flattens these automatically.
+
+### Flattened output (lakehouse)
+
+The platform flattens nested objects into columns with underscores:
+
+| Raw JSON | Lakehouse column |
+|----------|-----------------|
+| `id` | `id` |
+| `name` | `name` |
+| `country_id` | `country_id` (flattened from array) |
+
+## Domain Filter Reference
+
+Odoo uses **Polish (prefix) notation** for domain filters. The connector accepts them as a JSON string.
+
+### Syntax
+
+Each criterion is `[field, operator, value]`. Multiple criteria are AND-ed by default.
+
+### Operators
+
+| Operator | Description |
+|----------|-------------|
+| `=`, `!=` | Equals / not equals |
+| `>`, `>=`, `<`, `<=` | Comparison |
+| `in`, `not in` | Set membership |
+| `like`, `ilike` | Pattern match (ilike = case-insensitive) |
+| `not like`, `not ilike` | Negated pattern match |
+| `=like`, `=ilike` | SQL LIKE without auto-wrapping |
+| `child_of`, `parent_of` | Hierarchical relationships |
+
+### Logical operators
+
+| Operator | Arity | Description |
+|----------|-------|-------------|
+| `&` | Binary | AND (implicit default) |
+| `\|` | Binary | OR |
+| `!` | Unary | NOT |
+
+### Examples
+
+```json
+// Active companies
+[["is_company", "=", true], ["active", "=", true]]
+
+// Sales orders over 1000
+[["state", "=", "sale"], ["amount_total", ">", 1000]]
+
+// Leads OR opportunities
+["|", ["type", "=", "lead"], ["type", "=", "opportunity"]]
+
+// Invoices from 2024
+[["invoice_date", ">=", "2024-01-01"], ["invoice_date", "<=", "2024-12-31"]]
+```
+
+## Version Compatibility
+
+Tested and supported on **Odoo 14 through 19** (including Odoo Online saas~19.2).
+
+| Odoo Version | Status | API Key Support |
+|-------------|--------|-----------------|
+| 14–18 | Fully supported | Yes |
+| 19 | Fully supported (tested on saas~19.2) | Yes |
+
+All 26 predefined models are stable across Odoo 14–19. If a model does not exist on your instance (depends on installed apps), use `model_fields` to check availability.
+
+## Limitations
+
+- **No field hardcoding.** The connector returns whatever the API provides. Field names and types depend on your Odoo version and installed modules.
+- **Restricted fields.** Some models have fields restricted to specific user groups (e.g., `project.project.stage_id`). Use `fields_filter` to exclude them, or grant the required group to your API user.
+- **Binary fields.** Fields like `image_1920` return base64-encoded data, which can be very large. Use `fields_filter` to exclude image fields when not needed.
+- **Odoo Online API access.** Requires the Custom plan. Free and Standard plans block external API access.
+- **No webhook/push extraction.** The connector uses pull-based extraction only (JSON-RPC search_read).
+- **One authentication method.** API key only. OAuth2 is not supported.
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

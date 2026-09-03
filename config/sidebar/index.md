@@ -1691,9 +1691,239 @@
                 + [QPUs - Getting started](public-cloud/quantum-computing/qpus/getting-started)
     + [Integrations](products/public-cloud-integrations)
         + [Prefect](public-cloud-integrations-prefect)
-    + [Data Platform](products/public-cloud-data-platform)
-        + [Data Platform documentation](public-cloud/data-platform/general-what-is-the-data-platform)
-        + [Sign-up to Data Platform](public-cloud/data-platform/general-signin-signup)
+    + [Data Platform](products/public-cloud-data-platform){landing=public-cloud/data-platform/landing-page-data-platform}
+        + [Getting Started](public-cloud-data-platform-getting-started){landing=public-cloud/data-platform/landing-page-getting-started}
+            + [1. Connect sources](public-cloud/data-platform/getting-started-connect-sources){label=1. Connect sources}
+            + [2. Organize data](public-cloud/data-platform/getting-started-organize-data){label=2. Organize data}
+            + [3. Prepare data](public-cloud/data-platform/getting-started-prepare-data){label=3. Prepare data}
+            + [4. Create queries](public-cloud/data-platform/getting-started-create-queries){label=4. Create queries}
+            + [5. Expose through API](public-cloud/data-platform/getting-started-expose-api){label=5. Expose through API}
+            + [6. Visualize data](public-cloud/data-platform/getting-started-visualize-data){label=6. Visualize data}
+        + [Tutorials](public-cloud-data-platform-tutorials){landing=public-cloud/data-platform/landing-page-tutorials}
+            + [Your project checklist](public-cloud/data-platform/tutorials-project-checklist){label=Your project checklist}
+            + [Project setup & configuration](public-cloud-data-platform-project-setup-and-configuration){landing=public-cloud/data-platform/landing-page-tutorials-project-setup}
+                + [Customize your first app](public-cloud/data-platform/tutorials-customize-first-app){label=Customize your first app}
+                + [Develop your own app](public-cloud-data-platform-develop-your-own-app){landing=public-cloud/data-platform/tutorials-app-development}
+                    + [1. Build with an external repo](public-cloud/data-platform/tutorials-app-development-build){label=1. Build with an external repo}
+                    + [2. Discover the config files](public-cloud/data-platform/tutorials-app-development-config){label=2. Discover the config files}
+                    + [3. Create and edit components](public-cloud/data-platform/tutorials-app-development-components){label=3. Create and edit components}
+                    + [4. Add custom components](public-cloud/data-platform/tutorials-app-development-custom-components){label=4. Add custom components}
+                    + [5. React Shadcn Vite template](public-cloud/data-platform/tutorials-app-development-react-shadcn){label=5. React Shadcn Vite template}
+                + [Export / import a configuration](public-cloud/data-platform/tutorials-export-import-config){label=Export / import a configuration}
+                + [Generate API keys for external access](public-cloud/data-platform/tutorials-generate-api-keys){label=Generate API keys for external access}
+                + [Learn versioning basics](public-cloud/data-platform/tutorials-versioning-basics){label=Learn versioning basics}
+            + [Data ingestion & transformation](public-cloud-data-platform-data-ingestion-and-transformation){landing=public-cloud/data-platform/landing-page-tutorials-data-engineering}
+                + [Stream data from Apache Kafka](public-cloud/data-platform/tutorials-kafka){label=Stream data from Apache Kafka}
+                + [Build an IoT fleet-monitoring pipeline](public-cloud-data-platform-build-an-iot-fleet-monitoring-pipeline){landing=public-cloud/data-platform/tutorials-iot-fleet-monitoring}
+                    + [Build the Superset dashboards](public-cloud/data-platform/tutorials-iot-fleet-monitoring-superset-dashboards)
+                + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
+                + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
+                + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
+                + [Apply segmentation to your jobs](public-cloud-data-platform-apply-segmentation-to-your-jobs){landing=public-cloud/data-platform/tutorials-segmentation}
+                    + [Project table attribute](public-cloud/data-platform/tutorials-segmentation-table-attribute){label=Project table attribute}
+                    + [Workflow dates perimeter](public-cloud/data-platform/tutorials-segmentation-workflow-dates){label=Workflow dates perimeter}
+                    + [Predefined values](public-cloud/data-platform/tutorials-segmentation-predefined-values){label=Predefined values}
+                    + [Source rows chunks](public-cloud/data-platform/tutorials-segmentation-source-chunks){label=Source rows chunks}
+                    + [Set of files](public-cloud/data-platform/tutorials-segmentation-files){label=Set of files}
+                    + [Source accounts](public-cloud/data-platform/tutorials-segmentation-source-accounts){label=Source accounts}
+            + [Analytics & BI](public-cloud-data-platform-analytics-and-bi){landing=public-cloud/data-platform/landing-page-tutorials-analytics-bi}
+                + [Extract project data with Trino](public-cloud/data-platform/tutorials-trino-connector)
+                + [Integrating Trino with External Tools](public-cloud/data-platform/tutorials-trino-external-tools){label=Integrating Trino with External Tools}
+                + [Trino data types and casts](public-cloud/data-platform/tutorials-trino-types-and-casts)
+                + [Using Metabase with Trino](public-cloud/data-platform/tutorials-metabase-trino){label=Using Metabase with Trino}
+                + [NYC Taxi Data Analysis with PySpark](public-cloud-data-platform-nyc-taxi-data-analysis-with-pyspark){landing=public-cloud/data-platform/tutorials-pyspark}
+                    + [Single Dataset Deep Dive (Yellow Taxi)](public-cloud/data-platform/tutorials-pyspark-single-dataset){label=Single Dataset Deep Dive (Yellow Taxi)}
+                    + [Multi-Dataset Comparative Analysis](public-cloud/data-platform/tutorials-pyspark-multi-dataset){label=Multi-Dataset Comparative Analysis}
+                    + [PySpark Cheat Sheet](public-cloud/data-platform/tutorials-pyspark-cheat-sheet){label=PySpark Cheat Sheet}
+                + [Data Analysis with AI Endpoints](public-cloud/data-platform/tutorials-ai-endpoints){label=Data Analysis with AI Endpoints}
+                + [OVHcloud Billing Data Analysis](public-cloud/data-platform/tutorials-billing-analysis){label=OVHcloud Billing Data Analysis}
+                + [Deploy Apache Superset](public-cloud/data-platform/tutorials-install-apache-superset){label=Deploy Apache Superset}
+                + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
+            + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
+                + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
+                + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
+                + [Custom event handling action](public-cloud/data-platform/tutorials-custom-event-handling){label=Custom event handling action}
+                + [Access your buckets with S3-compatible tools](public-cloud/data-platform/tutorials-bucket-s3-access)
+        + [Services](public-cloud-data-platform-services){landing=public-cloud/data-platform/landing-page-services}
+            + [Connectors](public-cloud-data-platform-connectors){landing=public-cloud/data-platform/landing-page-connectors}
+                + [Discover key concepts](public-cloud/data-platform/connectors-key-concepts){label=Discover key concepts}
+                + [Sources](public-cloud-data-platform-sources){landing=public-cloud/data-platform/landing-page-connectors-sources}
+                    + [Configure your connector](public-cloud/data-platform/connectors-sources-configure)
+                    + [OVHCloud API](public-cloud/data-platform/connectors-sources-ovhcloud-api)
+                    + [Apache Kafka](public-cloud/data-platform/connectors-sources-kafka)
+                    + [Dropbox](public-cloud/data-platform/connectors-sources-dropbox)
+                    + [Facebook](public-cloud/data-platform/connectors-sources-facebook)
+                    + [File Upload](public-cloud/data-platform/connectors-sources-upload-files)
+                    + [Data Platform Buckets](public-cloud/data-platform/connectors-sources-dataplatform-buckets)
+                    + [FTP](public-cloud/data-platform/connectors-sources-ftp)
+                    + [Google Analytics](public-cloud/data-platform/connectors-sources-google-analytics)
+                    + [HTTP Files](public-cloud/data-platform/connectors-sources-http)
+                    + [HTTP REST](public-cloud/data-platform/connectors-sources-rest)
+                    + [HubSpot](public-cloud-data-platform-hubspot){landing=public-cloud/data-platform/connectors-sources-hubspot}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-hubspot-technical-reference){label=Technical Reference}
+                    + [Microsoft Azure Blob Storage](public-cloud/data-platform/connectors-sources-blob-storage)
+                    + [MySQL](public-cloud/data-platform/connectors-sources-mysql)
+                    + [Odoo](public-cloud-data-platform-odoo){landing=public-cloud/data-platform/connectors-sources-odoo}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-odoo-technical-reference){label=Technical Reference}
+                    + [Salesforce](public-cloud-data-platform-salesforce){landing=public-cloud/data-platform/connectors-sources-salesforce}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-salesforce-technical-reference){label=Technical Reference}
+                    + [SFTP](public-cloud/data-platform/connectors-sources-sftp)
+                    + [Shopify](public-cloud-data-platform-shopify){landing=public-cloud/data-platform/connectors-sources-shopify}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-shopify-technical-reference){label=Technical Reference}
+                    + [SQL Server](public-cloud/data-platform/connectors-sources-sql-server)
+                    + [Stripe](public-cloud-data-platform-stripe){landing=public-cloud/data-platform/connectors-sources-stripe}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-stripe-technical-reference){label=Technical Reference}
+                    + [Trino](public-cloud/data-platform/connectors-sources-trino)
+                    + [Twitter](public-cloud/data-platform/connectors-sources-twitter){label=Twitter}
+                    + [FHIR](public-cloud/data-platform/connectors-sources-fhir)
+                + [Analyzer](public-cloud-data-platform-analyzer){landing=public-cloud/data-platform/landing-page-connectors-analyzer}
+                    + [Extract the metadata](public-cloud/data-platform/connectors-analyzer-extract-metadata){label=Extract the metadata}
+                    + [Blueprint rules](public-cloud/data-platform/connectors-analyzer-blueprint-rules)
+                + [Consumers](public-cloud-data-platform-consumers){landing=public-cloud/data-platform/landing-page-connectors-consumers}
+                    + [PowerBI](public-cloud/data-platform/connectors-consumers-power-bi){label=PowerBI}
+                    + [OpenLineage](public-cloud/data-platform/connectors-consumers-openlineage){label=OpenLineage}
+                    + [Trino](public-cloud/data-platform/connectors-consumers-trino){label=Trino}
+            + [Lakehouse Manager](public-cloud-data-platform-lakehouse-manager){landing=public-cloud/data-platform/landing-page-lakehouse-manager}
+                + [Discover key concepts](public-cloud/data-platform/lakehouse-manager-key-concepts){label=Discover key concepts}
+                + [Datasets](public-cloud/data-platform/lakehouse-manager-datasets)
+                + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
+                    + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
+                    + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel)
+                + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes)
+                + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets)
+                + [Explorer](public-cloud/data-platform/lakehouse-manager-explorer)
+                + [Lineage](public-cloud/data-platform/lakehouse-manager-lineage)
+                + [Policy Tags](public-cloud-data-platform-policy-tags){landing=public-cloud/data-platform/lakehouse-manager-policy-tags}
+                    + [CEL Conditions](public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions){label=CEL Conditions}
+                    + [Testing & Troubleshooting](public-cloud/data-platform/lakehouse-manager-policy-tags-testing)
+                    + [Example: Team Access with Groups](public-cloud/data-platform/lakehouse-manager-policy-tags-groups-example)
+            + [Data Processing Engine](public-cloud-data-platform-data-processing-engine){landing=public-cloud/data-platform/landing-page-dpe}
+                + [Actions](public-cloud-data-platform-actions){landing=public-cloud/data-platform/landing-page-dpe-actions}
+                    + [Create and manage actions](public-cloud/data-platform/dpe-actions-manage)
+                    + [Load](public-cloud-data-platform-load){landing=public-cloud/data-platform/dpe-actions-load}
+                        + [Advanced Mode](public-cloud/data-platform/dpe-actions-load-advanced-mode){label=Advanced Mode}
+                    + [Load PySpark](public-cloud/data-platform/dpe-actions-load-pyspark){label=Load PySpark}
+                    + [Aggregate](public-cloud-data-platform-aggregate){landing=public-cloud/data-platform/dpe-actions-aggregate}
+                        + [Advanced Mode](public-cloud/data-platform/dpe-actions-aggregate-advanced-mode){label=Advanced Mode}
+                    + [Aggregate PySpark](public-cloud/data-platform/dpe-actions-aggregate-pyspark){label=Aggregate PySpark}
+                    + [SQL](public-cloud/data-platform/dpe-actions-sql){label=SQL}
+                    + [Custom](public-cloud-data-platform-custom){landing=public-cloud/data-platform/dpe-actions-custom}
+                        + [Default Packages](public-cloud/data-platform/dpe-actions-custom-default-packages)
+                    + [Custom PySpark](public-cloud/data-platform/dpe-actions-custom-pyspark){label=Custom PySpark}
+                    + [File Transfer](public-cloud/data-platform/dpe-actions-file-transfer){label=File Transfer}
+                    + [Load to Bucket](public-cloud/data-platform/dpe-actions-load-to-bucket){label=Load to Bucket}
+                    + [Export Table to Source](public-cloud/data-platform/dpe-actions-export-table-to-source){label=Export Table to Source}
+                    + [CSV to PostgreSQL](public-cloud/data-platform/dpe-actions-csv-to-postgresql){label=CSV to PostgreSQL}
+                    + [MySQL to Parquet](public-cloud/data-platform/dpe-actions-mysql-to-parquet){label=MySQL to Parquet}
+                    + [PostgreSQL to CSV](public-cloud/data-platform/dpe-actions-postgresql-to-csv){label=PostgreSQL to CSV}
+                    + [PostgreSQL to Parquet](public-cloud/data-platform/dpe-actions-postgresql-to-parquet){label=PostgreSQL to Parquet}
+                    + [Diff](public-cloud/data-platform/dpe-actions-diff){label=Diff}
+                    + [Delete](public-cloud/data-platform/dpe-actions-delete){label=Delete}
+                    + [Delete Diff](public-cloud/data-platform/dpe-actions-delete-diff){label=Delete Diff}
+                    + [Delete Bucket](public-cloud/data-platform/dpe-actions-delete-bucket){label=Delete Bucket}
+                    + [Rebuild](public-cloud/data-platform/dpe-actions-rebuild){label=Rebuild}
+                    + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance)
+                    + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
+                + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
+                    + [Advanced Mode](public-cloud/data-platform/dpe-workflows-advanced-mode){label=Advanced Mode}
+                + [Notebooks](public-cloud-data-platform-notebooks){landing=public-cloud/data-platform/dpe-notebooks}
+                    + [Data Platform Extension](public-cloud/data-platform/dpe-notebooks-data-platform-extension)
+                    + [Jupyter AI Extension](public-cloud/data-platform/dpe-notebooks-jupyter-ai-extension){label=Jupyter AI Extension}
+                + [Environments](public-cloud/data-platform/dpe-environments)
+                + [Jobs](public-cloud-data-platform-jobs){landing=public-cloud/data-platform/landing-page-dpe-jobs}
+                    + [Execution preferences](public-cloud-data-platform-execution-preferences){landing=public-cloud/data-platform/dpe-jobs-preferences}
+                        + [Resources](public-cloud/data-platform/dpe-jobs-resources)
+                        + [Segmentation](public-cloud/data-platform/dpe-jobs-segmentation)
+                        + [Perimeter](public-cloud/data-platform/dpe-jobs-perimeter)
+                + [Spark History Server](public-cloud/data-platform/dpe-spark-history-server)
+                + [Settings](public-cloud/data-platform/dpe-settings)
+            + [Analytics Manager](public-cloud-data-platform-analytics-manager){landing=public-cloud/data-platform/landing-page-analytics-manager}
+                + [Queries](public-cloud-data-platform-queries){landing=public-cloud/data-platform/analytics-manager-queries}
+                    + [Use the visual builder](public-cloud/data-platform/analytics-manager-queries-visual-builder)
+                    + [Use the SQL editor](public-cloud/data-platform/analytics-manager-queries-sql-editor)
+                    + [Visualize a query as a chart](public-cloud/data-platform/analytics-manager-queries-charts)
+                + [Dashboards](public-cloud-data-platform-dashboards){landing=public-cloud/data-platform/analytics-manager-dashboards}
+                    + [Add content to a dashboard](public-cloud/data-platform/analytics-manager-dashboards-edit)
+                    + [Publish a dashboard](public-cloud/data-platform/analytics-manager-dashboards-publish)
+                + [History](public-cloud/data-platform/analytics-manager-history)
+                + [Settings](public-cloud/data-platform/analytics-manager-settings)
+                + [Resources](public-cloud/data-platform/analytics-manager-resources)
+            + [Application Services](public-cloud-data-platform-application-services){landing=public-cloud/data-platform/landing-page-app-services}
+                + [APIs](public-cloud-data-platform-apis){landing=public-cloud/data-platform/landing-page-app-services-apis}
+                    + [Create and deploy an API](public-cloud/data-platform/app-services-apis-deploy)
+                    + [API management interface](public-cloud/data-platform/app-services-apis-interface)
+                    + [API extensions list](public-cloud/data-platform/app-services-apis-extensions-list)
+                + [Apps](public-cloud-data-platform-apps){landing=public-cloud/data-platform/landing-page-app-services-apps}
+                    + [Create and deploy an app](public-cloud/data-platform/app-services-apps-deploy)
+                    + [Dashboards](public-cloud/data-platform/app-services-apps-dashboards)
+                    + [Style](public-cloud/data-platform/app-services-apps-style)
+                    + [Extensions](public-cloud/data-platform/app-services-apps-extensions)
+                    + [Menus](public-cloud/data-platform/app-services-apps-menus)
+                    + [Translations](public-cloud/data-platform/app-services-apps-translations)
+                    + [Formatter](public-cloud/data-platform/app-services-apps-formatter)
+                    + [Git Integration](public-cloud/data-platform/app-services-apps-git-integration){label=Git Integration}
+                    + [Custom Domain](public-cloud/data-platform/app-services-apps-custom-domain){label=Custom Domain}
+            + [Control Center](public-cloud-data-platform-control-center){landing=public-cloud/data-platform/landing-page-control-center}
+                + [Monitoring](public-cloud/data-platform/control-center-monitoring)
+                + [Alerting](public-cloud-data-platform-alerting){landing=public-cloud/data-platform/landing-page-control-center-alerting}
+                    + [Configure job execution alerts](public-cloud/data-platform/control-center-alerting-job-execution){label=Configure job execution alerts}
+                    + [Configure health check alerts](public-cloud/data-platform/control-center-alerting-health-checks){label=Configure health check alerts}
+                    + [Add subscribers to an alert](public-cloud/data-platform/control-center-alerting-subscribers)
+                + [Jobs Central](public-cloud/data-platform/control-center-jobs-central)
+                + [Logs Explorer](public-cloud/data-platform/control-center-logs-explorer)
+                + [Auditing](public-cloud/data-platform/control-center-auditing)
+            + [Identity Access Manager](public-cloud-data-platform-identity-access-manager){landing=public-cloud/data-platform/landing-page-iam}
+                + [Organization IAM](public-cloud-data-platform-organization-iam){landing=public-cloud/data-platform/iam-organization}
+                    + [Authentication Methods](public-cloud/data-platform/iam-organization-authentication){label=Authentication Methods}
+                    + [MFA setup guide](public-cloud/data-platform/iam-organization-mfa-setup){label=MFA setup guide}
+                + [Project IAM](public-cloud-data-platform-project-iam){landing=public-cloud/data-platform/landing-page-iam-project}
+                    + [Application authentication](public-cloud/data-platform/iam-application-authentication)
+                    + [Auth. Providers](public-cloud-data-platform-auth-providers){landing=public-cloud/data-platform/iam-auth-providers}
+                        + [Set up custom mappings](public-cloud/data-platform/iam-auth-providers-custom-mapping){label=Set up custom mappings}
+                        + [Set up Azure AD](public-cloud/data-platform/iam-auth-providers-azure-ad){label=Set up Azure AD}
+                        + [Set up Okta](public-cloud/data-platform/iam-auth-providers-okta){label=Set up Okta}
+                        + [Set up Auth0](public-cloud/data-platform/iam-auth-providers-auth0){label=Set up Auth0}
+                + [Users, Roles & Groups](public-cloud-data-platform-users-roles-and-groups){landing=public-cloud/data-platform/landing-page-iam-users}
+                    + [Users](public-cloud/data-platform/iam-users)
+                    + [Service Accounts](public-cloud/data-platform/iam-service-accounts)
+                    + [Roles and conditions](public-cloud/data-platform/iam-roles-conditions)
+                    + [Groups](public-cloud/data-platform/iam-groups)
+        + [Developer Documentation](public-cloud-data-platform-developer-documentation){landing=public-cloud/data-platform/landing-page-developers}
+            + [Data Platform APIs](public-cloud-data-platform-data-platform-apis){landing=public-cloud/data-platform/landing-page-developers-apis}
+                + [Authentication](public-cloud/data-platform/developers-api-authentication)
+            + [Custom Actions SDK](public-cloud-data-platform-custom-actions-sdk){landing=public-cloud/data-platform/landing-page-developers-python-sdk}
+                + [Quick starts](public-cloud-data-platform-quick-starts)
+                    + [Quick start: dataset](public-cloud/data-platform/developers-python-sdk-quick-start-dataset){label=Quick start: dataset}
+                    + [Quick start: bucket](public-cloud/data-platform/developers-python-sdk-quick-start-bucket){label=Quick start: bucket}
+                    + [Quick start: source](public-cloud/data-platform/developers-python-sdk-quick-start-source){label=Quick start: source}
+                    + [Quick start: PySpark](public-cloud/data-platform/developers-python-sdk-quick-start-spark){label=Quick start: PySpark}
+                + [Connect to project data](public-cloud-data-platform-connect-to-project-data)
+                    + [Connectors and connection strings](public-cloud/data-platform/developers-python-sdk-connectors)
+                    + [Connect to a dataset](public-cloud/data-platform/developers-python-sdk-connect-dataset){label=Connect to a dataset}
+                    + [Connect to a bucket](public-cloud/data-platform/developers-python-sdk-connect-bucket){label=Connect to a bucket}
+                    + [PySpark support](public-cloud/data-platform/developers-python-sdk-connect-spark)
+                    + [SDK reference: connect and bulk_insert](public-cloud/data-platform/developers-python-sdk-reference)
+                + [Advanced](public-cloud-data-platform-advanced)
+                    + [Use environment variables](public-cloud/data-platform/developers-python-sdk-use-environment-variables){label=Use environment variables}
+                    + [Use segmentation in a Custom action](public-cloud/data-platform/developers-python-sdk-segmentation){label=Use segmentation in a Custom action}
+                    + [Override a Load action](public-cloud/data-platform/developers-python-sdk-load-override)
+                    + [Use custom Python modules via Git](public-cloud/data-platform/developers-python-sdk-git){label=Use custom Python modules via Git}
+                    + [Track data lineage](public-cloud/data-platform/developers-python-sdk-lineage){label=Track data lineage}
+            + [Front App and API SDKs](public-cloud/data-platform/developers-front-sdks)
+        + [Manage your platform](public-cloud-data-platform-manage-your-platform){landing=public-cloud/data-platform/landing-page-manage}
+            + [Navigate the platform](public-cloud/data-platform/manage-navigation)
+            + [Understanding Data Platform pricing](public-cloud/data-platform/manage-pricing)
+            + [Organizations and user profiles](public-cloud-data-platform-organizations-and-user-profiles){landing=public-cloud/data-platform/manage-organizations}
+                + [Sign up and sign in](public-cloud/data-platform/manage-organizations-signin-signup){label=Sign up and sign in}
+                + [Organization settings](public-cloud/data-platform/manage-organizations-settings)
+                + [Edit your Data Platform profile](public-cloud/data-platform/manage-organizations-profile){label=Edit your Data Platform profile}
+                + [Delete an organization](public-cloud/data-platform/manage-organizations-delete)
+            + [Projects](public-cloud-data-platform-projects){landing=public-cloud/data-platform/manage-projects}
+                + [Project Home](public-cloud/data-platform/manage-projects-home)
+                + [Create a Project](public-cloud/data-platform/manage-projects-create)
+                + [Config Variables](public-cloud/data-platform/manage-projects-config-variables){label=Config Variables}
+                + [Delete a Project](public-cloud/data-platform/manage-projects-delete)
+        + [Release notes](public-cloud/data-platform/release-notes)
 + Web Cloud
     + [Domains](products/web-cloud-domains)
         + [Overview](web-cloud/domains/overview)

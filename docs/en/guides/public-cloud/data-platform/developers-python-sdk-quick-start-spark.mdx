@@ -1,0 +1,184 @@
+---
+title: PySpark Use Cases
+description: This sample show how to retrieve data from Data Platform Bucket buckettest and insert it into the defaultdataset dataset from the Lakehouse Manager
+lastUpdated: 2026-09-03
+---
+
+## Use Case 1: read from Bucket and write to Dataset
+
+This sample show how to retrieve data from [Data Platform Bucket](/guides/public-cloud/data-platform/lakehouse-manager-buckets) *bucket_test* and insert it into the *default_dataset* dataset from the  [Lakehouse Manager](/guides/public-cloud/data-platform/landing-page-lakehouse-manager).
+
+Please refer to [Data Platform Buckets Connector](/guides/public-cloud/data-platform/developers-python-sdk-connect-bucket) and [Lakehouse Manager Dataset Connector](/guides/public-cloud/data-platform/developers-python-sdk-connect-dataset) for more details on the connection strings.
+
+```python
+from logging import getLogger
+from forepaas.dwh import connect, update_metas
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+
+logger = getLogger(__name__)
+
+cn_source = connect("dwh/bucket_test/chicago_calendar_full.csv")
+cn_default = connect("dwh/default_dataset/")
+
+# Spark compatible connector extract_dataframe function returns Spark DataFrame
+spark_df = cn_source.extract_dataframe()
+logger.notice(f"CSV Columns: {list(spark_df.columns)}")
+
+# insert_dataframe uses Spark DataFrame as well
+cn_default.insert_dataframe("chicago_calendar_full_copy", spark_df)
+
+# At the end you can run update_metas() it will update the metas for all tables, so from lakehouse manager, you will see the correct number of rows
+update_metas()
+
+```
+
+## Use Case 2: SQL query the Databases
+
+This sample highlights the querying of databases through the *get_spark_options()* and *get_spark_context()* methods of the [Data Platform Connector object](/guides/public-cloud/data-platform/developers-python-sdk-reference#the-connect-function).
+ 
+```python
+from logging import getLogger
+from forepaas.dwh import connect
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+
+logger = getLogger(__name__)
+
+# get_spark_context() and get_spark_options() are available for database connectors (snowflake, postgresql, mysql)
+cn_default = connect("dwh/default_dataset/")
+sc_default = cn_default.get_spark_context()
+so_default = cn_default.get_spark_options()
+
+# Depends on Snowflake or PostgreSQL
+sql_driver = "net.snowflake.spark.snowflake" # "jdbc" or "net.snowflake.spark.snowflake"
+
+spark_default = SQLContext(sc_default)
+sql = "select * from chicago_calendar_full"
+spark_df = spark_default.read.format(sql_driver).options(**so_default).option("query", sql).load()
+
+logger.notice(f"SQL Columns: {list(spark_df.columns)}")
+```
+
+:::info
+Note that this use case is only working with MySQL, PostgreSQL and Snowflake
+:::
+
+## Use Case 3: extracting a PySpark Dataframe (with options)
+
+This sample shows how to quickly extract Spark DataFrames with the *extract_dataframe()* method and also how to do it manually with the *get_spark_url()*, *get_spark_context()* and *get_spark_session()* methods.
+
+```python
+from logging import getLogger
+from forepaas.dwh import connect
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+
+logger = getLogger(__name__)
+
+# Get all tables from default_dataset
+cn_default = connect("dwh/default_dataset/")
+
+# If needed you can print all tables
+# logger.info(cn_default.list())
+
+cn_source = connect("dwh/bucket_test/chicago_calendar_full.csv")
+
+# Manual override extract_dataframe file options
+spark_df = cn_source.extract_dataframe(options)
+logger.notice(f"CSV1 Columns: {list(spark_df.columns)}")
+
+# Manual read from file
+# get_spark_url(), get_spark_context() and get_spark_session() are available for s3 / buckets connectors
+spark_session = cn_source.get_spark_session()
+
+# getting stations_rides.csv under bucket buc_test
+url = cn_source.get_spark_url("", "stations_rides.csv", bucket="buc_test")
+logger.notice(f"SparkURL: {url}")
+
+# Use format(file_suffix) for other files, check spark documentation for more information
+options= {"encoding": "utf-8", "sep": ";", "header": True}
+spark_df = spark_session.read.format("csv").options(**options).load(url)
+
+logger.notice(f"CSV2 Columns: {list(spark_df.columns)}")
+```
+
+## Use Case 4: write to another bucket
+
+This sample shows how to use the *get_spark_url()* method to write from one [Data Platform Bucket](/guides/public-cloud/data-platform/lakehouse-manager-buckets) to another.
+
+```python
+from logging import getLogger
+from forepaas.dwh import connect
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+
+logger = getLogger(__name__)
+
+cn_source = connect("dwh/bucket_test/stations_rides.csv")
+spark_df = cn_source.extract_dataframe()
+
+url_dst = cn_source.get_spark_url("", "stations_rides_copy.csv", bucket="test2")
+logger.notice(f"SparkURL Dest: {url_dst}")
+spark_df.write.format("csv").options(**options).save(url_dst)
+
+url_dst = cn_source.get_spark_url("", "stations_rides_copy.parquet", bucket="test3")
+logger.notice(f"SparkURL Dest: {url_dst}")
+spark_df.write.format("parquet").save(url_dst)
+```
+
+## Use Case 5: write to object storage using insert_dataframe
+
+The `insert_dataframe()` function simplifies operations in the previous use case. 
+It is available for compatible object-storage-type PySpark connectors (currently Data Platform Buckets, S3 and [Azure Blob Storage](/guides/public-cloud/data-platform/connectors-sources-blob-storage))
+
+```python
+from logging import getLogger
+from forepaas.dwh import connect
+
+logger = getLogger(__name__)
+
+cn_source = connect("dwh/bucket_test/chicago_calendar_full.csv")
+spark_df = cn_source.extract_dataframe()
+
+# cn_dest: Data Platform Buckets, S3, Azure Blob Storage 
+cn_dest = connect("dwh/dest_bucket/")
+
+# Insert using custom type
+params={"type": "csv"}
+# Insert using default type inferred from file name and default platform options
+# Raises an exception if file suffix not in ["csv", "json", "parquet"]
+# Destination path will be destination where you will find a .csv file under the configured path of the source
+cn_dest.insert_dataframe("destination", spark_df)
+
+# Insert using custom type
+params = {"type": "parquet"}
+# Reads from params.type, if not provided and no suffix in file name, an exception will be raised
+cn_dest.insert_dataframe("destination", spark_df, params)
+
+# Insert to specified absolute path
+params = {"path": "output/destination", "type": "csv"}
+# Destination file will be output/destination.csv
+cn_dest.insert_dataframe("", spark_df, params)
+
+# Insert with custom options
+params = {"write_options": {"sep": ",", "header": False}, "type": "csv"}
+cn_dest.insert_dataframe("destination", spark_df, params)
+
+# Current default platform options:
+# CSV: {"encoding": "utf-8", "sep": ";", "header": True}
+```
+
+:::info
+When saving a PySpark DataFrame to a file system like S3, PySpark creates a folder instead of a single file because it processes data in a distributed manner. Inside this folder, multiple part-*.csv files are generated, each representing a partition of the DataFrame, with the number of files depending on the DataFrame's partitions. An empty _SUCCESS file is also created to indicate a successful write operation.
+:::
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
