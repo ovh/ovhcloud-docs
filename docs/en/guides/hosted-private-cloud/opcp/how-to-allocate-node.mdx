@@ -1,0 +1,231 @@
+---
+title: How to allocate and de-allocate a node for a project
+description: Learn how to reserve an OPCP Core node for an OpenStack project with an Ironic allocation, and how to release it
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+On an **OVHcloud On-Prem Cloud Platform (OPCP)**, the physical servers of your rack are enrolled in Ironic, the OpenStack bare metal service. Deploying an operating system on one of them **does not require a reservation**: by default, a deployment draws from the shared pool of `available` nodes, and Ironic picks whichever node matches the requested characteristics.
+
+An **allocation** answers a different need: **guaranteeing that a node is used only by a given project**. Creating an allocation means asking Ironic *"find me a node matching these characteristics (resource class, traits) and reserve it for this project"*. Once the allocation is `active`, the node leaves the pool a deployment can draw from: no other allocation can take it, and it is no longer picked by another project's deployment. This is what lets you dedicate a specific hardware profile to a project, or set capacity aside ahead of a deployment.
+
+An allocation is therefore a **claim**, not a deployment. The node stays in the `available` provisioning state and simply gets its `instance_uuid` and `allocation_uuid` fields set. Installing an operating system remains a separate operation, performed afterwards with `openstack baremetal node deploy` or by creating an instance, as described in the [How to setup an instance using the OpenStack CLI](/guides/hosted-private-cloud/opcp/how-to-setup-instance-from-cli) guide.
+
+**This guide explains how to check that a node can be allocated, how to reserve it for a project, how to verify the reservation, and how to release it.**
+
+:::warning
+This guide applies to **OPCP Core**, that is when you drive the platform directly through the OpenStack APIs and the Ironic service.
+
+If your service was deployed through the **[CloudStore](/guides/hosted-private-cloud/opcp/cloudstore-getting-started)**, do not use these commands: resources are allocated by the service itself when you deploy its controller and its apps from the service catalog, and you select the target hosts through the CloudStore interface. Allocating a node manually with Ironic under a CloudStore-managed service can conflict with that orchestration.
+:::
+
+:::info
+In OpenStack, a node corresponds to a physical server in the OPCP rack.
+
+In this guide, the term **node** is therefore used to refer to a physical server.
+:::
+
+## Requirements
+
+- Being an administrator of the [OPCP](https://www.ovhcloud.com/en-gb/hosted-private-cloud/onprem-cloud-platform/) infrastructure.
+- **[OpenStack CLI configured](/guides/hosted-private-cloud/opcp/how-to-use-api-and-get-credentials)** with the required permissions (`clouds.yaml` or environment variables).
+- Having read the [Lifecycle of an OPCP node](/guides/hosted-private-cloud/opcp/node-lifecycle) guide.
+- Knowing the **ID of the OpenStack project** the node must be reserved for.
+
+## Instructions
+
+### 1. Check which nodes can be allocated
+
+A node is a valid candidate for an allocation only if **all** of the conditions below are met. Naming a node explicitly with `--candidate-node` does **not** bypass any of them.
+
+| Field | Expected value |
+|---|---|
+| `resource_class` | On OPCP, nodes enrolled by the discovery chain carry the `discovered` resource class |
+| `provision_state` | `available` |
+| `instance_uuid` | Unset |
+| `maintenance` | `False` |
+| `power_state` | Not `None` |
+| `owner` | Equal to the owner of the allocation, when that field is set — see step 5 |
+| `traits` | A superset of the requested traits |
+
+**Traits** are the qualitative attributes of a node (hardware capabilities, hardware profile). They are assigned automatically during discovery, as described in the [Lifecycle of an OPCP node](/guides/hosted-private-cloud/opcp/node-lifecycle) guide, and their naming and matching rules are documented in the [OpenStack Ironic documentation](https://docs.openstack.org/ironic/latest/install/configure-nova-flavors.html).
+
+To list the nodes that are actually allocatable at a given time:
+
+```bash
+openstack baremetal node list --provision-state available --resource-class discovered \
+  --fields uuid name traits maintenance instance_uuid owner power_state
+```
+
+### 2. Create an allocation
+
+```bash
+openstack baremetal allocation create \
+  --resource-class discovered \
+  --candidate-node <node-name> \
+  --owner <project-id> \
+  --name my-workload-01 \
+  --wait 60
+```
+
+| Option | Description |
+|---|---|
+| `--resource-class` | **Mandatory**. The resource class of the requested node |
+| `--owner` | **Mandatory**. The project the node is reserved for. See step 5 |
+| `--candidate-node` | Repeatable and ordered by preference. Accepts a node name or UUID. Omit it to let Ironic pick a node itself |
+| `--trait` | Repeatable, for example `--trait CUSTOM_VCF`. Requested traits are combined with a logical AND |
+| `--name` | A handle that can be used in place of the allocation UUID in every command |
+| `--wait [timeout]` | Block until the allocation reaches the `active` or `error` state |
+
+An allocation goes from `allocating` to either:
+
+- `active`: the allocation succeeded and its `node_uuid` field is populated;
+- `error`: the allocation failed. Delete the allocation and create it again. Its name stays reserved until it is deleted.
+
+### 3. List and display allocations
+
+```bash
+openstack baremetal allocation list --long
+```
+
+```bash
+openstack baremetal allocation show my-workload-01
+```
+
+```bash
+openstack baremetal allocation list --node <node-name>
+```
+
+On a successful allocation, the following values are returned:
+
+```bash
+| node_uuid  | cf5dfb7b-3e5f-4189-894b-63b8675cabf1 |
+| state      | active                               |
+| last_error | None                                 |
+```
+
+### 4. Check the node side
+
+```bash
+openstack baremetal node show <node-name> \
+  -f json -c provision_state -c instance_uuid -c allocation_uuid
+```
+
+**Example output:**
+
+```json
+{
+  "provision_state": "available",
+  "instance_uuid": "f8867871-9c2c-4dae-b0c3-0a50a5359090",
+  "allocation_uuid": "f8867871-9c2c-4dae-b0c3-0a50a5359090"
+}
+```
+
+Both UUIDs are equal to the allocation UUID, and `provision_state` is still `available`. This is the expected state after an allocation: the node is reserved but not deployed.
+
+To get the same information for every node of a resource class:
+
+```bash
+openstack baremetal node list --resource-class discovered \
+  --fields name provision_state instance_uuid allocation_uuid
+```
+
+### 5. Troubleshooting: reserving a node owned by another project
+
+#### 5.1 What the owner of a node is
+
+In Ironic, every node carries an `owner` field which names the OpenStack project that **administers** the hardware. This field drives access control: when a request arrives with a project scope, Ironic only shows and only lets you act on the nodes owned by that project.
+
+On OPCP, nodes are **not** enrolled by hand. When a server is installed and booted in the rack, it is discovered and enrolled automatically by the control plane. That automation runs under its own OpenStack project, and Ironic stamps the project ID of the requester on to the node when no owner is given explicitly. As a result, a freshly discovered node is owned by the **platform administration project used by discovery**, and not by the project in which you intend to run your workload.
+
+#### 5.2 Why the allocation fails
+
+An allocation also has an `owner`. When it is set, Ironic adds `owner=<owner of the allocation>` to the query selecting the candidate nodes. A node owned by another project is therefore never a candidate, **even when it is designated explicitly with `--candidate-node`**.
+
+This is what makes the problem confusing: with a token scoped to a project, the `owner` of the allocation is filled in automatically with the ID of your project. So you request a node that you can see in `available` state, and the allocation still fails, because Ironic is looking for `available` nodes belonging to *your* project, while the node still belongs to the discovery project.
+
+Whatever the actual cause, the allocation only ever fails with one of these two messages, which only mention the resource class:
+
+```bash
+no available nodes match the resource class discovered
+```
+
+```bash
+none of the requested nodes are available and match the resource class discovered
+```
+
+The first one is returned when no candidate node was given, the second one when `--candidate-node` was used. Both mean the same thing: **the query selecting the candidate nodes returned nothing**.
+
+#### 5.3 Diagnosing
+
+Check every condition listed in step 1, starting with the owner of the node:
+
+```bash
+openstack baremetal node show <node-name> -f value -c owner
+```
+
+If the value returned is not the ID of the project the node is being reserved for, this is the cause of the failure.
+
+#### 5.4 Resolving
+
+Two strategies are possible, depending on whether you want the node to be **durably assigned** to a project or not.
+
+**Strategy 1 — transfer ownership of the node to the target project (recommended).**
+
+This is the normal way of handing a node over to a project. As an infrastructure administrator, you transfer ownership once, and the project can then allocate and deploy on the node on its own:
+
+```bash
+openstack baremetal node set <node-name> --owner <project-id>
+```
+
+Then create the allocation again as described in step 2. Note that ownership of a node grants an elevated level of access to **all** the members of the owning project.
+
+**Strategy 2 — create the allocation with the current owner of the node.**
+
+Ownership of the node stays unchanged and the reservation is made on behalf of the project that owns it. This suits a one-off administrative reservation, for example on a node kept in the administration pool:
+
+```bash
+openstack baremetal allocation create \
+  --resource-class discovered \
+  --candidate-node <node-name> \
+  --owner <node-owner-project-id> \
+  --name my-workload-01
+```
+
+This strategy requires a token allowing you to set an arbitrary owner on the allocation. With a token scoped to a project, the field is forced to the ID of your project, and only strategy 1 works.
+
+### 6. Release an allocation
+
+If the node was deployed, that is if its `provision_state` is `active`, undeploy it first:
+
+```bash
+openstack baremetal node undeploy <node-name>
+```
+
+Then delete the allocation to release the claim:
+
+```bash
+openstack baremetal allocation delete my-workload-01
+```
+
+The `instance_uuid` and `allocation_uuid` fields are cleared and the node becomes allocatable again.
+
+:::warning
+- Deleting an allocation does **not** undeploy the node. Always undeploy it first.
+- The operation is refused with an `HTTP 400` or `HTTP 409` error while the node is in a transient state (`deploying`, `deleting`, `cleaning`). Wait for the state machine to settle.
+- Undeploying triggers automated cleaning, which includes a full disk erase in the default OPCP configuration. Returning to the `available` state therefore takes some time.
+:::
+
+## Go further
+
+- [Lifecycle of an OPCP node](/guides/hosted-private-cloud/opcp/node-lifecycle)
+- [How to see the node inventory](/guides/hosted-private-cloud/opcp/how-to-see-node-inventory)
+- [How to setup an instance using the OpenStack CLI](/guides/hosted-private-cloud/opcp/how-to-setup-instance-from-cli)
+- [OpenStack Ironic documentation - Allocations](https://docs.openstack.org/ironic/latest/user/deploy.html)
+- [OpenStack Ironic documentation - Node multi-tenancy and ownership](https://docs.openstack.org/ironic/latest/admin/node-multitenancy.html)
+- [OpenStack Ironic documentation - Scheduling based on traits](https://docs.openstack.org/ironic/latest/install/configure-nova-flavors.html)
+
+For training or technical assistance implementing our solutions, contact your sales representative or visit our [Professional Services](/links/professional-services) page to request a quote and have your project analyzed by our experts.
+
+Join our [community of users](/links/community).
