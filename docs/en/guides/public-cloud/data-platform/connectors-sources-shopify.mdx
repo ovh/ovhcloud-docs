@@ -1,0 +1,438 @@
+---
+title: Extract Shopify store data with the GraphQL Admin API
+description: "The Shopify connector extracts data from your Shopify store via the GraphQL Admin API: products, customers, orders, inventory, marketing, B2B, payments"
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+The Shopify connector extracts data from your Shopify store via the **GraphQL Admin API**: products, customers, orders, inventory, marketing, B2B, payments, content, and more.
+
+**40 built-in endpoint types** + a **custom query** escape hatch for arbitrary GraphQL.
+
+The connector returns **raw JSON** from the Shopify API. The platform automatically flattens nested fields into columns and stores the result in the lakehouse. No manual schema definition needed.
+
+## 1. Get an Admin API Access Token
+
+You install your own **custom app** on your store. The connector then uses that app's credentials to read your data, nothing else.
+
+Two paths to get the credentials, both supported:
+
+### Path A: Dev Dashboard (recommended for new stores)
+
+1. Go to [partners.shopify.com](https://partners.shopify.com) and sign in (free, no card required).
+2. Open the **Dev Dashboard**, click **Create app**, name it (e.g. `data-connector`).
+3. In the new app, go to **Versions** → **Create a new version**.
+4. Under **Access** → **Champs d'accès** (Access scopes), paste the [recommended scope list](#3-recommended-scopes) below.
+5. Open **Demander l'accès** (Request access) at the top of the **Access** section → enable **Customer data** (and Order data, etc.) → check **Analyses de données** (Data analytics) → save. *On a development store this is approved instantly.*
+6. **Publish** the version.
+7. Install the app on your store from the **Distribution** section.
+8. Open **Settings** of the app → copy **Client ID** and **Client Secret**.
+9. In the connector UI, fill **Shop**, leave **Access Token** empty, and paste **Client ID** + **Client Secret**. The connector will exchange them for an offline token at first run.
+
+### Path B: Existing token (shorter, if you already have one)
+
+If you've already obtained an Admin API access token through the legacy "Develop apps" flow (token starts with `shpat_`) or by running the OAuth `client_credentials` exchange yourself (`shpua_`), paste it directly into the **Access Token** field, leave **Client ID** / **Client Secret** empty.
+
+## 2. Configure Credentials
+
+The connector accepts two interchangeable auth modes:
+
+| Field | Mode A (direct token) | Mode B (OAuth exchange) |
+|---|---|---|
+| **Shop** | `my-store` or `my-store.myshopify.com` | same |
+| **Access Token** | `shpat_xxx…` or `shpua_xxx…` | empty |
+| **Client ID** | empty | hex string from Dev Dashboard |
+| **Client Secret** | empty | starts with `shpss_` |
+
+If both are filled, the direct token takes priority.
+
+## 3. Recommended Scopes
+
+Paste this comma-separated list into the **Access scopes** field of your custom app version (Dev Dashboard → Access → Champs d'accès):
+
+```
+read_products, read_customers, read_orders, read_draft_orders,
+read_inventory, read_locations, read_discounts,
+read_shopify_payments_payouts, read_shopify_payments_disputes,
+read_shopify_payments_accounts, read_marketing_events,
+read_content, read_users, read_shipping, read_metaobjects,
+read_metaobject_definitions, read_publications, read_locales,
+read_markets, read_files, read_companies, read_assigned_fulfillment_orders,
+read_audit_events
+```
+
+If a scope name is rejected, drop it. Shopify renames scopes between API versions, but the connector handles missing scopes gracefully (returns `[]` with a warning instead of crashing).
+
+For **Customer / Order / Draft Order / Abandoned Checkout** data you also need to enable the **Protected Customer Data** approval (see Path A, step 5). Without it, those endpoints return rows but with PII fields blanked out.
+
+## 4. Add a Shopify source on Data Platform
+
+1. In the Data Platform **Connectors**, find **Shopify** in the source store and click **Select**.
+2. Fill in the connection fields using either Mode A (direct token) or Mode B (Client ID + Client Secret) from [step 2](#2-configure-credentials).
+3. Click **Connect**. With Mode B, the connector exchanges the Client ID/Secret for an offline access token at this step.
+4. Click **Add an Endpoint**, choose an endpoint type from the dropdown (e.g. `products`, `orders`, `custom_query`), then fill in any required parameters (e.g. `segment_id`, `query_filter`, `max_items`).
+5. Repeat step 4 for every additional endpoint you want to ingest in this source. Each endpoint becomes a separate table in the lakehouse.
+6. Name the source and click **Create**.
+
+:::warning
+The **technical name** cannot be changed after the source is created. It is used when opening the source via the [Data Platform SDK](/guides/public-cloud/data-platform/landing-page-developers-python-sdk).
+:::
+
+## 5. Available Endpoint Types
+
+### Core commerce (14)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **products** | Catalog products | |
+| **product_variants** | All variants across all products | |
+| **collections** | Manual + smart collections | |
+| **customers** | Customer records | |
+| **customer_segment_members** | Members of a specific segment | `segment_id` |
+| **orders** | Orders (filterable) | optional `query_filter` |
+| **draft_orders** | Pending unconverted orders | |
+| **abandoned_checkouts** | Funnel data | |
+| **fulfillment_orders** | Logistics queue | |
+| **tender_transactions** | Payment-type breakdown | |
+| **locations** | Stores / warehouses | |
+| **inventory_items** | SKU + cost master data | |
+| **segments** | Customer segment definitions | |
+| **companies** | B2B companies | |
+
+### B2B & markets (4)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **company_locations** | B2B shipping addresses | |
+| **price_lists** | B2B / wholesale pricing | |
+| **catalogs** | B2B catalog assignments | |
+| **markets** | Multi-region configuration | |
+
+### Promotions & loyalty (4)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **discount_nodes** | All discounts (automatic + code + manual) | |
+| **code_discount_nodes** | Code discounts only | |
+| **gift_cards** | Gift cards (Shopify Plus only) | |
+| **selling_plan_groups** | Subscription plans | |
+
+### Marketing & Shopify Payments (5)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **marketing_events** | Campaign tracking | |
+| **publications** | Sales-channel publications | |
+| **payouts** | Shopify Payments payouts | |
+| **disputes** | Shopify Payments disputes | |
+| **balance_transactions** | Shopify Payments fine-grained ledger | |
+
+### Metadata & custom data (3)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **metaobjects** | Custom data instances | `metaobject_type` |
+| **metaobject_definitions** | Metaobject schemas | |
+| **metafield_definitions** | Metafield schemas (per owner type) | `owner_type` (PRODUCT, CUSTOMER, ORDER, ...) |
+
+### Content (5)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **articles** | Blog posts | |
+| **blogs** | Blog containers | |
+| **pages** | Online store static pages | |
+| **url_redirects** | URL redirect rules | |
+| **files** | Uploaded media assets | |
+
+### Admin & operations (4)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **events** | Shop audit log | |
+| **staff_members** | Store team | |
+| **delivery_profiles** | Shipping zones & rates | |
+| **fulfillment_services** | 3PL integrations | |
+
+### Single object (1)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **shop** | Store-level settings (returns one record) | |
+
+### Custom GraphQL (1)
+
+| Endpoint | Description | Required parameters |
+|---|---|---|
+| **custom_query** | Run any GraphQL query you write | `query` (your GraphQL), optional `variables`, optional `connection_path` |
+
+For `custom_query`, your GraphQL **must** declare `$first: Int!` and `$after: String` as variables and paginate a connection with `pageInfo { hasNextPage endCursor }`. The connector injects cursors automatically.
+
+## 6. Pagination & `max_items`
+
+Shopify's GraphQL API never returns all results in one shot. Every list is **paginated**. The connector handles pagination automatically; the only knob you control is the `max_items` field in the UI.
+
+### The `max_items` field
+
+Every endpoint (built-in and `custom_query`) exposes a **Max Items** field. It tells the connector "stop after collecting N records, even if more are available."
+
+| What you want | Set Max Items to | What happens |
+|---|---|---|
+| All records | empty | Connector loops until Shopify says `hasNextPage: false`. Could be 1 request (small store) or 1000+ requests (large store). |
+| Just the first record | `1` | One request with page size 1. Stops immediately. |
+| The first 5 records | `5` | One request with page size 5. Stops. |
+| The first 100 records | `100` | One request with page size 100. Stops. |
+| The first 250 records | `250` | One request with page size 250 (the Shopify max). Stops. |
+| The first 1000 records | `1000` | Four requests of 250 each. |
+| 50 records to test, then everything | `50` first, then re-run with empty | Common pattern while iterating. |
+
+### How it works under the hood
+
+The connector picks the page size dynamically:
+
+```
+page_size = min(100, max_items - already_collected)   # if max_items is set
+page_size = 100                                        # if max_items is empty
+```
+
+Each request asks Shopify for that many records. Once `max_items` is reached or `hasNextPage: false`, the loop stops.
+
+So `max_items: 5` triggers exactly **one** HTTP request (`first=5, after=null`). No pagination loop, no second call. You don't need to write any pagination logic yourself.
+
+### "Just give me the first page"
+
+There's no explicit "first page only" toggle. But because Shopify caps page size at 250, **setting `max_items` to anything ≤ 250 guarantees a single HTTP request**. If you want "the natural Shopify page size" (50–100 by default), just set `max_items: 50` or `100`.
+
+### Applies to every endpoint
+
+This works the same way for:
+
+- The 40 built-in endpoints (`products`, `orders`, `customers`, ...).
+- The `custom_query` endpoint: the connector still injects `first` and `after` into your query and respects `max_items`.
+
+You never write `first: 5` in your GraphQL query yourself. You write `first: $first` and let the connector inject the right value based on `max_items`.
+
+## 7. Custom Query: Examples
+
+The `custom_query` endpoint takes any GraphQL you write against the Admin API. Three rules apply:
+
+1. Declare `$first: Int!` and `$after: String` in the query variables.
+2. Paginate one connection with `pageInfo { hasNextPage endCursor }`.
+3. Either set the **Connection Path** field (e.g. `products`) or let the connector auto-detect the connection.
+
+Here are concrete templates for common cases. Paste any of them in the **GraphQL Query** field, fill the **Variables** field if needed, and run.
+
+### Example 1: Bare-bones products (just a few fields)
+
+Useful when you only need IDs + titles for downstream joins, instead of the 20-field default `products` endpoint.
+
+```graphql
+query ($first: Int!, $after: String) {
+  products(first: $first, after: $after) {
+    edges {
+      node {
+        id
+        title
+        handle
+        vendor
+        createdAt
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+```
+
+- **Variables**: leave empty
+- **Connection Path**: `products` (or leave empty for auto-detect)
+
+### Example 2: Orders with a date filter
+
+Replicates the built-in `orders` endpoint but lets you adjust both the filter and the field selection. Pass the filter via Variables.
+
+```graphql
+query ($first: Int!, $after: String, $query: String) {
+  orders(first: $first, after: $after, query: $query, sortKey: CREATED_AT) {
+    edges {
+      node {
+        id
+        name
+        createdAt
+        displayFinancialStatus
+        totalPriceSet { shopMoney { amount currencyCode } }
+        customer { id email }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+```
+
+- **Variables**: `{"query": "created_at:>=2026-04-01 AND financial_status:paid"}`
+- **Connection Path**: `orders`
+
+The full search syntax is documented at [shopify.dev/docs/api/usage/search-syntax](https://shopify.dev/docs/api/usage/search-syntax).
+
+### Example 3: Products with their variants and metafields
+
+Cases where the default `products` endpoint isn't enough. This pulls each product's variants inline and a few specific metafields.
+
+```graphql
+query ($first: Int!, $after: String) {
+  products(first: $first, after: $after) {
+    edges {
+      node {
+        id
+        title
+        variants(first: 50) {
+          edges {
+            node { id sku price inventoryQuantity }
+          }
+        }
+        metafields(first: 10, namespace: "custom") {
+          edges {
+            node { key value type }
+          }
+        }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+```
+
+- **Variables**: leave empty
+- **Connection Path**: `products`
+
+:::warning
+Each nested `first:` adds to the query cost. On a Standard plan (100-pt budget per query), `products(first: $first)` with `variants(first: 50)` and `metafields(first: 10)` consumes roughly `first × (50 + 10 + 1)` points. Keep the parent page size small (e.g. `max_items: 20`) for this kind of nested query.
+:::
+
+### Example 4: Order line items (a sub-resource not exposed as a top-level endpoint)
+
+Each order's line items aren't a built-in endpoint. The only way to get them is via a custom query.
+
+```graphql
+query ($first: Int!, $after: String) {
+  orders(first: $first, after: $after, query: "status:any", sortKey: CREATED_AT) {
+    edges {
+      node {
+        id
+        name
+        lineItems(first: 50) {
+          edges {
+            node {
+              id
+              title
+              quantity
+              originalUnitPriceSet { shopMoney { amount currencyCode } }
+              variant { id sku }
+            }
+          }
+        }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+```
+
+- **Variables**: leave empty
+- **Connection Path**: `orders`
+
+### Example 5: Nested connection (using Connection Path)
+
+When the connection isn't at the root, e.g. the orders of a specific Shopify Payments balance transaction. Set **Connection Path** explicitly.
+
+```graphql
+query ($first: Int!, $after: String) {
+  shopifyPaymentsAccount {
+    payouts(first: $first, after: $after) {
+      edges {
+        node {
+          id
+          status
+          issuedAt
+          summary {
+            chargesGross { amount currencyCode }
+            refundsFee { amount currencyCode }
+          }
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+```
+
+- **Variables**: leave empty
+- **Connection Path**: `shopifyPaymentsAccount.payouts` *(required, auto-detect would still work here, but explicit is clearer when there are multiple connections at different depths)*
+
+### Tips
+
+- **Test in the GraphiQL Explorer first.** Shopify ships an in-store GraphiQL at `https://{shop}.myshopify.com/admin/api/explorer`. Build and validate your query there before pasting it in the connector. The auto-completion and schema docs make iteration much faster.
+- **Field discovery.** The full schema is documented at [shopify.dev/docs/api/admin-graphql/latest](https://shopify.dev/docs/api/admin-graphql/latest). Every type page lists the available fields and their cost.
+- **Two places, two roles.** Your query string MUST declare `$first: Int!` and `$after: String` in its variable list. That's the GraphQL **declaration** so Shopify knows to expect them. The connector then injects their **values** at runtime, page after page. The **Variables** UI field is for the *values* of additional variables your query declares (e.g. `$query`, `$ownerType`, `$segmentId`), never put `first` or `after` there, the connector overwrites those.
+- **`max_items` applies just like for built-in endpoints**: see [section 6](#6-pagination--max_items).
+
+## 8. Quick Example: Extract Products
+
+1. **Endpoint type**: `products`
+2. **Max Items**: `1000` (or empty to extract everything)
+3. Run the table extraction.
+
+The connector returns raw JSON. The platform automatically flattens nested fields (e.g. `featuredImage.url` becomes a column `featuredimage_url`).
+
+For a focused query: e.g. only orders from the last 30 days:
+
+1. **Endpoint type**: `orders`
+2. **Query filter**: `created_at:>=2026-04-01`
+3. **Max Items**: empty
+
+The `query_filter` field accepts the [Shopify search syntax](https://shopify.dev/docs/api/usage/search-syntax).
+
+## 9. Best Practices
+
+### Normalize the shop name once
+
+The connector accepts `my-store`, `my-store.myshopify.com`, or `https://my-store.myshopify.com/`. All three resolve to the same host. Pick whichever is most readable.
+
+### Use `custom_query` for narrow extractions
+
+The default queries return ~10–20 fields per record. If you only need a handful of fields and have millions of records, write a `custom_query` with just those fields, query cost is roughly proportional to the field count.
+
+### Refresh tokens via Client ID + Secret
+
+If you set up Mode B (Client ID + Client Secret), the connector re-runs the OAuth exchange at every job start. This means a leaked / rotated token can be replaced by re-issuing the secret in the Dev Dashboard, without touching the connector configuration.
+
+### Default `query_filter` for orders
+
+The orders endpoint uses `status:any` by default to include all orders (open, closed, cancelled). If you want only open orders, set `query_filter: status:open`.
+
+## 10. Plan & Scope Gating
+
+Some endpoints are gated by plan or scope:
+
+| Endpoint | Gating |
+|---|---|
+| `gift_cards` | Shopify Plus only |
+| `payouts`, `disputes`, `balance_transactions` | Shopify Payments must be enabled on the store |
+| `companies`, `company_locations`, `catalogs`, `price_lists` | B2B must be enabled |
+| `customers`, `orders`, `draft_orders`, `abandoned_checkouts`, `fulfillment_orders`, `tender_transactions` | Protected Customer Data approval (see Path A step 5) |
+
+When a scope or plan is missing, the connector logs a warning and returns an empty list for that endpoint, your other tables keep working.
+
+:::info
+For detailed technical information (auth internals, full endpoint reference, pagination, rate limits, output format, limitations), see the [Shopify Technical Reference](/guides/public-cloud/data-platform/connectors-sources-shopify-technical-reference).
+:::
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

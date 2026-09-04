@@ -1,0 +1,378 @@
+---
+title: Track data lineage in a Custom action
+description: Data Platform records lineage events automatically for Load and Aggregate actions, Python and PySpark alike (including schema and column-level lineage)
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+Data Platform records lineage events automatically for **Load** and **Aggregate** actions, Python and PySpark alike (including schema and column-level lineage). For **Custom actions** (Python and PySpark) and **notebooks**, lineage is opt-in: you decide which datasets to declare as inputs and outputs.
+
+:::info
+**Want to visualize lineage?** Explore it directly in the built-in [Lineage](/guides/public-cloud/data-platform/lakehouse-manager-lineage) view of the Lakehouse Manager, or forward all lineage events to your own OpenLineage-compatible solution (e.g. [Marquez](https://marquezproject.ai/)): set up the [OpenLineage consumer](/guides/public-cloud/data-platform/connectors-consumers-openlineage) in Connectors, then use the [Send OpenLineage Events](/guides/public-cloud/data-platform/dpe-actions-send-openlineage-events) DPE action to push events on a schedule or continuously.
+:::
+
+## Quick start with `lineage_run`
+
+The `lineage_run` context manager is the recommended way to track lineage. It handles the full lifecycle automatically:
+
+- Generates a `run_id` (UUID v4)
+- Emits a `START` event on entry
+- Emits a `COMPLETE` event on successful exit
+- Emits a `FAIL` event on exception (then re-raises your error)
+- Lineage errors never crash your action. All emit calls are wrapped in `try/except`
+
+```python
+from forepaas.dwh import connect
+from forepaas.dwh.lineage import lineage_run
+
+def my_custom(event):
+    with lineage_run("custom_titanic_transform",
+                     inputs=["default_dataset/titanic"],
+                     outputs=["default_dataset/titanic_survivors"]):
+
+        connector = connect("dwh/default_dataset/")
+        connector.query("""
+            CREATE TABLE IF NOT EXISTS titanic_survivors AS
+            SELECT passengerid, name, sex, age, pclass, fare, embarked
+            FROM titanic
+            WHERE survived = 1
+        """)
+```
+
+:::info
+Pass table names as plain strings (`database/table`). The platform automatically attaches the correct namespace.
+:::
+
+## Examples
+
+### 1. Simple SQL transformation
+
+```python
+from forepaas.dwh import connect
+from forepaas.dwh.lineage import lineage_run
+
+def my_custom(event):
+    with lineage_run("custom_titanic_transform",
+                     inputs=["default_dataset/titanic"],
+                     outputs=["default_dataset/titanic_survivors"]):
+
+        connector = connect("dwh/default_dataset/")
+        connector.query("""
+            CREATE TABLE IF NOT EXISTS titanic_survivors AS
+            SELECT passengerid, name, sex, age, pclass, fare, embarked
+            FROM titanic
+            WHERE survived = 1
+        """)
+```
+
+### 2. `bulk_insert` with new columns
+
+```python
+from forepaas.dwh import connect, bulk_insert
+from forepaas.dwh.lineage import lineage_run
+
+def my_custom(event):
+    with lineage_run("custom_titanic_newcolumns",
+                     inputs=["default_dataset/titanic"],
+                     outputs=["default_dataset/titanic"]):
+
+        connector = connect("dwh/default_dataset/")
+        df = connector.query("SELECT * FROM titanic")
+
+        df["newsurvived"] = df["survived"].apply(lambda x: "Yes" if x == 1 else "No")
+        df["newclass"] = df["pclass"].apply(lambda x: f"Class {x}")
+
+        bulk_insert(connector, "titanic", df)
+```
+
+### 3. Automatic schema detection with `connector=`
+
+When you pass a connector, `lineage_run` automatically calls `connector.get_table_schema()` for each input and output, and enriches the `COMPLETE` event with schema facets (column names and types). The `START` event is emitted with simple inputs/outputs (no schema). If `get_table_schema` fails for a table, that table is kept as-is without crashing.
+
+```python
+from forepaas.dwh import connect, bulk_insert
+from forepaas.dwh.lineage import lineage_run
+
+def my_custom(event):
+    connector = connect("dwh/default_dataset/")
+
+    with lineage_run("custom_titanic_newcolumns",
+                     inputs=["default_dataset/titanic"],
+                     outputs=["default_dataset/titanic"],
+                     connector=connector):
+
+        df = connector.query("SELECT * FROM titanic")
+
+        df["newsurvived"] = df["survived"].apply(lambda x: "Yes" if x == 1 else "No")
+        df["newclass"] = df["pclass"].apply(lambda x: f"Class {x}")
+
+        bulk_insert(connector, "titanic", df)
+```
+
+### 4. Multiple connectors (cross-database)
+
+When inputs and outputs span different databases, pass a dict mapping each database prefix to its connector. Each table is routed to the correct connector for schema detection. Tables with no matching prefix are kept as-is.
+
+```python
+from forepaas.dwh import connect, bulk_insert
+from forepaas.dwh.lineage import lineage_run
+
+def my_custom(event):
+    cn_default = connect("dwh/default_dataset/")
+    cn_analytics = connect("dwh/analytics_dataset/")
+
+    with lineage_run("enrich_orders",
+                     inputs=["default_dataset/raw_orders", "default_dataset/customers"],
+                     outputs=["analytics_dataset/enriched_orders"],
+                     connector={
+                         "default_dataset": cn_default,
+                         "analytics_dataset": cn_analytics,
+                     }):
+
+        orders = cn_default.query("SELECT * FROM raw_orders")
+        customers = cn_default.query("SELECT * FROM customers")
+        enriched = orders.merge(customers, on="customer_id", how="left")
+
+        bulk_insert(cn_analytics, "enriched_orders", enriched)
+```
+
+### 5. Manual schema with `schema_facet`
+
+If you want to declare schemas explicitly (without a connector), use the `schema_facet` helper. It builds the correct OpenLineage dict with `_producer` and `_schemaURL` automatically.
+
+```python
+from forepaas.dwh import connect
+from forepaas.dwh.lineage import lineage_run, schema_facet
+
+def my_custom(event):
+    with lineage_run("custom_titanic_transform",
+                     inputs=[schema_facet("default_dataset/titanic", [
+                         ("passengerid", "Integer"),
+                         ("survived", "Integer"),
+                         ("name", "String"),
+                         ("sex", "String"),
+                         ("age", "Number"),
+                     ])],
+                     outputs=[schema_facet("default_dataset/titanic_survivors", [
+                         ("passengerid", "Integer"),
+                         ("name", "String"),
+                         ("sex", "String"),
+                         ("age", "Number"),
+                         ("pclass", "Integer"),
+                         ("fare", "Number"),
+                         ("embarked", "String"),
+                     ])]):
+
+        connector = connect("dwh/default_dataset/")
+        connector.query("""
+            CREATE TABLE IF NOT EXISTS titanic_survivors AS
+            SELECT passengerid, name, sex, age, pclass, fare, embarked
+            FROM titanic
+            WHERE survived = 1
+        """)
+```
+
+### 6. Join with column lineage
+
+For joins or complex transformations, use `column_lineage_facet` to declare which output columns come from which input tables and columns.
+
+```python
+from forepaas.dwh import connect
+from forepaas.dwh.lineage import lineage_run, column_lineage_facet
+
+def my_custom(event):
+    connector = connect("dwh/default_dataset/")
+
+    with lineage_run("test_with_join",
+                     inputs=["default_dataset/titanic",
+                             "default_dataset/chicago_calendar_full"],
+                     outputs=[column_lineage_facet("default_dataset/titanic_enriched", {
+                         "passengerid": {
+                             "source": "default_dataset/titanic",
+                             "field": "passengerid",
+                         },
+                         "name": {
+                             "source": "default_dataset/titanic",
+                             "field": "name",
+                         },
+                         "humidity": {
+                             "source": "default_dataset/chicago_calendar_full",
+                             "field": "humidity",
+                             "operation": "JOIN",
+                         },
+                         "temperature": {
+                             "source": "default_dataset/chicago_calendar_full",
+                             "field": "temperature",
+                             "operation": "JOIN",
+                         },
+                     })],
+                     connector=connector):
+
+        connector.query("""
+            CREATE TABLE IF NOT EXISTS titanic_enriched AS
+            SELECT t.passengerid, t.name, c.humidity, c.temperature
+            FROM titanic t
+            INNER JOIN chicago_calendar_full c
+              ON t.passengerid = c.passengerid
+        """)
+```
+
+:::info
+When both `connector=` and a `column_lineage_facet` are used together, the connector auto-adds schema facets to assets that don't already have one. Assets with existing facets (like column lineage) are preserved as-is.
+:::
+
+### 7. Access the run ID
+
+The context manager yields a `LineageRun` object with a `run_id` attribute.
+
+```python
+from forepaas.dwh.lineage import lineage_run
+
+def my_custom(event):
+    with lineage_run("my_job",
+                     inputs=["default_dataset/source"],
+                     outputs=["default_dataset/target"]) as run:
+
+        print(f"Run ID: {run.run_id}")
+        # ... processing ...
+```
+
+## API reference
+
+### `lineage_run(job_name, ...)`
+
+```python
+from forepaas.dwh.lineage import lineage_run
+```
+
+**Parameters**
+
+| Name | Type | Required | Description |
+| :--- | :---: | :---: | :--- |
+| `job_name` | `str` | Yes | A stable identifier for the job |
+| `inputs` | `list` | No | Datasets read by the job (strings or dicts) |
+| `outputs` | `list` | No | Datasets written by the job (strings or dicts) |
+| `run_id` | `str` | No | UUID for this run. Auto-generated if omitted |
+| `job_facets` | `dict` | No | Additional OpenLineage job facets |
+| `connector` | `connector` or `dict` | No | Connector for auto schema enrichment. Pass a single connector or a dict mapping database prefix to connector (see [Example 4](#4-multiple-connectors-cross-database)) |
+
+Yields a `LineageRun` object with a `run_id` attribute.
+
+### `schema_facet(name, fields)`
+
+```python
+from forepaas.dwh.lineage import schema_facet
+```
+
+Builds a dataset dict with a `SchemaDatasetFacet`. Adds `_producer` and `_schemaURL` automatically.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+| :--- | :---: | :---: | :--- |
+| `name` | `str` | Yes | Dataset name (e.g. `"default_dataset/orders"`) |
+| `fields` | `list[tuple]` | Yes | List of `(column_name, column_type)` tuples |
+
+Returns a dict suitable for use in `inputs` or `outputs`.
+
+**Example**
+
+```python
+schema_facet("default_dataset/orders", [
+    ("order_id", "Integer"),
+    ("amount", "Number"),
+])
+# Returns:
+# {
+#     "name": "default_dataset/orders",
+#     "facets": {
+#         "schema": {
+#             "_producer": "https://gitlab.forepaas.com/...",
+#             "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/SchemaDatasetFacet.json",
+#             "fields": [
+#                 {"name": "order_id", "type": "Integer"},
+#                 {"name": "amount", "type": "Number"}
+#             ]
+#         }
+#     }
+# }
+```
+
+### `column_lineage_facet(name, mappings)`
+
+```python
+from forepaas.dwh.lineage import column_lineage_facet
+```
+
+Builds a dataset dict with a `ColumnLineageDatasetFacet`. Adds `_producer` and `_schemaURL` automatically. The namespace is injected from the platform configuration.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+| :--- | :---: | :---: | :--- |
+| `name` | `str` | Yes | Dataset name (e.g. `"analytics_dataset/enriched"`) |
+| `mappings` | `dict` | Yes | Dict mapping output column names to input field info |
+
+Each value in `mappings` is a dict with:
+
+- `source` (required): source dataset name
+- `field` (required): source column name
+- `operation` (optional): transformation description (e.g. `"SUM"`, `"JOIN"`)
+
+Returns a dict suitable for use in `outputs`.
+
+**Example**
+
+```python
+column_lineage_facet("analytics_dataset/enriched", {
+    "order_id": {"source": "raw_orders", "field": "order_id"},
+    "total":    {"source": "raw_orders", "field": "amount", "operation": "SUM"},
+})
+```
+
+### `emit_lineage(event_type, job_name, ...)`
+
+```python
+from forepaas.dwh.lineage import emit_lineage, EventType
+```
+
+Low-level function that sends a single OpenLineage `RunEvent`. Use [`lineage_run`](#lineage_runjob_name-) instead for most use cases.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+| :--- | :---: | :---: | :--- |
+| `event_type` | `EventType` or `str` | Yes | One of `START`, `COMPLETE`, `ABORT`, `FAIL`, `OTHER` |
+| `job_name` | `str` | Yes | A stable identifier for the job |
+| `run_id` | `str` | No | UUID for this run. Auto-generated if omitted |
+| `inputs` | `list` | No | Datasets read by the job |
+| `outputs` | `list` | No | Datasets written by the job |
+| `job_facets` | `dict` | No | Additional OpenLineage job facets |
+| `event_time` | `str` | No | ISO-8601 timestamp. Defaults to `datetime.utcnow()` |
+
+### Input/output format
+
+Each entry in `inputs` or `outputs` can be:
+
+- A **string**: the dataset name (namespace is added automatically):
+  ```python
+  inputs = ["default_dataset/raw_orders"]
+  ```
+- A **dict**: when you need to attach facets or override the namespace:
+  ```python
+  inputs = [{"name": "default_dataset/raw_orders", "namespace": "custom_ns"}]
+  ```
+- A **helper**: [`schema_facet(..)`](#schema_facetname-fields) or [`column_lineage_facet(..)`](#column_lineage_facetname-mappings) which return dicts.
+
+All formats can be mixed in the same list.
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

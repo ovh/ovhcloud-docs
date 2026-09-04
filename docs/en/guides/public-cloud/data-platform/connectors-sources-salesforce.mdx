@@ -1,0 +1,141 @@
+---
+title: Extract Salesforce objects with the Data Platform connector
+description: "The Salesforce connector extracts data from your Salesforce org: standard and custom sObjects (Account, Contact, Opportunity, Lead, Case"
+lastUpdated: 2026-09-03
+---
+
+## Objective
+
+The Salesforce connector extracts data from your Salesforce org: standard and custom sObjects (Account, Contact, Opportunity, Lead, Case, custom `*__c` objects), SOQL queries, SOSL searches, sObject metadata, org API limits, and report listings.
+
+**7 endpoint types** covering the Salesforce REST API surface most useful for analytics.
+
+The connector returns **raw JSON** from the Salesforce API. The OVHcloud Data Platform automatically flattens nested objects into columns and stores the result in the lakehouse. No manual schema definition needed.
+
+## 1. Create an External Client App for API access
+
+The connector authenticates via **OAuth 2.0 Client Credentials Flow**, which requires an External Client App (or legacy Connected App) configured in your Salesforce org.
+
+### Steps
+
+1. In Salesforce, open **Setup** (gear icon, top right).
+2. Search for **App Manager** in the Quick Find box.
+3. Click **New External Client App** (top right). If you see a legacy org with only "New Connected App", that works too, choose Connected App and enable "Client Credentials Flow" under OAuth Settings.
+4. Fill in:
+   - **App name**: any descriptive name (e.g. `DPE Data Platform`)
+   - **Contact email**: your email
+5. In the OAuth section:
+   - ☑️ **Enable OAuth**
+   - **Callback URL**: `https://login.salesforce.com/services/oauth2/success` (required even though unused for Client Credentials)
+   - **OAuth scopes**: add at minimum `Manage user data via APIs (api)`
+6. **Save** the app.
+7. Open the newly created app → **Policies** tab → **Edit**.
+8. Enable **Client Credentials Flow** and select a **Run As** user (typically your admin user on a Developer org).
+9. **Save**.
+
+### Retrieve credentials
+
+1. Back on the app page, open the **Settings** tab → **OAuth Settings**.
+2. Click **Consumer Key and Secret**. Salesforce will ask for email verification.
+3. Copy the **Consumer Key** (your `client_id`) and **Consumer Secret** (your `client_secret`).
+
+### Find your instance URL
+
+- Top-right profile menu in Salesforce shows your My Domain URL.
+- Or: **Setup → Quick Find → My Domain** → the value under "Current My Domain URL".
+
+Format: `https://<something>.my.salesforce.com` (e.g. `https://orgfarm-XXXXXX-dev-ed.develop.my.salesforce.com` on a Developer Edition).
+
+## 2. Configure the connector on the platform
+
+In the OVHcloud Data Platform UI, connect a new Salesforce source and fill in:
+
+| Field | Value |
+|---|---|
+| **Instance URL** | Your My Domain URL from step 1 |
+| **Consumer Key** | From your External Client App |
+| **Consumer Secret** | From your External Client App |
+
+Save: the connector will exchange these for an access token automatically on every run. Tokens aren't stored; the exchange happens each time data is extracted.
+
+## 3. Available endpoints
+
+Add one table per endpoint type you want to extract. You can add the same endpoint type multiple times (e.g. one `sobject_records` per sObject).
+
+### Data extraction
+
+| Endpoint | Description | Key parameters |
+|---|---|---|
+| **sobject_records** | Extract records from any standard or custom sObject (Account, Contact, `MyObject__c`…) | `sobject_name` (required), `fields_filter`, `where_clause`, `max_items` |
+| **soql_query** | Run a freeform SOQL query for complex joins, aggregations, or sub-queries | `soql` (required), `max_items` |
+| **sosl_search** | Full-text search across multiple sObjects at once | `sosl` (required), `max_items` |
+
+### Metadata
+
+| Endpoint | Description | Key parameters |
+|---|---|---|
+| **sobjects_list** | List every sObject available in your org (standard + custom) | `max_items` |
+| **sobject_describe** | Full schema (fields, types, relationships) for one sObject | `sobject_name` (required) |
+| **reports_list** | List reports configured in your org | `max_items` |
+| **limits** | Org API request limits and current usage | |
+
+## 4. Quick example: extract Accounts
+
+1. **Endpoint type**: `sobject_records`
+2. **sObject name**: `Account`
+3. **Fields filter** (optional): `Id, Name, Industry, AnnualRevenue, CreatedDate`
+4. **Max items**: `100` (or leave empty to extract everything)
+
+The connector returns raw JSON from Salesforce. The platform flattens nested fields (Salesforce responses include an `attributes` object with `type` and `url`, which becomes `attributes.type` / `attributes.url` columns) and loads the result into your lakehouse.
+
+## 5. Best practices
+
+### Use `fields_filter` for large sObjects
+
+When `fields_filter` is empty, the connector introspects the sObject and selects all queryable fields. Some standard sObjects have 50–100+ fields, which makes extraction slow and the resulting table very wide. For analytics, list the 5–20 fields you actually need.
+
+### Use `where_clause` for incremental extraction
+
+Add a filter like `LastModifiedDate > LAST_N_DAYS:1` to pull only recently changed records. Salesforce SOQL date literals like `LAST_N_DAYS:N`, `TODAY`, `YESTERDAY`, `THIS_WEEK` are particularly handy here.
+
+You can type the filter with or without the leading `WHERE` keyword. Both work.
+
+### Prefer `sobject_records` over `soql_query` when possible
+
+`sobject_records` is simpler (fill fields + optional WHERE) and works identically under the hood. Reserve `soql_query` for:
+
+- Sub-queries (e.g. `SELECT Id, (SELECT Id FROM Contacts) FROM Account`)
+- Aggregates (`SELECT COUNT(Id) FROM Case GROUP BY Status`)
+- Cross-object joins
+
+### Discover available sObjects with `sobjects_list`
+
+Run `sobjects_list` once: it returns the full catalog of sObjects in your org, including every custom object ending in `__c`. Use it to figure out the exact API name to put in `sobject_name`.
+
+### Start with `max_items` set low
+
+Use `max_items: 10` when setting up a new table, then raise or clear it once the output looks right.
+
+## 6. Limitations
+
+- **Read-only.** The connector does not create, update, or delete records. It only extracts.
+- **REST API v60.0**: modern enough to cover all documented sObjects and queries. Newer Salesforce Spring '26 features are accessible via the general REST endpoints but may not be surfaced through specialized connector endpoints.
+- **No Bulk API 2.0**: for single-query extractions above a few million rows, Bulk would be more efficient. Not supported in this version.
+- **No streaming / Platform Events / Pub/Sub**: this is a batch extraction connector, not a real-time event listener.
+- **Reports are listed, not executed.** The `reports_list` endpoint returns the catalog of reports, not their results. To pull report data, replicate the equivalent SOQL query via `soql_query`.
+- **Org-level API quotas apply.** Salesforce enforces a daily API request limit per org (different per edition). Extractions count against it, see the `limits` endpoint for current usage.
+- **Errors are not silently swallowed.** If your query has a SOQL syntax error, references a field the Run As user can't see, or hits a permission issue, the extraction fails with the Salesforce error message.
+
+:::info
+For technical details (pagination, rate limits, authentication flow, full endpoint reference, output format, limitations), see the [Salesforce Technical Reference](/guides/public-cloud/data-platform/connectors-sources-salesforce-technical-reference).
+:::
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
