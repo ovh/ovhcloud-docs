@@ -1789,6 +1789,7 @@
                 + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
                     + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
                     + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel)
+                + [Views](public-cloud/data-platform/lakehouse-manager-views)
                 + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes)
                 + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets)
                 + [Explorer](public-cloud/data-platform/lakehouse-manager-explorer)
@@ -1822,6 +1823,7 @@
                     + [Delete Diff](public-cloud/data-platform/dpe-actions-delete-diff){label=Delete Diff}
                     + [Delete Bucket](public-cloud/data-platform/dpe-actions-delete-bucket){label=Delete Bucket}
                     + [Rebuild](public-cloud/data-platform/dpe-actions-rebuild){label=Rebuild}
+                    + [Deduplicate](public-cloud/data-platform/dpe-actions-deduplicate){label=Deduplicate}
                     + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance)
                     + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
                 + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
