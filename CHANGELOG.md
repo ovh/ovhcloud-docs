@@ -3,11 +3,15 @@
 ## 2026.09.02
 
 ### Features
+- **fragments:** Improve and remodel architecture (#713)
 - **theme:** add markdown/PDF/AI buttons to landing pages
 
 ### Fixes
 - **theme:** align product-PDF button with the toolbar and redraw its icon
 - **theme:** keep landing-page toolbar out of .md export and search
+
+### Documentation
+- 16 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.09.01.1
 
