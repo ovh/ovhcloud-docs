@@ -41,10 +41,16 @@ Reusable per-locale text blocks, inserted in MDX as a token on its own line (`[[
 
 | File | Role |
 |------|------|
-| `config/fragments.ts` | **Source of truth** — fragment bodies per locale (markdown; import-free JSX only) |
+| `config/fragments/<key>/<locale>.md` | **Source of truth** — one markdown body per locale; the directory name is the key (markdown, or import-free JSX / globally registered components only) |
+| `config/fragments.ts` | Loader — discovers the directories and builds the `FragmentMap` |
 | `config/fragment-rules.ts` | Generates the `ReplaceRule[]` for a locale (fallback `locale → en → first`) |
 | `plugins/remarkNoUnresolvedFragments.ts` | Fails the build on an unresolved/misspelled token |
+| `scripts/fragments-validate.ts` | `pnpm fragment:validate` — locale coverage, unknown keys, orphans, usage counts |
+| `scripts/fragments-new.ts` | `pnpm fragment:new <key>` — scaffolds the per-locale stubs |
+| `scripts/test-fragments.ts` | `pnpm fragment:test` — expansion + guard behaviour, incl. the code-fence trap |
 | `styles/index.css` | `details.support` styling for the `support-scope` block |
+
+Adding a fragment: `pnpm fragment:new <key>`, write `en.md` first (it is the fallback for every locale), translate the rest, then `pnpm fragment:validate`. A staged change under `config/fragments/**` runs the validator via `.husky/pre-commit`.
 
 Authoring rules and the current key list: `docs/en/internal/format-reference.mdx` §6b.
 

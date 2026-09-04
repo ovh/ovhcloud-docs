@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
+import { PageToolbar } from 'theme/components/PageToolbar';
 import { ProductPdfButton } from 'theme/components/ProductPdfButton';
 import { Sidebar } from 'theme/components/Sidebar';
 import { usePageTitle } from 'theme/hooks/usePageTitle';
@@ -157,10 +158,18 @@ export function LandingLayout(props: LandingLayoutProps) {
               </div>
             )}
 
-            {/* Whole-product PDF download — shown only when the page declares a
-                `pdf:` frontmatter ref (the button returns null otherwise). The
-                Ask-AI/llms cluster is intentionally absent from landing pages, so
-                this is mounted directly here rather than via that slot. */}
+            {/* Page-header actions: the same "View as Markdown" / "Save as
+                PDF" / "Ask AI" cluster classic guide pages get. Classic pages
+                receive it from the MDX `h1`; this layout renders its own H1,
+                so it is mounted explicitly. */}
+            <div className="rp-landing-toolbar">
+              <PageToolbar />
+            </div>
+
+            {/* Whole-product PDF download — a separate, opt-in feature: shown
+                only when the page declares a `pdf:` frontmatter ref (the
+                button returns null otherwise), as on OPCP. Kept alongside
+                the toolbar above, not replaced by it. */}
             <div className="rp-landing-pdf">
               <ProductPdfButton />
             </div>
