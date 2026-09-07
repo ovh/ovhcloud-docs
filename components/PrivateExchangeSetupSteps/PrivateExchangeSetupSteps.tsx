@@ -99,15 +99,15 @@ const STRINGS: Record<string, Strings> = {
   },
   fr: {
     ariaLabel:
-      "Les cinq étapes de configuration d'un serveur Private Exchange : 1. réception de l'e-mail de livraison ; 2. choix de l'adresse du serveur de messagerie, non modifiable ensuite ; 3. validation de l'appartenance du domaine, automatique pour un domaine du même espace client OVHcloud, sinon un enregistrement CNAME à ajouter sous 48 heures ; 4. serveur prêt, avec son certificat SSL et son webmail ; 5. ajout d'un nom de domaine, puis création des comptes e-mail.",
+      "Les cinq étapes de configuration d'un serveur Private Exchange : 1. réception de l'e-mail de livraison ; 2. choix de l'adresse du serveur de messagerie, non modifiable ensuite ; 3. validation de l'appartenance du domaine, automatique pour un domaine du même espace client OVHcloud, sinon un enregistrement CNAME à ajouter sous 48 heures ; 4. serveur prêt, avec son certificat SSL et son webmail ; 5. ajout d'un nom de domaine, puis création des comptes e-mail.",
     s1Title: 'E-mail de livraison',
     s1Text: 'Votre service est prêt à être configuré',
     s2Title: 'Adresse du serveur',
     s2Text: 'Sous-domaine + nom de domaine, ex. mail.mydomain.ovh',
     s2Flag: 'Non modifiable ensuite',
     s3Title: 'Appartenance du domaine',
-    s3Same: 'Même espace client OVHcloud : automatique, rien à faire',
-    s3Other: 'Ailleurs : ajouter un enregistrement CNAME sous 48 h',
+    s3Same: 'Même espace client OVHcloud : automatique, rien à faire',
+    s3Other: 'Ailleurs : ajouter un enregistrement CNAME sous 48 h',
     s4Title: 'Serveur prêt',
     s4Text: 'Certificat SSL délivré, webmail actif',
     s5Title: 'Domaine et comptes',

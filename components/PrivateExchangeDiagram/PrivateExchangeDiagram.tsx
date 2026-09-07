@@ -114,7 +114,7 @@ const STRINGS: Record<string, Strings> = {
   },
   fr: {
     ariaLabel:
-      "Comparaison entre Hosted Exchange et Private Exchange : avec Hosted Exchange, votre organisation est hébergée sur l'un de plusieurs serveurs mutualisés et son adresse IP est partagée avec les autres clients de ce serveur, la réputation d'envoi est donc partagée ; avec Private Exchange, votre organisation dispose de son propre serveur, d'une adresse IP dédiée et de son propre certificat SSL, la réputation d'envoi n'appartient qu'à vous.",
+      "Comparaison entre Hosted Exchange et Private Exchange : avec Hosted Exchange, votre organisation est hébergée sur l'un de plusieurs serveurs mutualisés et son adresse IP est partagée avec les autres clients de ce serveur, la réputation d'envoi est donc partagée ; avec Private Exchange, votre organisation dispose de son propre serveur, d'une adresse IP dédiée et de son propre certificat SSL, la réputation d'envoi n'appartient qu'à vous.",
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Votre organisation',
