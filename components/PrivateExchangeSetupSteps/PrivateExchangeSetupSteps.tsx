@@ -122,7 +122,7 @@ const STRINGS: Record<string, Strings> = {
     s2Text: 'Subdomain + Domainname, z. B. mail.mydomain.ovh',
     s2Flag: 'Später nicht mehr änderbar',
     s3Title: 'Domain-Zugehörigkeit',
-    s3Same: 'Selber OVHcloud Account: automatisch, nichts zu tun',
+    s3Same: 'Derselbe OVHcloud Account: automatisch, nichts zu tun',
     s3Other: 'Anderswo: CNAME-Eintrag innerhalb von 48 h hinzufügen',
     s4Title: 'Server bereit',
     s4Text: 'SSL-Zertifikat ausgestellt, Webmail aktiv',
