@@ -65,9 +65,11 @@ interface Strings {
   you: string;
   others: string;
   sharedPlatform: string;
+  sharedPlatformNote: string;
   ownServer: string;
   ownServerNote: string;
   sharedIp: string;
+  sharedIpNote: string;
   dedicatedIp: string;
   reputation: string;
   repShared: string;
@@ -78,114 +80,129 @@ interface Strings {
 const STRINGS: Record<string, Strings> = {
   en: {
     ariaLabel:
-      'Comparison of Hosted Exchange and Private Exchange: with Hosted Exchange, your organisation shares the platform and its IP address with other customers, so the sending reputation is shared; with Private Exchange, your organisation has its own server and a dedicated IP address, so the sending reputation is yours alone.',
+      'Comparison of Hosted Exchange and Private Exchange: with Hosted Exchange, your organisation is hosted on one of several shared servers and its IP address is shared with the other customers of that server, so the sending reputation is shared; with Private Exchange, your organisation has its own server and a dedicated IP address, so the sending reputation is yours alone.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Your organisation',
     others: 'Other customers',
-    sharedPlatform: 'Shared platform',
+    sharedPlatform: 'Shared servers',
+    sharedPlatformNote: 'Several servers, each hosting many customers',
     ownServer: 'Your own server',
     ownServerNote: 'Resources reserved for you',
-    sharedIp: 'Shared IP address',
+    sharedIp: 'Shared IP addresses',
+    sharedIpNote: 'One per server, shared by its customers',
     dedicatedIp: 'Dedicated IP address',
     reputation: 'Sending reputation',
-    repShared: 'Shared with other customers',
+    repShared: 'Shared with the other customers of your server',
     repOwn: 'Yours alone',
   },
   fr: {
     ariaLabel:
-      "Comparaison entre Hosted Exchange et Private Exchange : avec Hosted Exchange, votre organisation partage la plateforme et son adresse IP avec d'autres clients, la réputation d'envoi est donc partagée ; avec Private Exchange, votre organisation dispose de son propre serveur et d'une adresse IP dédiée, la réputation d'envoi n'appartient qu'à vous.",
+      "Comparaison entre Hosted Exchange et Private Exchange : avec Hosted Exchange, votre organisation est hébergée sur l'un de plusieurs serveurs mutualisés et son adresse IP est partagée avec les autres clients de ce serveur, la réputation d'envoi est donc partagée ; avec Private Exchange, votre organisation dispose de son propre serveur et d'une adresse IP dédiée, la réputation d'envoi n'appartient qu'à vous.",
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Votre organisation',
     others: 'Autres clients',
-    sharedPlatform: 'Plateforme partagée',
+    sharedPlatform: 'Serveurs mutualisés',
+    sharedPlatformNote:
+      'Plusieurs serveurs, chacun hébergeant de nombreux clients',
     ownServer: 'Votre propre serveur',
     ownServerNote: 'Ressources réservées',
-    sharedIp: 'Adresse IP partagée',
+    sharedIp: 'Adresses IP partagées',
+    sharedIpNote: 'Une par serveur, partagée par ses clients',
     dedicatedIp: 'Adresse IP dédiée',
     reputation: "Réputation d'envoi",
-    repShared: "Partagée avec d'autres clients",
+    repShared: 'Partagée avec les autres clients de votre serveur',
     repOwn: 'La vôtre uniquement',
   },
   de: {
     ariaLabel:
-      'Vergleich von Hosted Exchange und Private Exchange: Bei Hosted Exchange teilt sich Ihre Organisation die Plattform und deren IP-Adresse mit anderen Kunden, die Versandreputation ist also geteilt; bei Private Exchange hat Ihre Organisation einen eigenen Server und eine dedizierte IP-Adresse, die Versandreputation gehört allein Ihnen.',
+      'Vergleich von Hosted Exchange und Private Exchange: Bei Hosted Exchange liegt Ihre Organisation auf einem von mehreren gemeinsam genutzten Servern und teilt sich dessen IP-Adresse mit den anderen Kunden dieses Servers, die Versandreputation ist also geteilt; bei Private Exchange hat Ihre Organisation einen eigenen Server und eine dedizierte IP-Adresse, die Versandreputation gehört allein Ihnen.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Ihre Organisation',
     others: 'Andere Kunden',
-    sharedPlatform: 'Gemeinsame Plattform',
+    sharedPlatform: 'Gemeinsam genutzte Server',
+    sharedPlatformNote: 'Mehrere Server, jeder mit vielen Kunden',
     ownServer: 'Ihr eigener Server',
     ownServerNote: 'Für Sie reservierte Ressourcen',
-    sharedIp: 'Gemeinsame IP-Adresse',
+    sharedIp: 'Gemeinsame IP-Adressen',
+    sharedIpNote: 'Eine pro Server, von dessen Kunden geteilt',
     dedicatedIp: 'Dedizierte IP-Adresse',
     reputation: 'Versandreputation',
-    repShared: 'Mit anderen Kunden geteilt',
+    repShared: 'Mit den anderen Kunden Ihres Servers geteilt',
     repOwn: 'Allein Ihre',
   },
   es: {
     ariaLabel:
-      'Comparación entre Hosted Exchange y Private Exchange: con Hosted Exchange, su organización comparte la plataforma y su dirección IP con otros clientes, por lo que la reputación de envío es compartida; con Private Exchange, su organización dispone de su propio servidor y de una dirección IP dedicada, por lo que la reputación de envío es solo suya.',
+      'Comparación entre Hosted Exchange y Private Exchange: con Hosted Exchange, su organización se aloja en uno de varios servidores compartidos y su dirección IP se comparte con los demás clientes de ese servidor, por lo que la reputación de envío es compartida; con Private Exchange, su organización dispone de su propio servidor y de una dirección IP dedicada, por lo que la reputación de envío es solo suya.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Su organización',
     others: 'Otros clientes',
-    sharedPlatform: 'Plataforma compartida',
+    sharedPlatform: 'Servidores compartidos',
+    sharedPlatformNote: 'Varios servidores, cada uno con numerosos clientes',
     ownServer: 'Su propio servidor',
     ownServerNote: 'Recursos reservados para usted',
-    sharedIp: 'Dirección IP compartida',
+    sharedIp: 'Direcciones IP compartidas',
+    sharedIpNote: 'Una por servidor, compartida por sus clientes',
     dedicatedIp: 'Dirección IP dedicada',
     reputation: 'Reputación de envío',
-    repShared: 'Compartida con otros clientes',
+    repShared: 'Compartida con los demás clientes de su servidor',
     repOwn: 'Solo suya',
   },
   it: {
     ariaLabel:
-      'Confronto tra Hosted Exchange e Private Exchange: con Hosted Exchange la tua organizzazione condivide la piattaforma e il suo indirizzo IP con altri clienti, quindi la reputazione di invio è condivisa; con Private Exchange la tua organizzazione dispone di un proprio server e di un indirizzo IP dedicato, quindi la reputazione di invio è solo tua.',
+      'Confronto tra Hosted Exchange e Private Exchange: con Hosted Exchange la tua organizzazione è ospitata su uno di più server condivisi e il suo indirizzo IP è condiviso con gli altri clienti di quel server, quindi la reputazione di invio è condivisa; con Private Exchange la tua organizzazione dispone di un proprio server e di un indirizzo IP dedicato, quindi la reputazione di invio è solo tua.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'La tua organizzazione',
     others: 'Altri clienti',
-    sharedPlatform: 'Piattaforma condivisa',
+    sharedPlatform: 'Server condivisi',
+    sharedPlatformNote: 'Più server, ciascuno con numerosi clienti',
     ownServer: 'Il tuo server',
     ownServerNote: 'Risorse riservate a te',
-    sharedIp: 'Indirizzo IP condiviso',
+    sharedIp: 'Indirizzi IP condivisi',
+    sharedIpNote: 'Uno per server, condiviso dai suoi clienti',
     dedicatedIp: 'Indirizzo IP dedicato',
     reputation: 'Reputazione di invio',
-    repShared: 'Condivisa con altri clienti',
+    repShared: 'Condivisa con gli altri clienti del tuo server',
     repOwn: 'Solo tua',
   },
   pl: {
     ariaLabel:
-      'Porównanie Hosted Exchange i Private Exchange: w Hosted Exchange Twoja organizacja współdzieli platformę i jej adres IP z innymi klientami, więc reputacja wysyłkowa jest współdzielona; w Private Exchange Twoja organizacja ma własny serwer i dedykowany adres IP, więc reputacja wysyłkowa należy wyłącznie do Ciebie.',
+      'Porównanie Hosted Exchange i Private Exchange: w Hosted Exchange Twoja organizacja jest hostowana na jednym z wielu współdzielonych serwerów, a jego adres IP jest współdzielony z innymi klientami tego serwera, więc reputacja wysyłkowa jest współdzielona; w Private Exchange Twoja organizacja ma własny serwer i dedykowany adres IP, więc reputacja wysyłkowa należy wyłącznie do Ciebie.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Twoja organizacja',
     others: 'Inni klienci',
-    sharedPlatform: 'Współdzielona platforma',
+    sharedPlatform: 'Współdzielone serwery',
+    sharedPlatformNote: 'Wiele serwerów, każdy z wieloma klientami',
     ownServer: 'Twój własny serwer',
     ownServerNote: 'Zasoby zarezerwowane dla Ciebie',
-    sharedIp: 'Współdzielony adres IP',
+    sharedIp: 'Współdzielone adresy IP',
+    sharedIpNote: 'Jeden na serwer, współdzielony przez jego klientów',
     dedicatedIp: 'Dedykowany adres IP',
     reputation: 'Reputacja wysyłkowa',
-    repShared: 'Współdzielona z innymi klientami',
+    repShared: 'Współdzielona z innymi klientami Twojego serwera',
     repOwn: 'Wyłącznie Twoja',
   },
   pt: {
     ariaLabel:
-      'Comparação entre Hosted Exchange e Private Exchange: com o Hosted Exchange, a sua organização partilha a plataforma e o respetivo endereço IP com outros clientes, pelo que a reputação de envio é partilhada; com o Private Exchange, a sua organização dispõe do seu próprio servidor e de um endereço IP dedicado, pelo que a reputação de envio é apenas sua.',
+      'Comparação entre Hosted Exchange e Private Exchange: com o Hosted Exchange, a sua organização é alojada num de vários servidores partilhados e o respetivo endereço IP é partilhado com os outros clientes desse servidor, pelo que a reputação de envio é partilhada; com o Private Exchange, a sua organização dispõe do seu próprio servidor e de um endereço IP dedicado, pelo que a reputação de envio é apenas sua.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'A sua organização',
     others: 'Outros clientes',
-    sharedPlatform: 'Plataforma partilhada',
+    sharedPlatform: 'Servidores partilhados',
+    sharedPlatformNote: 'Vários servidores, cada um com muitos clientes',
     ownServer: 'O seu próprio servidor',
     ownServerNote: 'Recursos reservados para si',
-    sharedIp: 'Endereço IP partilhado',
+    sharedIp: 'Endereços IP partilhados',
+    sharedIpNote: 'Um por servidor, partilhado pelos seus clientes',
     dedicatedIp: 'Endereço IP dedicado',
     reputation: 'Reputação de envio',
-    repShared: 'Partilhada com outros clientes',
+    repShared: 'Partilhada com os outros clientes do seu servidor',
     repOwn: 'Apenas sua',
   },
 };
@@ -198,6 +215,8 @@ interface CaseProps {
   platform: string;
   platformNote?: string;
   ip: string;
+  ipNote?: string;
+  multi?: boolean;
   reputationLabel: string;
   reputation: string;
 }
@@ -210,6 +229,8 @@ function TenancyCase({
   platform,
   platformNote,
   ip,
+  ipNote,
+  multi,
   reputationLabel,
   reputation,
 }: CaseProps) {
@@ -234,8 +255,12 @@ function TenancyCase({
         <DownIcon />
       </p>
       <div className="pe-tenancy__row">
-        <span className="pe-tenancy__ico">
+        <span
+          className={`pe-tenancy__ico${multi ? ' pe-tenancy__ico--multi' : ''}`}
+        >
           <ServerIcon />
+          {multi ? <ServerIcon /> : null}
+          {multi ? <ServerIcon /> : null}
         </span>
         <span className="pe-tenancy__field">
           <span className="pe-tenancy__value">{platform}</span>
@@ -248,11 +273,16 @@ function TenancyCase({
         <DownIcon />
       </p>
       <div className="pe-tenancy__row">
-        <span className="pe-tenancy__ico">
+        <span
+          className={`pe-tenancy__ico${multi ? ' pe-tenancy__ico--multi' : ''}`}
+        >
           <GlobeIcon />
+          {multi ? <GlobeIcon /> : null}
+          {multi ? <GlobeIcon /> : null}
         </span>
         <span className="pe-tenancy__field">
           <span className="pe-tenancy__value">{ip}</span>
+          {ipNote ? <span className="pe-tenancy__note">{ipNote}</span> : null}
         </span>
       </div>
       <p className="pe-tenancy__result">
@@ -270,9 +300,9 @@ function TenancyCase({
 
 /**
  * Illustrates what sets Private Exchange apart from Hosted Exchange: one tenant
- * on its own server with a dedicated IP address, versus many tenants sharing a
- * platform and its outgoing IP address — and therefore who owns the sending
- * reputation.
+ * on its own server with a dedicated IP address, versus many tenants spread over
+ * several shared servers, each with an IP address shared by its customers — and
+ * therefore who owns the sending reputation.
  *
  * Pure HTML + inline SVG so it inherits the theme colors (Rspress CSS variables)
  * and adapts to light/dark — no external assets. Copy is localized via useLang().
@@ -288,7 +318,10 @@ export function PrivateExchangeDiagram() {
         you={t.you}
         others={t.others}
         platform={t.sharedPlatform}
+        platformNote={t.sharedPlatformNote}
         ip={t.sharedIp}
+        ipNote={t.sharedIpNote}
+        multi
         reputationLabel={t.reputation}
         reputation={t.repShared}
       />
