@@ -52,6 +52,14 @@ const ShieldIcon = () => (
   </svg>
 );
 
+const LockIcon = () => (
+  <svg {...svg} aria-hidden="true">
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    <path d="M12 15v2" />
+  </svg>
+);
+
 const DownIcon = () => (
   <svg {...svg} aria-hidden="true">
     <path d="M12 5v14M6 13l6 6 6-6" />
@@ -71,6 +79,10 @@ interface Strings {
   sharedIp: string;
   sharedIpNote: string;
   dedicatedIp: string;
+  sharedSsl: string;
+  sharedSslNote: string;
+  ownSsl: string;
+  ownSslNote: string;
   reputation: string;
   repShared: string;
   repOwn: string;
@@ -80,7 +92,7 @@ interface Strings {
 const STRINGS: Record<string, Strings> = {
   en: {
     ariaLabel:
-      'Comparison of Hosted Exchange and Private Exchange: with Hosted Exchange, your organisation is hosted on one of several shared servers and its IP address is shared with the other customers of that server, so the sending reputation is shared; with Private Exchange, your organisation has its own server and a dedicated IP address, so the sending reputation is yours alone.',
+      'Comparison of Hosted Exchange and Private Exchange: with Hosted Exchange, your organisation is hosted on one of several shared servers and its IP address is shared with the other customers of that server, so the sending reputation is shared; with Private Exchange, your organisation has its own server, a dedicated IP address and its own SSL certificate, so the sending reputation is yours alone.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Your organisation',
@@ -92,13 +104,17 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Shared IP addresses',
     sharedIpNote: 'One per server, shared by its customers',
     dedicatedIp: 'Dedicated IP address',
+    sharedSsl: "OVHcloud's SSL certificate",
+    sharedSslNote: "For the server's shared address",
+    ownSsl: 'Your own SSL certificate',
+    ownSslNote: 'For your own server address',
     reputation: 'Sending reputation',
     repShared: 'Shared with the other customers of your server',
     repOwn: 'Yours alone',
   },
   fr: {
     ariaLabel:
-      "Comparaison entre Hosted Exchange et Private Exchange : avec Hosted Exchange, votre organisation est hébergée sur l'un de plusieurs serveurs mutualisés et son adresse IP est partagée avec les autres clients de ce serveur, la réputation d'envoi est donc partagée ; avec Private Exchange, votre organisation dispose de son propre serveur et d'une adresse IP dédiée, la réputation d'envoi n'appartient qu'à vous.",
+      "Comparaison entre Hosted Exchange et Private Exchange : avec Hosted Exchange, votre organisation est hébergée sur l'un de plusieurs serveurs mutualisés et son adresse IP est partagée avec les autres clients de ce serveur, la réputation d'envoi est donc partagée ; avec Private Exchange, votre organisation dispose de son propre serveur, d'une adresse IP dédiée et de son propre certificat SSL, la réputation d'envoi n'appartient qu'à vous.",
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Votre organisation',
@@ -111,13 +127,17 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Adresses IP partagées',
     sharedIpNote: 'Une par serveur, partagée par ses clients',
     dedicatedIp: 'Adresse IP dédiée',
+    sharedSsl: "Certificat SSL d'OVHcloud",
+    sharedSslNote: "Pour l'adresse partagée du serveur",
+    ownSsl: 'Votre propre certificat SSL',
+    ownSslNote: "Pour l'adresse de votre serveur",
     reputation: "Réputation d'envoi",
     repShared: 'Partagée avec les autres clients de votre serveur',
     repOwn: 'La vôtre uniquement',
   },
   de: {
     ariaLabel:
-      'Vergleich von Hosted Exchange und Private Exchange: Bei Hosted Exchange liegt Ihre Organisation auf einem von mehreren gemeinsam genutzten Servern und teilt sich dessen IP-Adresse mit den anderen Kunden dieses Servers, die Versandreputation ist also geteilt; bei Private Exchange hat Ihre Organisation einen eigenen Server und eine dedizierte IP-Adresse, die Versandreputation gehört allein Ihnen.',
+      'Vergleich von Hosted Exchange und Private Exchange: Bei Hosted Exchange liegt Ihre Organisation auf einem von mehreren gemeinsam genutzten Servern und teilt sich dessen IP-Adresse mit den anderen Kunden dieses Servers, die Versandreputation ist also geteilt; bei Private Exchange hat Ihre Organisation einen eigenen Server, eine dedizierte IP-Adresse und ein eigenes SSL-Zertifikat, die Versandreputation gehört allein Ihnen.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Ihre Organisation',
@@ -129,13 +149,17 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Gemeinsame IP-Adressen',
     sharedIpNote: 'Eine pro Server, von dessen Kunden geteilt',
     dedicatedIp: 'Dedizierte IP-Adresse',
+    sharedSsl: 'SSL-Zertifikat von OVHcloud',
+    sharedSslNote: 'Für die gemeinsame Adresse des Servers',
+    ownSsl: 'Ihr eigenes SSL-Zertifikat',
+    ownSslNote: 'Für die Adresse Ihres eigenen Servers',
     reputation: 'Versandreputation',
     repShared: 'Mit den anderen Kunden Ihres Servers geteilt',
     repOwn: 'Allein Ihre',
   },
   es: {
     ariaLabel:
-      'Comparación entre Hosted Exchange y Private Exchange: con Hosted Exchange, su organización se aloja en uno de varios servidores compartidos y su dirección IP se comparte con los demás clientes de ese servidor, por lo que la reputación de envío es compartida; con Private Exchange, su organización dispone de su propio servidor y de una dirección IP dedicada, por lo que la reputación de envío es solo suya.',
+      'Comparación entre Hosted Exchange y Private Exchange: con Hosted Exchange, su organización se aloja en uno de varios servidores compartidos y su dirección IP se comparte con los demás clientes de ese servidor, por lo que la reputación de envío es compartida; con Private Exchange, su organización dispone de su propio servidor, de una dirección IP dedicada y de su propio certificado SSL, por lo que la reputación de envío es solo suya.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Su organización',
@@ -147,13 +171,17 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Direcciones IP compartidas',
     sharedIpNote: 'Una por servidor, compartida por sus clientes',
     dedicatedIp: 'Dirección IP dedicada',
+    sharedSsl: 'Certificado SSL de OVHcloud',
+    sharedSslNote: 'Para la dirección compartida del servidor',
+    ownSsl: 'Su propio certificado SSL',
+    ownSslNote: 'Para la dirección de su propio servidor',
     reputation: 'Reputación de envío',
     repShared: 'Compartida con los demás clientes de su servidor',
     repOwn: 'Solo suya',
   },
   it: {
     ariaLabel:
-      'Confronto tra Hosted Exchange e Private Exchange: con Hosted Exchange la tua organizzazione è ospitata su uno di più server condivisi e il suo indirizzo IP è condiviso con gli altri clienti di quel server, quindi la reputazione di invio è condivisa; con Private Exchange la tua organizzazione dispone di un proprio server e di un indirizzo IP dedicato, quindi la reputazione di invio è solo tua.',
+      'Confronto tra Hosted Exchange e Private Exchange: con Hosted Exchange la tua organizzazione è ospitata su uno di più server condivisi e il suo indirizzo IP è condiviso con gli altri clienti di quel server, quindi la reputazione di invio è condivisa; con Private Exchange la tua organizzazione dispone di un proprio server, di un indirizzo IP dedicato e di un proprio certificato SSL, quindi la reputazione di invio è solo tua.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'La tua organizzazione',
@@ -165,13 +193,17 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Indirizzi IP condivisi',
     sharedIpNote: 'Uno per server, condiviso dai suoi clienti',
     dedicatedIp: 'Indirizzo IP dedicato',
+    sharedSsl: 'Certificato SSL di OVHcloud',
+    sharedSslNote: "Per l'indirizzo condiviso del server",
+    ownSsl: 'Il tuo certificato SSL',
+    ownSslNote: "Per l'indirizzo del tuo server",
     reputation: 'Reputazione di invio',
     repShared: 'Condivisa con gli altri clienti del tuo server',
     repOwn: 'Solo tua',
   },
   pl: {
     ariaLabel:
-      'Porównanie Hosted Exchange i Private Exchange: w Hosted Exchange Twoja organizacja jest hostowana na jednym z wielu współdzielonych serwerów, a jego adres IP jest współdzielony z innymi klientami tego serwera, więc reputacja wysyłkowa jest współdzielona; w Private Exchange Twoja organizacja ma własny serwer i dedykowany adres IP, więc reputacja wysyłkowa należy wyłącznie do Ciebie.',
+      'Porównanie Hosted Exchange i Private Exchange: w Hosted Exchange Twoja organizacja jest hostowana na jednym z wielu współdzielonych serwerów, a jego adres IP jest współdzielony z innymi klientami tego serwera, więc reputacja wysyłkowa jest współdzielona; w Private Exchange Twoja organizacja ma własny serwer, dedykowany adres IP i własny certyfikat SSL, więc reputacja wysyłkowa należy wyłącznie do Ciebie.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'Twoja organizacja',
@@ -183,13 +215,17 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Współdzielone adresy IP',
     sharedIpNote: 'Jeden na serwer, współdzielony przez jego klientów',
     dedicatedIp: 'Dedykowany adres IP',
+    sharedSsl: 'Certyfikat SSL OVHcloud',
+    sharedSslNote: 'Dla współdzielonego adresu serwera',
+    ownSsl: 'Twój własny certyfikat SSL',
+    ownSslNote: 'Dla adresu Twojego własnego serwera',
     reputation: 'Reputacja wysyłkowa',
     repShared: 'Współdzielona z innymi klientami Twojego serwera',
     repOwn: 'Wyłącznie Twoja',
   },
   pt: {
     ariaLabel:
-      'Comparação entre Hosted Exchange e Private Exchange: com o Hosted Exchange, a sua organização é alojada num de vários servidores partilhados e o respetivo endereço IP é partilhado com os outros clientes desse servidor, pelo que a reputação de envio é partilhada; com o Private Exchange, a sua organização dispõe do seu próprio servidor e de um endereço IP dedicado, pelo que a reputação de envio é apenas sua.',
+      'Comparação entre Hosted Exchange e Private Exchange: com o Hosted Exchange, a sua organização é alojada num de vários servidores partilhados e o respetivo endereço IP é partilhado com os outros clientes desse servidor, pelo que a reputação de envio é partilhada; com o Private Exchange, a sua organização dispõe do seu próprio servidor, de um endereço IP dedicado e do seu próprio certificado SSL, pelo que a reputação de envio é apenas sua.',
     hosted: 'Hosted Exchange',
     private: 'Private Exchange',
     you: 'A sua organização',
@@ -201,6 +237,10 @@ const STRINGS: Record<string, Strings> = {
     sharedIp: 'Endereços IP partilhados',
     sharedIpNote: 'Um por servidor, partilhado pelos seus clientes',
     dedicatedIp: 'Endereço IP dedicado',
+    sharedSsl: 'Certificado SSL da OVHcloud',
+    sharedSslNote: 'Para o endereço partilhado do servidor',
+    ownSsl: 'O seu próprio certificado SSL',
+    ownSslNote: 'Para o endereço do seu próprio servidor',
     reputation: 'Reputação de envio',
     repShared: 'Partilhada com os outros clientes do seu servidor',
     repOwn: 'Apenas sua',
@@ -216,6 +256,8 @@ interface CaseProps {
   platformNote?: string;
   ip: string;
   ipNote?: string;
+  ssl: string;
+  sslNote?: string;
   multi?: boolean;
   reputationLabel: string;
   reputation: string;
@@ -230,6 +272,8 @@ function TenancyCase({
   platformNote,
   ip,
   ipNote,
+  ssl,
+  sslNote,
   multi,
   reputationLabel,
   reputation,
@@ -285,6 +329,18 @@ function TenancyCase({
           {ipNote ? <span className="pe-tenancy__note">{ipNote}</span> : null}
         </span>
       </div>
+      <p className="pe-tenancy__link">
+        <DownIcon />
+      </p>
+      <div className="pe-tenancy__row">
+        <span className="pe-tenancy__ico">
+          <LockIcon />
+        </span>
+        <span className="pe-tenancy__field">
+          <span className="pe-tenancy__value">{ssl}</span>
+          {sslNote ? <span className="pe-tenancy__note">{sslNote}</span> : null}
+        </span>
+      </div>
       <p className="pe-tenancy__result">
         <span className="pe-tenancy__badge">
           {variant === 'private' ? <ShieldIcon /> : <UsersIcon />}
@@ -321,6 +377,8 @@ export function PrivateExchangeDiagram() {
         platformNote={t.sharedPlatformNote}
         ip={t.sharedIp}
         ipNote={t.sharedIpNote}
+        ssl={t.sharedSsl}
+        sslNote={t.sharedSslNote}
         multi
         reputationLabel={t.reputation}
         reputation={t.repShared}
@@ -332,6 +390,8 @@ export function PrivateExchangeDiagram() {
         platform={t.ownServer}
         platformNote={t.ownServerNote}
         ip={t.dedicatedIp}
+        ssl={t.ownSsl}
+        sslNote={t.ownSslNote}
         reputationLabel={t.reputation}
         reputation={t.repOwn}
       />
