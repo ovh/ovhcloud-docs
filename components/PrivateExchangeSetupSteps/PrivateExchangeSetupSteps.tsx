@@ -199,65 +199,98 @@ interface StepProps {
   index: number;
   icon: React.ReactNode;
   title: string;
+  href?: string;
   children: React.ReactNode;
   last?: boolean;
 }
 
-function Step({ index, icon, title, children, last }: StepProps) {
+function Step({ index, icon, title, href, children, last }: StepProps) {
   return (
-    <>
+    <li className="pe-steps__item">
       <div className="pe-steps__step">
         <div className="pe-steps__head">
-          <span className="pe-steps__num">{index}</span>
+          <span className="pe-steps__num" aria-hidden="true">
+            {index}
+          </span>
           <span className="pe-steps__ico">{icon}</span>
         </div>
-        <p className="pe-steps__title">{title}</p>
+        <p className="pe-steps__title">
+          {href ? (
+            <a className="pe-steps__link" href={href}>
+              {title}
+            </a>
+          ) : (
+            title
+          )}
+        </p>
         <div className="pe-steps__body">{children}</div>
       </div>
       {last ? null : (
-        <span className="pe-steps__arrow">
+        <span className="pe-steps__arrow" aria-hidden="true">
           <ArrowIcon />
         </span>
       )}
-    </>
+    </li>
   );
 }
 
+interface PrivateExchangeSetupStepsProps {
+  /**
+   * In-page anchors of the five step headings, in order (e.g. `#step-1-…`).
+   * Heading slugs are locale-specific, so each guide passes its own list.
+   * Steps without an anchor render as plain text.
+   */
+  anchors?: string[];
+}
+
 /**
- * The five configuration steps of a Private Exchange server, as a horizontal
- * flow (stacked on narrow screens). Step 3 carries the only fork of the flow:
- * automatic ownership check for a domain in the same OVHcloud account, manual
- * CNAME (48 h) otherwise.
+ * The five configuration steps of a Private Exchange server, as a vertical
+ * flow. Step 3 carries the only fork of the flow: automatic ownership check
+ * for a domain in the same OVHcloud account, manual CNAME (48 h) otherwise.
+ * Each step links to its chapter when `anchors` is provided.
  *
  * Pure HTML + inline SVG so it inherits the theme colors (Rspress CSS variables)
  * and adapts to light/dark — no external assets. Copy is localized via useLang().
  */
-export function PrivateExchangeSetupSteps() {
+export function PrivateExchangeSetupSteps({
+  anchors = [],
+}: PrivateExchangeSetupStepsProps) {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
   return (
-    <div className="pe-steps" role="img" aria-label={t.ariaLabel}>
-      <Step index={1} icon={<MailIcon />} title={t.s1Title}>
+    <ol className="pe-steps" aria-label={t.ariaLabel}>
+      <Step index={1} icon={<MailIcon />} title={t.s1Title} href={anchors[0]}>
         <p className="pe-steps__text">{t.s1Text}</p>
       </Step>
-      <Step index={2} icon={<AddressIcon />} title={t.s2Title}>
+      <Step
+        index={2}
+        icon={<AddressIcon />}
+        title={t.s2Title}
+        href={anchors[1]}
+      >
         <p className="pe-steps__text">{t.s2Text}</p>
         <p className="pe-steps__flag">
           <LockIcon />
           {t.s2Flag}
         </p>
       </Step>
-      <Step index={3} icon={<DnsIcon />} title={t.s3Title}>
+      <Step index={3} icon={<DnsIcon />} title={t.s3Title} href={anchors[2]}>
         <p className="pe-steps__branch pe-steps__branch--auto">{t.s3Same}</p>
         <p className="pe-steps__branch pe-steps__branch--manual">{t.s3Other}</p>
       </Step>
-      <Step index={4} icon={<ReadyIcon />} title={t.s4Title}>
+      <Step index={4} icon={<ReadyIcon />} title={t.s4Title} href={anchors[3]}>
         <p className="pe-steps__text">{t.s4Text}</p>
       </Step>
-      <Step index={5} icon={<DomainIcon />} title={t.s5Title} last>
+      <Step
+        index={5}
+        icon={<DomainIcon />}
+        title={t.s5Title}
+        href={anchors[4]}
+        last
+      >
         <p className="pe-steps__text">{t.s5Text}</p>
       </Step>
-    </div>
+    </ol>
   );
 }
 
