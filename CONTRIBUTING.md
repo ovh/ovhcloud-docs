@@ -337,6 +337,22 @@ import Api from '@components/Api';
 
 Escape path parameters as `\{serviceName\}` inside the `route={"…"}` expression. The pill renders block-like: introduce it with a full sentence ending in a colon ("… using the following API call:") — never place it mid-sentence. For an endpoint link *inside* running text or a table cell, use `<ApiLink section route method>` instead — that one is auto-registered, no import (see [Zone-aware API links](#zone-aware-api-links--apilink--createtoken)).
 
+To target **Kimsufi / So you Start** specific endpoints (not the OVHcloud API), add `brands` — a list of brands, same shape as `regions` (default `['ovh']`) — and drop `version`, which the `ks`/`sys` brands don't have (no versioned API like OVHcloud's):
+
+```mdx
+<!-- All 4: So you Start EU/CA + Kimsufi EU/CA -->
+<Api brands={['sys', 'ks']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
+```
+
+Some API calls are available on SoYouStart endpoints only, not on Kimsufi endpoints:
+
+```mdx
+<!-- So you Start only (EU/CA) -->
+<Api brands={['sys']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
+```
+
+`'ovh'`, `'ks'` and `'sys'` are independently selectable — mix them freely (e.g. `brands={['ovh', 'sys']}` for OVHcloud + So you Start only, or `brands={['ks']}` for Kimsufi only). Defaults to `brands={['ovh']}` (the standard EU/CA OVHcloud console, whose `version` defaults to `'v1'` if omitted), offering both EU and CA unless restricted with `regions` — e.g. `regions={["eu"]}` on a `brands={['sys']}` call shows only SoYouStart EU. Note `regions` is validated against a Kimsufi/So you Start-specific EU/CA set when `brands` includes `ks`/`sys`, kept separate from the OVHcloud regions so the two can diverge (e.g. if OVH later adds a third zone that Kimsufi/So you Start never will).
+
 ### Other components
 
 Import from `@components/...` at the top of the MDX file:
@@ -412,6 +428,18 @@ Retrieve them with the <ApiLink section="/me" method="GET" route={"/me/logs/audi
 
 Without props, `<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console — use that for any generic mention. Console links are only ever section/operation deep links via the props above; never hardcode a console URL. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
 
+`<ApiLink>` also supports the same `brands`/`regions` props as `<Api>` (see [API endpoint blocks](#api-endpoint-blocks) above), for an inline link to a **Kimsufi / So you Start** endpoint instead of the OVHcloud API:
+
+```mdx
+<!-- So you Start + Kimsufi, both regions — picker offers all 4 -->
+Consult it in <ApiLink brands={['sys', 'ks']} method="GET" route={"/dedicated/server/\{serviceName\}"}>the Kimsufi/So you Start console</ApiLink>.
+
+<!-- So you Start only, EU only — no picker, direct link -->
+See <ApiLink brands={['sys']} regions={["eu"]} method="GET" route={"/dedicated/server/\{serviceName\}"}>this endpoint</ApiLink>.
+```
+
+Same rule as `<Api>`: drop `version` when `brands` doesn't include `ovh` (it has no effect and triggers a dev-only console warning), and `regions` is validated against the Kimsufi/So you Start EU/CA set, not the OVHcloud one.
+
 **EU and CA API schemas differ per route.** Before deep-linking an operation (with `<Api>` or `<ApiLink>`), check it exists in both `https://api.eu.ovhcloud.com/1.0/<section>.json` and `https://api.ca.ovhcloud.com/1.0/<section>.json` — a console deep link to an operation the zone doesn't have falls back to the section root. If only one zone has it, add `regions={["eu"]}` (renders a plain single-zone link). EU-only *products* (SMS, Email Pro, …) are restricted automatically — no prop needed.
 
 Deliberate exceptions — keep these as plain URLs, do **not** convert to components:
@@ -426,6 +454,7 @@ Pick the component by what you are pointing at:
 | The OVHcloud API / the console in general | `<ApiLink>` | hardcoded URLs, `/links/api\|console` |
 | A **specific endpoint** the reader should call, as its own display element | `<Api version="v1" section="…" method="GET" route={"…"} />` after a full sentence ending in a colon | a mid-sentence pill; prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
 | A **section or operation as an inline text link** (running prose, table cells) | `<ApiLink section="…" [method="GET" route={"…"}]>your link text</ApiLink>` | hardcoded `?section=` console URLs |
+| Either of the above, but on a **So you Start / Kimsufi** endpoint | add `brands={['sys', 'ks']}` (or `['sys']`/`['ks']`), drop `version` | hardcoded `kimsufi.com`/`soyoustart.com` console URLs |
 | Token creation with rights | `<CreateToken rights="…">` | hardcoded `createToken` URLs |
 
 Also skip "log in to the API console first" steps — the gateway and console are public pages, and the console offers authentication itself, both globally (the `Authentication` sidebar entry) and contextually on each operation. The sign-in mechanics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx); do not repeat them per guide. See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.

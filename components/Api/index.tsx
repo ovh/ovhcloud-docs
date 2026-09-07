@@ -3,48 +3,141 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { regionsForPath } from './productRegions';
 import { useRegion } from './RegionContext';
+import {
+  BRANDS_DEFAULT,
+  type Brand,
+  isSysksRegion,
+  SYS_REGIONS_DEFAULT,
+  type SysksRegion,
+  type SysProvider,
+  type SysRegion,
+  sysEndpoint,
+  sysHref,
+  sysKeysForProviders,
+} from './sysBrand';
 import './index.css';
 
-const REGIONS = {
+const OVH_REGIONS = {
   eu: { flag: '🇪🇺', label: 'EU', base: 'https://api.eu.ovhcloud.com/console/' },
   ca: { flag: '🇨🇦', label: 'CA', base: 'https://api.ca.ovhcloud.com/console/' },
 } as const;
 
-type Region = keyof typeof REGIONS;
+type Region = keyof typeof OVH_REGIONS;
+
+// Kimsufi and So you Start are separate brands reselling dedicated servers;
+// their API consoles are hosted on their own domains and use a different
+// console URL scheme (route + method in the hash) than the OVHcloud one
+// (section/branch as query params). Their regions/providers/endpoint rules
+// live in ./sysBrand, shared with <ApiLink>.
+
+type EndpointKey = Region | SysksRegion;
 
 interface ApiProps {
-  version: string;
   section: string;
   route: string;
   method?: string;
+  /**
+   * Brands to offer, as a list (default `['ovh']`) — same shape as
+   * `regions`. `'ovh'` is the standard OVHcloud API console; `'ks'`/`'sys'`
+   * are the Kimsufi/So you Start consoles (independently selectable, so
+   * `['ks']`, `['sys']`, `['ks', 'sys']` or any mix with `'ovh'` all work).
+   */
+  brands?: Brand[];
+  /**
+   * API branch, used when `brands` includes `'ovh'` (default `'v1'`);
+   * meaningless (and dev-warned) otherwise — Kimsufi/So you Start have no
+   * versioned API like OVHcloud's.
+   */
+  version?: string;
+  /** Override available regions (default: derived from route/section for `ovh`, else both eu and ca) */
   regions?: Region[];
 }
 
 export default function Api({
-  version,
   section,
   route,
   method = 'GET',
   regions: regionsProp,
+  brands = BRANDS_DEFAULT,
+  version,
 }: ApiProps) {
+  const hasOvh = brands.includes('ovh');
+  const sysProviders = brands.filter((b): b is SysProvider => b !== 'ovh');
+  const hasSys = sysProviders.length > 0;
+  // Mixing OVH keys with sys keys (or sys-only) can't share the global
+  // eu/ca-only RegionContext — track selection locally in that case.
+  const usesLocalKeyState = hasSys;
+  const resolvedVersion = version ?? 'v1';
+
+  if (process.env.NODE_ENV !== 'production') {
+    if (hasSys && version !== undefined && version !== 'v1') {
+      console.warn(
+        `<Api brands={${JSON.stringify(brands)}}>: \`version\` has no effect for Kimsufi/So you Start endpoints (they aren't versioned like the OVHcloud API) — remove it. route: ${route}`,
+      );
+    }
+  }
+
   const { region: globalRegion, setRegion } = useRegion();
-  // Default the offered regions to the product's commercial-zone availability
-  // (derived from the route, then the section); an explicit `regions` prop
-  // overrides it. Falls back to both regions when no zoned product matches.
-  const regions =
-    regionsProp ??
+
+  // Default the offered OVH regions to the product's commercial-zone
+  // availability (derived from the route, then the section); an explicit
+  // `regions` prop overrides it. Falls back to both regions when no zoned
+  // product matches. Not used for the `ks`/`sys` brands.
+  const ovhRegions =
+    (regionsProp as Region[] | undefined) ??
     regionsForPath(route) ??
     regionsForPath(section) ??
     (['eu', 'ca'] as Region[]);
-  const region = regions.includes(globalRegion) ? globalRegion : regions[0];
+
+  // `ks`/`sys`: same idea, but no product-zone lookup (Kimsufi/So you Start
+  // aren't in the OVH availability table) — just the prop, or both regions
+  // by default.
+  const sysRegions =
+    (regionsProp as SysRegion[] | undefined) ?? SYS_REGIONS_DEFAULT;
+
+  const keys: EndpointKey[] = useMemo(
+    () => [
+      ...(hasOvh ? ovhRegions : []),
+      ...(hasSys ? sysKeysForProviders(sysProviders, sysRegions) : []),
+    ],
+    [hasOvh, ovhRegions, hasSys, sysProviders, sysRegions],
+  );
+
+  const [localKey, setLocalKey] = useState<EndpointKey | null>(null);
+  const selectedKey: EndpointKey = usesLocalKeyState
+    ? localKey && keys.includes(localKey)
+      ? localKey
+      : keys[0]
+    : ovhRegions.includes(globalRegion)
+      ? globalRegion
+      : ovhRegions[0];
+
+  const endpointOf = (key: EndpointKey) =>
+    isSysksRegion(key) ? sysEndpoint(key) : OVH_REGIONS[key as Region];
+
+  const selectKey = useCallback(
+    (key: EndpointKey) => {
+      if (usesLocalKeyState) {
+        setLocalKey(key);
+      } else {
+        setRegion(key as Region);
+      }
+    },
+    [usesLocalKeyState, setRegion],
+  );
+
   const apiAnchor = `${method.toLocaleLowerCase()}-${route.replace(/\\?\{([^\\}]+)\\?\}/g, '-$1-')}`;
-  const href = `${REGIONS[region].base}?section=${section}&branch=${version}#${apiAnchor}`;
+  const base = endpointOf(selectedKey).base;
+  const href = isSysksRegion(selectedKey)
+    ? sysHref(selectedKey, section, route, method)
+    : `${base}?section=${section}&branch=${resolvedVersion}#${apiAnchor}`;
   const t = useI18n();
 
   const [open, setOpen] = useState(false);
@@ -101,14 +194,14 @@ export default function Api({
         if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
           e.preventDefault();
           setOpen(true);
-          setFocusIndex(regions.indexOf(region));
+          setFocusIndex(keys.indexOf(selectedKey));
         }
         return;
       }
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setFocusIndex((prev) => Math.min(prev + 1, regions.length - 1));
+          setFocusIndex((prev) => Math.min(prev + 1, keys.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -118,7 +211,7 @@ export default function Api({
         case ' ':
           e.preventDefault();
           if (focusIndex >= 0) {
-            setRegion(regions[focusIndex]);
+            selectKey(keys[focusIndex]);
             setOpen(false);
           }
           break;
@@ -131,7 +224,7 @@ export default function Api({
           break;
       }
     },
-    [open, focusIndex, regions, region, setRegion],
+    [open, focusIndex, keys, selectedKey, selectKey],
   );
 
   // Focus the active option when focus index changes
@@ -140,11 +233,6 @@ export default function Api({
       optionRefs.current[focusIndex]?.focus();
     }
   }, [open, focusIndex]);
-
-  const selectRegion = (r: Region) => {
-    setRegion(r);
-    setOpen(false);
-  };
 
   const menu = open && coords && (
     <div
@@ -155,14 +243,18 @@ export default function Api({
       style={{ top: coords.top, left: coords.left }}
     >
       <p className="ovh-api-dropdown__title">{t('api.regionTooltipTitle')}</p>
-      {regions.map((r, i) => {
-        const isSelected = r === region;
-        const descKey = `api.regionTooltip${r.toUpperCase()}` as const;
-        const desc = t(descKey);
+      {keys.map((key, i) => {
+        const isSelected = key === selectedKey;
+        const endpoint = endpointOf(key);
+        // Per-region tooltip copy only exists for the OVH eu/ca keys.
+        const descKey = !isSysksRegion(key)
+          ? (`api.regionTooltip${(key as Region).toUpperCase()}` as const)
+          : undefined;
+        const desc = descKey ? t(descKey) : undefined;
 
         return (
           <button
-            key={r}
+            key={key}
             ref={(el) => {
               optionRefs.current[i] = el;
             }}
@@ -170,16 +262,19 @@ export default function Api({
             role="option"
             aria-selected={isSelected}
             className={`ovh-api-dropdown__option${isSelected ? ' ovh-api-dropdown__option--selected' : ''}`}
-            onClick={() => selectRegion(r)}
+            onClick={() => {
+              selectKey(key);
+              setOpen(false);
+            }}
             onKeyDown={handleKeyDown}
             tabIndex={-1}
           >
             <span className="ovh-api-dropdown__option-header">
               <span className="ovh-api-dropdown__option-flag">
-                {REGIONS[r].flag}
+                {endpoint.flag}
               </span>
               <span className="ovh-api-dropdown__option-label">
-                {REGIONS[r].label}
+                {endpoint.label}
               </span>
               {isSelected && (
                 <span className="ovh-api-dropdown__check" aria-hidden="true">
@@ -191,7 +286,7 @@ export default function Api({
               <span className="ovh-api-dropdown__option-desc">{desc}</span>
             )}
             <span className="ovh-api-dropdown__option-url">
-              {REGIONS[r].base.replace('https://', '').replace('/console/', '')}
+              {endpoint.base.replace('https://', '').replace('/console/', '')}
             </span>
           </button>
         );
@@ -199,9 +294,11 @@ export default function Api({
     </div>
   );
 
+  const selectedEndpoint = endpointOf(selectedKey);
+
   return (
     <div className="ovh-api-main">
-      {regions.length > 1 && (
+      {keys.length > 1 && (
         <div className="ovh-api-dropdown">
           <button
             type="button"
@@ -214,10 +311,10 @@ export default function Api({
             aria-label={t('api.regionTooltipTitle')}
           >
             <span className="ovh-api-dropdown__flag">
-              {REGIONS[region].flag}
+              {selectedEndpoint.flag}
             </span>
             <span className="ovh-api-dropdown__label">
-              {REGIONS[region].label}
+              {selectedEndpoint.label}
             </span>
             <span
               className={`ovh-api-dropdown__chevron${open ? ' ovh-api-dropdown__chevron--open' : ''}`}
@@ -230,8 +327,8 @@ export default function Api({
         </div>
       )}
       <a target="_blank" href={href} rel="noopener noreferrer">
-        {regions.length === 1 && (
-          <span className="ovh-api-flag">{REGIONS[region].flag}</span>
+        {keys.length === 1 && (
+          <span className="ovh-api-flag">{selectedEndpoint.flag}</span>
         )}
         <span className={`ovh-api-verb ovh-api-verb-${method}`}>{method}</span>
         <span className="ovh-api-endpoint">{route.replace(/\\/g, '')}</span>
