@@ -36,11 +36,15 @@ const DnsIcon = () => (
   </svg>
 );
 
-const GearIcon = () => (
+// Same "configure" glyph as DomainLifecycle (sliders).
+const ConfigureIcon = () => (
   <svg {...svg} aria-hidden="true">
-    <circle cx="12" cy="12" r="6.2" />
-    <circle cx="12" cy="12" r="2.3" />
-    <path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1" />
+    <path d="M4 8h9" />
+    <path d="M17 8h3" />
+    <circle cx="15" cy="8" r="2.2" />
+    <path d="M4 16h3" />
+    <path d="M11 16h9" />
+    <circle cx="9" cy="16" r="2.2" />
   </svg>
 );
 
@@ -144,7 +148,7 @@ const STRINGS: Record<string, Strings> = {
   },
 };
 
-const ICONS = [MailIcon, AddressIcon, DnsIcon, GearIcon, DomainIcon];
+const ICONS = [MailIcon, AddressIcon, DnsIcon, ConfigureIcon, DomainIcon];
 
 interface PrivateExchangeSetupStepsProps {
   /**
