@@ -300,12 +300,15 @@ if (robotsSrc) {
     `   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`,
   );
 } else {
-  // Create default robots.txt
+  // Create default robots.txt (kept in sync with docs/public/robots.txt)
   const defaultRobots = `User-agent: *
 Allow: /
 
 Sitemap: ${SITE_URL}/sitemap.xml
 Sitemap: ${SITE_URL}/sitemap-help.xml
+
+# AI/LLM index (per-page raw Markdown available at <url>.md):
+# ${SITE_URL}/llms.txt
 `;
   fs.writeFileSync(robotsDst, defaultRobots);
   console.log('   ✓ Created default robots.txt');
@@ -327,6 +330,38 @@ if (helpSitemapSrc) {
     `   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`,
   );
 }
+console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
+
+// ============================================================================
+// 4.5 ROOT llms.txt (AI/LLM discovery entry point)
+// ============================================================================
+// Rspress (`llms: true`) emits a full per-locale index at /<locale>/llms.txt
+// (+ llms-full.txt). There is no root /llms.txt, which is the conventional
+// discovery path an AI agent probes first. Write a small root index pointing
+// at each built locale's llms.txt so agents can fan out from a single guessable
+// URL. We link, not concatenate — the per-locale files already hold the corpus.
+console.log('\n4.5️⃣ Generating root llms.txt...');
+sectionStart = Date.now();
+
+const llmsLines = [
+  '# OVHcloud Documentation',
+  '',
+  '> Product documentation for OVHcloud services. Every guide is also available',
+  '> as raw Markdown by appending `.md` to its URL (Content-Type: text/markdown),',
+  '> and each rendered page advertises that URL via',
+  '> `<link rel="alternate" type="text/markdown">` in its `<head>`.',
+  '',
+  '## Per-language indexes',
+  '',
+];
+for (const locale of builtLocales) {
+  llmsLines.push(`- [${locale}](${SITE_URL}/${locale}/llms.txt)`);
+}
+llmsLines.push('');
+fs.writeFileSync(path.join(DIST_DIR, 'llms.txt'), `${llmsLines.join('\n')}`);
+console.log(
+  `   ✓ llms.txt (root index → ${builtLocales.length} per-locale llms.txt)`,
+);
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
 // ============================================================================
@@ -413,7 +448,16 @@ const EXCLUDE_SELECTORS =
   '.rp-sidebar, .rp-outline, .rp-nav, .rp-doc-layout__sidebar, ' +
   '.rp-doc-layout__outline, .rspress-breadcrumbs, .rp-doc-footer, ' +
   '.rp-home-layout__content, .rp-search-button, .rp-callout__title, button, ' +
-  '.header-anchor, [data-pagefind-ignore], .ovh-api-main, .ovh-api-region-select';
+  '.header-anchor, [data-pagefind-ignore], .ovh-api-main, .ovh-api-region-select, ' +
+  // The "View as Markdown" / PDF / Ask-AI toolbar renders inside `.rp-doc`
+  // right after the <h1>. `button` covers the two <button> controls, but the
+  // Markdown link is an <a> and leaked its label into every result excerpt.
+  // Excluding the container covers anything added to the toolbar later.
+  // `.rp-page-toolbar` / `.rp-landing-toolbar` are the same cluster mounted by
+  // layouts that render their own <h1> (LandingLayout), where it sits outside
+  // `.rp-doc`; listed so the exclusion holds if that markup ever moves inside.
+  '.rp-llms-container, .rp-llms-view-options__trigger, ' +
+  '.rp-page-toolbar, .rp-landing-toolbar';
 
 const indexResults = await Promise.allSettled(
   builtLocales.map(async (locale) => {

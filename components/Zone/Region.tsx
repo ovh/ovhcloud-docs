@@ -10,6 +10,6 @@ interface RegionProps {
 export function Region({ zones, excludeZones, children }: RegionProps) {
   const { effectiveZone } = useZone();
   if (zones && !zones.includes(effectiveZone)) return null;
-  if (excludeZones && excludeZones.includes(effectiveZone)) return null;
+  if (excludeZones?.includes(effectiveZone)) return null;
   return <>{children}</>;
 }

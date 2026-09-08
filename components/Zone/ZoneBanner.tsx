@@ -76,8 +76,7 @@ export function ZoneBanner() {
   // Includes hydration state and the "is this page zone-gated and the
   // user hasn't picked a zone yet" predicate — the same gate used in
   // the early-return below. Both must be true for the refs to exist.
-  const hasAvailableIn =
-    Array.isArray(availableIn) && availableIn.length > 0;
+  const hasAvailableIn = Array.isArray(availableIn) && availableIn.length > 0;
   const shouldRender = hydrated && zone === 'unset' && hasAvailableIn;
 
   useEffect(() => {

@@ -28,7 +28,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const DOCS = 'https://docs.ovhcloud.com';
 
-const csmMap = JSON.parse(readFileSync('/tmp/csm-slug-to-redirect.json', 'utf8'));
+const csmMap = JSON.parse(
+  readFileSync('/tmp/csm-slug-to-redirect.json', 'utf8'),
+);
 const legacyDocs = JSON.parse(readFileSync('/tmp/legacy-docs.json', 'utf8'));
 
 function nginxEscape(s) {
@@ -55,9 +57,10 @@ function entryTarget({ locale, docPath }) {
     const sm = m[1].match(/^\/csm\/([^?\s]+)/);
     const dm = m[2].match(/csm\/([^?\s]+)/);
     if (!sm || !dm) continue;
-    const srcKey = sm[1], destKey = dm[1];
+    const srcKey = sm[1],
+      destKey = dm[1];
     const renameTarget = csmMap[destKey];
-    if (!renameTarget || !renameTarget.docPath) continue; // rename target not specific
+    if (!renameTarget?.docPath) continue; // rename target not specific
 
     const current = csmMap[srcKey];
     if (current && !current.docPath) {
@@ -70,7 +73,9 @@ function entryTarget({ locale, docPath }) {
       upgraded++;
     }
   }
-  console.log(`  Pre-pass: ${upgraded} legacy-to-new entries upgraded via rename data`);
+  console.log(
+    `  Pre-pass: ${upgraded} legacy-to-new entries upgraded via rename data`,
+  );
 }
 
 // ────────────────────────────────────────────────────────────
@@ -90,7 +95,7 @@ function entryTarget({ locale, docPath }) {
   for (const [csmSlug, info] of entries) {
     lines.push(`~^/csm/${nginxEscape(csmSlug)}$  ${entryTarget(info)};`);
   }
-  writeFileSync('redirections/legacy-to-new.map', lines.join('\n') + '\n');
+  writeFileSync('redirections/legacy-to-new.map', `${lines.join('\n')}\n`);
   console.log(`  legacy-to-new.map:      ${entries.length} entries`);
 }
 
@@ -106,12 +111,14 @@ function entryTarget({ locale, docPath }) {
     `# Unmigrated pages fall back to the locale home page (per project policy).`,
     '',
   ];
-  const sorted = [...legacyDocs].sort((a, b) => b.source.length - a.source.length);
+  const sorted = [...legacyDocs].sort(
+    (a, b) => b.source.length - a.source.length,
+  );
   for (const e of sorted) {
     // Tolerate optional trailing slash so both /fr/foo and /fr/foo/ match
     lines.push(`~^${nginxEscape(e.source)}/?$  ${e.target};`);
   }
-  writeFileSync('redirections/legacy-docs-to-new.map', lines.join('\n') + '\n');
+  writeFileSync('redirections/legacy-docs-to-new.map', `${lines.join('\n')}\n`);
   console.log(`  legacy-docs-to-new.map: ${legacyDocs.length} entries`);
 }
 

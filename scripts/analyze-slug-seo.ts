@@ -91,7 +91,11 @@ function main() {
   // the directory path — two guides with the same slug in different directories
   // are NOT a collision.
   function fullUrlKey(mdxPath: string, slug: string) {
-    const dir = mdxPath.replace(/\.mdx$/, '').split('/').slice(0, -1).join('/');
+    const dir = mdxPath
+      .replace(/\.mdx$/, '')
+      .split('/')
+      .slice(0, -1)
+      .join('/');
     return `${dir}/${slug}`;
   }
   const finalSlugFreq: Record<string, string[]> = {};
@@ -433,7 +437,20 @@ function computeRawFinalSlug(mdxPath: string, entry: ScoredEntry): string {
   // (1-click, time-2-chat), and 3+ digits are model numbers / HTTP status codes.
   // Skip strips that follow words denoting OS / browser / API versions, since
   // the 2 digits there are a version (windows-10, debian-12, http-2).
-  const VERSION_PREFIXES = ['windows', 'macos', 'ubuntu', 'debian', 'fedora', 'centos', 'rhel', 'http', 'python', 'php', 'node', 'java'];
+  const VERSION_PREFIXES = [
+    'windows',
+    'macos',
+    'ubuntu',
+    'debian',
+    'fedora',
+    'centos',
+    'rhel',
+    'http',
+    'python',
+    'php',
+    'node',
+    'java',
+  ];
   slug = slug.replace(/^\d{2}-/, '');
   slug = slug.replace(/([a-z]+)-(\d{2})-/g, (match, word) =>
     VERSION_PREFIXES.includes(word) ? match : `${word}-`,

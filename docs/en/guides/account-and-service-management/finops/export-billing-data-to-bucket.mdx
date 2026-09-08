@@ -1,0 +1,332 @@
+---
+title: Exporting billing data to a bucket
+description: Find out how to configure a daily or hourly export of your billing data — in the FOCUS format — to an S3-compatible bucket you own, using the OVHcloud API
+lastUpdated: 2026-08-31
+---
+
+import Api from '@components/Api';
+
+## Objective
+
+OVHcloud can push your billing data, converted to the **FOCUS** open standard, to an S3<sup>1</sup>-compatible object storage bucket that **you** own. Once configured, the export runs **automatically every day** — or **every hour** if you prefer: no manual download, no portal click — your data lands in your bucket as a CSV file ready for your FinOps tooling.
+
+**This guide shows you how to create, track, update and remove that export configuration through the OVHcloud API.**
+
+:::info
+This page covers the **bucket export configuration** only. It does not cover reading the exported columns or the FOCUS standard itself.
+:::
+
+## Requirements
+
+- An active OVHcloud account with billing data.
+- A **valid OVHcloud API authentication token** with permission to call the `/finops` routes. If needed, see [First Steps with the OVHcloud APIs](/guides/manage-and-operate/api/first-steps) to create one. All requests below must be authenticated; the examples show the token as `$OVH_API_TOKEN`.
+- An **S3-compatible bucket** you can write to, and a pair of credentials for it:
+    - an **access key** and a **secret key**,
+    - the bucket **endpoint host** (a host name **without** a `http://` / `https://` / `s3://` scheme, e.g. `s3.gra.io.cloud.ovh.net`) and its **region**.
+
+:::warning
+Connections to your bucket always use **HTTPS** — do not prefix the endpoint with a scheme. See the [Frequent errors](#frequent-errors) section.
+:::
+
+:::info
+The export works with any S3-compatible bucket — it does not have to be OVHcloud Object Storage. You provide the endpoint, region and credentials; OVHcloud writes to it.
+:::
+
+## How the export works
+
+The configuration is a **declarative resource**. You describe the *target* you want (your bucket, the export period, the file policy) and OVHcloud reconciles toward it:
+
+1. You **create** the configuration with the bucket details (`POST`).
+2. OVHcloud **validates** it by actually connecting to your bucket and checking it is reachable with the credentials you gave.
+3. When validation succeeds, the resource becomes **`READY`**; if OVHcloud cannot reach your bucket, it becomes **`ERROR`**.
+4. At each scheduled run — **every day at the hour you chose**, or **every hour** — OVHcloud regenerates your data for the current month and uploads the file to your bucket.
+
+Because validation involves a real connection test, OVHcloud handles creation and updates **asynchronously**: the API answers immediately with a status of `CREATING` (or `UPDATING`), and you **poll** the resource until it reaches `READY`.
+
+All examples use the OVHcloud European API endpoint `https://eu.api.ovh.com/v2`. If your account is hosted in another region, use your regional API endpoint instead (for example `https://ca.api.ovh.com/v2` for Canada).
+
+## Step 1 — Create the export configuration
+
+Send a `POST` to `/finops/bucketExport` with your target specification.
+
+<Api version="v2" section="/finops" method="POST" route={"/finops/bucketExport"} />
+
+:::tip
+**Prefer a graphical interface?** The API console above builds and signs the request for you — the `curl` examples below show the equivalent raw call.
+:::
+
+```bash
+curl -X POST "https://eu.api.ovh.com/v2/finops/bucketExport" \
+  -H "Authorization: Bearer $OVH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetSpec": {
+      "exportHour": 6,
+      "filePolicy": "CREATE",
+      "period": "DAILY",
+      "bucketConfiguration": {
+        "accessKey": "MY_ACCESS_KEY",
+        "secretKey": "MY_SECRET_KEY",
+        "bucketName": "my-finops-export",
+        "endpointURL": "s3.gra.io.cloud.ovh.net",
+        "region": "gra",
+        "pathPrefix": "./"
+      }
+    }
+  }'
+```
+
+:::info
+The `endpointURL` and `region` above use OVHcloud Object Storage values as an example. Replace them with the endpoint host (no scheme) and region of your own S3-compatible provider.
+:::
+
+### `targetSpec` fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `exportHour` | **Yes** | Hour of the day, `0`–`23` (UTC), at which the daily export runs. With `period: HOURLY`, the value is not used. |
+| `filePolicy` | No | `CREATE` (default) keeps one file per run; `REPLACE` keeps a single file per month, overwritten on each run. See [File layout](#file-layout-in-your-bucket). |
+| `period` | No | `DAILY` (default) runs one export per day, at `exportHour`; `HOURLY` runs one export every hour. See [Choosing the export period](#choosing-the-export-period). |
+| `bucketConfiguration.accessKey` | **Yes** | Access key for your bucket. |
+| `bucketConfiguration.secretKey` | **Yes** | Secret key for your bucket. |
+| `bucketConfiguration.bucketName` | No | Target bucket name. |
+| `bucketConfiguration.endpointURL` | No | Your bucket's endpoint **host only**, without any scheme (e.g. `s3.gra.io.cloud.ovh.net`, **not** `https://s3.gra.io.cloud.ovh.net` nor `s3://s3.gra.io.cloud.ovh.net`). Connections always use HTTPS. |
+| `bucketConfiguration.region` | No | Region / location code of your bucket. |
+| `bucketConfiguration.pathPrefix` | No | Prefix prepended to every object key written. Use `"./"` to write at the bucket root (recommended). |
+
+:::warning
+Your **secret key is write-only**: OVHcloud encrypts it on receipt and **never returns** it. In every response the `secretKey` field is masked as `"***"`, whereas OVHcloud returns the access key in clear.
+:::
+
+### Choosing the export period <a name="choosing-the-export-period"></a>
+
+The `period` field sets how often OVHcloud exports your data:
+
+- **`DAILY`** (default) — one export per day, at the `exportHour` you set (UTC). If you omit `period`, OVHcloud uses this mode.
+- **`HOURLY`** — one export every hour, around the clock.
+
+Each run covers the same window, whatever the period: the current month to date. The period only changes how often OVHcloud refreshes your data and, with `filePolicy: CREATE`, how many files you get (see [File layout](#file-layout-in-your-bucket)). To create an hourly export, send the same request with `period` set to `HOURLY`:
+
+```bash
+curl -X POST "https://eu.api.ovh.com/v2/finops/bucketExport" \
+  -H "Authorization: Bearer $OVH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetSpec": {
+      "exportHour": 0,
+      "filePolicy": "CREATE",
+      "period": "HOURLY",
+      "bucketConfiguration": {
+        "accessKey": "MY_ACCESS_KEY",
+        "secretKey": "MY_SECRET_KEY",
+        "bucketName": "my-finops-export",
+        "endpointURL": "s3.gra.io.cloud.ovh.net",
+        "region": "gra",
+        "pathPrefix": "./"
+      }
+    }
+  }'
+```
+
+:::info
+Configurations created before the `period` field existed behave as `DAILY`. In their responses, `period` is either `"DAILY"` or absent (`null`) — both mean the same thing.
+:::
+
+### The response
+
+The API answers `201 Created` with the resource. Note the `id` (you will use it to track and manage the configuration) and the `resourceStatus`, which starts at `CREATING`:
+
+```json
+{
+  "id": "f556df9c-a52e-4bc1-8895-e3589cbba0be",
+  "resourceStatus": "CREATING",
+  "checksum": "9b2c5d6e0f1a2b3c4d5e6f7a8b9c0d1e",
+  "targetSpec": {
+    "exportHour": 6,
+    "filePolicy": "CREATE",
+    "period": "DAILY",
+    "bucketConfiguration": {
+      "accessKey": "MY_ACCESS_KEY",
+      "secretKey": "***",
+      "bucketName": "my-finops-export",
+      "endpointURL": "s3.gra.io.cloud.ovh.net",
+      "region": "gra",
+      "pathPrefix": "./"
+    }
+  },
+  "currentState": { "...": "same shape as targetSpec" },
+  "currentTasks": [
+    {
+      "id": "5a1b...",
+      "type": "CREATE_BUCKET_EXPORT",
+      "status": "PENDING",
+      "link": "/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be"
+    }
+  ]
+}
+```
+
+## Step 2 — Follow the provisioning until it is ready
+
+Creation is asynchronous. Poll the resource by its `id` until `resourceStatus` is no longer `CREATING`:
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport/\{id\}"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+- **`READY`** — OVHcloud reached your bucket and the configuration is live. The next scheduled run will upload your data.
+- **`ERROR`** — validation failed (most often OVHcloud could not reach your bucket with the credentials you provided). See the [Frequent errors](#frequent-errors) section.
+
+### Inspecting the provisioning detail
+
+Two read-only sub-resources let you see exactly what happened.
+
+List the tasks (the units of work OVHcloud ran, including finished ones):
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport/\{id\}/task"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be/task" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+List the lifecycle events (a human-readable timeline):
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport/\{id\}/event"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be/event" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+A task carries an `errors` array; when a connection test fails, its message tells you why.
+
+## Step 3 — Retrieve your exported files
+
+Once the configuration is `READY`, OVHcloud uploads a CSV file to your bucket at the frequency set by `period`: **once a day, at the `exportHour` you set (UTC)**, or **once an hour**.
+
+- **Content**: your billing data converted to the **FOCUS 1.3** standard, as CSV.
+- **Window**: each run — daily or hourly — covers the **current calendar month up to that moment** (from the 1st of the month to now). The file therefore grows through the month as OVHcloud ingests new billing data.
+
+### File layout in your bucket <a name="file-layout-in-your-bucket"></a>
+
+The object key depends on your `period` and your `filePolicy`:
+
+| `period` | `filePolicy` | Object key | Behaviour |
+|----------|--------------|------------|-----------|
+| `DAILY` (default) | `CREATE` (default) | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/<DD>/focus.csv` | A **new dated file each day**; OVHcloud keeps previous days. |
+| `DAILY` | `REPLACE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/focus.csv` | A **single file per month**, which OVHcloud overwrites every day. |
+| `HOURLY` | `CREATE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/<DD>/<HH>/focus.csv` | A **new file each hour**, in a sub-folder named after the UTC hour of the run; OVHcloud keeps previous hours. |
+| `HOURLY` | `REPLACE` | `[<pathPrefix>/]<nichandle>/<YYYY>/<MM>/focus.csv` | A **single file per month**, which OVHcloud overwrites every hour. |
+
+A `pathPrefix` of `"./"` writes at the **bucket root** (no extra folder). For example, with `pathPrefix: "./"` and the defaults (`DAILY`, `CREATE`), your data for 15 June 2026 lands at:
+
+```text
+<your-nichandle>/2026/06/15/focus.csv
+```
+
+With `period: HOURLY` and `filePolicy: CREATE`, the run of 14:00 UTC on the same day lands at:
+
+```text
+<your-nichandle>/2026/06/15/14/focus.csv
+```
+
+:::tip
+With `HOURLY` and `CREATE`, you get up to 24 files per day, and each one contains the whole month to date. If you only need the latest data, prefer `filePolicy: REPLACE`: you keep a single, always-fresh file per month.
+:::
+
+## Managing an existing configuration
+
+### Update it <a name="update-it"></a>
+
+Send a `PUT` to `/finops/bucketExport/{id}` with the **complete** `targetSpec` you want (the new spec fully replaces the previous one). As with creation, OVHcloud validates the update asynchronously: the response comes back as `UPDATING`, and you poll until `READY`.
+
+<Api version="v2" section="/finops" method="PUT" route={"/finops/bucketExport/\{id\}"} />
+
+```bash
+curl -X PUT "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be" \
+  -H "Authorization: Bearer $OVH_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetSpec": {
+      "exportHour": 8,
+      "filePolicy": "CREATE",
+      "period": "DAILY",
+      "bucketConfiguration": {
+        "accessKey": "MY_ACCESS_KEY",
+        "secretKey": "MY_SECRET_KEY",
+        "bucketName": "my-finops-export",
+        "endpointURL": "s3.gra.io.cloud.ovh.net",
+        "region": "gra",
+        "pathPrefix": "./"
+      }
+    }
+  }'
+```
+
+To switch an existing export to hourly, send the same `PUT` with `"period": "HOURLY"`. To go back to one export per day, set `period` to `DAILY` (or omit it) and choose the `exportHour` you want.
+
+:::info
+While OVHcloud validates an update, the response keeps your **previous** configuration in `currentState` and shows the **requested** configuration in `targetSpec`. OVHcloud does not change your live export until the new configuration reaches `READY`. If validation fails, the resource goes to `ERROR` and the previous configuration remains in effect.
+:::
+
+### List your configurations
+
+<Api version="v2" section="/finops" method="GET" route={"/finops/bucketExport"} />
+
+```bash
+curl "https://eu.api.ovh.com/v2/finops/bucketExport" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+The list is paginated. When more results are available, the response carries an `X-Pagination-Cursor-Next` header; pass it back as the `X-Pagination-Cursor` header to fetch the next page.
+
+### Delete it
+
+<Api version="v2" section="/finops" method="DELETE" route={"/finops/bucketExport/\{id\}"} />
+
+```bash
+curl -X DELETE "https://eu.api.ovh.com/v2/finops/bucketExport/f556df9c-a52e-4bc1-8895-e3589cbba0be" \
+  -H "Authorization: Bearer $OVH_API_TOKEN"
+```
+
+Deletion stops the export. OVHcloud does **not** remove the files already written to your bucket.
+
+## Reference: resource status values
+
+| Status | Meaning |
+|--------|---------|
+| `CREATING` | OVHcloud accepted the configuration and is validating it. |
+| `UPDATING` | OVHcloud accepted an update and is validating it. |
+| `READY` | The configuration is valid and live; exports run at the configured `period`. |
+| `ERROR` | The last create or update failed validation (e.g. bucket unreachable). |
+| `DELETING` | OVHcloud is removing the configuration. |
+
+## Frequent errors <a name="frequent-errors"></a>
+
+Most failures show up as a resource stuck in **`ERROR`** after create or update, because OVHcloud validates the configuration by actually connecting to your bucket. Always start by reading the task `errors` (Step 2) — the message names the cause. The most common ones:
+
+| Symptom | Likely cause | How to fix |
+|---------|--------------|------------|
+| Status goes to `ERROR` right after create/update | **A scheme in `endpointURL`** — the value contains `http://`, `https://` or `s3://`. The endpoint must be a **bare host** (e.g. `s3.gra.io.cloud.ovh.net`); any scheme makes the connection fail. | Remove the scheme and keep the host only. Connections always use HTTPS. |
+| Status goes to `ERROR`, message mentions access denied / signature / forbidden | **Wrong or insufficient credentials** — the access key or secret key is incorrect, or the credentials lack write access to the bucket. | Re-check the **access key** and **secret key**, and confirm they can write to the bucket. OVHcloud never echoes the secret key back, so re-send it in full when you `PUT` a fix. |
+| Status goes to `ERROR`, message mentions the bucket | **Wrong `bucketName` or `region`**, or the bucket does not exist / is not reachable. | Verify the bucket name and region, and that the bucket exists for those credentials. |
+| `404 Not Found` on a configuration `id` | The configuration does not exist, or it belongs to another account. | Confirm the `id` and that you authenticate with the account that owns it. |
+| No file appears in the bucket | The next run has not happened yet, or the status is not `READY`. | The export runs once a day at `exportHour` (UTC) with `period: DAILY`, or once an hour with `HOURLY`; confirm the resource is `READY` and wait for the next run. |
+| Files arrive every hour although you set an `exportHour` | The configuration has `period: HOURLY`, which exports every hour, regardless of `exportHour`. | Send a `PUT` with `period` set to `DAILY` (or omitted) to go back to one export per day, at `exportHour`. |
+| `400 Bad Request` on create/update | A required field is missing (`exportHour`, `accessKey`, `secretKey`), `period` has a value other than `DAILY` or `HOURLY`, or the body has no `targetSpec`. | Send a complete `targetSpec`, including the bucket credentials, and check the spelling of `period`. |
+
+:::info
+After fixing a configuration in `ERROR`, send a corrected `PUT` (see [Update it](#update-it)) and poll again until it reaches `READY`. The previous configuration stays in effect until OVHcloud validates the new one.
+:::
+
+## Go further
+
+The exported file follows the [FOCUS 1.3 CSV standard](https://focus.finops.org) — refer to the official FOCUS specification to interpret each column.
+
+Join our [Discord community](https://discord.gg/ovhcloud) to ask questions and share feedback.
+
+<sup>1</sup>: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.

@@ -1,5 +1,10 @@
+import { Banner } from '@components/Banner';
 import type { FrontMatterMeta } from '@rspress/core';
-import { normalizeImagePath, useFrontmatter } from '@rspress/core/runtime';
+import {
+  normalizeImagePath,
+  useFrontmatter,
+  useLang,
+} from '@rspress/core/runtime';
 import { Button, renderHtmlOrText } from '@theme-original';
 import { useLocalizeHref } from '../../hooks/useLocalizedHref';
 
@@ -23,6 +28,11 @@ interface HomeHeroProps {
 function HomeHero({ beforeHeroActions, afterHeroActions }: HomeHeroProps) {
   const localizeHref = useLocalizeHref();
   const { frontmatter } = useFrontmatter();
+  const lang = useLang();
+  // The SIRET banner only renders in FR (see Banner `langs`). On the FR home
+  // page it adds height, so we mark the hero to let the SCSS tighten the gap
+  // above the Explorer section and keep the product cards visible on a laptop.
+  const isFr = lang === 'fr';
   const hero = frontmatter?.hero || DEFAULT_HERO;
   const hasImage = hero.image !== undefined;
   const multiHeroText = hero.text
@@ -38,17 +48,20 @@ function HomeHero({ beforeHeroActions, afterHeroActions }: HomeHeroProps) {
 
   return (
     <div
-      className={clsx('rp-home-hero', { 'rp-home-hero--no-image': !hasImage })}
+      className={clsx('rp-home-hero', {
+        'rp-home-hero--no-image': !hasImage,
+        'rp-home-hero--fr': isFr,
+      })}
     >
       <div className="rp-home-hero__container">
         {hero.badge && <div className="rp-home-hero__badge">{hero.badge}</div>}
         <div className="rp-home-hero__content">
-          <div className="rp-home-hero__title">
+          <h1 className="rp-home-hero__title">
             <span
               className="rp-home-hero__title-brand"
               {...renderHtmlOrText(hero.name)}
             ></span>
-          </div>
+          </h1>
 
           {multiHeroText.length !== 0 &&
             multiHeroText.map((heroText) => (
@@ -65,19 +78,27 @@ function HomeHero({ beforeHeroActions, afterHeroActions }: HomeHeroProps) {
         ></p>
 
         {beforeHeroActions}
-        <div className="rp-home-hero__actions">
-          {hero.actions?.map((action) => {
-            return (
-              <Button
-                type="a"
-                key={action.link}
-                href={localizeHref(action.link)}
-                theme={action.theme}
-                className="rp-home-hero__action"
-                {...renderHtmlOrText(action.text)}
-              />
-            );
-          })}
+        {hero.actions && hero.actions.length > 0 && (
+          <div className="rp-home-hero__actions">
+            {hero.actions.map((action) => {
+              return (
+                <Button
+                  type="a"
+                  key={action.link}
+                  href={localizeHref(action.link)}
+                  theme={action.theme}
+                  className="rp-home-hero__action"
+                  {...renderHtmlOrText(action.text)}
+                />
+              );
+            })}
+          </div>
+        )}
+        {/* SIRET notice inside the hero box. FR-only: the Banner component
+            itself returns null for any non-fr locale (banner.langs), so this is
+            a no-op on the other locale home pages. */}
+        <div className="rp-home-hero__banner">
+          <Banner kind="siret-fr" />
         </div>
         {afterHeroActions}
       </div>

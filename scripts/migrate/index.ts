@@ -50,8 +50,7 @@ const PAGES_DIR = path.join(BASE_DIR, 'pages');
 const RSPRESS_DIR = ROOT_DIR;
 // `--out-dir <abs>` overrides DOCS_OUT_DIR for audit / dry-run scenarios
 // (e.g. import to /tmp/refresh-docs without touching the real docs/).
-const OUT_DIR_OVERRIDE =
-  minimist(process.argv.slice(2))['out-dir'] || null;
+const OUT_DIR_OVERRIDE = minimist(process.argv.slice(2))['out-dir'] || null;
 const DOCS_OUT_DIR = OUT_DIR_OVERRIDE
   ? path.resolve(OUT_DIR_OVERRIDE)
   : path.join(RSPRESS_DIR, 'docs');

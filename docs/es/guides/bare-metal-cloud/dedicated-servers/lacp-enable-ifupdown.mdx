@@ -1,0 +1,265 @@
+---
+title: Cómo configurar la agregación de enlaces LACP en Debian 9 a 11 (ifupdown)
+description: Configurar la agregación de enlaces LACP en su servidor Debian 9 a 11 con ifupdown
+lastUpdated: 2026-07-01
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objetivo
+
+La agregación de enlaces aumenta la disponibilidad de su servidor y mejora la eficiencia de sus conexiones de red. Al agregar sus interfaces de red, hace que sus enlaces de red sean redundantes: si un enlace se cae, el tráfico se redirige automáticamente hacia otro enlace disponible. El ancho de banda disponible también aumenta gracias a la agregación.
+La agregación utiliza el protocolo LACP (Link Aggregation Control Protocol), definido por el estándar IEEE 802.3ad.
+
+**Esta guía explica cómo configurar la agregación de enlaces LACP en Debian 9 a 11 (configuración ifupdown).**
+
+:::warning
+Esta guía proporciona instrucciones para configurar la agregación de interfaces de red específicamente con `ifupdown`, cuyo archivo de configuración se encuentra en `/etc/network/interfaces`. También es aplicable al modo de rescate.
+
+Si la configuración de red de su sistema utiliza `Netplan` (Debian 12 o superior, Ubuntu 24.04 o superior), consulte [esta guía](/guides/bare-metal-cloud/dedicated-servers/lacp-enable-netplan).
+
+:::
+
+## Requisitos
+
+- Un servidor dedicado con varias interfaces de red. En las gamas Scale y High Grade, las agregaciones pública y privada están activadas por defecto. En las demás gamas, primero debe [activar OLA](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager) para agregar sus interfaces.
+
+{/* CP-NAV-START:baremetal-dedicated-servers */}
+---
+
+### Acceso al área de cliente de OVHcloud
+
+- **Enlace directo:** <ManagerLink to="/#/dedicated-servers/server">Servidores dedicados</ManagerLink>
+- **Ruta de navegación:** <code className="action">Bare Metal Cloud</code> > <code className="action">Servidores dedicados</code> > Seleccione su servidor
+
+---
+{/* CP-NAV-END:baremetal-dedicated-servers */}
+
+:::warning
+Debe instalar el paquete `ifenslave` en el servidor antes de configurar la agregación de interfaces. Para ello, utilice el siguiente comando:
+
+```
+apt install ifenslave
+```
+
+:::
+
+
+Si configura una agregación totalmente privada (OLA), el servidor deja de tener conectividad pública y no podrá acceder a él por SSH. En cualquier caso, su conexión puede interrumpirse durante la configuración del agregado: por ello, le recomendamos utilizar la consola IPMI/KVM para acceder al servidor.
+
+Ahora que sabe qué direcciones MAC están asociadas a cada tipo de interfaz (pública/privada), debe obtener los nombres de las interfaces.
+
+### Obtención de los nombres de las interfaces
+
+:::info
+Este comando mostrará diversas interfaces. Si tiene dificultad para determinar qué interfaces corresponden a sus NIC físicos, la primera interfaz todavía tendrá la dirección de la IP pública del servidor asignada por defecto.
+
+:::
+
+
+Para obtener los nombres de las interfaces, ejecute el siguiente comando:
+
+```bash
+ip a
+```
+
+:::info
+Para el parámetro `hwaddress`, utilice la dirección MAC de la interfaz de respaldo (fallback) LACP del agregado. En el caso de un agregado público, puede obtenerla mediante el campo `aggregationFallback` de la interfaz `public` devuelto por la siguiente ruta de la API:
+
+<Api version="v1" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/networking"} />
+
+:::
+
+
+Aquí tiene un ejemplo de salida:
+
+```text
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute
+       valid_lft forever preferred_lft forever
+2: ens22f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:c6 brd ff:ff:ff:ff:ff:ff
+    inet 203.0.113.1/32 metric 100 scope global dynamic ens22f0np0
+       valid_lft 71613sec preferred_lft 71613sec
+    inet6 2001:db8:1:1b00:203:0:112:0/56 scope global
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a6b2:c3ff:fed4:e5c6/64 scope link
+       valid_lft forever preferred_lft forever
+3: ens22f1np1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:c7 brd ff:ff:ff:ff:ff:ff
+4: ens33f0np0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:d6 brd ff:ff:ff:ff:ff:ff
+5: ens33f1np1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:d7 brd ff:ff:ff:ff:ff:ff
+```
+
+
+Una vez que haya determinado los nombres de sus interfaces, puede configurar la agregación de interfaces en el sistema operativo.
+
+### Configuración de la agregación de interfaces
+
+Seleccione la pestaña siguiente que corresponda a la configuración de su servidor:
+
+- **Dos interfaces**: servidores Advance con dos tarjetas de red físicas.
+- **Cuatro interfaces (por defecto)**: los servidores Scale y High Grade se entregan con agregados público y privado ya configurados. No se requiere ninguna acción en el área de cliente de OVHcloud.
+- **Cuatro interfaces (totalmente privado / OLA)**: todas las interfaces se agrupan en un único agregado privado (vRack). Esto requiere [activar OLA](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager) en el área de cliente de OVHcloud.
+
+<Tabs>
+<Tab label="Dos interfaces">
+Sustituya el contenido de `/etc/network/interfaces` por lo siguiente:
+
+```bash
+auto bond0
+iface bond0 inet static
+  address 203.0.113.1/32
+  gateway 100.64.0.1
+  # Dirección MAC de la interfaz pública principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:c6
+  bond-mode 802.3ad
+  bond-slaves ens22f0np0 ens22f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+  dns-nameservers 213.186.33.99
+
+  up ip -6 addr add 2001:db8:1:1b00:203:0:112:0/56 dev bond0
+  up ip -6 route add default via fe80::1 dev bond0
+```
+
+<details>
+<summary>DHCP</summary>
+
+```bash
+auto bond0
+iface bond0 inet dhcp
+  # Dirección MAC de la interfaz pública principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:c6
+  bond-mode 802.3ad
+  bond-slaves ens22f0np0 ens22f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+
+  up ip -6 addr add 2001:db8:1:1b00:203:0:112:0/56 dev bond0
+  up ip -6 route add default via fe80::1 dev bond0
+```
+
+</details>
+</Tab>
+<Tab label="Cuatro interfaces (por defecto)">
+Esta configuración agrupa las interfaces públicas en `bond0` (con IP pública) y las interfaces privadas en `bond1` (para vRack).
+
+Sustituya el contenido de `/etc/network/interfaces` por lo siguiente:
+
+**IP estática**
+
+```bash
+auto bond0
+iface bond0 inet static
+  address 203.0.113.1/32
+  gateway 100.64.0.1
+  # Dirección MAC de la interfaz pública principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:c6
+  bond-mode 802.3ad
+  bond-slaves ens22f0np0 ens22f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+  dns-nameservers 213.186.33.99
+
+  up ip -6 addr add 2001:db8:1:1b00:203:0:112:0/56 dev bond0
+  up ip -6 route add default via fe80::1 dev bond0
+
+# Opcional: configuración del agregado privado
+auto bond1
+iface bond1 inet static
+  address 10.0.0.1/24
+  # Dirección MAC de la interfaz privada principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:d6
+  bond-mode 802.3ad
+  bond-slaves ens33f0np0 ens33f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+```
+
+<details>
+<summary>DHCP</summary>
+
+```bash
+auto bond0
+iface bond0 inet dhcp
+  # Dirección MAC de la interfaz pública principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:c6
+  bond-mode 802.3ad
+  bond-slaves ens22f0np0 ens22f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+
+  up ip -6 addr add 2001:db8:1:1b00:203:0:112:0/56 dev bond0
+  up ip -6 route add default via fe80::1 dev bond0
+
+# Opcional: configuración del agregado privado
+auto bond1
+iface bond1 inet static
+  address 10.0.0.1/24
+  # Dirección MAC de la interfaz privada principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:d6
+  bond-mode 802.3ad
+  bond-slaves ens33f0np0 ens33f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+```
+
+</details>
+</Tab>
+<Tab label="Cuatro interfaces (totalmente privado / OLA)">
+Esta configuración agrega todas las interfaces físicas en un único agregado exclusivamente para uso con vRack. No hay conectividad IP pública.
+
+:::warning
+Una vez activado OLA (totalmente privado), la IP pública deja de estar accesible. Asegúrese de disponer de un medio de acceso alternativo (por ejemplo, a través de otro servidor en el vRack o mediante KVM/IPMI) antes de aplicar esta configuración.
+
+:::
+
+Sustituya el contenido de `/etc/network/interfaces` por lo siguiente:
+
+```bash
+auto bond0
+iface bond0 inet static
+  address 10.0.0.1/24
+  # Dirección MAC de la interfaz privada principal del servidor
+  hwaddress ether a1:b2:c3:d4:e5:d6
+  bond-mode 802.3ad
+  bond-slaves ens22f0np0 ens22f1np1 ens33f0np0 ens33f1np1
+  bond-lacp-rate fast
+  bond-xmit_hash_policy layer3+4
+```
+
+:::info
+En la configuración totalmente privada (OLA), el agregado utiliza la dirección MAC de la interfaz **privada principal**. El campo `address` debe configurarse con su IP privada de vRack.
+
+:::
+</Tab>
+</Tabs>
+
+### Aplicación de la configuración
+
+Aplique la configuración reiniciando el servicio de red:
+
+```bash
+systemctl restart networking
+```
+
+Este reinicio puede tardar unos segundos ya que se está creando la interfaz de agregado. Para comprobar que el agregado funciona correctamente, haga ping a otro servidor en el mismo vRack. Si funciona, está todo listo. En caso contrario, compruebe sus configuraciones o intente reiniciar el servidor.
+
+## Más información
+
+[Configurar la agregación de enlaces OLA en el área de cliente de OVHcloud](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager)
+
+[Cómo configurar la agregación de enlaces LACP en Debian 12 o superior / Ubuntu 24.04 o superior (Netplan) (EN)](/guides/bare-metal-cloud/dedicated-servers/lacp-enable-netplan)
+
+[Cómo configurar el NIC Teaming para OVHcloud Link Aggregation (OLA) en Windows Server 2019](/guides/bare-metal-cloud/dedicated-servers/ola-enable-w2k19)
+
+[Cómo configurar la agregación de enlaces LACP en SLES 15](/guides/bare-metal-cloud/dedicated-servers/lacp-enable-sles15)
+
+Interactúe con nuestra [comunidad de usuarios](/links/community).

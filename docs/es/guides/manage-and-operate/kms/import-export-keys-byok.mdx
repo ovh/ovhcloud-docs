@@ -1,0 +1,615 @@
+---
+title: Importar y exportar claves en OVHcloud KMS con BYOK
+description: Descubra cómo importar y exportar de forma segura material de clave cifrado con OVHcloud KMS mediante el encapsulado de clave RSA asimétrico (BYOK)
+lastUpdated: 2026-08-12
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+import Api from '@components/Api';
+
+## Objetivo
+
+Bring Your Own Key (BYOK) le permite importar y exportar material de clave criptográfico con OVHcloud Key Management Service (KMS) sin enviarlo en claro. Un par de claves RSA de transporte protege el material en tránsito: la clave pública lo encapsula y solo el titular de la clave privada puede desencapsularlo.
+
+**Esta guía le explica cómo importar y exportar una clave con OVHcloud KMS utilizando el encapsulado de clave RSA asimétrico (BYOK).**
+
+:::info
+El BYOK a través de KMIP aún no está disponible. Esta guía cubre únicamente la API REST regional, la [CLI OKMS](https://github.com/ovh/okms-cli) y el [SDK Go](https://pkg.go.dev/github.com/ovh/okms-sdk-go).
+
+Las claves creadas con el nivel de protección `HSM` no pueden utilizarse actualmente para el BYOK, ni como claves de transporte ni como material de clave encapsulado.
+:::
+
+## Requisitos
+
+- Disponer de una [cuenta de cliente de OVHcloud](/guides/account-and-service-management/account-information/ovhcloud-account-creation).
+- Haber [contratado un KMS de OVHcloud](/guides/manage-and-operate/kms/quick-start).
+- Haber [configurado un método de autenticación](/guides/manage-and-operate/kms/okms-authentication-methods) para el plano de datos OKMS (token de acceso personal, cuenta de servicio o certificado de acceso).
+- Poder aplicar una política IAM en su dominio OKMS; las acciones BYOK necesarias se enumeran en [Configurar IAM para el BYOK](#configurar-iam-para-el-byok).
+- Opcional: la [CLI OKMS](https://github.com/ovh/okms-cli) o el [SDK Go](https://pkg.go.dev/github.com/ovh/okms-sdk-go) instalados para los ejemplos en pestañas.
+
+## Procedimiento
+
+### Comprender la ceremonia de encapsulado RSA
+
+<img className="thumbnail" alt="Flujo de importación de clave BYOK RSA desde el origen hacia el KMS de destino" src="/images/manage-and-operate/kms/import-export-keys-byok/byok-rsa-import-ceremony.png" loading="lazy" />
+
+La ceremonia implica dos entornos y un operador:
+
+- **Destino (Dst):** su dominio OKMS, donde se almacenará la clave importada.
+- **Origen (Src):** el sistema que actualmente posee el material de clave (otro KMS, una aplicación o una herramienta como OpenSSL).
+- **Operator:** la entidad que dispone de los permisos necesarios para acceder tanto al dominio OKMS como al origen de la clave que se va a importar. Puede ser una persona que utiliza el CLI OKMS o un servicio que actúa a través de la API.
+
+1. Genere un par de claves RSA de transporte en el KMS de OVHcloud con las operaciones `wrapKey` y `unwrapKey`.
+2. Exporte la clave de transporte **pública** desde el KMS de OVHcloud.
+3. Importe la clave de transporte **pública** en el entorno de origen.
+4. En el origen, exporte el material de clave encapsulado (cifrado) con la clave de transporte utilizando `RSA-OAEP` o `RSA-OAEP-256`.
+5. En el destino, importe la clave encapsulada con `POST /api/{okmsId}/v1/servicekey` y una carga útil `wrappedKeys`. El KMS desencapsula el ciphertext con la clave de transporte privada y almacena la clave de servicio resultante.
+
+Las claves así importadas tienen `never_extractable` definido en `false`, porque el material existía fuera del KMS antes de la importación. Para extraer posteriormente una clave en forma encapsulada, defina `extractable` en `true` y siga [Exportar una clave encapsulada](#exportar-una-clave-encapsulada). Consulte [Atributos de sensibilidad de las claves de servicio](/guides/manage-and-operate/kms/kms-usage#atributos-de-sensibilidad-de-las-claves-de-servicio) para la lista completa de atributos.
+
+:::info
+Para seguir esta guía necesita dos valores de su dominio OKMS: su **endpoint regional** y su **`okmsId`**. Las llamadas a la API REST incluyen ambos en la URL, mientras que el CLI OKMS y el SDK Go los leen de su configuración. Ambos se obtienen mediante la siguiente llamada a la API:
+
+<Api version="v2" section="/okms" method="GET" route={"/okms/resource"} />
+
+También aparecen en la pestaña **Información general** del <ManagerLink to="/#/okms/key-management-service">dashboard de su dominio OKMS</ManagerLink>.
+:::
+
+:::tip
+Prefiera esta ceremonia a la [importación de clave en claro](/guides/manage-and-operate/kms/kms-usage#importar-una-clave-de-cifrado) siempre que la clave deba seguir siendo de confianza durante el tránsito.
+:::
+
+### Configurar IAM para el BYOK
+
+Aplique una política sobre el recurso de su dominio OKMS. Su URN se muestra en la pestaña **Información general** del <ManagerLink to="/#/okms/key-management-service">dashboard de su dominio OKMS</ManagerLink>. Sustituya `<identity_urn>` y `<okms_urn>` por sus valores. Cree las políticas a través del [área de cliente de OVHcloud](/guides/account-and-service-management/account-information/iam-policy-ui) o de la [API de OVHcloud](/guides/account-and-service-management/account-information/iam-policies-api).
+
+**Importación BYOK** — leer, crear o importar claves de servicio y desencapsular con una clave de transporte:
+
+```json
+{
+  "name": "okms-byok-import",
+  "description": "Import wrapped keys into an OKMS domain using RSA BYOK",
+  "identities": ["<identity_urn>"],
+  "resources": [{ "urn": "<okms_urn>" }],
+  "action": [
+    "okms:apikms:serviceKey/get",
+    "okms:apikms:serviceKey/create",
+    "okms:apikms:serviceKey/unwrapKey",
+    "okms:apikms:serviceKey/import"
+  ]
+}
+```
+
+**Exportación BYOK** — importar una clave de transporte pública, actualizar la extraibilidad y encapsular una clave para la exportación:
+
+```json
+{
+  "name": "okms-byok-export",
+  "description": "Export wrapped keys from an OKMS domain using RSA BYOK",
+  "identities": ["<identity_urn>"],
+  "resources": [{ "urn": "<okms_urn>" }],
+  "action": [
+    "okms:apikms:serviceKey/get",
+    "okms:apikms:serviceKey/create",
+    "okms:apikms:serviceKey/import",
+    "okms:apikms:serviceKey/update",
+    "okms:apikms:serviceKey/wrapKey"
+  ]
+}
+```
+
+:::info
+Para la importación, `serviceKey/unwrapKey` debe estar autorizado sobre la clave de transporte RSA referenciada por `wrappingKeyId`. Para la exportación, importe primero la clave de transporte pública de destino (`create` / `import`), luego autorice `serviceKey/wrapKey` sobre esa clave de transporte y `serviceKey/get` sobre la clave exportada. `serviceKey/update` es necesario para definir `extractable` antes (y después) de la exportación.
+:::
+
+### Crear la clave de transporte RSA en el KMS de destino
+
+Cree una clave RSA dedicada al encapsulado. Para la ceremonia de importación, defina tanto `wrapKey` como `unwrapKey` en esta clave; son mutuamente excluyentes con `sign` y `verify`.
+
+Tamaños de clave RSA admitidos: `2048`, `3072` o `4096` bits.
+
+:::info
+`SOFTWARE` es el nivel de protección por defecto, por lo que no es necesario indicarlo.
+:::
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X POST "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "byok-transport-rsa",
+    "type": "RSA",
+    "size": 4096,
+    "operations": ["wrapKey", "unwrapKey"]
+  }'
+```
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys generate byok-transport-rsa \
+  --type rsa \
+  --size 4096 \
+  --usage wrapKey,unwrapKey
+```
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+resp, err := okmsClient.GenerateRSAKeyPair(
+  ctx,
+  okmsId,
+  types.N4096,
+  "byok-transport-rsa",
+  types.SOFTWARE,
+  "",
+  []types.CryptographicUsages{types.WrapKey, types.UnwrapKey},
+)
+if err != nil {
+  return err
+}
+transportKeyID := resp.Id
+```
+
+</Tab>
+</Tabs>
+
+Conserve el `id` de la clave devuelta: lo necesitará como `wrappingKeyId` durante la importación.
+
+### Obtener la clave de transporte pública
+
+Exporte la parte pública de la clave de transporte y proporciónela al entorno de origen. No comparta nunca la clave privada: permanece dentro del KMS de destino.
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X GET "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey/<transport-key-id>?format=jwk" \
+  -H "Authorization: Bearer <token>"
+```
+
+La respuesta incluye el material de clave pública en el array `keys` (JWK).
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys export <transport-key-id> --format jwk
+```
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+pub, err := okmsClient.ExportPublicKey(ctx, okmsId, transportKeyID)
+if err != nil {
+  return err
+}
+// pub es un crypto.PublicKey (*rsa.PublicKey para una clave de transporte RSA)
+```
+
+O exporte en formato JWK:
+
+```go
+jwk, err := okmsClient.ExportJwkPublicKey(ctx, okmsId, transportKeyID)
+if err != nil {
+  return err
+}
+```
+
+</Tab>
+</Tabs>
+
+### Encapsular el material de clave de origen
+
+En el entorno de origen, cifre el material de clave con la clave RSA pública de destino.
+
+Este paso se realiza fuera de OVHcloud KMS: utilice una biblioteca JOSE en el entorno de origen.
+
+Algoritmos de encapsulado admitidos ([RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518#section-4.1)):
+
+| Algoritmo | Descripción |
+| --- | --- |
+| `RSA-OAEP` | RSAES-OAEP con SHA-1 |
+| `RSA-OAEP-256` | RSAES-OAEP con SHA-256 (recomendado) |
+
+`keyFormatType` describe el formato del material de clave en **claro** antes del encapsulado y después del desencapsulado. El ciphertext es siempre una cadena [JWE Compact Serialization](https://datatracker.ietf.org/doc/html/rfc7516) (el algoritmo de encapsulado va en el encabezado JWE).
+
+| `keyFormatType` | Uso típico |
+| --- | --- |
+| `RAW` | Claves simétricas (`oct`) en forma de bytes en bruto |
+| `JWK` | Documento JSON Web Key ([RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517)) |
+| `PKCS1` | Material de clave RSA en codificación PKCS#1 |
+| `PKCS8` | Material de clave privada en codificación PKCS#8 |
+
+Tras el encapsulado con la clave pública de destino, envíe el `ciphertext` JWE Compact Serialization resultante en la solicitud de importación.
+
+### Importar la clave encapsulada
+
+Llame a `POST /api/{okmsId}/v1/servicekey` con un array `wrappedKeys` en lugar de `keys` en claro.
+
+|**Método**|**Ruta**|**Descripción**|
+| :-: | :-: | :-: |
+|POST|/api/&#123;okmsId&#125;/v1/servicekey|Crear, importar o importar de forma encapsulada una clave de servicio|
+
+| Campo | Obligatorio | Descripción |
+| --- | --- | --- |
+| `name` | **Sí** | Nombre de visualización de la clave importada (1–32 caracteres) |
+| `wrappedKeys` | **Sí** (para el BYOK) | Array de bloques de claves encapsuladas |
+| `operations` | **Sí** | Usos previstos de la clave importada |
+| `extractable` | No | Indica si la clave puede exportarse posteriormente (`false` por defecto; las claves solo públicas pasan a `true` por defecto) |
+| `type` / `size` / `curve` | No | Se deducen del material descifrado cuando `wrappedKeys` está presente |
+
+Cada entrada de `wrappedKeys`:
+
+| Campo | Obligatorio | Descripción |
+| --- | --- | --- |
+| `keyFormatType` | **Sí** | `RAW`, `JWK`, `PKCS1` o `PKCS8` |
+| `wrappingKeyId` | **Sí** | UUID de la clave de transporte RSA de destino |
+| `ciphertext` | **Sí** | Material de clave cifrado en formato JWE Compact Serialization |
+
+Puede importar una clave solo pública (`class` se convierte en `PUBLIC_KEY`) o una clave privada (el KMS reconstruye la parte pública; `class` se convierte en `KEY_PAIR`). El material simétrico se almacena como `SECRET_KEY`.
+
+Acciones IAM en esta llamada: `okms:apikms:serviceKey/create`, `okms:apikms:serviceKey/import`, y `okms:apikms:serviceKey/unwrapKey` sobre la clave de transporte.
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X POST "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "imported-aes-byok",
+    "operations": ["encrypt", "decrypt"],
+    "wrappedKeys": [
+      {
+        "keyFormatType": "JWK",
+        "wrappingKeyId": "<transport-key-id>",
+        "ciphertext": "<jwe-compact-serialization>"
+      }
+    ]
+  }'
+```
+
+Valores de `keyFormatType`: `RAW`, `JWK`, `PKCS1` o `PKCS8`.
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys import --usage encrypt,decrypt \
+  --wrapping-key-id <transport-key-id> \
+  --wrapped-key-format JWK \
+  imported-aes-byok @wrapped.jwe
+```
+
+El último argumento (`KEY` en `okms keys import NAME KEY`) es la cadena JWE Compact Serialization. Pásela en la forma `@path/to/wrapped.jwe`, directamente en el comando, o `-` para leerla desde stdin.
+
+Valores de `--wrapped-key-format`: `JWK` (por defecto), `RAW`, `PKCS1`, `PKCS8`.
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+resp, err := okmsClient.ImportWrappedServiceKey(
+  ctx,
+  okmsId,
+  transportKeyID,
+  jweCompact,
+  types.JWK,
+  "imported-aes-byok",
+  "",
+  []types.CryptographicUsages{types.Encrypt, types.Decrypt},
+)
+if err != nil {
+  return err
+}
+importedKeyID := resp.Id
+```
+
+Valores `keyFormat` admitidos: `types.RAW`, `types.JWK`, `types.PKCS1`, `types.PKCS8`.
+
+</Tab>
+</Tabs>
+
+### Verificar la clave importada
+
+Confirme que la clave existe y corresponde al tipo y a las operaciones esperados.
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X GET "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey/<imported-key-id>" \
+  -H "Authorization: Bearer <token>"
+```
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys get <imported-key-id>
+```
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+key, err := okmsClient.GetServiceKey(ctx, okmsId, importedKeyID, nil)
+if err != nil {
+  return err
+}
+```
+
+</Tab>
+</Tabs>
+
+Verifique que:
+
+- el `state` de la clave es `active` (o actívela si su flujo de trabajo lo exige).
+- `type`, `size` y `operations` coinciden con lo esperado.
+- los atributos de sensibilidad bajo `attributes` reflejan una clave importada (`never_extractable` vale `false`).
+
+A continuación puede utilizar la clave para `encrypt`, `decrypt`, `sign` o `verify`, como se documenta en [Utilizar su OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/kms-usage).
+
+### Exportar una clave encapsulada
+
+La exportación segura es la inversa de la importación: OVHcloud KMS cifra el material de clave con una clave de transporte RSA y solo devuelve un ciphertext JWE. La clave de transporte privada debe residir en el entorno de **destino** — aquí el sistema externo que recibe la clave, no OVHcloud KMS — para que solo ese entorno pueda desencapsular el material.
+
+#### Comprender la ceremonia de exportación
+
+1. Genere un par de claves RSA de transporte en el entorno de **destino** (otro KMS o una herramienta que recibirá la clave).
+2. Importe la clave de transporte **pública** de destino en OVHcloud KMS con la operación `wrapKey` (nivel de protección `SOFTWARE`). Esta clave es el `wrappingKeyId` utilizado en el momento de la exportación.
+3. En OVHcloud KMS, defina `extractable` en `true` sobre la clave de servicio justo antes de la exportación, luego expórtela encapsulada por esta clave de transporte. Vuelva a poner después `extractable` en `false` cuando sea posible.
+4. Transfiera el ciphertext al destino y desencapsúlelo con la clave de transporte **privada** de destino.
+
+:::info
+No genere el par de claves de transporte de exportación en OVHcloud KMS. Si la clave de transporte privada permaneciera en OVHcloud KMS, el destino no podría desencapsular el ciphertext. Solo la parte pública se importa en OVHcloud KMS para el encapsulado.
+:::
+
+La clave de transporte referenciada por `wrappingKeyId` debe ser una clave RSA `SOFTWARE` en el mismo dominio OKMS, con el uso `wrapKey`. Las claves sensibles (material AES/`oct` y RSA/EC privado) solo pueden extraerse **después del encapsulado**: la extracción en claro no está admitida para estas claves.
+
+#### Importar la clave de transporte pública de destino en OVHcloud KMS
+
+Registre la clave pública de destino para que OVHcloud KMS pueda encapsular con ella la clave exportada. Impórtela como clave RSA solo pública con `wrapKey` (sin material privado).
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X POST "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "byok-export-transport-pub",
+    "type": "RSA",
+    "operations": ["wrapKey"],
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "<base64url-modulus>",
+        "e": "<base64url-exponent>",
+        "key_ops": ["wrapKey"]
+      }
+    ]
+  }'
+```
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys import byok-export-transport-pub @destination-transport-public.pem \
+  --usage wrapKey
+```
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+pemBytes, err := os.ReadFile("destination-transport-public.pem")
+if err != nil {
+  return err
+}
+resp, err := okmsClient.ImportKeyPairPEM(
+  ctx,
+  okmsId,
+  pemBytes,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+wrappingKeyID := resp.Id
+```
+
+</Tab>
+</Tabs>
+
+Conserve el `id` de la clave devuelta como `wrappingKeyId`.
+
+#### Activar la extracción
+
+La clave que exporta debe ser extraíble. Prefiera definir `extractable` en `true` **únicamente para la operación de exportación** (mediante `PATCH`), y luego volver a ponerlo en `false`. Deje las claves no extraíbles en la creación siempre que sea posible: hacer una clave extraíble fija definitivamente `never_extractable` en `false`.
+
+:::warning
+Activar la extracción reduce la frontera de protección de la clave. Defina `extractable` en `true` solo cuando deba migrar la clave, y vuelva a ponerlo en `false` después cuando sea posible.
+:::
+
+Acción IAM: `okms:apikms:serviceKey/update`.
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X PATCH "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey/<key-id>" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "extractable": true
+  }'
+```
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys update <key-id> --extractable=true
+```
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+extractable := true
+_, err := okmsClient.UpdateServiceKey(ctx, okmsId, keyID, types.PatchServiceKeyRequest{
+  Extractable: &extractable,
+})
+if err != nil {
+  return err
+}
+```
+
+</Tab>
+</Tabs>
+
+Tras una exportación encapsulada correcta (consulte [Exportar la clave encapsulada por la clave de transporte](#exportar-la-clave-encapsulada-por-la-clave-de-transporte)), desactive de nuevo la extracción:
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X PATCH "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey/<key-id>" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "extractable": false
+  }'
+```
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys update <key-id> --extractable=false
+```
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+extractable := false
+_, err := okmsClient.UpdateServiceKey(ctx, okmsId, keyID, types.PatchServiceKeyRequest{
+  Extractable: &extractable,
+})
+if err != nil {
+  return err
+}
+```
+
+</Tab>
+</Tabs>
+
+#### Exportar la clave encapsulada por la clave de transporte
+
+Llame a `GET /api/{okmsId}/v1/servicekey/{keyId}` con los parámetros de consulta de encapsulado siguientes. Cuando estos parámetros están presentes, la API devuelve `wrappedKeys` en lugar de `keys` en claro.
+
+| Parámetro de consulta | Obligatorio | Descripción |
+| --- | --- | --- |
+| `wrappingKeyId` | **Sí** | UUID de la clave de transporte pública de destino importada en OVHcloud KMS |
+| `wrappedKeyFormat` | **Sí** | `RAW`, `JWK`, `PKCS1` o `PKCS8` — formato en claro antes del encapsulado |
+| `wrappingAlgorithm` | **Sí** | `RSA-OAEP` o `RSA-OAEP-256` |
+
+|**Método**|**Ruta**|**Descripción**|
+| :-: | :-: | :-: |
+|GET|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;|Obtener los metadatos, o exportar el material de clave en forma encapsulada|
+
+Acciones IAM: `okms:apikms:serviceKey/get` sobre la clave exportada, y `okms:apikms:serviceKey/wrapKey` sobre la clave de transporte.
+
+<Tabs>
+<Tab label="API REST">
+
+```bash
+curl -X GET "https://<region>.okms.ovh.net/api/<okmsId>/v1/servicekey/<key-id>?wrappingKeyId=<wrapping-key-id>&wrappedKeyFormat=JWK&wrappingAlgorithm=RSA-OAEP-256" \
+  -H "Authorization: Bearer <token>"
+```
+
+Ejemplo de respuesta:
+
+```json
+{
+  "id": "<key-id>",
+  "name": "imported-aes-byok",
+  "type": "oct",
+  "class": "SECRET_KEY",
+  "size": 256,
+  "operations": ["encrypt", "decrypt"],
+  "wrappedKeys": [
+    {
+      "keyFormatType": "JWK",
+      "wrappingKeyId": "<wrapping-key-id>",
+      "ciphertext": "<jwe-compact-serialization>"
+    }
+  ]
+}
+```
+
+</Tab>
+<Tab label="CLI OKMS">
+
+```bash
+okms keys get <key-id> \
+  --wrapping-key-id <wrapping-key-id> \
+  --wrapped-key-format JWK \
+  --wrapping-algorithm RSA-OAEP-256
+```
+
+Sin `--output json`, la CLI muestra el ciphertext JWE. Con `--output json`, muestra el array `wrappedKeys` completo.
+
+</Tab>
+<Tab label="SDK Go">
+
+```go
+wrapped, err := okmsClient.GetWrappedServiceKey(
+  ctx,
+  okmsId,
+  keyID,
+  wrappingKeyID,
+  types.JWK,
+  types.RSAOAEP256,
+)
+if err != nil {
+  return err
+}
+ciphertext := wrapped[0].Ciphertext
+```
+
+Algoritmos de encapsulado admitidos: `types.RSAOAEP`, `types.RSAOAEP256` (recomendado).
+
+</Tab>
+</Tabs>
+
+#### Desencapsular el ciphertext en el destino
+
+Transfiera el `ciphertext` al entorno de destino. Desencapsúlelo con la clave de transporte **privada** de destino (la contraparte de la clave pública que importó en OVHcloud KMS).
+
+- Si el destino es otro dominio OKMS, importe allí el material encapsulado con `wrappedKeys` como en [Importar la clave encapsulada](#importar-la-clave-encapsulada), utilizando el identificador de la clave de transporte de ese dominio como `wrappingKeyId`.
+- Si el destino es un sistema externo, utilice su API nativa de desencapsulado / importación con la clave de transporte privada y el mismo `keyFormatType` / algoritmo de encapsulado que durante la exportación.
+
+## Más información
+
+[Utilizar su OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/kms-usage)
+
+[Métodos de autenticación de OKMS](/guides/manage-and-operate/kms/okms-authentication-methods)
+
+[Primeros pasos con OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/quick-start)
+
+Interactúe con nuestra [comunidad de usuarios](/links/community).

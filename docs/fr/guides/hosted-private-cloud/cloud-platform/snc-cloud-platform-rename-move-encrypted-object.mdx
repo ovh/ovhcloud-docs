@@ -1,0 +1,120 @@
+---
+title: Comment renommer ou déplacer un objet chiffré dans l'Object Storage SNC Cloud Platform
+description: Découvrez comment contourner la limitation actuelle qui empêche de renommer ou de déplacer un objet chiffré côté serveur dans l'Object Storage SNC Cloud Platform
+lastUpdated: 2026-07-13
+---
+
+## Objectif
+
+L'Object Storage de SNC Cloud Platform repose sur Ceph RADOS Gateway (RGW). L'API S3<sup>1</sup> ne propose pas d'opération dédiée de *renommage* ou de *déplacement* : les outils les réalisent par une **copie** côté serveur suivie d'une **suppression** de l'objet d'origine.
+
+La copie côté serveur n'est actuellement **pas prise en charge pour les objets chiffrés côté serveur (SSE, Server-Side Encryption)**. Par conséquent, toute tentative de renommage ou de déplacement d'un objet chiffré échoue avec une erreur `501 NotImplemented`, et l'objet conserve son nom d'origine.
+
+Dans l'Object Storage SNC Cloud Platform, **chaque objet est chiffré côté serveur** — le **SSE-S3** est appliqué par défaut, et le **SSE-C** (votre propre clé de chiffrement) est disponible sur demande. Cette limitation s'applique donc à **tous** vos objets.
+
+**Ce guide explique comment renommer ou déplacer un objet chiffré en le réimportant sous le nouveau nom (une copie côté client), puis en supprimant l'original.**
+
+:::warning
+Il s'agit d'une solution de contournement temporaire d'une limitation connue de Ceph RGW (ticket [#23264](https://tracker.ceph.com/issues/23264)). Un correctif a été fusionné en amont mais n'est pas encore intégré à une version stable. Ce guide sera mis à jour dès que le correctif sera disponible sur la plateforme.
+:::
+
+## Prérequis
+
+- Disposer d'un [bucket Object Storage](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) sur SNC Cloud Platform
+- Disposer des clés d'accès (identifiant de clé d'accès et clé secrète) de votre Object Storage
+- Avoir installé l'un des clients S3 suivants :
+  - **[Rclone](https://rclone.org/)** (recommandé), ou
+  - **AWS CLI** (`aws`)
+- Si vos objets utilisent le **SSE-C** (clés fournies par le client) : la clé ayant servi à les chiffrer
+
+## En pratique
+
+La solution de contournement force le client à **télécharger** l'objet (ce qui le déchiffre) et à le **réimporter** sous le nouveau nom (ce qui le rechiffre), au lieu de demander à la passerelle de le copier côté serveur.
+
+### Méthode 1 — Rclone (recommandé)
+
+Rclone effectue normalement une copie côté serveur, qui échoue sur les objets chiffrés. L'ajout de `--disable copy` force Rclone à faire transiter l'objet par le client (téléchargement puis import), ce qui permet à l'opération d'aboutir.
+
+1\. Configurez votre remote dans `~/.config/rclone/rclone.conf` :
+
+```bash
+[snc-s3]
+type = s3
+provider = Ceph
+env_auth = false
+access_key_id = CEPH_ACCESS_KEY
+secret_access_key = CEPH_SECRET_KEY
+endpoint = https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/
+region = eu-west-rbx-snc
+acl = private
+force_path_style = true
+```
+
+:::info
+Les objets chiffrés avec le **SSE-S3** (valeur par défaut sur SNC) ne nécessitent aucune configuration supplémentaire — la passerelle gère la clé de manière transparente au téléchargement et à l'import.
+
+Si vos objets utilisent le **SSE-C** (votre propre clé), ajoutez également la clé client au remote `[snc-s3]` pour que Rclone puisse déchiffrer au téléchargement et rechiffrer à l'import, en définissant `sse_customer_algorithm = AES256` et `sse_customer_key = YOUR_SSE_C_KEY`.
+:::
+
+2\. Renommez un seul objet (même bucket, nouveau nom) :
+
+```bash
+rclone moveto snc-s3:my-bucket/old-name.txt snc-s3:my-bucket/new-name.txt --disable copy
+```
+
+Pour déplacer un objet vers un autre préfixe (« dossier ») ou un autre bucket, utilisez le chemin de destination souhaité, par exemple :
+
+```bash
+rclone moveto snc-s3:my-bucket/report.txt snc-s3:my-bucket/archive/2026/report.txt --disable copy
+```
+
+3\. Déplacez plusieurs objets à la fois (tout un préfixe) :
+
+```bash
+rclone move snc-s3:my-bucket/inbox/ snc-s3:my-bucket/archive/ --disable copy --progress
+```
+
+:::info
+`--disable copy` est l'option qui rend l'opération possible sur les objets chiffrés : elle indique à Rclone de ne pas utiliser la copie côté serveur (non prise en charge) et de faire transiter les données par votre client à la place. Pour les objets volumineux, cela consomme de la bande passante et du temps proportionnellement à la taille de l'objet.
+:::
+
+### Méthode 2 — AWS CLI
+
+Le même principe s'applique : télécharger, réimporter sous le nouveau nom, puis supprimer l'original.
+
+1\. Téléchargez l'objet (ce qui le déchiffre) :
+
+```bash
+aws --endpoint-url https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/ \
+  s3 cp s3://my-bucket/old-name.txt ./old-name.txt
+```
+
+2\. Réimportez-le sous le nouveau nom (ce qui le rechiffre) :
+
+```bash
+aws --endpoint-url https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/ \
+  s3 cp ./old-name.txt s3://my-bucket/new-name.txt
+```
+
+3\. Supprimez l'objet d'origine :
+
+```bash
+aws --endpoint-url https://s3-beta.eu-west-rbx-snc.cloud.snc.ovh.net/ \
+  s3 rm s3://my-bucket/old-name.txt
+```
+
+:::info
+Pour les objets **SSE-S3** (valeur par défaut sur SNC), aucune option supplémentaire n'est nécessaire — la plateforme chiffre automatiquement l'objet réimporté. Pour les objets **SSE-C**, ajoutez votre clé client aux commandes de téléchargement et d'import, par exemple `--sse-c AES256 --sse-c-key fileb://sse-c.key` sur les commandes `cp`.
+:::
+
+:::warning
+La réimportation crée un **nouvel objet**. Les métadonnées d'objet qui ne sont pas transportées par votre client — telles que les ACL personnalisées, les tags ou les métadonnées utilisateur — peuvent devoir être réappliquées. Vérifiez le nouvel objet avant de supprimer l'original, en particulier pour les données importantes. Si le [versioning des objets](/guides/storage-and-backup/object-storage/s3-versioning) est activé, la suppression crée un marqueur de suppression au lieu d'effacer les données.
+:::
+
+## Aller plus loin
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.

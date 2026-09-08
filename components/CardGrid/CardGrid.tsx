@@ -22,11 +22,7 @@ interface CardGridProps {
  */
 export function CardGrid({ children, columns = 2, style }: CardGridProps) {
   return (
-    <div
-      className="card-grid"
-      data-columns={columns}
-      style={style}
-    >
+    <div className="card-grid" data-columns={columns} style={style}>
       {children}
     </div>
   );

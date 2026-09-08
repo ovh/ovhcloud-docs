@@ -9,6 +9,7 @@ import type React from 'react';
 import { useEffect, useRef, useTransition } from 'react';
 import './SidebarItem.scss';
 import scrollIntoView from 'scroll-into-view-if-needed';
+import { useActiveBranch } from './useActiveBranch';
 
 export function SidebarItemRaw({
   active,
@@ -107,7 +108,8 @@ export function SidebarItemRaw({
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          onClick?.();
+          e.preventDefault();
+          e.currentTarget.click();
         }
       }}
     >
@@ -120,14 +122,20 @@ export interface SidebarItemProps {
   item: SidebarItemType | NormalizedSidebarGroup;
   depth: number;
   className?: string;
+  /** Stable tree-path id of this instance (e.g. "3-2-1"). */
+  id: string;
 }
 
 export function SidebarItem(props: SidebarItemProps) {
-  const { item, depth, className } = props;
+  const { item, depth, className, id } = props;
   const activeMatcher = useActiveMatcher();
+  const { activeId, notifyClick } = useActiveBranch();
 
+  // Route match is necessary but not sufficient: a multi-located guide matches
+  // the route in every branch it appears in. Only THIS instance is active when
+  // it is also the single resolved-active instance for the current route.
   const active = Boolean(
-    'link' in item && item.link && activeMatcher(item.link),
+    'link' in item && item.link && activeMatcher(item.link) && id === activeId,
   );
 
   return (
@@ -139,6 +147,7 @@ export function SidebarItem(props: SidebarItemProps) {
       text={item.text}
       context={item.context}
       depth={depth}
+      onClick={() => notifyClick(id)}
     />
   );
 }

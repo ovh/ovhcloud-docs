@@ -63,8 +63,7 @@ export const useCardAnimation = () => {
     const dx = pageX - left - rootElemWidth / 2;
     const yRotate = (offsetX - dx) * multiple;
     const xRotate =
-      (dy - offsetY) *
-      (Math.min(rootElemWidth / rootElemHeight, 1) * multiple);
+      (dy - offsetY) * (Math.min(rootElemWidth / rootElemHeight, 1) * multiple);
     const arad = Math.atan2(dy, dx);
     const rawAngle = (arad * 180) / Math.PI - 90;
     const angle = rawAngle < 0 ? rawAngle + 360 : rawAngle;

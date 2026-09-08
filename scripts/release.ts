@@ -241,7 +241,9 @@ function main() {
   }
 
   git('add CHANGELOG.md VERSION');
-  git(`commit CHANGELOG.md VERSION -m "chore(release): update changelog ${version}"`);
+  git(
+    `commit CHANGELOG.md VERSION -m "chore(release): update changelog ${version}"`,
+  );
   console.log(`Committed release ${version}. Run 'git push' to publish.`);
 }
 

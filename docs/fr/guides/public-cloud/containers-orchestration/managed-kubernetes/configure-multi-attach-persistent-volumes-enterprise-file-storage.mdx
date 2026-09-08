@@ -1,1 +1,390 @@
-../../../../../en/guides/public-cloud/containers-orchestration/managed-kubernetes/configure-multi-attach-persistent-volumes-enterprise-file-storage.mdx
+---
+title: Configurer des volumes persistants multi-attach avec Enterprise File Storage
+description: "Découvrez comment configurer un volume persistant multi-attach avec notre solution Enterprise File Storage"
+lastUpdated: 2025-01-06
+---
+
+import Api from '@components/Api';
+
+
+
+
+## Objectif
+
+OVHcloud Managed Kubernetes propose actuellement du Block Storage pour les volumes persistants par défaut, ce qui peut ne pas convenir aux applications nécessitant un système de fichiers partagé entre plusieurs nœuds. Ce tutoriel montre comment configurer un [Persistent Volume Kubernetes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes) partagé (AccessMode `ReadWriteMany` ou `RWX`) en utilisant [OVHcloud Enterprise File Storage](/links/storage/enterprise-file-storage) comme backend de stockage.
+
+## Prérequis
+
+Ce tutoriel suppose que vous disposez déjà d'un cluster [OVHcloud Managed Kubernetes](/links/public-cloud/kubernetes) fonctionnel, ainsi que de connaissances de base sur son utilisation. Pour en savoir plus sur ces sujets, consultez la documentation [déployer une application Hello World](/guides/public-cloud/containers-orchestration/managed-kubernetes/deploy-hello-world).
+
+Ce tutoriel suppose également que vous disposez déjà d'un service OVHcloud Enterprise File Storage. Si ce n'est pas le cas, vous pouvez <ManagerLink to="/">en commander un dans l'espace client OVHcloud</ManagerLink>.
+
+Vous devez également avoir [Helm](https://docs.helm.sh/) installé sur votre poste de travail. Consultez le tutoriel [comment installer Helm sur OVHcloud Managed Kubernetes Service](/guides/public-cloud/containers-orchestration/managed-kubernetes/install-helm).
+
+## En pratique
+
+### Étape 1 - Créer un volume et autoriser votre Managed Kubernetes Service à y accéder
+
+Votre service Enterprise File Storage peut exposer plusieurs volumes et prend en charge différents protocoles. Chaque volume n'est accessible que depuis une plage d'IP spécifique. Vous allez créer un nouveau volume EFS et le rendre accessible depuis vos worker nodes Kubernetes.
+
+Vous trouverez plus d'informations sur notre produit Enterprise File Storage en cliquant [ici](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel).
+
+Accédez à l'interface d'OVHcloud Enterprise File Storage en cliquant sur le menu `Stockage et sauvegarde` puis `Enterprise File Storage` dans la <ManagerLink to="/">section Bare Metal Cloud de l'espace client OVHcloud</ManagerLink>.
+
+Cliquez sur votre service Enterprise File Storage, puis sur l'onglet `Volumes`. Cliquez sur le bouton `Créer un volume` et créez le nouveau volume Enterprise File Storage avec le contenu suivant :
+
+![Créer un volume EFS](/images/guides/public-cloud/containers-orchestration/managed-kubernetes/configuring-multi-attach-persistent-volumes-with-ovh-efs/create-efs-volume.png)
+
+Fournissez les paramètres suivants pour créer un volume :
+
+| Nom                     | Description                    | Obligatoire   |
+| ----------------------- | ------------------------------- | ------------- |
+| Nom du volume           | Nom du volume                   | Faux          |
+| Description du volume   | Description du volume           | Faux          |
+| Protocole               | Protocole utilisé pour la connexion | Vrai      |
+| Taille du volume        | Taille du volume                | Vrai          |
+
+La taille du volume doit être adaptée à vos besoins. Pour ce guide, nous définissons une taille de volume de 100 Gio.
+
+Une fois votre volume créé, cliquez sur son ID et sélectionnez `Access Control List`.  
+Saisissez les IP publiques de vos nœuds et/ou l'IP publique de votre Gateway Public Cloud dans les ACL du volume. Cela garantira que vos worker nodes Kubernetes peuvent accéder au service de stockage.
+
+#### Votre cluster est installé avec un réseau public, ou un réseau privé sans utiliser une OVHcloud Internet Gateway ou une gateway personnalisée comme route par défaut
+
+Une fois le volume créé, vous devez autoriser vos nœuds Kubernetes à y accéder.
+
+Récupérez l'IP de vos nœuds Kubernetes :
+
+```sh
+kubectl get nodes -o jsonpath='{ $.items[*].status.addresses[?(@.type=="InternalIP")].address }'
+```
+
+```sh
+$ kubectl get nodes -o jsonpath='{ $.items[*].status.addresses[?(@.type=="InternalIP")].address }'
+51.128.xx.xx 37.59.xx.xx
+```
+
+#### Votre cluster est installé avec un réseau privé et une route par défaut via votre réseau privé (OVHcloud Internet Gateway/OpenStack Router ou une gateway personnalisée)
+
+Vos nœuds étant configurés pour être routés par la gateway du réseau privé, vous devez ajouter l'adresse IP de la gateway aux ACL.
+
+En utilisant une Gateway Public Cloud avec votre Managed Kubernetes Service, les IP publiques sur les nœuds ne servent qu'à des fins d'administration : [Limites connues de MKS](/guides/public-cloud/containers-orchestration/managed-kubernetes/known-limits)
+
+Vous pouvez récupérer l'IP publique de votre OVHcloud Internet Gateway en naviguant dans l'espace client OVHcloud :
+
+`Public Cloud` > sélectionnez votre tenant > `Réseau / Gateway` > `IP publique`
+
+Vous pouvez également récupérer l'IP publique de votre OVHcloud Internet Gateway via l'API suivante :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\\{serviceName\\}/region/\\{regionName\\}/gateway/\\{id\\}"} />
+
+:::tip
+Si vous n'êtes pas familier avec l'API OVHcloud, consultez notre guide [Premiers pas avec l'API OVHcloud](/guides/manage-and-operate/api/first-steps).
+:::
+
+Si vous souhaitez utiliser votre cluster Kubernetes pour connaître l'IP publique de votre Gateway, vous pouvez exécuter cette commande :
+
+```sh
+kubectl run get-gateway-ip --image=ubuntu:latest -i --tty --rm 
+```
+
+Cette commande va créer un pod temporaire et ouvrir une console.
+
+Vous devrez peut-être attendre un peu que le pod soit créé. Une fois le shell affiché, vous pouvez exécuter cette commande :
+
+```sh
+apt update && apt upgrade -y && apt install -y curl && curl ifconfig.ovh
+```
+
+L'IP publique de la Gateway que vous utilisez devrait s'afficher.
+
+Cliquez sur le menu `Manage IP Access (ACL)` de votre volume nouvellement créé :
+
+![Gérer les accès du volume EFS](/images/guides/public-cloud/containers-orchestration/managed-kubernetes/configuring-multi-attach-persistent-volumes-with-ovh-efs/manage-efs-volume-access.png)
+
+Ajoutez soit les IP des nœuds une par une, soit l'IP publique de la Gateway selon votre configuration :
+
+![Autoriser l'IP des nœuds à accéder au volume EFS](/images/guides/public-cloud/containers-orchestration/managed-kubernetes/configuring-multi-attach-persistent-volumes-with-ovh-efs/manage-efs-volume-access-ip.png)
+
+Vous devriez maintenant obtenir quelque chose de similaire à ceci :
+
+![Configuration EFS](/images/guides/public-cloud/containers-orchestration/managed-kubernetes/configuring-multi-attach-persistent-volumes-with-ovh-efs/manage-efs-volume-acl-list.png)
+
+### Étape 2 - Configurer Kubernetes pour utiliser votre volume EFS nouvellement créé
+
+Votre cluster Kubernetes a besoin de quelques composants logiciels supplémentaires pour utiliser le volume Enterprise File Storage. Vous allez les installer, puis créer un premier volume partagé entre plusieurs pods.
+
+Pour cela, installez le [csi-driver-nfs](https://github.com/kubernetes-csi/csi-driver-nfs) :
+
+```sh
+helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace kube-system --version v4.7.0 --set driver.name="nfs2.csi.k8s.io" --set controller.name="csi-nfs2-controller" --set rbac.name=nfs2
+```
+
+```sh
+$ helm install csi-driver-nfs -n kube-system csi-driver-nfs/csi-driver-nfs --version v4.7.0 --set driver.name="nfs2.csi.k8s.io" --set rbac.name=nfs --set controller.name="csi-nfs2-controller"
+NAME: csi-driver-nfs
+LAST DEPLOYED: Mon Dec 16 16:13:31 2024
+NAMESPACE: kube-system
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+The CSI NFS Driver is getting deployed to your cluster.
+
+To check CSI NFS Driver pods status, please run:
+
+  kubectl --namespace=kube-system get pods --selector="app.kubernetes.io/instance=csi-driver-nfs" --watch
+```
+
+Vérifiez votre installation :
+
+```sh
+kubectl --namespace=kube-system get pods --selector="app.kubernetes.io/instance=csi-driver-nfs"
+```
+
+```sh
+$ kubectl --namespace=kube-system get pods --selector="app.kubernetes.io/instance=csi-driver-nfs" --watch
+NAME                                   READY   STATUS              RESTARTS   AGE
+csi-nfs-node-7kdwj                     0/3     ContainerCreating   0          5s
+csi-nfs-node-7smkb                     0/3     ContainerCreating   0          5s
+csi-nfs2-controller-68d7768f64-pzs74   0/4     ContainerCreating   0          5s
+csi-nfs-node-7kdwj                     3/3     Running             0          11s
+csi-nfs-node-7smkb                     3/3     Running             0          20s
+csi-nfs2-controller-68d7768f64-pzs74   4/4     Running             0          21s
+```
+
+### Étape 3 - Créer l'objet StorageClass NFS
+
+Créez un fichier `efs-storageclass.yaml` :
+
+
+:::info
+N'oubliez pas de remplacer `[EFS_IP]`, `[EFS_PATH]` et `[PARTITION_NAME]` par les informations correctes.
+:::
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-csi
+provisioner: nfs2.csi.k8s.io
+parameters:
+  server: '[EFS_IP]'
+  share: '[EFS_PATH]'
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+mountOptions:
+  - nfsvers=3
+  - tcp
+```
+
+:::info
+`EFS_IP` correspond à l'IP privée de votre Enterprise File Storage, et `EFS_PATH` au chemin d'accès à votre volume.
+
+Le paramètre `tcp` indique au montage NFS d'utiliser le protocole TCP.
+:::
+
+Appliquez ensuite le fichier YAML pour créer la StorageClass :
+
+```sh
+kubectl apply -f efs-storageclass.yaml
+```
+
+### Étape 4 - Créer et utiliser un volume persistant NFS
+
+Créez un fichier `efs-persistent-volume-claim.yaml` :
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: efs-pvc
+  namespace: default
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: nfs-csi
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+Appliquez ce fichier pour créer la persistent volume claim :
+
+```sh
+kubectl apply -f efs-persistent-volume-claim.yaml
+```
+
+Vous pouvez obtenir plus d'informations sur la PVC en exécutant cette commande :
+
+```sh
+kubectl describe pvc efs-pvc
+```
+
+```sh
+$ kubectl describe pvc efs-pvc
+Name:          efs-pvc
+Namespace:     default
+StorageClass:  nfs-csi
+Status:        Bound
+Volume:        pvc-8217340a-d2f0-42b3-80f6-bbeff5b61153
+Labels:        <none>
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               volume.beta.kubernetes.io/storage-provisioner: nfs2.csi.k8s.io
+               volume.kubernetes.io/storage-provisioner: nfs2.csi.k8s.io
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      1Gi
+Access Modes:  RWX
+VolumeMode:    Filesystem
+Used By:       <none>
+Events:
+  Type    Reason                 Age   From                                                                                             Message
+  ----    ------                 ----  ----                                                                                             -------
+  Normal  Provisioning           10s   nfs2.csi.k8s.io_nodepool-452e0669-d9dd-4ecf-a7-node-6a9890_04dc0447-d875-4d29-883d-b91bb89ef053  External provisioner is provisioning volume for claim "default/efs-pvc"
+  Normal  ExternalProvisioning   10s   persistentvolume-controller                                                                      Waiting for a volume to be created either by the external provisioner 'nfs2.csi.k8s.io' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+  Normal  ProvisioningSucceeded  9s    nfs2.csi.k8s.io_nodepool-452e0669-d9dd-4ecf-a7-node-6a9890_04dc0447-d875-4d29-883d-b91bb89ef053  Successfully provisioned volume pvc-8217340a-d2f0-42b3-80f6-bbeff5b61153
+```
+
+En lisant les événements de cette PersistentVolumeClaim, vous constatez que votre PVC a bien été provisionnée depuis votre Enterprise File Storage.
+
+Si vous rencontrez des erreurs telles que :
+
+```sh
+  Warning  ProvisioningFailed    2s (x3 over 6s)  nfs2.csi.k8s.io_nodepool-452e0669-d9dd-4ecf-a7-node-6a9890_04dc0447-d875-4d29-883d-b91bb89ef053  failed to provision volume with StorageClass "nfs-csi": rpc error: code = Internal desc = failed to mount nfs server: rpc error: code = Internal desc = mount failed: exit status 32
+Mounting command: mount
+Mounting arguments: -t nfs -o nfsvers=3,tcp 10.201.xx.xx:/share_xxx /tmp/pvc-7f86e647-4632-4188-bfbe-84d11ea03426
+Output: mount.nfs: mounting 10.201.xx.xx:/share_xxx failed, reason given by server: No such file or directory
+```
+
+ou similaire à :
+
+```sh
+  Warning  ProvisioningFailed    1s (x3 over 4s)  nfs2.csi.k8s.io_nodepool-cc5ad1db-f645-465c-85-node-6f9649_95fd7b5e-94aa-4c90-9ffa-9765beadfbe6  failed to provision volume with StorageClass "nfs-csi": rpc error: code = Internal desc = failed to mount nfs server: rpc error: code = Internal desc = mount failed: exit status 32
+Mounting command: mount
+Mounting arguments: -t nfs -o nfsvers=3,tcp 10.201.xx.xx:/share_xxx /tmp/pvc-ebab8dfa-7ce8-4102-9ef5-5a626638f3b8
+Output: mount.nfs: access denied by server while mounting 10.201.xx.xx:/share_xxx
+
+```
+
+Cela peut indiquer un problème dans la configuration des ACL d'Enterprise File Storage. Vérifiez les IP autorisées à accéder à la partition souhaitée dans la liste des ACL.
+
+:::warning
+Si le nombre de __PersistentVolumes__ à planifier simultanément est trop important, certains ralentissements peuvent survenir et la création des volumes peut être retardée.
+:::
+
+
+Créez maintenant un DaemonSet de pods Nginx utilisant la persistent volume claim comme dossier racine web (webroot).
+
+L'utilisation d'un DaemonSet créera un pod sur chaque nœud déployé, ce qui facilite le dépannage en cas de mauvaise configuration ou permet d'isoler un problème sur un nœud.
+
+Créez un fichier nommé `nginx-daemonset.yaml` :
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+    name: nfs-nginx
+    namespace: default
+spec:
+    selector:
+      matchLabels:
+        name: nginx
+    template:
+        metadata:
+          labels:
+            name: nginx
+        spec:
+          volumes:
+          - name: nfs-volume
+            persistentVolumeClaim:
+              claimName: nfs-pvc
+          containers:
+          - name: nginx
+            image: nginx
+            ports:
+            - containerPort: 80
+              name: "http-server"
+            volumeMounts:
+            - mountPath: "/usr/share/nginx/html"
+              name: nfs-volume
+```
+
+Appliquez ce fichier pour créer le DaemonSet Nginx :
+
+```sh
+kubectl apply -f nginx-daemonset.yaml
+```
+
+Les deux pods devraient être en cours d'exécution :
+
+```sh 
+kubectl get pods
+NAME              READY   STATUS    RESTARTS   AGE
+nfs-nginx-9z7wk   1/1     Running   0          11s
+nfs-nginx-sfthh   1/1     Running   0          11s
+```
+
+Entrez dans le premier pod et conteneur Nginx pour vérifier que le volume Enterprise File Storage est correctement monté, et créez un fichier sur le volume persistant NFS :
+
+```sh
+$ FIRST_POD=$(kubectl get pod -l name=nginx --no-headers=true -o custom-columns=:metadata.name | head -1)
+kubectl exec -it $FIRST_POD -n default -- bash
+```
+
+```sh
+root@nfs-nginx-9z7wk:/# mount -l | grep nfs
+10.201.xx.xx:/share_xxx/pvc-8217340a-d2f0-42b3-80f6-bbeff5b61153 on /usr/share/nginx/html type nfs (rw,relatime,vers=3,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=10.201.xx.xx,mountvers=3,mountport=635,mountproto=tcp,local_lock=none,addr=10.201.xx.xx)
+```
+
+Vous allez maintenant vérifier que le volume EFS est correctement partagé entre les pods déployés.
+
+Créez un nouveau fichier `index.html` :
+
+```sh
+echo "NFS volume!" > /usr/share/nginx/html/index.html
+```
+
+Puis quittez le conteneur Nginx :
+
+```sh
+exit
+```
+
+Essayez d'accéder à votre nouvelle page web :
+
+```sh
+kubectl proxy
+```
+
+Générez l'URL à ouvrir dans votre navigateur :
+
+```sh
+URL=$(echo "http://localhost:8001/api/v1/namespaces/default/pods/http:$FIRST_POD:/proxy/")
+echo $URL
+```
+
+Vous pouvez ouvrir l'URL affichée pour accéder au Service Nginx.
+
+Vérifiez maintenant si les données sont partagées avec le second pod (si vous avez déployé plus d'un nœud).
+
+```sh
+$ SECOND_POD=$(kubectl get pod -l name=nginx --no-headers=true -o custom-columns=:metadata.name | head -2 | tail -1)
+URL2=$(echo "http://localhost:8001/api/v1/namespaces/default/pods/http:$SECOND_POD:/proxy/")
+echo $URL2
+```
+
+Vous pouvez ouvrir l'URL affichée pour accéder au Service Nginx sur l'autre pod.
+
+Comme vous pouvez le constater, les données sont correctement partagées entre les deux pods Nginx exécutés sur deux nœuds Kubernetes différents.
+
+Félicitations, vous avez configuré avec succès un volume persistant multi-attach avec OVHcloud Enterprise File Storage !
+
+## Aller plus loin
+
+Pour en savoir plus sur l'utilisation pratique de votre cluster Kubernetes, consultez notre [site de documentation OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/create-cluster).
+
+Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) pour obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l’équipe Professional Services.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

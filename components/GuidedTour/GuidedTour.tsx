@@ -14,7 +14,10 @@ export function GuidedTour({ src, title }: GuidedTourProps) {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return;
       const data = e.data as { type?: string; height?: number } | null;
-      if (data?.type === 'ovh-guided-tour:height' && typeof data.height === 'number') {
+      if (
+        data?.type === 'ovh-guided-tour:height' &&
+        typeof data.height === 'number'
+      ) {
         setHeight(data.height);
       }
     };
@@ -31,9 +34,7 @@ export function GuidedTour({ src, title }: GuidedTourProps) {
       allowFullScreen
       style={{
         width: '100%',
-        ...(height
-          ? { height: `${height}px` }
-          : { aspectRatio: '16 / 10' }),
+        ...(height ? { height: `${height}px` } : { aspectRatio: '16 / 10' }),
         borderWidth: '0 0 10px 0',
         borderStyle: 'solid',
         borderColor: '#030712',

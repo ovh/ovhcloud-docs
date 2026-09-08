@@ -374,15 +374,29 @@ export function parseIndexMd(
     const indent = Math.floor(leadingSpaces / 4);
     let stripped = line.replace(/^\s*\+\s+/, '');
 
-    // Extract an optional trailing `{landing=<slug>}` marker before parsing the
-    // `[label](ref)` so it doesn't pollute the label/ref. Only meaningful on
-    // product/section lines (groups); ignored on guide leaves.
-    let landing: string | undefined;
-    const landingMatch = stripped.match(/\s*\{landing=([^}]+)\}\s*$/);
-    if (landingMatch) {
-      landing = landingMatch[1].trim();
-      stripped = stripped.slice(0, landingMatch.index).trimEnd();
+    // Extract optional trailing `{key=value}` markers before parsing the
+    // `[label](ref)` so they don't pollute the label/ref. Order-independent;
+    // multiple markers on one line are supported.
+    //   - `{landing=<slug>}` : turns a product/section into a clickable group.
+    //   - `{label=<text>}`   : overrides the sidebar label of a guide leaf,
+    //                          independently of the guide's frontmatter title.
+    //                          Emitted as a translatable i18n key (seeded from
+    //                          this EN text via `pnpm sidebar:sync-i18n`);
+    //                          translators then fill the per-locale values in
+    //                          i18n.json. Lets the sidebar rename/shorten an
+    //                          entry without touching the guide.
+    const markers: Record<string, string> = {};
+    const markerRe = /\s*\{([a-zA-Z]+)=([^}]+)\}\s*$/;
+    let markerMatch = stripped.match(markerRe);
+    while (markerMatch !== null) {
+      markers[markerMatch[1]] = markerMatch[2].trim();
+      stripped = stripped
+        .slice(0, markerMatch.index ?? stripped.length)
+        .trimEnd();
+      markerMatch = stripped.match(markerRe);
     }
+    const landing: string | undefined = markers.landing;
+    const labelOverride: string | undefined = markers.label;
 
     const linkMatch = stripped.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     const label = linkMatch ? linkMatch[1] : stripped.trim();
@@ -417,11 +431,19 @@ export function parseIndexMd(
         continue;
       }
 
-      // Resolve locale-specific title from MDX frontmatter
-      // Overview pages use a translated "Overview" label instead of the
-      // frontmatter title (which duplicates the parent product name)
+      // Resolve the sidebar label, in priority order:
+      //   1. an explicit `{label=…}` marker → emitted as a translatable i18n
+      //      key (like non-leaf nodes), so the label is localised via i18n.json
+      //      instead of baking the verbatim EN string into every locale. The EN
+      //      text is the default, seeded by scripts/sidebar-sync-i18n.ts.
+      //   2. the translated "Overview" label for `/overview` leaves
+      //   3. the target guide's locale-specific frontmatter title
       let guideText = label;
-      if ((ref as string).endsWith('/overview') && locale) {
+      if (labelOverride) {
+        const labelKey = `sidebar.gen.${toCamelCase((ref as string).replace(/\//g, '-'))}`;
+        i18nEntries[labelKey] = { en: labelOverride };
+        guideText = labelKey;
+      } else if ((ref as string).endsWith('/overview') && locale) {
         guideText = OVERVIEW_TRANSLATIONS[locale as Locale] ?? 'Overview';
       } else if (docsDir && locale) {
         const mdxBasePath = path.join(docsDir, locale, link.slice(1));
