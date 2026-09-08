@@ -267,9 +267,11 @@ export function ManagerLink({
             <span className="ovh-api-dropdown__option-url">
               {/* In `urls` mode show the actual target's host, not the
                   manager host (e.g. api.eu.ovhcloud.com for API links). */}
-              {(urls?.[r] ?? REGIONS[r].managerHost)
-                .replace(/^https:\/\//, '')
-                .split(/[/?#]/)[0]}
+              {
+                (urls?.[r] ?? REGIONS[r].managerHost)
+                  .replace(/^https:\/\//, '')
+                  .split(/[/?#]/)[0]
+              }
             </span>
           </button>
         );

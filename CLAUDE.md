@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the OVHcloud documentation site built with [Rspress](https://rspress.dev/) (v2.0.0-rc), a React-based static site generator. It serves documentation in 7 locales: fr, en, de, es, it, pl, pt.
+This is the OVHcloud documentation site built with [Rspress](https://rspress.dev/) v2 (`@rspress/core` — the pinned range lives in `package.json`), a React-based static site generator. It serves documentation in 7 locales: fr, en, de, es, it, pl, pt.
 
 ## Common Commands
 
@@ -33,7 +33,7 @@ pnpm check  # lint + format with auto-fix
 ### Configuration Split
 - `rspress.config.ts` - Development config, serves all locales from one instance
 - `rspress.config.build.ts` - Production config, used per-locale with `LOCALE` env var
-- `config/shared.ts` - Shared locale definitions and base config
+- `config/shared.ts` - Locale definitions only (the `locales` array + `Locale` type). Deliberately data-only: all build settings live in the two configs above
 - `turbo.json` - Turborepo orchestrates parallel locale builds
 
 ### Text Fragments
@@ -41,10 +41,16 @@ Reusable per-locale text blocks, inserted in MDX as a token on its own line (`[[
 
 | File | Role |
 |------|------|
-| `config/fragments.ts` | **Source of truth** — fragment bodies per locale (markdown; import-free JSX only) |
+| `config/fragments/<key>/<locale>.md` | **Source of truth** — one markdown body per locale; the directory name is the key (markdown, or import-free JSX / globally registered components only) |
+| `config/fragments.ts` | Loader — discovers the directories and builds the `FragmentMap` |
 | `config/fragment-rules.ts` | Generates the `ReplaceRule[]` for a locale (fallback `locale → en → first`) |
 | `plugins/remarkNoUnresolvedFragments.ts` | Fails the build on an unresolved/misspelled token |
+| `scripts/fragments-validate.ts` | `pnpm fragment:validate` — locale coverage, unknown keys, orphans, usage counts |
+| `scripts/fragments-new.ts` | `pnpm fragment:new <key>` — scaffolds the per-locale stubs |
+| `scripts/test-fragments.ts` | `pnpm fragment:test` — expansion + guard behaviour, incl. the code-fence trap |
 | `styles/index.css` | `details.support` styling for the `support-scope` block |
+
+Adding a fragment: `pnpm fragment:new <key>`, write `en.md` first (it is the fallback for every locale), translate the rest, then `pnpm fragment:validate`. A staged change under `config/fragments/**` runs the validator via `.husky/pre-commit`.
 
 Authoring rules and the current key list: `docs/en/internal/format-reference.mdx` §6b.
 
@@ -61,7 +67,7 @@ This affects sidebar key matching — see `config/sidebar/index.ts` for details.
 ### Dev Performance
 With 9500+ MDX files, dev SSR is slow (~9s per page). Optimizations applied:
 
-- **`lastUpdated`** - Disabled in dev (runs `git log` per page). Enabled only in production via `process.env.NODE_ENV === 'production'`
+- **`lastUpdated`** - The built-in feature is off (`themeConfig.lastUpdated: false`) in **both** configs, since it runs `git log` per page (80k+ calls). Frontmatter `lastUpdated` is the **single source of truth**: `plugins/lastUpdatedFromFrontmatter.ts` reads it from Rspress's already-parsed `frontmatter` (no disk re-read) and a custom `LastUpdated` component renders it. There is no git-derived fallback — a git timestamp would bump the date on reader-invisible edits (key renames, boilerplate swaps, typography passes), which the authoring rules forbid. A guide with no `lastUpdated` therefore fails the build (`plugins/remarkNoDatelessGuide.ts`); the only exemption is the body-less navigational page types listed in `config/navigational-page-types.ts`
 - **Shiki langs** - Removed `markdown` and `mdx` which disable lazy loading
 - Multi-locale and shiki lang count have minimal impact on SSR time
 
@@ -82,7 +88,7 @@ docs/
 config/
   sidebar/            # Sidebar definitions per product category
   nav/                # Navigation with localized external URLs
-  shared.ts           # Locale definitions, shared Rspress config
+  shared.ts           # Locale definitions (data-only)
 
 theme/
   index.tsx           # Theme entry - re-exports from @rspress/core/theme-original with overrides
@@ -183,7 +189,12 @@ The custom theme (`theme/index.tsx`) extends Rspress's original theme:
 1. Turborepo runs `build:{locale}` tasks in parallel
 2. Each locale build uses `rspress.config.build.ts` with `LOCALE` env var
 3. Output goes to `dist/{locale}/`
-4. `pnpm build:combine` merges locale builds into final `dist/`
+4. `pnpm build:combine` merges locale builds into final `dist/` and generates the sitemaps, sitemap index and `robots.txt`
+
+#### Site origin (SEO / LLM crawlers)
+`rspress.config.build.ts` sets `siteOrigin: 'https://docs.ovhcloud.com'`. It is what makes the `llms: true` output (`llms.txt`, `llms-full.txt`, the per-page `.md` links and the AI-agent hint under the H1) emit absolute rather than relative URLs. **Three copies must stay in sync:** `siteOrigin` here, `SITE_URL` in `scripts/combine-builds.ts`, and the same constant in `theme/components/SEOHead`.
+
+Sitemaps are **not** produced by an Rspress plugin (`@rspress/plugin-sitemap` was dropped) — `scripts/combine-builds.ts` writes one `sitemap.xml` per locale with hreflang alternates, a root sitemap index, `robots.txt`, and promotes the legacy `sitemap-help.xml`.
 
 ## Code Style
 

@@ -1,5 +1,203 @@
 # Changelog
 
+## 2026.09.07
+
+### Documentation
+- 157 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.02
+
+### Features
+- **fragments:** Improve and remodel architecture (#713)
+- **theme:** add markdown/PDF/AI buttons to landing pages
+
+### Fixes
+- **theme:** align product-PDF button with the toolbar and redraw its icon
+- **theme:** keep landing-page toolbar out of .md export and search
+
+### Documentation
+- 16 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.01.1
+
+### Fixes
+- **theme:** keep "View as Markdown" label out of the search index
+
+### Documentation
+- 25 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.01
+
+### Fixes
+- **account:** replace non-standard e-invoicing motif codes
+
+### Documentation
+- 32 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.31
+
+### Features
+- **object-storage:** add Object Storage landing page (#697)
+- **block storage:** new guide about configuration of ocfs2 (#344)
+- **billing:** add FR guide for entering a commitment number
+
+### Fixes
+- **i18n:** add EN fallback symlinks for 6 sidebar guides
+
+### Documentation
+- 146 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.28
+
+### Documentation
+- 58 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.27
+
+### Maintenance
+- **scripts:** apply Biome formatting to 5 drifted files
+
+### Documentation
+- 113 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.26.2
+
+### Fixes
+- **account:** clarify e-invoicing FAQ and shorten SIRET guide title
+
+### Documentation
+- 5 guides updated across fr
+
+## 2026.08.26.1
+
+### Features
+- **i18n:** translate the Pulumi backend state guide to FR + fix stale Pulumi links (#668)
+- Update tooltip component guardrails (#665)
+
+### Fixes
+- **docs:** repair truncated info callout in deploy-go-operator
+- **docs:** describe AI & ML screenshots in alt text
+- **docs:** replace placeholder alt text in three AI guides
+
+### Documentation
+- 107 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.26
+
+### Features
+- **nav:** add Logs Data Platform landing page, replace overview (#651)
+- **vps:** document the Modrinth mods catalog and Minecraft Forge (#653)
+- **i18n:** translate remaining FR backlog guides
+- **i18n:** translate Block Storage and Object Storage guides to FR
+- **i18n:** translate Quantum Computing guides to FR
+- **bare-metal-cloud/dedicated-servers/partitioning-ovh:** partial diskgroups cleaning
+- **i18n:** translate Managed Private Registry guides to FR
+- **i18n:** translate Dedicated Servers guides to FR
+- **i18n:** translate Managed Rancher Service guides to FR
+
+### Fixes
+- **docs:** repair headings broken by a non-breaking space in all locales
+- **docs:** correct mechanical defects found while translating to FR
+- **pci:** correct the Service definition in the MPR responsibility model
+- **i18n:** restore EN symlinks for the MPR IAM authentication guide
+- **i18n:** correct the Service definition in the FR MPR responsibility model
+
+### Maintenance
+- **links:** use the /links key for Professional Services URLs
+
+### Documentation
+- 817 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.25.1
+
+### Features
+- **account:** add e-invoicing error guide (FR) (#599)
+- upgrade stack
+
+### Fixes
+- **components:** improve tooltip pagefind, parsing, search, react
+
+### Documentation
+- 49 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.25
+
+### Features
+- add screenshots and Control Panel links to the Backup Licenses guides
+
+### Fixes
+- proofread the Backup Licenses screenshots and Control Panel links
+- **account:** update SIRET guide after review feedback
+
+### Documentation
+- 79 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.24
+
+### Features
+- **mass-translate:** translate the Managed Kubernetes family to FR (#613)
+
+### Fixes
+- **hosted-private-cloud:** delete the KMS CipherTrust Manager guide
+- **hosted-private-cloud:** hide the KMS CipherTrust Manager guide
+- **managed-kubernetes:** repoint FR in-page anchors to translated headings
+- **scripts:** correct locale-availability route keys on Windows
+- **mass-translate:** correct MKS source defects found while translating to FR (#614)
+- **occ:** remove duplicate body fragment PT
+
+### Documentation
+- 1061 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.20
+
+### Features
+- **sidebar:** cross-list VMware key concepts under Managed VMware
+- **i18n:** translate the Logs Data Platform family to French
+- **i18n:** translate AI & Machine Learning guides to French
+
+### Fixes
+- **account:** clarify invoice re-issue requires a support request
+- **account:** clarify SIRET update does not re-issue past invoices
+- **logs-data-platform:** formalise the register of the EN guides
+- **logs-data-platform:** correct EN source defects found while translating
+- **i18n:** align FR with the source-defect fixes for the AI guides
+- **docs:** normalise heading, casing and boilerplate defects in AI guides
+- **i18n:** correct three typos in AI guide descriptions
+- **i18n:** correct a typo in the transfer-learning guide description
+- **i18n:** close unbalanced backtick in the FR flux-models placeholder
+- **docs:** correct EN source defects in AI & Machine Learning guides
+
+### Maintenance
+- update installation architecture notes
+
+### Documentation
+- 761 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.19
+
+### Features
+- **i18n:** translate Public Cloud Analytics guides to French
+
+### Fixes
+- **account:** correct CP-NAV button label in VAT guide
+- **docs:** correct EN source defects in Public Cloud Analytics guides
+
+### Documentation
+- 77 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.08.18
+
+### Features
+- glossary-backed tooltips for documentation terms (#580)
+
+### Fixes
+- **i18n:** rename legacy `updated:`/`excerpt:` frontmatter keys across 546 guides (#591)
+- **i18n:** correct source defects found while translating the databases guides (#590)
+- **components:** stop the doc column clipping tooltip popups
+
+### Documentation
+- 857 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.08.17.1
 
 ### Fixes

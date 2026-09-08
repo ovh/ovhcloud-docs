@@ -1,6 +1,6 @@
 import type { Root, Text } from 'mdast';
-import type { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
+import type { VFile } from 'vfile';
 
 const TOKEN_PATTERN = /\[\[fragment:([^\]\s]*)\]\]/;
 

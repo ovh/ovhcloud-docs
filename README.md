@@ -86,10 +86,9 @@ pnpm build:low-mem    # Sequential builds, concurrency 1
 
 ### Build Process
 
-1. `build:cache` generates the lastUpdated cache (git log dates)
-2. Turborepo runs `build:{locale}` tasks in parallel
-3. Each locale build outputs to `dist/{locale}/`
-4. `build:combine` merges all locale builds into final `dist/`
+1. Turborepo runs `build:{locale}` tasks in parallel
+2. Each locale build outputs to `dist/{locale}/`
+3. `build:combine` merges all locale builds into final `dist/`
 
 ### Single Locale Build
 

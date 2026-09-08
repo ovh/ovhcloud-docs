@@ -286,7 +286,7 @@ function processDir(
       if (mdContent.startsWith('---\n')) continue; // Already has frontmatter
 
       const description = fm?.description || '';
-      const lastUpdated = fm?.lastUpdated || fm?.updated || '';
+      const lastUpdated = fm?.lastUpdated || '';
       const url = `${siteUrl}${basePath}/${slug}`;
 
       const lines = ['---'];

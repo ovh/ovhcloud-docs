@@ -1,1 +1,540 @@
-../../../../../en/guides/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks.mdx
+---
+title: Exemple d'utilisation du vRack - Communication entre différents réseaux privés
+description: Découvrez comment relier un cluster Managed Kubernetes et une instance Public Cloud situés dans des réseaux privés différents au sein d'un même vRack.
+lastUpdated: 2026-07-17
+---
+
+import Api from '@components/Api';
+
+## Objectif
+
+Le [vRack](https://www.ovhcloud.com/fr/network/vrack/) OVHcloud est une solution de réseau privé qui permet à nos clients de faire transiter du trafic entre la plupart des services OVHcloud (serveurs dédiés, instances Public Cloud...). Vous pouvez par exemple ajouter des instances Public Cloud, des serveurs bare metal et des clusters Managed Kubernetes à votre réseau privé afin de créer une infrastructure privée mêlant charges de travail physiques, virtuelles et conteneurisées.
+
+Connecter un cluster Managed Kubernetes à un autre service situé dans le même réseau privé du vRack est un processus plus simple, car aucune configuration réseau n'est nécessaire. Consultez notre tutoriel [Exemple d'utilisation du vRack - Managed Kubernetes et instances Public Cloud](/guides/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-k8s-pci) pour voir un exemple concret.
+
+Dans ce tutoriel, nous allons activer le vRack sur un projet Public Cloud. Nous allons ensuite créer un cluster Managed Kubernetes et une instance Public Cloud (PCI). Ces deux ressources seront finalement ajoutées au vRack, mais dans **des réseaux privés différents**.
+
+**Ce tutoriel vous montre comment utiliser le [vRack](https://www.ovhcloud.com/fr/network/vrack/) OVHcloud pour relier un cluster Managed Kubernetes à une instance Public Cloud situés dans des réseaux privés différents.**
+
+:::warning
+La méthode décrite dans ce tutoriel est **temporaire** et n'est nécessaire que si vous souhaitez faire transiter du trafic entre différents réseaux privés au sein d'un même vRack. Notre équipe Managed Kubernetes travaille sur une solution plus simple pour ce cas d'usage avancé, comme expliqué dans [ce ticket](https://github.com/ovh/public-cloud-roadmap/issues/116) de notre [roadmap Public Cloud](https://github.com/ovh/public-cloud-roadmap/).
+:::
+
+
+## Prérequis
+
+Ce tutoriel suppose que vous disposez déjà d'un cluster OVHcloud Managed Kubernetes fonctionnel, ainsi que de connaissances de base sur son utilisation. Pour en savoir plus sur ces sujets, consultez le guide [Démarrer avec le service OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/deploy-hello-world).
+
+Vous devez également avoir installé [Helm](https://docs.helm.sh/) sur votre poste de travail et sur votre cluster. Consultez le tutoriel [Installer Helm sur le service OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/install-helm).
+
+Il suppose également que vous avez déjà suivi le guide [Utiliser le vRack](/guides/public-cloud/containers-orchestration/managed-kubernetes/using-vrack) pour activer le vRack sur votre projet Public Cloud et intégrer votre cluster OVHcloud Managed Kubernetes au vRack. Il sera également utile d'avoir suivi notre tutoriel [Exemple d'utilisation du vRack - Managed Kubernetes et instances Public Cloud](/guides/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-k8s-pci) pour comprendre le cas d'usage plus simple où les deux services se trouvent dans le même réseau privé.
+
+Pour comprendre pourquoi cette configuration est nécessaire, consultez le document technique [Utiliser le vRack - Communication entre différents réseaux privés](/guides/public-cloud/containers-orchestration/managed-kubernetes/using-vrack-between-private-networks).
+
+:::warning
+Ce guide suppose que vous êtes familiarisé avec l'<ApiLink>API OVHcloud</ApiLink>. Si vous ne l'avez jamais utilisée, vous pouvez en découvrir les bases ici : [Premiers pas avec l'API OVHcloud](/guides/manage-and-operate/api/first-steps).
+:::
+
+
+## En pratique
+
+### Configuration du vRack
+
+Nous devons tout d'abord configurer un réseau privé vRack pour notre Public Cloud. Pour cela, nous suivons le guide [Configurer le vRack pour Public Cloud](/guides/public-cloud/network-services/vrack).
+
+Comme expliqué dans le guide sur les [limites connues](/guides/public-cloud/containers-orchestration/managed-kubernetes/known-limits), les plages de sous-réseau par défaut de nos réseaux privés ne fonctionnent pas avec OVHcloud Managed Kubernetes, car les plages `10.2.0.0/16` et `10.3.0.0/16` sont réservées à l'usage interne de Managed Kubernetes.
+
+Une fois le vRack créé, nous devons créer deux réseaux privés différents, activés au moins sur la région de notre cluster (GRA5 dans notre exemple). Les réseaux privés créés via l'espace client OVHcloud disposent de plages par défaut, qui ne peuvent pas être facilement modifiées. Nous créons donc les réseaux privés en utilisant l'<ApiLink>API OVHcloud</ApiLink>.
+
+Pour cet exemple, nous créons deux réseaux privés, `priv-net-01` et `priv-net-02`, avec des sous-réseaux DHCP ayant pour plages `10.0.1.0/24` et `10.0.2.0/24`.
+
+Nous utilisons le point de terminaison suivant pour créer les réseaux privés :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/network/private"} />
+
+Par exemple, pour créer `priv-net-01`, définissez le *corps de la requête* comme suit :
+
+```json
+{
+  "name": "priv-net-01",
+  "regions": ["GRA5"]
+}
+```
+
+Puis nous leur assignons les sous-réseaux en utilisant ce point de terminaison, avec l'ID du réseau renvoyé par l'appel précédent comme *paramètre de chemin* `networkId` :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/network/private/\{networkId\}/subnet"} />
+
+```json
+{
+  "dhcp": true,
+  "network": "10.0.1.0/24",
+  "start": "10.0.1.128",
+  "end": "10.0.1.250",
+  "region": "GRA5",
+  "noGateway": false
+}
+```
+
+### Récupération du fichier de configuration OpenStack
+
+Nous devons maintenant télécharger le fichier de configuration `openrc.sh`, comme expliqué dans le guide [Configurer les variables d'environnement OpenStack](/guides/public-cloud/cross-functional/compute-set-openstack-environment-variables).
+
+<img className="thumbnail" alt="Récupération du fichier de configuration OpenStack" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-06.png" loading="lazy" />
+
+Nous travaillons sur la région GRA5, nous téléchargeons donc le fichier *Gravelines (GRA5)*.
+
+<img className="thumbnail" alt="Récupération du fichier de configuration OpenStack" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-07.png" loading="lazy" />
+
+Suivez les étapes du guide [Configurer les variables d'environnement OpenStack](/guides/public-cloud/cross-functional/compute-set-openstack-environment-variables) pour vous assurer que la CLI OpenStack fonctionne sur votre poste de travail.
+
+```console
+~$ source openrc.sh
+Please enter your OpenStack Password:
+
+~$ nova list
++--------------------------------------+---------------------+--------+------------+-------------+------------------------+
+| ID                                   | Name                | Status | Task State | Power State | Networks               |
++--------------------------------------+---------------------+--------+------------+-------------+------------------------+
+| 0bee959e-48fb-4a7d-94d0-35470837320d | horacio-workstation | ACTIVE | -          | Running     | Ext-Net=51.210.xxx.xxx |
+  [...]                         
++--------------------------------------+---------------------+--------+------------+-------------+------------------------+
+```
+
+### Configuration des réseaux privés
+
+Commençons par récupérer les ID OpenStack des réseaux privés à l'aide de la CLI OpenStack :
+
+:::warning
+Dans cet exemple, `priv-net-01` a une plage de sous-réseau `10.0.1.0/24`, et `priv-net-02` a une plage de sous-réseau `10.0.2.0/24` : n'oubliez pas d'adapter les commandes à vos propres plages de sous-réseau.
+:::
+
+
+```bash
+PRIV_NET_01=$(openstack subnet list --subnet-range 10.0.1.0/24 --column ID -f value)
+PRIV_NET_02=$(openstack subnet list --subnet-range 10.0.2.0/24 --column ID -f value)
+```
+
+Nous pouvons maintenant configurer `priv_net_01` avec une route statique vers `priv_net_02`, et `priv_net_02` avec une route statique vers `priv_net_01` :
+
+```bash
+openstack subnet set --host-route destination=10.0.2.0/24,gateway=10.0.1.1 $PRIV_NET_01
+openstack subnet set --host-route destination=10.0.1.0/24,gateway=10.0.2.1 $PRIV_NET_02
+```
+
+Dans notre cas :
+
+```console
+~$ PRIV_NET_01=$(openstack subnet list --subnet-range 10.0.1.0/24 --column ID -f value)
+~$ PRIV_NET_02=$(openstack subnet list --subnet-range 10.0.2.0/24 --column ID -f value)
+~$ $ echo $PRIV_NET_01
+c03017c1-401e-49a0-bad0-852ec0efe7f5
+~$ $ echo $PRIV_NET_02
+f258dbbd-ae0b-40a6-8ce2-76e67837ce95
+~$ openstack subnet set --host-route destination=10.0.2.0/24,gateway=10.0.1.1 $PRIV_NET_01
+~$ openstack subnet set --host-route destination=10.0.1.0/24,gateway=10.0.2.1 $PRIV_NET_02
+```
+
+### Configuration d'une passerelle PCI
+
+Nous allons maintenant créer une instance Public Cloud en GRA5, qui servira de passerelle pour notre vRack.
+
+<img className="thumbnail" alt="Configuration d'une passerelle PCI" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-08.png" loading="lazy" />
+
+Nous allons créer une instance Ubuntu :
+
+<img className="thumbnail" alt="Configuration d'une passerelle PCI" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-04.png" loading="lazy" />
+
+Nous n'attachons PAS encore l'instance à un réseau privé, car il n'est malheureusement possible de configurer qu'un seul réseau privé au moment de la création dans l'espace client OVHcloud.
+
+<img className="thumbnail" alt="Configuration d'une passerelle PCI" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-09.png" loading="lazy" />
+
+#### Ajout des deux réseaux privés
+
+Une fois l'instance passerelle créée, nous devons ajouter les deux réseaux privés à sa configuration.
+
+Récupérons les ID OpenStack des réseaux privés et de la passerelle PCI :
+
+```bash
+PRIV_NET_01_ID=$(openstack network list --name priv-net-01 --column ID -f value)
+PRIV_NET_02_ID=$(openstack network list --name priv-net-02 --column ID -f value) 
+INSTANCE_ID=$(openstack server list --name my-vrack-gateway --column ID -f value)
+```
+
+Puis ajoutons deux interfaces réseau privées, pour les deux réseaux privés, avec les adresses `10.0.1.1` et `10.0.1.1` :
+
+```bash
+openstack server add fixed ip --fixed-ip-address 10.0.1.1 ${INSTANCE_ID} ${PRIV_NET_01_ID}
+openstack server add fixed ip --fixed-ip-address 10.0.2.1 ${INSTANCE_ID} ${PRIV_NET_02_ID}
+```
+
+Nous pouvons maintenant vérifier que l'instance passerelle dispose de deux nouvelles IP privées :
+
+```bash
+openstack server show ${INSTANCE_ID} --column addresses -f value
+```
+
+Comme la dernière commande nous a également donné l'IP publique de l'instance passerelle (dans notre exemple `54.38.255.196`), ajoutons-la comme variable shell :
+
+```bash
+INSTANCE_IP=54.38.255.196    # Don't forget to replace it with your instance public IP
+```
+
+Dans notre cas :
+
+```console
+~$ PRIV_NET_01_ID=$(openstack network list --name priv-net-01 --column ID -f value)
+~$ PRIV_NET_02_ID=$(openstack network list --name priv-net-02 --column ID -f value)
+~$ INSTANCE_ID=$(openstack server list --name my-vrack-gateway --column ID -f value)
+~$ $ echo "$PRIV_NET_01_ID | $PRIV_NET_02_ID | $INSTANCE_ID"
+d2080f3f-285d-464a-aad8-74b935cf75e3 | b3cfb808-b4b7-406a-9e36-223c73747278 | 372b424a-ce4d-4e86-be67-4a8293f44f48
+~$ openstack server add fixed ip --fixed-ip-address 10.0.1.1 ${INSTANCE_ID} ${PRIV_NET_01_ID}
+~$ openstack server add fixed ip --fixed-ip-address 10.0.2.1 ${INSTANCE_ID} ${PRIV_NET_02_ID}
+~$ openstack server show ${INSTANCE_ID} --column addresses -f value
+Ext-Net=2001:41d0:305:1000::3e88, 54.38.255.196; priv-net-01=10.0.1.1; priv-net-02=10.0.2.1
+~$ INSTANCE_IP=54.38.255.54 
+```
+
+#### Ajout et configuration des interfaces réseau privées sur l'instance passerelle
+
+Connectons-nous en SSH à l'instance passerelle en utilisant son IP publique :
+
+```bash
+ssh ubuntu@$INSTANCE_IP
+```
+
+Puis récupérons les adresses MAC des deux interfaces réseau privées (NIC) :
+
+```bash
+ip addr show
+```
+
+Modifions la configuration réseau pour configurer les deux nouvelles NIC. Éditez `/etc/netplan/50-cloud-init.yaml` (avec `sudo vim /etc/netplan/50-cloud-init.yaml`) et ajoutez les informations pour `ens7` et `ens8` :
+
+`/etc/netplan/50-cloud-init.yaml`
+```yaml
+# This file is generated from information provided by the datasource.  Changes
+# to it will not persist across an instance reboot.  To disable cloud-init's
+# network configuration capabilities, write a file
+# /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:
+# network: {config: disabled}
+network:
+    version: 2
+    ethernets:
+        ens3:
+            dhcp4: true
+            match:
+                macaddress: fa:16:3e:75:96:e5
+            mtu: 1500
+            set-name: ens3
+        ens7:
+            dhcp4: false
+            addresses: [10.0.1.1/24]
+            match:
+                macaddress: fa:16:3e:14:80:68
+            set-name: ens7
+        ens8:
+            dhcp4: false
+            addresses: [10.0.2.1/24]
+            match:
+                macaddress: fa:16:3e:17:b6:33
+            set-name: ens8
+```                    
+
+Puis redémarrez le réseau :
+
+```bash
+sudo netplan apply
+```
+
+Dans notre cas :
+
+```console
+~$ ssh ubuntu@$INSTANCE_IP
+Welcome to Ubuntu 21.04 (GNU/Linux 5.11.0-17-generic x86_64)
+
+ubuntu@my-vrack-gateway:~$ ip addr show
+[...]
+3: ens7: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether fa:16:3e:14:80:68 brd ff:ff:ff:ff:ff:ff
+    altname enp0s7
+4: ens8: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether fa:16:3e:17:b6:33 brd ff:ff:ff:ff:ff:ff
+    altname enp0s8
+ubuntu@my-vrack-gateway:~$ sudo vim /etc/netplan/50-cloud-init.yaml
+ubuntu@my-vrack-gateway:~$ sudo netplan apply
+ubuntu@my-vrack-gateway:~$ ip addr show
+[...]
+3: ens7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:14:80:68 brd ff:ff:ff:ff:ff:ff
+    altname enp0s7
+    inet 10.0.1.1/24 brd 10.0.1.255 scope global ens7
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe14:8068/64 scope link
+       valid_lft forever preferred_lft forever
+4: ens8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:17:b6:33 brd ff:ff:ff:ff:ff:ff
+    altname enp0s8
+    inet 10.0.2.1/24 brd 10.0.2.255 scope global ens8
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe17:b633/64 scope link
+       valid_lft forever preferred_lft forever
+```
+
+#### Configuration de l'instance passerelle pour router le trafic entre les deux réseaux privés
+
+Nous pouvons maintenant configurer l'instance passerelle pour router le trafic entre les deux réseaux privés :
+
+```bash
+sudo sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
+sudo sysctl -p
+sudo iptables -t nat -A POSTROUTING ! -d 10.0.1.0/24 -o ens8 -j SNAT --to-source 10.0.2.1
+sudo iptables -t nat -A POSTROUTING ! -d 10.0.2.0/24 -o ens7 -j SNAT --to-source 10.0.1.1
+sudo apt update
+sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install iptables-persistent
+```
+
+Dans notre cas :
+
+```console
+ubuntu@my-vrack-gateway:~$ sudo sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
+ubuntu@my-vrack-gateway:~$ sudo sysctl -p
+net.ipv4.ip_forward = 1
+ubuntu@my-vrack-gateway:~$ sudo iptables -t nat -A POSTROUTING ! -d 10.0.1.0/24 -o ens8 -j SNAT --to-source 10.0.2.1
+ubuntu@my-vrack-gateway:~$ sudo iptables -t nat -A POSTROUTING ! -d 10.0.2.0/24 -o ens7 -j SNAT --to-source 10.0.1.1
+ubuntu@my-vrack-gateway:~$ sudo apt update
+Get:1 http://security.ubuntu.com/ubuntu hirsute-security InRelease [101 kB]
+[...]
+Get:31 http://nova.clouds.archive.ubuntu.com/ubuntu hirsute-backports/universe amd64 c-n-f Metadata [192 B]
+Fetched 1832 kB in 1s (1686 kB/s)
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+44 packages can be upgraded. Run 'apt list --upgradable' to see them.
+ubuntu@my-vrack-gateway:~$ sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install iptables-persistent
+Reading package lists...
+[...]
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  netfilter-persistent
+The following NEW packages will be installed:
+  iptables-persistent netfilter-persistent
+[...]
+No user sessions are running outdated binaries.
+```
+
+### Configuration du Managed Kubernetes attaché à `priv_net_01`
+
+Nous créons ensuite un cluster Kubernetes en région GRA5, attaché à `priv_net_01`, comme expliqué dans le guide [Créer un cluster](/guides/public-cloud/containers-orchestration/managed-kubernetes/create-cluster).
+
+<img className="thumbnail" alt="Choisir un réseau privé pour ce cluster" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-10.png" loading="lazy" />
+
+L'intégration d'un cluster à un réseau privé vRack doit être effectuée à la troisième étape de la création du cluster, lorsque nous pouvons choisir un réseau privé existant pour le cluster :
+
+<img className="thumbnail" alt="Choisir un réseau privé pour ce cluster" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-11.png" loading="lazy" />
+
+Notre nouveau cluster sera créé à l'intérieur de `priv_net_01`.
+
+Dans le tableau de bord du service Managed Kubernetes, nous pouvons voir le cluster, avec le réseau privé choisi dans la colonne *Réseau attaché* :
+
+<img className="thumbnail" alt="Informations sur le réseau privé dans la colonne Réseau attaché" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-12.png" loading="lazy" />
+
+N'oubliez pas de récupérer votre `kubeconfig` et de configurer `kubectl` pour l'utiliser, comme expliqué dans le guide [Configurer kubectl sur un cluster OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/configure-kubectl).
+
+### Configuration d'une PCI attachée à `priv_net_02`
+
+Nous pouvons maintenant créer une nouvelle instance Public Cloud, également en région GRA5, et l'attacher à `priv_net_02` en suivant le guide [Intégrer une instance au vRack](/guides/public-cloud/network-services/vrack#step-3-integrating-an-instance-into-vrack).
+
+Nous allons créer une instance Ubuntu :
+
+<img className="thumbnail" alt="Configuration d'une PCI attachée à `priv_net_02`" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-04.png" loading="lazy" />
+
+À la quatrième étape de la création, nous la nommons `vrack-example-between-private-networks` et l'attachons à `priv_net_02` :
+
+<img className="thumbnail" alt="Configuration d'une PCI attachée à `priv_net_02`" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-13.png" loading="lazy" />
+
+Après la création de l'instance, nous pouvons consulter les détails de connexion dans l'espace client OVHcloud.
+
+<img className="thumbnail" alt="Configuration d'une PCI attachée à `priv_net_02`" src="/images/public-cloud/containers-orchestration/managed-kubernetes/vrack-example-between-private-networks/vrack-example-14.png" loading="lazy" />
+
+En nous connectant à l'instance par SSH, nous constatons qu'elle dispose de deux interfaces réseau, l'une attachée à l'adresse IP publique que nous utilisons pour nous connecter, l'autre attachée au réseau privé :
+
+```console
+~$ ssh ubuntu@54.38.254.242
+Welcome to Ubuntu 21.04 (GNU/Linux 5.11.0-18-generic x86_64)
+
+  System information as of Fri Jun 18 04:37:54 UTC 2021
+
+  System load:  0.35              Processes:             113
+  Usage of /:   3.6% of 48.29GB   Users logged in:       0
+  Memory usage: 3%                IPv4 address for ens3: 54.38.254.242
+  Swap usage:   0%                IPv4 address for ens4: 10.0.2.142
+
+ubuntu@example-vrack-k8s-pci:~$ exit
+```
+
+Notez l'adresse IP du réseau privé (dans notre cas `10.0.2.142`), car nous en aurons besoin plus tard.
+
+### Vérification de l'accès à la PCI depuis le cluster Kubernetes
+
+Créons un pod nginx modifié pour tester notre configuration. Créez un manifeste `shell-demo.yaml` :
+
+`shell-demo.yaml`
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: shell-demo
+spec:
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+  containers:
+  - name: nginx
+    image: nginx
+    volumeMounts:
+    - name: shared-data
+      mountPath: /usr/share/nginx/html
+  hostNetwork: true
+  dnsPolicy: Default
+```
+
+Puis déployez-le dans le cluster :
+
+```bash
+kubectl apply -f shell-demo.yaml
+```
+
+Nous pouvons maintenant nous connecter au pod `shell-demo` et ajouter quelques paquets pour vérifier si nous pouvons atteindre l'instance sur `priv_net_02` (dans notre exemple, avec l'adresse IP `10.0.2.142`) :
+
+```bash
+kubectl exec --stdin --tty shell-demo -- /bin/bash
+apt update
+apt install iproute2 iputils-ping
+ping 10.0.2.142
+traceroute 10.0.2.142
+```
+
+Si tout se déroule comme prévu, nous pouvons atteindre l'instance PCI dans `priv_net_02` via la passerelle :
+
+```console
+~$ kubectl apply -f shell-demo.yaml
+pod/shell-demo created
+~$ kubectl get pod shell-demo
+NAME         READY   STATUS    RESTARTS   AGE
+shell-demo   1/1     Running   0          31s
+
+~$ kubectl exec --stdin --tty shell-demo -- /bin/bash
+root@nodepool-db0e5587-9718-4faf-b4-node-d69703:/# apt update
+Get:1 http://security.debian.org/debian-security buster/updates InRelease [65.4 kB]
+[...]
+
+root@nodepool-db0e5587-9718-4faf-b4-node-d69703:/# apt install iproute2 iputils-ping
+Reading package lists... Done
+Building dependency tree
+root@nodepool-db0e5587-9718-4faf-b4-node-d69703:/# ping 10.0.2.142
+PING 10.0.2.142 (10.0.2.142) 56(84) bytes of data.
+64 bytes from 10.0.2.142: icmp_seq=1 ttl=63 time=2.52 ms
+64 bytes from 10.0.2.142: icmp_seq=2 ttl=63 time=1.01 ms
+64 bytes from 10.0.2.142: icmp_seq=3 ttl=63 time=0.903 ms
+64 bytes from 10.0.2.142: icmp_seq=4 ttl=63 time=1.02 ms
+^C
+--- 10.0.2.142 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 6ms
+rtt min/avg/max/mdev = 0.903/1.361/2.519/0.671 ms
+
+root@nodepool-db0e5587-9718-4faf-b4-node-d69703:/# traceroute 10.0.2.142
+traceroute to 10.0.2.142 (10.0.2.142), 30 hops max, 60 byte packets
+ 1  10.0.1.1 (10.0.1.1)  1.259 ms  0.683 ms  0.471 ms
+ 2  10.0.2.142 (10.0.2.142)  1.694 ms * *
+```
+
+### Vérification de l'accès au cluster Kubernetes depuis la PCI
+
+Créons un autre pod nginx et exposons-le avec un service `NodePort` :
+
+```bash
+kubectl run nginx --image=nginx
+kubectl expose pod nginx --port 80 --type NodePort
+```
+
+Nous récupérons le port `NodePort` et le stockons dans une variable :
+
+```bash
+kubectl get svc nginx -o=jsonpath='{.spec.ports[?(@.port==80)].nodePort}'
+```
+
+Ainsi que l'adresse IP `priv_net_01` de l'un de nos nœuds Kubernetes :
+
+```bash
+kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
+```
+
+Nous pouvons nous reconnecter en SSH à l'instance PCI, effectuer un `traceroute` pour vérifier que nous pouvons atteindre le nœud, puis un curl vers le NodePort :
+
+```console
+~$ kubectl run nginx --image=nginx
+pod/nginx created
+~$ kubectl expose pod nginx --port 80 --type NodePort
+service/nginx exposed
+~$ kubectl get svc nginx -o=jsonpath='{.spec.ports[?(@.port==80)].nodePort}'
+30902
+~$ kubectl get pod nginx -o jsonpath='{.status.hostIP}'
+10.0.1.146
+~$ ssh ubuntu@54.38.254.242
+Welcome to Ubuntu 21.04 (GNU/Linux 5.11.0-18-generic x86_64)
+
+  System information as of Fri Jun 18 04:37:54 UTC 2021
+
+  System load:  0.0               Processes:             111
+  Usage of /:   3.9% of 48.29GB   Users logged in:       0
+  Memory usage: 2%                <b>IPv4 address for ens3: 54.38.254.242</b>
+  Swap usage:   0%                <b>IPv4 address for ens4: 10.0.2.142</b>
+
+ubuntu@vrack-example-between-private-networks:~$ sudo apt install traceroute
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following NEW packages will be installed:
+  traceroute
+[...]  
+
+ubuntu@example-vrack-k8s-pci:~$  traceroute 10.0.1.146
+traceroute to 10.0.1.146 (10.0.1.146), 30 hops max, 60 byte packets
+ 1  _gateway (10.0.2.1)  1.653 ms  1.584 ms  1.549 ms
+ 2  10.0.1.146 (10.0.1.146)  2.471 ms * *
+
+ubuntu@vrack-example-between-private-networks:~$ curl 10.0.1.146:30902
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+## Aller plus loin
+
+- Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) pour obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l’équipe Professional Services.
+
+- Échangez avec notre [communauté d'utilisateurs](/links/community).

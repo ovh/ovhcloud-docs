@@ -3,7 +3,9 @@ import { visit } from 'unist-util-visit';
 import type { VFile } from 'vfile';
 import { externalLinks } from '../config/links';
 
-const FORBIDDEN_PATTERNS: { regex: RegExp; label: string }[] = [
+// Exported: scripts/lib/glossary.ts reuses these to reject Manager URLs in
+// glossary YAML definitions (invisible to this MDX-only plugin).
+export const FORBIDDEN_PATTERNS: { regex: RegExp; label: string }[] = [
   {
     regex: /manager\.eu\.ovhcloud\.com/i,
     label: 'direct manager URL',

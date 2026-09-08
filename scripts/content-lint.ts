@@ -10,7 +10,7 @@
  *   pnpm content:lint <files...>     # scan only the given files
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 type Rule = (file: string, lines: string[]) => string[];
@@ -21,15 +21,22 @@ type Rule = (file: string, lines: string[]) => string[];
  */
 const blankLineBeforeCalloutClose: Rule = (file, lines) => {
   const FENCE = /^\s*```/;
-  const CLOSE = /^:::\s*$/; 
+  const CLOSE = /^:::\s*$/;
   const LIST = /^\s*([-*+]|\d+[.)])\s/;
 
   const findings: string[] = [];
   let inCode = false;
   for (let i = 0; i < lines.length; i++) {
     if (FENCE.test(lines[i])) inCode = !inCode;
-    else if (!inCode && i > 0 && CLOSE.test(lines[i]) && LIST.test(lines[i - 1])) {
-      findings.push(`${file}:${i + 1}: add a blank line before the closing ":::"`);
+    else if (
+      !inCode &&
+      i > 0 &&
+      CLOSE.test(lines[i]) &&
+      LIST.test(lines[i - 1])
+    ) {
+      findings.push(
+        `${file}:${i + 1}: add a blank line before the closing ":::"`,
+      );
     }
   }
   return findings;

@@ -1,1 +1,119 @@
-../../../../../en/guides/public-cloud/containers-orchestration/managed-kubernetes/persistentvolumes-permission-errors.mdx
+---
+title: Dépanner les erreurs de permission lors de l'activation de la persistance
+description: Découvrez comment corriger de manière autonome les erreurs de permission rencontrées lors du déploiement de Helm Charts sur OVHcloud Managed Kubernetes
+lastUpdated: 2026-01-30
+---
+
+## Objectif
+
+Ce guide vous apprend à corriger de manière autonome un OVHcloud Managed Kubernetes Service lorsque des `Permission Errors` sont rencontrées lors du déploiement d'un Helm Chart ou de la création d'un déploiement.
+
+## Explication du problème
+
+Plusieurs Helm Charts sont mis à jour selon des bonnes pratiques de renforcement de la sécurité.<br/>
+L'utilisation d'un conteneur `non-root`, par exemple, est une nouvelle règle à suivre pour des raisons de sécurité.<br/>
+Mais un inconvénient majeur de l'utilisation de conteneurs non-root concerne le montage de persistent volumes dans ces conteneurs.
+
+En effet, les processus s'exécutant dans ces conteneurs ne disposent pas des privilèges nécessaires pour modifier le propriétaire du système de fichiers existant dans un volume.
+
+Une solution consiste à utiliser le `SecurityContext` fourni par Kubernetes pour modifier automatiquement le propriétaire des volumes attachés, et à fournir une `StorageClass` qui prend en charge la modification du système de fichiers du volume.<br/>
+Cependant, la `StorageClass` utilisée par défaut pour l'« OVHcloud Managed Kubernetes Service » ne prenait pas en charge la possibilité de modifier le système de fichiers du volume.
+
+Dans la documentation suivante, nous fournissons quelques correctifs, en attendant une mise à jour de notre service.
+
+## Comportements observés
+
+Certains pods peuvent être marqués avec le statut `CrashLoopBackOff` quelques secondes/minutes après leur ordonnancement, en raison d'un accès en écriture insuffisant aux persistent volumes.
+
+Exemple de logs d'erreur :
+
+```log
+mariadb 18:13:27.78 WARN  ==> The mariadb configuration file '/opt/bitnami/mariadb/conf/my.cnf' is not writable. Configurations based on environment variables will not be applied for this file.
+```
+
+## Solutions proposées
+
+1. Nous (l'équipe OVHcloud Managed Kubernetes Service) travaillons sur un correctif dont la sortie est prévue début 2022. Ainsi, si vous n'êtes pas impacté par ce problème, ne mettez pas à jour votre déploiement de Helm Chart (seuls les Helm Charts récents semblent utiliser un security context, ce qui cause ce problème) et attendez qu'une nouvelle version de votre service managé soit disponible depuis la console OVHcloud.
+
+<ol start="2">
+  <li>Vous utilisez les Helm Charts Bitnami et vous souhaitez pouvoir corriger rapidement ce comportement sans attendre notre correctif. Vous pouvez suivre les instructions décrites dans cette documentation : https://docs.bitnami.com/kubernetes/faq/troubleshooting/troubleshooting-helm-chart-issues/</li>
+</ol>
+
+<ol start="3">
+  <li>**Cette solution n'est pas recommandée si vous ne savez pas ce que vous faites, et ne fonctionne qu'avec des clusters en version `1.20` ou supérieure.**
+  Vous êtes impacté par ce problème, mais le fournisseur de votre Helm Chart n'a pas proposé de solution adaptée et vous ne pouvez pas attendre notre correctif officiel.</li>
+</ol>
+
+Si vous êtes dans ce cas, suivez ces instructions à vos propres risques :
+
+- Vérifiez quelle est la `StorageClass` que vous utilisez par défaut (généralement `csi-cinder-high-speed`) :
+
+```bash
+ get storageclasses.storage.k8s.io 
+NAME                              PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+csi-cinder-classic                cinder.csi.openstack.org   Delete          Immediate           true                   12d
+csi-cinder-high-speed (default)   cinder.csi.openstack.org   Delete          Immediate           true                   12d
+csi-cinder-high-speed-gen2        cinder.csi.openstack.org   Delete          Immediate           true                   5h11m
+csi-cinder-high-speed-luks        cinder.csi.openstack.org   Delete          Immediate           true                   5h11m
+csi-cinder-classic-luks           cinder.csi.openstack.org   Delete          Immediate           true                   5h11m
+csi-cinder-high-speed-gen2-luks   cinder.csi.openstack.org   Delete          Immediate           true                   5h11m
+```
+
+:::info
+Si votre cluster est déployé dans une région prenant en charge le stockage chiffré LUKS, vous verrez également les variantes `-luks` des classes de stockage listées ci-dessus.
+:::
+
+
+- Supprimez la `StorageClass` concernée que vous utilisez par défaut
+
+```bash
+$ kubectl delete storageclasses.storage.k8s.io csi-cinder-high-speed 
+storageclass.storage.k8s.io "csi-cinder-high-speed" deleted
+```
+
+- Créez une nouvelle `StorageClass` avec le correctif requis
+
+```bash
+$ kubectl apply -f https://raw.githubusercontent.com/ovh/docs/develop/pages/public_cloud/containers_orchestration/managed_kubernetes/fix-persistent-volumes-permissions/files/fixed-cinder-high-speed-storage-class.yaml 
+storageclass.storage.k8s.io/csi-cinder-high-speed created
+```
+
+- Supprimez le Helm Chart concerné
+
+Par exemple avec le Helm Chart `bitnami/wordpress`, qui est concerné par ce comportement :
+
+```bash
+$ helm uninstall my-first-k8s-wordpress
+```
+
+Et n'oubliez pas de vérifier que les `PersistentVolumeClaim` et `PersistentVolume` concernés ont bien été supprimés avant de réinstaller le Helm Chart :
+
+```bash
+$ kubectl get persistentvolumeclaims -A
+$ kubectl get persistentvolumes 
+```
+
+- Réinstallez le Helm Chart ou le déploiement concerné
+
+Par exemple avec le Helm Chart `bitnami/wordpress`, qui est concerné par ce comportement :
+
+```bash
+$ helm install my-first-k8s-wordpress bitnami/wordpress
+```
+
+Vous pouvez constater que les pods sont désormais opérationnels, ce qui signifie que les erreurs de permission liées aux `persistentVolumes` sont maintenant corrigées.
+
+```bash
+$ kubectl get pods
+NAME                                        READY   STATUS             RESTARTS        AGE
+my-first-k8s-wordpress-2-8554886b4b-l8tnq   1/1     Running            0               21m
+my-first-k8s-wordpress-2-mariadb-0          1/1     Running            0               21m
+```
+
+## Aller plus loin
+
+Pour en savoir plus sur l'utilisation pratique de votre cluster Kubernetes, nous vous invitons à consulter notre documentation OVHcloud Managed Kubernetes.
+
+- Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou cliquez sur [ce lien](/links/professional-services) pour obtenir un devis et demander une analyse personnalisée de votre projet à nos experts de l’équipe Professional Services.
+
+- Échangez avec notre [communauté d'utilisateurs](/links/community).
