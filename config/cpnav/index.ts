@@ -1,13 +1,9 @@
 // CP-NAV key registry.
 //
-// DECLARATION ORDER IS THE CANONICAL ORDER. A token naming several keys renders them in
-// the order they appear below, whatever order the token spells them in — so the same set
-// always renders identically and a new combination needs no ordering decision.
-//
-// The order chosen is the Manager's own sidebar order, grouped by universe. Product order
-// carries no meaning (a multi-key block means "the same procedure for all these
-// products"), so this is purely presentational — but matching the sidebar is the order a
-// reader is already scanning.
+// DECLARATION ORDER IS THE CANONICAL ORDER: a multi-key token renders its keys in the
+// order below whatever order it spells them in, so one set has exactly one rendering.
+// The order follows the Manager's sidebar, grouped by universe — product order is purely
+// presentational, and the sidebar is what the reader is already scanning.
 
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { webCloudDatabases } from './keys/web-cloud-databases';
@@ -29,15 +25,11 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
 };
 
 /**
- * Multi-key combinations that actually occur in the guides.
- *
- * One `replaceRule` is generated per entry, so a combination must be declared before a
- * token can use it — `pnpm cpnav:validate` reports any token whose set is undeclared.
- * Enumerating beats computing: the alternative, a rule per possible subset, is
- * combinatorial, and Rspress's `ReplaceRule.replace` is typed as a plain string, so
- * there is no replacer-function escape hatch.
- *
- * Order within an entry is irrelevant — sets are canonicalised against CPNAV_KEYS.
+ * Multi-key combinations that occur in the guides. One rule is generated per entry, so a
+ * combination must be declared before a token can use it; `pnpm cpnav:validate` reports
+ * undeclared ones. They are enumerated rather than computed because a rule per possible
+ * subset is combinatorial and `ReplaceRule.replace` is typed as a plain string.
+ * Order within an entry does not matter — entries are canonicalised.
  */
 export const CPNAV_SETS: string[][] = [
   ['web-email-pro', 'web-exchange'],

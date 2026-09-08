@@ -4,17 +4,7 @@ import { CPNAV_KEYS, canonicalise, tokenFor } from '../config/cpnav/index';
  * Smoke tests for the CP-NAV mechanism.
  * Run: npx tsx scripts/test-cpnav.ts   (or `pnpm cpnav:test`)
  *
- * Table-driven and build-free, matching the convention of the repo's other guards —
- * a build cannot verify these on this platform.
- *
- * Locks in the behaviours that are easy to regress and expensive to notice:
- *   - the LEADING newline, without which a `---` under a text line becomes a setext-h2
- *     underline and silently promotes the preceding paragraph into the page outline;
- *   - the emitted CP-NAV markers, which `remarkCpNavGate` needs in order to wrap
- *     EU-only products in `<Region>` — drop them and CA readers see EU-only navigation;
- *   - a sub-label appearing only when a token resolves to more than one destination;
- *   - `|en` rendering the English body in every locale;
- *   - canonical key ordering, so one set has exactly one spelling.
+ * Table-driven and build-free, matching the repo's other guards.
  */
 import { renderBlock } from '../config/cpnav-rules';
 import type { Locale } from '../config/shared';
@@ -62,12 +52,30 @@ check(
   single.includes('{/* CP-NAV-END:web-email-pro */}'),
 );
 const multi = renderBlock(MULTI, 'en');
+// Marker placement IS the zone gating: remarkCpNavGate wraps a START..END range using
+// that one key's zones, so a multi-key block must give each key its own pair. Nesting
+// them gated the whole block by the first key alone, which hid products that ARE
+// available in the reader's zone.
 check(
-  'multi-key markers nest: STARTs in canonical order, ENDs reversed',
-  multi.indexOf('CP-NAV-START:web-email-pro') <
-    multi.indexOf('CP-NAV-START:web-exchange') &&
-    multi.indexOf('CP-NAV-END:web-exchange') <
-      multi.indexOf('CP-NAV-END:web-email-pro'),
+  'multi-key blocks give each key its OWN marker pair',
+  MULTI.every(
+    (k) =>
+      multi.includes(`{/* CP-NAV-START:${k} */}`) &&
+      multi.includes(`{/* CP-NAV-END:${k} */}`),
+  ),
+);
+check(
+  'multi-key markers are NOT nested (each pair closes before the next opens)',
+  multi.indexOf('CP-NAV-END:web-email-pro') <
+    multi.indexOf('CP-NAV-START:web-exchange'),
+);
+check(
+  'multi-key markers sit inside the fence, so heading and fence are never gated away',
+  multi.indexOf('---') < multi.indexOf('CP-NAV-START:web-email-pro'),
+);
+check(
+  'single-key markers sit OUTSIDE the fence, so an EU-only product hides the whole block',
+  single.indexOf('CP-NAV-START:web-email-pro') < single.indexOf('---'),
 );
 
 // --- sub-labels ----------------------------------------------------------------------

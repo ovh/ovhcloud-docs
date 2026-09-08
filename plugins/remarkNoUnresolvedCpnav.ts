@@ -5,17 +5,12 @@ import { CPNAV_KEYS, tokenFor } from '../config/cpnav/index';
 
 const TOKEN_PATTERN = /\[\[cpnav:([^\]\s]*)\]\]/;
 
-// CP-NAV tokens ([[cpnav:key]] / [[cpnav:a+b|en]]) are expanded by Rspress's replaceRules
-// (config/cpnav-rules.ts) before this plugin runs, so a token still present in the AST
-// never resolved. Inline code and code blocks are not visited, so documenting the syntax
-// in backticks stays legal.
-//
-// Two failures are deterministic string checks and are both fatal:
-//   * an unknown key, or a key set with no declared combination — no rule exists;
-//   * a non-canonical spelling of a declared set — the rule matches only the canonical
-//     order, so the diagnostic names it.
-// Both are reported with the exact token to write instead, because the author cannot be
-// expected to know the declaration order in config/cpnav/index.ts.
+// CP-NAV tokens are expanded by replaceRules (config/cpnav-rules.ts) before this plugin
+// runs, so a token still in the AST never resolved — an unknown key, an unsupported
+// modifier, an undeclared combination, or a non-canonical key order. Each diagnostic
+// names the token to write instead, since the author cannot be expected to know the
+// declaration order. Inline code and code blocks are not visited, so documenting the
+// syntax in backticks stays legal.
 export function remarkNoUnresolvedCpnav() {
   return (tree: Root, file: VFile) => {
     visit(tree, 'text', (node: Text) => {

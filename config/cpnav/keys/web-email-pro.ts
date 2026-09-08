@@ -1,10 +1,9 @@
 import type { CpNavKey } from '../types';
 
-// Route composed from the Manager nav tree: application 'web' + hash '#/email_pro'.
+// Manager nav tree: application 'web' + hash '#/email_pro'.
 //
-// The product name genuinely differs per locale and these spellings are Manager i18n
-// verbatim (`sidebar_email_pro`): "Email Pro" in en/fr/es/it, "E-Mail Pro" in de,
-// "E-mail Pro" in pl/pt. They are not drift — do not normalise them.
+// The per-locale spellings are Manager i18n verbatim (`sidebar_email_pro`): "E-Mail Pro"
+// in de, "E-mail Pro" in pl/pt. Not drift — do not normalise.
 export const webEmailPro: CpNavKey = {
   universe: 'web-cloud',
   locations: [

@@ -1,9 +1,8 @@
 import type { CpNavKey } from '../types';
 
-// Route composed from the Manager nav tree: application 'web' + hash '#/exchange'.
-//
-// In the Manager, Exchange sits under the "Microsoft" section rather than "Emails" —
-// but that section header is descriptive, not clickable, so it is not a step.
+// Manager nav tree: application 'web' + hash '#/exchange'.
+// The Manager's "Microsoft" section header is descriptive, not clickable, so it is
+// not a breadcrumb step.
 export const webExchange: CpNavKey = {
   universe: 'web-cloud',
   locations: [

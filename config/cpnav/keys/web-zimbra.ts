@@ -1,11 +1,6 @@
 import type { CpNavKey } from '../types';
 
-// Route composed from the Manager nav tree: application 'zimbra' + hash '#/'.
-//
-// `product` is "Zimbra Mail" — the Manager's own sidebar label. The corpus used
-// "Zimbra Mail" in the breadcrumb but "Zimbra" as the link text; one field for both
-// makes that disagreement impossible. This changes the link text readers see on the
-// blocks carrying this key.
+// Manager nav tree: application 'zimbra' + hash '#/'.
 export const webZimbra: CpNavKey = {
   universe: 'web-cloud',
   locations: [

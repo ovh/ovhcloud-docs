@@ -1,18 +1,11 @@
 /**
- * Generates Rspress replaceRules that expand `[[cpnav:<keys>]]` tokens into Control
- * Panel navigation blocks, one rule per key set per locale.
+ * Expands `[[cpnav:<keys>]]` tokens into Control Panel navigation blocks — one Rspress
+ * replaceRule per key set per locale.
  *
- * Why replaceRules and not a component: substitution happens on the raw source BEFORE
- * the MDX parse, so the emitted `###` becomes a real heading — it lands in the
- * build-time page outline and registers its anchor id. A component's heading exists only
- * at render time and reaches neither, and a remark plugin cannot help because Rspress
- * appends user remark plugins AFTER its own toc plugin.
- *
- * The `---` fence and the surrounding blank lines are emitted HERE, not stored in the
- * data. The leading newline is load-bearing: a `---` directly beneath a text line is a
- * setext-h2 underline, which would silently promote the preceding paragraph to a
- * heading. Emitting the newline makes that impossible at any token placement, so no
- * blank-line authoring rule and no guard are needed.
+ * replaceRules rather than a component: substitution runs on the raw source before the
+ * MDX parse, so the emitted `###` is a real heading and reaches the build-time outline.
+ * A component's heading exists only at render time; a remark plugin is too late, because
+ * Rspress appends user remark plugins after its own toc plugin.
  */
 import type { ReplaceRule } from '@rspress/shared';
 import { CPNAV_FRAME } from './cpnav/frame';
@@ -82,22 +75,12 @@ function renderLocation(
 }
 
 /**
- * The full replacement for a token: zone markers, fence, and body.
+ * The CP-NAV markers. **Required, not decoration:** `plugins/remarkCpNavGate.ts` reads
+ * them to wrap each block in `<Region zones={…}>` per `config/product-availability.ts`,
+ * which is what keeps EU-only products hidden from other zones. Removing them silently
+ * removes that gating.
  *
- * The `{/* CP-NAV-START:key *\/}` markers are EMITTED here, not authored. They are not
- * decoration — `plugins/remarkCpNavGate.ts` consumes them to wrap each block in
- * `<Region zones={…}>` from `config/product-availability.ts`, so a CA reader never sees
- * navigation for an EU-only product (`email-pro` and `zimbra` are EU-only; `exchange` is
- * EU+CA). Dropping them would silently delete that gating.
- *
- * Emitting them keeps `remarkCpNavGate` working unchanged: replaceRules run before the
- * MDX parse, the gate is a remark plugin running on the AST afterwards, so it sees
- * exactly what it sees today. The alternative — emitting `<Region>` from here — cannot
- * work, because `Region` is a *named* export while `markdown.globalComponents` injects a
- * default import of the capitalised filename.
- *
- * Marker layout mirrors the corpus: every START in canonical order, then the fence and
- * body, then every END in reverse order.
+ * See renderBlock for why placement differs between single-key and multi-key blocks.
  */
 function renderMarkers(keys: readonly string[]): {
   open: string;
@@ -112,9 +95,16 @@ function renderMarkers(keys: readonly string[]): {
   };
 }
 
-/** The block body for a key set — heading and per-location bullets, no fence. */
-export function renderBody(keys: readonly string[], locale: Locale): string {
-  const frame = CPNAV_FRAME[locale];
+/**
+ * The bullets for a key set, without heading or fence.
+ * `forceSubLabel` is for a multi-key block, where each key is rendered on its own but
+ * still needs its product sub-label to say which destination the bullets belong to.
+ */
+export function renderEntries(
+  keys: readonly string[],
+  locale: Locale,
+  forceSubLabel = false,
+): string {
   const entries = keys.flatMap((key) => {
     const entry = CPNAV_KEYS[key];
     const universeLabel = resolve(CPNAV_UNIVERSES[entry.universe], locale);
@@ -132,7 +122,7 @@ export function renderBody(keys: readonly string[], locale: Locale): string {
 
   // A sub-label distinguishes destinations, so it is needed whenever there is more than
   // one — whether they come from several keys or from one key with several locations.
-  const withSubLabel = entries.length > 1;
+  const withSubLabel = forceSubLabel || entries.length > 1;
 
   const rendered = entries.map(({ location, universeLabel, key }) => {
     const text = resolve(location.text, locale);
@@ -142,22 +132,50 @@ export function renderBody(keys: readonly string[], locale: Locale): string {
     return renderLocation(text, universeLabel, location, locale, withSubLabel);
   });
 
-  return [`### ${frame.heading}`, '', rendered.join('\n\n')].join('\n');
+  return rendered.join('\n\n');
+}
+
+/** Heading plus bullets, no fence. */
+export function renderBody(keys: readonly string[], locale: Locale): string {
+  return [
+    `### ${CPNAV_FRAME[locale].heading}`,
+    '',
+    renderEntries(keys, locale),
+  ].join('\n');
 }
 
 /**
- * The complete token replacement: markers, fence, body.
- *
- * The LEADING newline is load-bearing. A `---` directly beneath a text line is a
- * setext-h2 underline, which would silently promote the preceding paragraph to a
- * heading — and into the page outline. Emitting the newline guarantees a blank line
- * above, so the trap cannot fire at any token placement and no authoring rule or guard
- * is needed for it. The trailing newline does the same for whatever follows.
+ * Markers, fence and body. The leading newline is load-bearing: a `---` directly under a
+ * text line is a setext-h2 underline, which would turn the preceding paragraph into a
+ * heading. Emitting it means the token is safe at any placement. The trailing newline
+ * does the same for whatever follows.
  */
 export function renderBlock(keys: readonly string[], locale: Locale): string {
-  const { open, close } = renderMarkers(keys);
-  const body = renderBody(keys, locale);
-  return `\n${open}\n---\n\n${body}\n\n---\n${close}\n`;
+  // Marker placement decides zone gating, because remarkCpNavGate wraps everything
+  // between a START and its matching END using that ONE key's zones.
+  //
+  // Single key: wrap the whole block, so an EU-only product hides heading and all.
+  //
+  // Several keys: wrap each key's entries SEPARATELY. Nesting the markers would gate the
+  // whole block by the first key alone — which hid MX Plan (all zones) and Exchange
+  // (EU+CA) from CA readers as soon as an EU-only key came first. Per-key markers gate
+  // each product on its own zones, which is the only correct answer for a block whose
+  // products differ in availability.
+  //
+  // Known edge: in a zone where NO key in the set is available, the fence and heading
+  // remain with nothing under them. Cannot be fixed here — an outer wrapper would need
+  // `Region` emitted directly, and it is a named export that globalComponents cannot take.
+  if (keys.length === 1) {
+    const { open, close } = renderMarkers(keys);
+    return `\n${open}\n---\n\n${renderBody(keys, locale)}\n\n---\n${close}\n`;
+  }
+
+  const frame = CPNAV_FRAME[locale];
+  const perKey = keys.map((key) => {
+    const { open, close } = renderMarkers([key]);
+    return `${open}\n${renderEntries([key], locale, true)}\n${close}`;
+  });
+  return `\n---\n\n### ${frame.heading}\n\n${perKey.join('\n\n')}\n\n---\n`;
 }
 
 function escapeRegExp(literal: string): string {
@@ -165,21 +183,14 @@ function escapeRegExp(literal: string): string {
 }
 
 /**
- * Generate the replaceRules for a locale — for each key set, the plain token plus its
- * `|en` variant.
+ * One rule per key set, plus a `|en` variant that pins the block to English in every
+ * locale build — for pages whose prose is an untranslated English placeholder. The token
+ * is the only place that intent can live, since replaceRules see raw source and never
+ * frontmatter. `|en` is a no-op for the EN build, which is also what makes it work for
+ * symlinked locale files, where the EN source is the only file there is.
  *
- * `[[cpnav:key|en]]` pins the block to English in EVERY locale build. It exists because
- * a localised block must not sit in an otherwise-English page, and hundreds of locale
- * pages are untranslated English placeholders. The token is the only place that intent
- * can live: `applyReplaceRules` is a blind string replace over raw source with no access
- * to frontmatter, so no per-page flag can drive it.
- *
- * `|en` is a no-op for the EN build, which is what makes it the answer for symlinked
- * locale files too: a stub *is* the EN file, so pinning on the EN source is the only way
- * to keep every locale reading it in English.
- *
- * These must be registered BEFORE the `/links/` rules, matching the fragment rules, so a
- * body may contain `(/links/key)` targets and still resolve in the same pass.
+ * Register BEFORE the `/links/` rules (as the fragment rules are) so a body may contain
+ * `(/links/key)` targets and still resolve in the same pass.
  */
 export function generateCpNavRules(locale: Locale): ReplaceRule[] {
   const rules: ReplaceRule[] = [];

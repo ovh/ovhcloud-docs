@@ -1,6 +1,6 @@
 import type { CpNavKey } from '../types';
 
-// Route composed from the Manager nav tree: application 'web' + hash '#/email_domain'.
+// Manager nav tree: application 'web' + hash '#/email_domain'.
 export const webMxPlan: CpNavKey = {
   universe: 'web-cloud',
   locations: [

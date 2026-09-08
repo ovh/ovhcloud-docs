@@ -1,11 +1,5 @@
 // Per-locale invariants shared by every CP-NAV block: the heading and the two bullet
-// labels. These were copy-pasted into ~3500 blocks, which is exactly why they drifted
-// (DE alone carried four spellings of "Direct link"). Here there is one of each, so the
-// drift class cannot exist.
-//
-// Every string is the DOMINANT form measured in the published corpus, so expansion
-// reproduces what readers see today. Colons and their spacing are part of the label
-// because French puts a space before a colon.
+// labels. Colons and their spacing belong to the label — French puts a space before one.
 import type { Locale } from '../shared';
 import type { CpNavFrame } from './types';
 
