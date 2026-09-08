@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.09.07
+
+### Fixes
+- **links:** point all community links at the /links/community alias (#736)
+- **k8s:** update helm value for fluent-bit (#724)
+- **links:** correct broken Public Cloud projects route
+
+### Documentation
+- 1368 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.02
 
 ### Features
