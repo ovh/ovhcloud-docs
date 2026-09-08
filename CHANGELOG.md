@@ -4,9 +4,10 @@
 
 ### Fixes
 - **k8s:** update helm value for fluent-bit (#724)
+- **links:** correct broken Public Cloud projects route
 
 ### Documentation
-- 274 guides updated across de, en, es, fr, it, pl, pt
+- 1185 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.09.02
 
