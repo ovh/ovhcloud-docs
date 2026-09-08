@@ -2,8 +2,11 @@
 
 ## 2026.09.07
 
+### Fixes
+- **k8s:** update helm value for fluent-bit (#724)
+
 ### Documentation
-- 157 guides updated across de, en, es, fr, it, pl, pt
+- 274 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.09.02
 
