@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.09.08
+
+### Features
+- **links:** add 162 commercial link keys for SEO request
+
 ## 2026.09.07
 
 ### Fixes
