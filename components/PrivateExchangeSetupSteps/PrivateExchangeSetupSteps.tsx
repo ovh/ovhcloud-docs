@@ -55,6 +55,14 @@ const DomainIcon = () => (
   </svg>
 );
 
+const UsersIcon = () => (
+  <svg {...svg} aria-hidden="true">
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+    <path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3" />
+  </svg>
+);
+
 const ArrowIcon = () => (
   <svg {...svg} aria-hidden="true">
     <path d="M5 12h14M13 6l6 6-6 6" />
@@ -63,92 +71,106 @@ const ArrowIcon = () => (
 
 interface Strings {
   ariaLabel: string;
-  /** Titles of the five steps, in order. */
-  titles: [string, string, string, string, string];
+  /** Titles of the six steps, in order. */
+  titles: [string, string, string, string, string, string];
 }
 
 // Copy localized via useLang(); locales without their own strings fall back to English.
 const STRINGS: Record<string, Strings> = {
   en: {
     ariaLabel:
-      'The five configuration steps of a Private Exchange server: 1. receive the delivery email; 2. choose the email server address, which cannot be changed afterwards; 3. domain ownership check, automatic for a domain in the same OVHcloud account, otherwise a CNAME record to add within 48 hours; 4. server ready with its SSL certificate and webmail; 5. add a domain name, then create the email accounts.',
+      'The six configuration steps of a Private Exchange server: 1. receive the delivery email; 2. choose the email server address, which cannot be changed afterwards; 3. domain ownership check, automatic for a domain in the same OVHcloud account, otherwise a CNAME record to add within 48 hours; 4. server configuration, with its SSL certificate and webmail; 5. add a domain name; 6. create the email accounts.',
     titles: [
       'Delivery email',
       'Server address',
       'Domain validation',
       'Server configuration',
+      'Domain addition',
       'Account creation',
     ],
   },
   fr: {
     ariaLabel:
-      "Les cinq étapes de configuration d'un serveur Private Exchange : 1. réception de l'e-mail de livraison ; 2. choix de l'adresse du serveur de messagerie, non modifiable ensuite ; 3. validation de l'appartenance du domaine, automatique pour un domaine du même espace client OVHcloud, sinon un enregistrement CNAME à ajouter sous 48 heures ; 4. serveur prêt, avec son certificat SSL et son webmail ; 5. ajout d'un nom de domaine, puis création des comptes e-mail.",
+      "Les six étapes de configuration d'un serveur Private Exchange : 1. réception de l'e-mail de livraison ; 2. choix de l'adresse du serveur de messagerie, non modifiable ensuite ; 3. validation du domaine, automatique pour un domaine du même espace client OVHcloud, sinon un enregistrement CNAME à ajouter sous 48 heures ; 4. configuration du serveur, avec son certificat SSL et son webmail ; 5. ajout d'un nom de domaine ; 6. création des comptes e-mail.",
     titles: [
       'E-mail de livraison',
       'Adresse du serveur',
       'Validation du domaine',
       'Configuration du serveur',
+      'Ajout du domaine',
       'Création de comptes',
     ],
   },
   de: {
     ariaLabel:
-      'Die fünf Konfigurationsschritte eines Private Exchange Servers: 1. E-Mail zur Bereitstellung erhalten; 2. Adresse des E-Mail-Servers wählen, die danach nicht mehr geändert werden kann; 3. Prüfung der Domain-Zugehörigkeit, automatisch für eine Domain im selben OVHcloud Account, sonst ein innerhalb von 48 Stunden hinzuzufügender CNAME-Eintrag; 4. Server bereit, mit SSL-Zertifikat und Webmail; 5. Domainnamen hinzufügen, dann E-Mail-Accounts erstellen.',
+      'Die sechs Konfigurationsschritte eines Private Exchange Servers: 1. E-Mail zur Bereitstellung erhalten; 2. Adresse des E-Mail-Servers wählen, die danach nicht mehr geändert werden kann; 3. Prüfung der Domain-Zugehörigkeit, automatisch für eine Domain im selben OVHcloud Account, sonst ein innerhalb von 48 Stunden hinzuzufügender CNAME-Eintrag; 4. Serverkonfiguration mit SSL-Zertifikat und Webmail; 5. Domainnamen hinzufügen; 6. E-Mail-Accounts erstellen.',
     titles: [
       'E-Mail zur Bereitstellung',
       'Serveradresse',
       'Domain-Validierung',
       'Serverkonfiguration',
+      'Domain hinzufügen',
       'Account-Erstellung',
     ],
   },
   es: {
     ariaLabel:
-      'Los cinco pasos de configuración de un servidor Private Exchange: 1. recepción del correo de entrega; 2. elección de la dirección del servidor de correo, que no se puede modificar después; 3. validación de la propiedad del dominio, automática para un dominio de la misma cuenta de OVHcloud, o bien un registro CNAME que hay que añadir en 48 horas; 4. servidor listo, con su certificado SSL y su webmail; 5. adición de un dominio y creación de las cuentas de correo.',
+      'Los seis pasos de configuración de un servidor Private Exchange: 1. recepción del correo de entrega; 2. elección de la dirección del servidor de correo, que no se puede modificar después; 3. validación del dominio, automática para un dominio de la misma cuenta de OVHcloud, o bien un registro CNAME que hay que añadir en 48 horas; 4. configuración del servidor, con su certificado SSL y su webmail; 5. adición de un dominio; 6. creación de las cuentas de correo.',
     titles: [
       'Correo de entrega',
       'Dirección del servidor',
       'Validación del dominio',
       'Configuración del servidor',
+      'Adición del dominio',
       'Creación de cuentas',
     ],
   },
   it: {
     ariaLabel:
-      "Le cinque fasi di configurazione di un server Private Exchange: 1. ricezione dell'email di consegna; 2. scelta dell'indirizzo del server di posta, non più modificabile in seguito; 3. convalida della proprietà del dominio, automatica per un dominio dello stesso account OVHcloud, altrimenti un record CNAME da aggiungere entro 48 ore; 4. server pronto, con certificato SSL e webmail; 5. aggiunta di un dominio e creazione degli account email.",
+      "Le sei fasi di configurazione di un server Private Exchange: 1. ricezione dell'email di consegna; 2. scelta dell'indirizzo del server di posta, non modificabile in seguito; 3. convalida del dominio, automatica per un dominio dello stesso account OVHcloud, altrimenti un record CNAME da aggiungere entro 48 ore; 4. configurazione del server, con certificato SSL e webmail; 5. aggiunta di un dominio; 6. creazione degli account email.",
     titles: [
       'Email di consegna',
       'Indirizzo del server',
       'Convalida del dominio',
       'Configurazione del server',
+      'Aggiunta del dominio',
       'Creazione degli account',
     ],
   },
   pl: {
     ariaLabel:
-      'Pięć kroków konfiguracji serwera Private Exchange: 1. odebranie e-maila o dostarczeniu usługi; 2. wybór adresu serwera pocztowego, którego nie można później zmienić; 3. potwierdzenie własności domeny, automatyczne dla domeny z tego samego konta OVHcloud, w przeciwnym razie rekord CNAME do dodania w ciągu 48 godzin; 4. serwer gotowy, z certyfikatem SSL i webmailem; 5. dodanie domeny, a następnie utworzenie kont e-mail.',
+      'Sześć kroków konfiguracji serwera Private Exchange: 1. odebranie e-maila o dostarczeniu usługi; 2. wybór adresu serwera pocztowego, którego nie można później zmienić; 3. walidacja domeny, automatyczna dla domeny w tym samym Panelu klienta OVHcloud, w przeciwnym razie rekord CNAME do dodania w ciągu 48 godzin; 4. konfiguracja serwera z certyfikatem SSL i webmailem; 5. dodanie domeny; 6. utworzenie kont e-mail.',
     titles: [
       'E-mail o dostarczeniu',
       'Adres serwera',
       'Walidacja domeny',
       'Konfiguracja serwera',
+      'Dodanie domeny',
       'Tworzenie kont',
     ],
   },
   pt: {
     ariaLabel:
-      'As cinco etapas de configuração de um servidor Private Exchange: 1. receção do e-mail de entrega; 2. escolha do endereço do servidor de e-mail, que não pode ser alterado depois; 3. validação da propriedade do domínio, automática para um domínio da mesma conta OVHcloud, caso contrário um registo CNAME a adicionar em 48 horas; 4. servidor pronto, com o certificado SSL e o webmail; 5. adição de um nome de domínio e criação das contas de e-mail.',
+      'As seis etapas de configuração de um servidor Private Exchange: 1. receção do e-mail de entrega; 2. escolha do endereço do servidor de e-mail, que não pode ser alterado depois; 3. validação do domínio, automática para um domínio da mesma conta OVHcloud, caso contrário um registo CNAME a adicionar em 48 horas; 4. configuração do servidor, com o certificado SSL e o webmail; 5. adição de um nome de domínio; 6. criação das contas de e-mail.',
     titles: [
       'E-mail de entrega',
       'Endereço do servidor',
       'Validação do domínio',
       'Configuração do servidor',
+      'Adição do domínio',
       'Criação de contas',
     ],
   },
 };
 
-const ICONS = [MailIcon, AddressIcon, DnsIcon, ConfigureIcon, DomainIcon];
+const ICONS = [
+  MailIcon,
+  AddressIcon,
+  DnsIcon,
+  ConfigureIcon,
+  DomainIcon,
+  UsersIcon,
+];
 
 interface PrivateExchangeSetupStepsProps {
   /**
@@ -160,7 +182,7 @@ interface PrivateExchangeSetupStepsProps {
 }
 
 /**
- * The five configuration steps of a Private Exchange server as a compact
+ * The six configuration steps of a Private Exchange server as a compact
  * horizontal flow (stacked on narrow screens): number, icon and title only.
  * Each step links to its chapter when `anchors` is provided.
  *
