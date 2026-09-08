@@ -36,10 +36,11 @@ const DnsIcon = () => (
   </svg>
 );
 
-const ReadyIcon = () => (
+const GearIcon = () => (
   <svg {...svg} aria-hidden="true">
-    <circle cx="12" cy="12" r="9" />
-    <path d="m8 12 3 3 5-6" />
+    <circle cx="12" cy="12" r="6.2" />
+    <circle cx="12" cy="12" r="2.3" />
+    <path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1" />
   </svg>
 );
 
@@ -70,9 +71,9 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'Delivery email',
       'Server address',
-      'Domain ownership',
-      'Server ready',
-      'Domain & accounts',
+      'Domain validation',
+      'Server configuration',
+      'Account creation',
     ],
   },
   fr: {
@@ -81,9 +82,9 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'E-mail de livraison',
       'Adresse du serveur',
-      'Appartenance du domaine',
-      'Serveur prêt',
-      'Domaine et comptes',
+      'Validation du domaine',
+      'Configuration du serveur',
+      'Création de comptes',
     ],
   },
   de: {
@@ -92,9 +93,9 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'E-Mail zur Bereitstellung',
       'Serveradresse',
-      'Domain-Zugehörigkeit',
-      'Server bereit',
-      'Domain und Accounts',
+      'Domain-Validierung',
+      'Serverkonfiguration',
+      'Account-Erstellung',
     ],
   },
   es: {
@@ -103,9 +104,9 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'Correo de entrega',
       'Dirección del servidor',
-      'Propiedad del dominio',
-      'Servidor listo',
-      'Dominio y cuentas',
+      'Validación del dominio',
+      'Configuración del servidor',
+      'Creación de cuentas',
     ],
   },
   it: {
@@ -114,9 +115,9 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'Email di consegna',
       'Indirizzo del server',
-      'Proprietà del dominio',
-      'Server pronto',
-      'Dominio e account',
+      'Convalida del dominio',
+      'Configurazione del server',
+      'Creazione degli account',
     ],
   },
   pl: {
@@ -125,9 +126,9 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'E-mail o dostarczeniu',
       'Adres serwera',
-      'Własność domeny',
-      'Serwer gotowy',
-      'Domena i konta',
+      'Walidacja domeny',
+      'Konfiguracja serwera',
+      'Tworzenie kont',
     ],
   },
   pt: {
@@ -136,14 +137,14 @@ const STRINGS: Record<string, Strings> = {
     titles: [
       'E-mail de entrega',
       'Endereço do servidor',
-      'Propriedade do domínio',
-      'Servidor pronto',
-      'Domínio e contas',
+      'Validação do domínio',
+      'Configuração do servidor',
+      'Criação de contas',
     ],
   },
 };
 
-const ICONS = [MailIcon, AddressIcon, DnsIcon, ReadyIcon, DomainIcon];
+const ICONS = [MailIcon, AddressIcon, DnsIcon, GearIcon, DomainIcon];
 
 interface PrivateExchangeSetupStepsProps {
   /**
