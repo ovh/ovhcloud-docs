@@ -7,7 +7,7 @@
 - **links:** correct broken Public Cloud projects route
 
 ### Documentation
-- 1185 guides updated across de, en, es, fr, it, pl, pt
+- 1187 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.09.02
 
