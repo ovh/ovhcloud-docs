@@ -30,10 +30,29 @@ OVHcloud Connect relie votre réseau à OVHcloud via un **Point de présence (Po
 
 OVHcloud Connect L2 relie votre infrastructure aux services OVHcloud au niveau de la couche liaison de données (Layer 2). Il vous permet d’étendre votre réseau privé aux datacenters OVHcloud, créant un pont transparent entre votre réseau local et vos ressources cloud, sans routage. Contrairement au service Layer 3, il est transparent aux VLAN (802.1q).
 
+<img className="thumbnail" alt="Implémentation d’OVHcloud Connect L2 : le tunnel L2 est acheminé depuis et vers le vRack" src="/images/network/ovhcloud-connect/l2/occ-l2-implementation.png" loading="lazy" />
+
+En mode L2, le lien virtuel est un tunnel L2 acheminé depuis et vers votre vRack : le trafic Ethernet circule ainsi de manière transparente entre vos équipements et OVHcloud.
+
+**Traitement du trafic L2**
+
+Le L2 achemine les trames Ethernet, avec leur en-tête VLAN 802.1q le cas échéant :
+
+- Le broadcast Ethernet est acheminé.
+- L’unicast Ethernet inconnu est acheminé.
+- Le multicast est acheminé (traité comme du broadcast, limité à 20 pps).
+- Les trames de contrôle point à point telles que LLDP et LACP ne sont **pas** acheminées.
+
+Vos VLAN sont préservés de bout en bout : les mêmes identifiants de VLAN s’appliquent dans votre réseau et dans le vRack OVHcloud.
+
+<img className="thumbnail" alt="Trafic OVHcloud Connect L2 : le vRack du client est étendu tel quel et acheminé vers le lien client, en toute transparence pour les VLAN" src="/images/network/ovhcloud-connect/l2/occ-l2-trafic.png" loading="lazy" />
+
 **Points clés :**
 
 - Il s’agit d’un lien strictement point à point (**un seul PoP** et **une seule AZ**).
-- La redondance est possible via l’agrégation de liens (LACP) sur le même PoP.
+- Un seul service OVHcloud Connect L2 est pris en charge par vRack.
+- La redondance s’obtient **uniquement** par agrégation de liens (LACP) sur le même PoP — lorsque deux liens sont configurés sur un PoP, le LACP est obligatoire.
+- Les jumbo frames jusqu’à **9000 octets** sont pris en charge.
 
 **Cas d’usage potentiels :**
 
@@ -41,13 +60,31 @@ OVHcloud Connect L2 relie votre infrastructure aux services OVHcloud au niveau d
 - Migrations « Lift & Shift » sans changement d’adressage IP
 - Applications nécessitant l’adjacence L2 ou la transparence VLAN
 
-Pour configurer le L2, consultez le guide « [Configurer OVHcloud Connect L2](/guides/network/ovhcloud-connect/l2) ».
+Pour les architectures L2 prises en charge et non prises en charge, consultez la section [Topologies Layer 2](#topologies-layer-2) ci-dessous. Pour la liste complète des capacités et des fonctionnalités non prises en charge, consultez [Prérequis et limitations](/guides/network/ovhcloud-connect/limits).
 
 ### Service Layer 3 (L3)
 
 OVHcloud Connect L3 relie votre infrastructure aux services OVHcloud au niveau de la couche réseau (Layer 3). Il permet le routage et nécessite l’échange de routes.
 
-Une fois le lien physique établi, le routage est configuré via **BGP (Border Gateway Protocol)**, et la connexion est associée à votre **vRack** — le réseau privé virtuel d’OVHcloud — afin que vos ressources OVHcloud puissent communiquer en privé avec votre infrastructure externe.
+Une fois le lien physique établi, la connexion est associée à votre **vRack** — le réseau privé virtuel d’OVHcloud — afin que vos ressources OVHcloud puissent communiquer en privé avec votre infrastructure externe.
+
+**Structure du routage L3**
+
+Un service L3 se définit à deux niveaux :
+
+- **Niveau PoP** — une session L3 avec un sous-réseau de peering en **/30** entre votre routeur et OVHcloud, au Point de présence.
+- **Niveau AZ** — la manière dont les routes atteignent vos services au sein de l’availability zone, soit par **peering BGP**, soit par **routes statiques** définies avec une IP de next-hop et un sous-réseau de destination.
+
+**Choisir entre BGP et routage statique**
+
+Les deux options sont disponibles au niveau de l’AZ. Ce choix détermine la manière dont les routes sont maintenues et dont le trafic se rétablit après une panne :
+
+| | BGP | Routage statique |
+|---|---|---|
+| Maintenance des routes | Les routes sont apprises et retirées automatiquement | Vous mettez les routes à jour vous-même lorsque votre réseau évolue |
+| Multi-chemin | ECMP est activé automatiquement dès deux PoPs (jusqu’à 4 chemins) | Chemin unique — ni ECMP ni ingénierie de trafic |
+| Redondance de passerelle dans l’AZ | Assurée par BGP (VRRP est désactivé sur cette configuration d’AZ) | VRRP reste actif et assure la bascule entre les équipements OVHcloud A et B |
+| Convient surtout à | Un ensemble de préfixes croissant ou multiple, ou une architecture résiliente multi-chemin et multi-AZ | Un ensemble de préfixes restreint et stable, sans protocole de routage |
 
 **Points clés :**
 
@@ -60,7 +97,7 @@ Une fois le lien physique établi, le routage est configuré via **BGP (Border G
 - Architectures multi-PoP critiques
 - Déploiements complexes à grande échelle.
 
-Pour configurer le routage L3, consultez le guide « [Configurer OVHcloud Connect L3 avec BGP](/guides/network/ovhcloud-connect/l3-bgp) » ou le guide « [Configurer OVHcloud Connect L3 avec des routes statiques](/guides/network/ovhcloud-connect/l3-static) ».
+Pour les règles de full mesh entre PoPs et availability zones, consultez la section [Topologies Layer 3](#topologies-layer-3) ci-dessous. Pour les architectures résilientes, consultez [Architectures Multi-AZ](/guides/network/ovhcloud-connect/multi-az) et [Mettre en place une architecture résiliente](/guides/network/ovhcloud-connect/resilient-architecture).
 
 ## Topologies prises en charge
 
@@ -71,6 +108,10 @@ La manière dont vous pouvez relier les PoPs et les availability zones (AZ) entr
 Un service OCC L2 est **strictement point à point** : il connecte **un seul PoP (point d’entrée) à une seule availability zone**, et rien d’autre. Un même vRack ne peut contenir **qu’un seul service OCC L2**.
 
 Comme le lien est point à point, la redondance s’obtient **uniquement par agrégation de liens (LACP) sur le même PoP** : vous regroupez plusieurs interfaces physiques en un seul lien logique. Un lien de secours passant par un *deuxième* PoP n’est **pas pris en charge** pour le L2.
+
+<img className="thumbnail" alt="Architectures L2 prises en charge et non prises en charge" src="/images/network/ovhcloud-connect/l2/occ-l2-supported-unsupported.png" loading="lazy" />
+
+<img className="thumbnail" alt="Topologies L2 point à point : un lien de secours via un second PoP n’est pas pris en charge" src="/images/network/ovhcloud-connect/l2/occ-l2-topologies.png" loading="lazy" />
 
 ### Topologies Layer 3
 
@@ -102,6 +143,7 @@ Les services L2 et L3 peuvent **coexister dans le même vRack**, vous permettant
 - Lisez les [prérequis et limitations](/guides/network/ovhcloud-connect/limits) pour vérifier si OVHcloud Connect répond à votre cas d’usage.
 - Accédez aux [guides Quick Start : Direct](/guides/network/ovhcloud-connect/occ-direct-control-panel-setup) pour vous connecter.
 - Accédez aux [guides Quick Start : Provider](/guides/network/ovhcloud-connect/occ-provider-control-panel-setup) pour vous connecter.
+- Une fois le niveau de service choisi, configurez-le avec [Configurer OVHcloud Connect L2](/guides/network/ovhcloud-connect/l2), [Configurer OVHcloud Connect L3 avec BGP](/guides/network/ovhcloud-connect/l3-bgp) ou [Configurer OVHcloud Connect L3 avec des routes statiques](/guides/network/ovhcloud-connect/l3-static).
 
 ## Aller plus loin
 
