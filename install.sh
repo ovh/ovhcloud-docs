@@ -1791,8 +1791,9 @@ HTTP_REDIR=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" \
 HTTPS_CODE=$(curl -sk --max-time 10 -o /dev/null -w "%{http_code}" \
     "https://$TLS_DOMAIN/admin/" 2>/dev/null || echo "000")
 
-if [[ "$HTTP_REDIR" =~ ^(301|302)$ ]] && [[ "$HTTPS_CODE" =~ ^(200|302|301)$ ]]; then
+if [[ "$HTTP_REDIR" =~ ^(301|302)$ ]] && [[ "$HTTPS_CODE" =~ ^(200|302|301|403)$ ]]; then
     echo "[OK] HTTP→$HTTP_REDIR redirect + HTTPS→$HTTPS_CODE opérationnel"
+    [[ "$HTTPS_CODE" == "403" ]] && echo "[OK] 403 attendu : /admin restreint à l'IP de gestion (normal depuis l'IP VPS)"
     echo "[OK] https://$TLS_DOMAIN/admin/"
 else
     echo "[WARN] HTTP→$HTTP_REDIR / HTTPS→$HTTPS_CODE — vérifier manuellement"
@@ -2917,8 +2918,8 @@ _smoke() {
 _pm2_count=$(fwconsole pm2 --list 2>/dev/null | grep -c 'online' || echo "0")
 _smoke "PM2 — 4 services online (obtenu: ${_pm2_count})" "$([ "$_pm2_count" -ge 4 ] && echo 1 || echo 0)"
 
-# fail2ban : 7 jails
-_fb_jails=$(fail2ban-client status 2>/dev/null | grep -oP 'Number of jails:\s*\K\d+' || echo "0")
+# fail2ban : 7 jails (fail2ban 1.x affiche "Number of jail:" sans 's')
+_fb_jails=$(fail2ban-client status 2>/dev/null | grep -oP 'Number of jail[s]?:\s*\K\d+' || echo "0")
 _smoke "fail2ban — 7 jails actifs (obtenu: ${_fb_jails})" "$([ "$_fb_jails" -eq 7 ] && echo 1 || echo 0)"
 
 # strictrtp=no
@@ -3095,7 +3096,7 @@ log "Rapport de livraison : $REPORT_FILE"
 _INSTALL_END=$(date +%s)
 _DEPLOY_DUR=$(( (_INSTALL_END - INSTALL_START) / 60 ))
 _FPBX_VER=$(fwconsole --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1 || echo "17.0.x")
-_JAILS_N=$(fail2ban-client status 2>/dev/null | grep -oP 'Number of jails:\s*\K\d+' || echo "7")
+_JAILS_N=$(fail2ban-client status 2>/dev/null | grep -oP 'Number of jail[s]?:\s*\K\d+' || echo "7")
 _GUI_OK=0; [[ "${_GUI_CODE:-000}" =~ ^(200|302)$ ]] && _GUI_OK=1
 _UFW_OK=0; ufw status 2>/dev/null | grep -q "Status: active" && _UFW_OK=1 || true
 _TRUNK_STATUS="${TRUNK_ENABLED:-non}"; _TLS_VAL="${TLS_DOMAIN:-}"
@@ -3329,9 +3330,7 @@ MOTDEOF2
 
 touch /tmp/fpbx_deploy_done 2>/dev/null || true
 
-if [ -t 1 ] && [[ -f "$REPORT_FILE" ]]; then
+if [[ -f "$REPORT_FILE" ]]; then
     echo ""
-    echo -e "${CYAN}  Rapport complet — utilisez les flèches / Page Up·Down pour défiler, q pour quitter${NC}"
-    sleep 1
-    less -R "$REPORT_FILE" || true
+    echo -e "${CYAN}  Rapport complet enregistré : sudo cat $REPORT_FILE${NC}"
 fi
