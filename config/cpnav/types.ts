@@ -12,11 +12,28 @@
 // Expanded by config/cpnav-rules.ts.
 import type { Locale } from '../shared';
 
-/** Universe id — the outermost breadcrumb step. Labels live in ./universes.ts. */
+/**
+ * Universe id — the outermost navigation step. Labels live in ./universes.ts.
+ * `account-menu` is not a universe in the Control Panel's top navigation: the account
+ * and billing screens are reached from the user menu, so its "label" is instruction
+ * text rather than something to click.
+ */
 export type UniverseId =
   | 'web-cloud'
   | 'hosted-private-cloud'
-  | 'bare-metal-cloud';
+  | 'bare-metal-cloud'
+  | 'account-menu';
+
+/**
+ * One step of the navigation path.
+ *
+ * A plain string is a clickable element, rendered as `<code className="action">`.
+ * An object is instruction text that is not clickable. `{0}`, `{1}`… in `text` are
+ * replaced by the matching entry of `labels`, which is what lets each locale put a
+ * label where its own word order needs it — en "Select the `Domain` tab", de "Wählen
+ * Sie den Tab `Domain`".
+ */
+export type CpNavCrumb = string | { text: string; labels?: string[] };
 
 /** Per-locale text for one destination. */
 export interface CpNavLocationText {
@@ -28,12 +45,17 @@ export interface CpNavLocationText {
    */
   product?: string;
   /**
-   * Clickable steps after the universe: sidebar entries, centre-page tabs, buttons.
-   * Only what a reader clicks — the Control Panel's descriptive section headers
-   * ("Domains & DNS", "Emails") are not steps. Variable length: depth differs per universe.
+   * Steps after the universe: sidebar entries, centre-page tabs, buttons. Only what a
+   * reader clicks — the Control Panel's descriptive section headers ("Domains & DNS",
+   * "Emails") are not steps. Variable length: depth differs per universe.
+   * A non-clickable step mid-chain uses the object form of CpNavCrumb.
    */
-  crumbs: string[];
-  /** Trailing instruction that is not a clickable element, e.g. "Select your platform". */
+  crumbs: CpNavCrumb[];
+  /**
+   * Trailing instruction that is not a clickable element, e.g. "Select your platform".
+   * This is the only way to spell a trailing plain step — `pnpm cpnav:validate` rejects
+   * a label-free object as the last crumb, so there is one spelling, not two.
+   */
   step?: string;
 }
 

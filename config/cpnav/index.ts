@@ -33,6 +33,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
  */
 export const CPNAV_SETS: string[][] = [
   ['web-email-pro', 'web-exchange'],
+  ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
 ];
 
