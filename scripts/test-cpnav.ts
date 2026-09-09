@@ -1,13 +1,15 @@
 #!/usr/bin/env npx tsx
 import { CPNAV_KEYS, canonicalise, tokenFor } from '../config/cpnav/index';
+import { CPNAV_UNIVERSES } from '../config/cpnav/universes';
+import { renderBlock, renderCrumb } from '../config/cpnav-rules';
+import type { Locale } from '../config/shared';
 /**
  * Smoke tests for the CP-NAV mechanism.
  * Run: npx tsx scripts/test-cpnav.ts   (or `pnpm cpnav:test`)
  *
  * Table-driven and build-free, matching the repo's other guards.
  */
-import { renderBlock } from '../config/cpnav-rules';
-import type { Locale } from '../config/shared';
+import { remarkCpNavGate } from '../plugins/remarkCpNavGate';
 
 let passed = 0;
 const failures: string[] = [];
@@ -136,6 +138,91 @@ check(
 check(
   'a locale with no text falls back to en',
   renderBlock(['privatecloud-nutanix'], 'pl').includes('Select your cluster'),
+);
+
+// --- crumb shapes --------------------------------------------------------------------
+check(
+  'a string crumb is clickable',
+  renderCrumb('Web Cloud') === '<code className="action">Web Cloud</code>',
+);
+check(
+  'an object crumb is plain text',
+  renderCrumb({ text: 'Select your project' }) === 'Select your project',
+);
+check(
+  'a {n} slot is replaced by a clickable label',
+  renderCrumb({ text: 'Select the {0} tab', labels: ['DNS zone'] }) ===
+    'Select the <code className="action">DNS zone</code> tab',
+);
+check(
+  'slots may appear in any order, so a locale can place them itself',
+  renderCrumb({ text: 'Tab {1} oder {0}', labels: ['DNS', 'Domain'] }) ===
+    'Tab <code className="action">Domain</code> oder <code className="action">DNS</code>',
+);
+throws('a slot with no matching label throws', () =>
+  renderCrumb({ text: 'Select the {1} tab', labels: ['only one'] }),
+);
+check(
+  'the account menu is a plain universe, not something to click',
+  !renderCrumb(CPNAV_UNIVERSES['account-menu'].en as never).includes('<code'),
+);
+for (const locale of ['en', 'fr', 'de', 'es', 'it', 'pl', 'pt'] as Locale[]) {
+  check(
+    `[${locale}] the account menu has its own wording`,
+    !!CPNAV_UNIVERSES['account-menu'][locale],
+  );
+}
+
+// --- the gate reaches markers inside a container --------------------------------------
+// Many guides place their block inside a hand-written <Region>, so its markers are not
+// root children. A root-only scan left exactly those blocks ungated.
+function markerNode(value: string) {
+  return { type: 'mdxFlowExpression', value };
+}
+function gateTree(children: unknown[]) {
+  const tree = { type: 'root', children } as never;
+  remarkCpNavGate()(tree, {} as never);
+  const found: string[] = [];
+  const walk = (n: { type?: string; name?: string; children?: unknown[] }) => {
+    if (n.type === 'mdxJsxFlowElement' && n.name === 'Region')
+      found.push('Region');
+    for (const c of (n.children ?? []) as (typeof n)[]) walk(c);
+  };
+  walk(tree as never);
+  return found.length;
+}
+
+const pair = [
+  markerNode('/* CP-NAV-START:web-zimbra */'),
+  { type: 'paragraph', children: [{ type: 'text', value: 'bullets' }] },
+  markerNode('/* CP-NAV-END:web-zimbra */'),
+];
+check('gate wraps a pair at root level', gateTree([...pair]) === 1);
+check(
+  'gate wraps a pair nested inside a hand-written <Region>',
+  gateTree([
+    {
+      type: 'mdxJsxFlowElement',
+      name: 'Region',
+      attributes: [],
+      children: [...pair],
+    },
+  ]) === 2, // the hand-written one plus the gate's own
+);
+check(
+  'gate leaves an all-zones product unwrapped when nested',
+  gateTree([
+    {
+      type: 'mdxJsxFlowElement',
+      name: 'Region',
+      attributes: [],
+      children: [
+        markerNode('/* CP-NAV-START:web-mx-plan */'),
+        { type: 'paragraph', children: [{ type: 'text', value: 'bullets' }] },
+        markerNode('/* CP-NAV-END:web-mx-plan */'),
+      ],
+    },
+  ]) === 1,
 );
 
 // --- canonicalisation ----------------------------------------------------------------

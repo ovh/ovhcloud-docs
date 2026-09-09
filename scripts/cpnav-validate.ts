@@ -72,6 +72,49 @@ for (const key of keys) {
         `${at}: no text for ${missing.join(', ')} — falls back to en`,
       );
     }
+
+    // Crumb shape, checked per locale because each writes its own chain.
+    for (const locale of LOCALES) {
+      const text = location.text[locale];
+      if (!text) continue;
+      const where = `${at} [${locale}]`;
+      text.crumbs.forEach((crumb, c) => {
+        if (typeof crumb === 'string') {
+          if (!crumb.trim()) errors.push(`${where}: crumb ${c + 1} is empty`);
+          return;
+        }
+        const slots = [...crumb.text.matchAll(/\{(\d+)\}/g)].map((m) =>
+          Number(m[1]),
+        );
+        const labels = crumb.labels ?? [];
+        for (const slot of slots) {
+          if (labels[slot] === undefined) {
+            errors.push(
+              `${where}: crumb ${c + 1} uses {${slot}} but has no such label`,
+            );
+          }
+        }
+        labels.forEach((label, l) => {
+          if (!slots.includes(l)) {
+            errors.push(
+              `${where}: crumb ${c + 1} declares label "${label}" that its text never places`,
+            );
+          }
+        });
+      });
+      // One spelling for a trailing instruction, so two keys cannot express the same
+      // chain differently. A trailing crumb WITH labels is a sentence, not an instruction,
+      // and `step` cannot hold labels — so only the label-free case is rejected.
+      const last = text.crumbs.at(-1);
+      if (last && typeof last !== 'string' && !last.labels?.length) {
+        errors.push(
+          `${where}: last crumb is plain text — use \`step\` for a trailing instruction`,
+        );
+      }
+      if (text.step !== undefined && !text.step.trim()) {
+        errors.push(`${where}: \`step\` is empty — omit it instead`);
+      }
+    }
   });
 }
 
