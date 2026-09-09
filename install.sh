@@ -214,8 +214,17 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] SYSCTL_OK"
 # --- unattended-upgrades ---
 apt-get install -y unattended-upgrades apt-listchanges 2>&1 | tail -2
 cat > /etc/apt/apt.conf.d/50unattended-upgrades << 'EOF'
-Unattended-Upgrade::Allowed-Origins {
-  "${distro_id}:${distro_codename}-security";
+// FIX F1 (09/09/2026) — cibler le codename et le label, jamais l'archive.
+// L'ancienne forme "${distro_id}:${distro_codename}-security" filtre sur
+// l'archive a=bookworm-security : AUCUN depot ne porte cette valeur
+// (verifie sur installation neuve : 0 correspondance dans apt-cache policy).
+// Le depot de securite Debian 12 porte en realite :
+//   a=oldstable-security  n=bookworm-security  l=Debian-Security
+// L'archive change au fil du cycle de vie (stable-security -> oldstable-security),
+// le couple codename + label reste stable. Forme du gabarit Debian par defaut.
+Unattended-Upgrade::Origins-Pattern {
+  "origin=Debian,codename=${distro_codename},label=Debian-Security";
+  "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
 };
 Unattended-Upgrade::AutoFixInterruptedDpkg "true";
 Unattended-Upgrade::MinimalSteps "true";
@@ -2969,6 +2978,30 @@ _SIP_SERVER="${TLS_DOMAIN:-$VPS_IP}"
 # IPv6 server pour smartphones en réseau IPv6-only
 _VPS_IPV6=$(ip -6 route get 2001:4860:4860::8888 2>/dev/null | grep -oP 'src \K\S+' | grep -v '^fe80' | head -1 || echo "")
 
+# ── FIX F2 (09/09/2026) — redémarrage en attente ────────────────────────────
+# L'installation applique les mises à jour système, noyau compris. Un noyau
+# fraîchement installé ne devient actif qu'après redémarrage, et le redémarrage
+# automatique est volontairement désactivé. Sans cette mention, le correctif
+# noyau reste inactif indéfiniment sans que personne en soit informé.
+# Le bloc est construit ici, hors heredoc, pour éviter tout piège de quoting.
+_KERNEL_RUNNING="$(uname -r)"
+_KERNEL_LATEST="$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'linux-image-[0-9]*' 2>/dev/null \
+    | awk '$1 ~ /^ii/ {print $2}' | sed 's/^linux-image-//' | sort -V | tail -1)"
+_KERNEL_LATEST="${_KERNEL_LATEST:-$_KERNEL_RUNNING}"
+if [[ -f /var/run/reboot-required ]]; then
+    _REBOOT_PENDING="OUI"
+    _REBOOT_PKGS="$(tr '\n' ' ' < /var/run/reboot-required.pkgs 2>/dev/null || true)"
+    _REBOOT_BLOCK="  Paquets concernés : ${_REBOOT_PKGS:-noyau}
+  Le correctif noyau reste INACTIF tant que le serveur n'a pas redémarré.
+  Le redémarrage automatique est désactivé : la planification vous appartient.
+  Commande      : sudo reboot   (coupure de service de 1 à 2 minutes)
+  Après reboot  : uname -r doit afficher ${_KERNEL_LATEST}"
+else
+    _REBOOT_PENDING="non"
+    _REBOOT_PKGS=""
+    _REBOOT_BLOCK="  Aucun redémarrage requis : le noyau en service est le plus récent installé."
+fi
+
 cat > "$REPORT_FILE" << REPORTEOF
 ═══════════════════════════════════════════════════════════
   RAPPORT DE LIVRAISON — FreePBX Factory V1.9 CRA
@@ -3000,6 +3033,18 @@ ENVIRONNEMENT VÉRIFIÉ AU DÉPLOIEMENT
   Architecture  : $(uname -m)
   Mémoire       : $(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo) MB
   Disque (/)    : $(df -BG / | awk 'NR==2{gsub("G","",$4); print $4}') GB libres
+
+MISE À JOUR DU NOYAU (redémarrage en attente : ${_REBOOT_PENDING})
+  Noyau en service        : ${_KERNEL_RUNNING}
+  Noyau installé (récent) : ${_KERNEL_LATEST}
+${_REBOOT_BLOCK}
+
+MISES À JOUR DE SÉCURITÉ AUTOMATIQUES
+  unattended-upgrades installé, exécution quotidienne (apt-daily-upgrade.timer)
+  Périmètre : dépôt de sécurité Debian uniquement (codename + label Debian-Security)
+  Redémarrage automatique : désactivé, les correctifs de noyau exigent un reboot manuel
+  Vérifier  : sudo unattended-upgrade --dry-run --debug | grep 'Allowed origins'
+  En attente: apt list --upgradable
 
 COUCHES DE SÉCURITÉ (7 actives)
   [1] Réseau    UFW actif — deny all entrant sauf ports projet
@@ -3146,6 +3191,19 @@ if not warns: print('  Tous les contrôles OK')
 " 2>/dev/null || echo "  → /etc/freepbx-factory/compliance-report.json"
 else
     echo "  → /etc/freepbx-factory/compliance-report.json"
+fi
+
+
+# ── Redémarrage en attente (FIX F2) ──────────────────────────────────────────
+if [[ "${_REBOOT_PENDING}" == "OUI" ]]; then
+    echo ""
+    echo -e "${YELLOW}  ── Redémarrage requis ─────────────────────────────────────${NC}"
+    echo    "  Un nouveau noyau a été installé pendant le déploiement."
+    echo    "  En service : ${_KERNEL_RUNNING}   →   Installé : ${_KERNEL_LATEST}"
+    echo -e "  ${YELLOW}Le correctif de sécurité du noyau reste inactif jusqu'au redémarrage.${NC}"
+    echo    "  Le redémarrage n'est pas automatique : à planifier de votre côté."
+    echo    "    sudo reboot        (coupure de service de 1 à 2 minutes)"
+    echo    "    uname -r           (après redémarrage : doit afficher ${_KERNEL_LATEST})"
 fi
 
 echo ""
