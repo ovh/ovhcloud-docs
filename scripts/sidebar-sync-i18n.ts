@@ -53,7 +53,16 @@ const INDEX_MD_PATH = path.join(
   regionConfig.sidebarIndex,
 );
 
-const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
+// Locales to seed for a NEW key. Taken from the active region rather than
+// hardcoded: a single-locale region (US) must not get six extra slots holding
+// the English string. Those slots are indistinguishable from a genuinely
+// untranslated EU key, so they read as pending translation work — inviting a
+// well-meaning contributor (or an LLM-driven pass) to "finish" them, when in
+// fact the US site only ever renders `en` and a translated value there would
+// be dead weight at best and a silent EU regression at worst if the key is
+// later shared. Seeding only what the region serves keeps "EN in a fr slot"
+// meaning exactly one thing: real work to do.
+const LOCALES = regionConfig.locales;
 
 const prune = process.argv.includes('--prune');
 
