@@ -5,7 +5,21 @@
 // The order follows the Manager's sidebar, grouped by universe — product order is purely
 // presentational, and the sidebar is what the reader is already scanning.
 
+import { accountContacts } from './keys/account-contacts';
+import { accountDashboard } from './keys/account-dashboard';
+import { accountMessages } from './keys/account-messages';
+import { accountProfile } from './keys/account-profile';
+import { accountSecurity } from './keys/account-security';
+import { billingInvoices } from './keys/billing-invoices';
+import { billingOrders } from './keys/billing-orders';
+import { billingPaymentMethods } from './keys/billing-payment-methods';
+import { iamIdentities } from './keys/iam-identities';
+import { iamPolicies } from './keys/iam-policies';
+import { iamSamlSso } from './keys/iam-saml-sso';
+import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { logsDataPlatform } from './keys/logs-data-platform';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
+import { securityKms } from './keys/security-kms';
 import { webCloudDatabases } from './keys/web-cloud-databases';
 import { webEmailPro } from './keys/web-email-pro';
 import { webExchange } from './keys/web-exchange';
@@ -22,6 +36,26 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-exchange': webExchange,
   // --- Hosted Private Cloud ----------------------------------------------------------
   'privatecloud-nutanix': privatecloudNutanix,
+  // --- Identity, Security & Operations, in Manager sidebar order ----------------------
+  // The tree groups these under `Identity and access management`, `Security` and
+  // `Operations`; those are group nodes, which the docs convention omits.
+  'iam-identities': iamIdentities,
+  'iam-saml-sso': iamSamlSso,
+  'iam-service-accounts': iamServiceAccounts,
+  'iam-policies': iamPolicies,
+  'security-kms': securityKms,
+  'logs-data-platform': logsDataPlatform,
+  // --- Account and billing ------------------------------------------------------------
+  // Reached from the user menu, not the sidebar, so the Manager exposes no order to
+  // follow; grouped account-then-billing instead.
+  'account-dashboard': accountDashboard,
+  'account-profile': accountProfile,
+  'account-security': accountSecurity,
+  'account-contacts': accountContacts,
+  'account-messages': accountMessages,
+  'billing-orders': billingOrders,
+  'billing-invoices': billingInvoices,
+  'billing-payment-methods': billingPaymentMethods,
 };
 
 /**

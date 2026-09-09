@@ -22,6 +22,7 @@ export type UniverseId =
   | 'web-cloud'
   | 'hosted-private-cloud'
   | 'bare-metal-cloud'
+  | 'identity-security-operations'
   | 'account-menu';
 
 /**

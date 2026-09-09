@@ -14,6 +14,17 @@ export const CPNAV_UNIVERSES: Record<
   'web-cloud': { en: 'Web Cloud' },
   'hosted-private-cloud': { en: 'Hosted Private Cloud' },
   'bare-metal-cloud': { en: 'Bare Metal Cloud' },
+  // Manager i18n `sidebar_security_identity_operations`. Translated, unlike the brand
+  // universes above, so every locale is listed.
+  'identity-security-operations': {
+    en: 'Identity, Security & Operations',
+    fr: 'Identité, Sécurité & Opérations',
+    de: 'Identität, Sicherheit und Operationen',
+    es: 'Identidad, seguridad y operaciones',
+    it: 'Identità, sicurezza e operazioni',
+    pl: 'Tożsamość, bezpieczeństwo i operacje',
+    pt: 'Identidade, Segurança e Operações',
+  },
   // Not top navigation and not clickable, so every locale carries its own wording.
   'account-menu': {
     en: { text: 'Click your name in the top right' },
