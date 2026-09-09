@@ -10,6 +10,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
+import { generateCpNavRules } from './config/cpnav-rules';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
@@ -22,6 +23,7 @@ import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
@@ -215,6 +217,7 @@ export default defineConfig({
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
+      remarkNoUnresolvedCpnav,
       remarkNoUnresolvedTerm,
       remarkNoDatelessGuide,
       remarkCpNavGate,
@@ -258,6 +261,7 @@ export default defineConfig({
   // inside fragment bodies resolve in the same pass.
   replaceRules: [
     ...generateFragmentRules(locale as Locale),
+    ...generateCpNavRules(locale as Locale),
     ...generateLinkRules(locale as Locale),
   ],
 
