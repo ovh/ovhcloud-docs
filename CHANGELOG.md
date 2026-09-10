@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.09.10.1
+
+### Features
+- **{components/{Api,Api,ManagerLink},bare-metal-cloud/dedicated-servers}:** soyoustart / kimsufi endpoints, reinstallation methods (fr+en) (#710)
+
+### Documentation
+- 54 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.10
 
 ### Fixes
