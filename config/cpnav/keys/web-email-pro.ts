@@ -9,6 +9,7 @@ export const webEmailPro: CpNavKey = {
   locations: [
     {
       route: '/#/web/email_pro',
+      source: { node: 'email-pro' },
       text: {
         en: {
           product: 'Email Pro',

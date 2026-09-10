@@ -6,6 +6,7 @@ export const webZimbra: CpNavKey = {
   locations: [
     {
       route: '/#/zimbra/',
+      source: { node: 'zimbra' },
       text: {
         en: { product: 'Zimbra Mail', crumbs: ['Zimbra Mail'] },
         fr: { product: 'Zimbra Mail', crumbs: ['Zimbra Mail'] },

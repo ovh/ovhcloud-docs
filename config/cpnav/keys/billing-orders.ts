@@ -5,6 +5,7 @@ export const billingOrders: CpNavKey = {
   locations: [
     {
       route: '/#/billing/orders',
+      source: { labels: ['user_account_menu_my_commands'] },
       text: {
         en: { product: 'My orders', crumbs: ['My orders'] },
         fr: { product: 'Mes commandes', crumbs: ['Mes commandes'] },

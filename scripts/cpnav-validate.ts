@@ -61,9 +61,12 @@ for (const key of keys) {
     if ((location.route || location.linkKey) && !en.product) {
       errors.push(`${at}: has a direct link but no \`product\` to label it`);
     }
-    if (!en.crumbs.length) {
+    // Empty `crumbs` is legitimate when `step` carries the only step after the
+    // universe — e.g. `Public Cloud` > `Select your project`, which is the shape of
+    // the largest key in the corpus.
+    if (!en.crumbs.length && !en.step) {
       errors.push(
-        `${at}: \`crumbs\` is empty — a block needs at least one clickable step`,
+        `${at}: no steps — a block needs at least one \`crumbs\` entry or a \`step\``,
       );
     }
     const missing = LOCALES.filter((l) => !location.text[l]);

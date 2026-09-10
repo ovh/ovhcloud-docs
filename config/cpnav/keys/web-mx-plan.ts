@@ -6,6 +6,7 @@ export const webMxPlan: CpNavKey = {
   locations: [
     {
       route: '/#/web/email_domain',
+      source: { node: 'mxplan' },
       text: {
         en: {
           product: 'MX Plan',
