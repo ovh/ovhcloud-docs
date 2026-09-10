@@ -159,7 +159,7 @@
             + [Understanding the dedicated server boot process](bare-metal-cloud/dedicated-servers/boot-process)
         + [Getting Started](bare-metal-cloud-dedicated-servers-getting-started)
             + [How to get started with a dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server)
-            + [How to get started with a Kimsufi, So You Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
+            + [How to get started with a Kimsufi, So you Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
             + [How to get started with SSH connections](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use authentication keys for SSH connections to OVHcloud servers](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
             + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
