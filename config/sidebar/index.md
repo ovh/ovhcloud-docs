@@ -602,6 +602,7 @@
             + [Getting started with your OPCP](hosted-private-cloud/opcp/getting-started)
             + [How to install a controller](hosted-private-cloud/opcp/install-controller)
             + [Node lifecycle](hosted-private-cloud/opcp/node-lifecycle)
+            + [How to allocate and de-allocate a node for a project](hosted-private-cloud/opcp/how-to-allocate-node)
             + [How to use the APIs and obtain the credentials](hosted-private-cloud/opcp/how-to-use-api-and-get-credentials)
             + [How to install an instance from the Horizon interface](hosted-private-cloud/opcp/how-to-setup-instance)
             + [How to setup an instance using the OpenStack CLI](hosted-private-cloud/opcp/how-to-setup-instance-from-cli)
