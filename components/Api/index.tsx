@@ -127,8 +127,15 @@ export default function Api({
       ? globalRegion
       : ovhRegions[0];
 
-  const endpointOf = (key: EndpointKey) =>
-    isSysksRegion(key) ? sysEndpoint(key) : OVH_REGIONS[key as Region];
+  // When brand options sit alongside the OVHcloud ones, name the brand on the
+  // OVHcloud entries too — a bare "EU" next to "So you Start EU" leaves the
+  // reader to infer which brand it belongs to. Untouched when this instance
+  // offers the OVHcloud API only, where "EU"/"CA" is unambiguous.
+  const endpointOf = (key: EndpointKey) => {
+    if (isSysksRegion(key)) return sysEndpoint(key);
+    const ovh = OVH_REGIONS[key as Region];
+    return hasSys ? { ...ovh, label: `OVHcloud ${ovh.label}` } : ovh;
+  };
 
   const selectKey = useCallback(
     (key: EndpointKey) => {

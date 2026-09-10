@@ -386,7 +386,15 @@ export function ManagerLink({
       <p className="ovh-api-dropdown__title">{t('api.regionTooltipTitle')}</p>
       {regions.map((r, i) => {
         const isSelected = r === region;
-        const meta = regionMeta?.[r] ?? REGIONS[r as Region];
+        // Same rule as <Api>: prefix the OVHcloud entries only when brand
+        // entries share the list (also covers <ApiLink brands>, whose ovh
+        // keys have no regionMeta entry and fall back to REGIONS here).
+        const fallbackMeta = REGIONS[r as Region];
+        const meta =
+          regionMeta?.[r] ??
+          (usesBrandKeyState && fallbackMeta
+            ? { ...fallbackMeta, label: `OVHcloud ${fallbackMeta.label}` }
+            : fallbackMeta);
         // Per-region tooltip copy only exists for the built-in eu/ca keys.
         const descKey = !regionMeta
           ? (`api.regionTooltip${r.toUpperCase()}` as const)
