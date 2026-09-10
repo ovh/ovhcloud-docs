@@ -9,7 +9,18 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { regionsForPath } from '../Api/productRegions';
-import { useRegion } from '../Api/RegionContext';
+import { useBrandKey, useRegion } from '../Api/RegionContext';
+import {
+  BRANDS_DEFAULT,
+  type Brand,
+  isSysksRegion,
+  SYS_REGIONS_DEFAULT,
+  type SysksRegion,
+  type SysProvider,
+  type SysRegion,
+  sysKeysForProviders,
+  sysMeta,
+} from '../Api/sysBrand';
 import '../Api/index.css'; // shared dropdown styles
 import './index.css';
 
@@ -30,6 +41,12 @@ const REGIONS = {
 
 type Region = keyof typeof REGIONS;
 
+// A region key isn't limited to "eu"/"ca" — callers with more than one
+// non-zone axis (e.g. <ApiLink>'s `sys-ks` brand, which combines a provider
+// and a region into keys like "ks-eu") can pass arbitrary strings alongside
+// `regionMeta` for their flag/label.
+type RegionKey = string;
+
 const LANG_TO_SUBSIDIARY: Record<string, string> = {
   fr: 'fr',
   en: 'GB',
@@ -39,6 +56,39 @@ const LANG_TO_SUBSIDIARY: Record<string, string> = {
   pl: 'pl',
   pt: 'pt',
 };
+
+// Kimsufi/So you Start have their own manager (login) pages, entirely
+// separate from OVH's zoned manager.{eu|ca}.ovhcloud.com — not wrapped in
+// OVH's auth flow, and localized differently: SYS EU/CA and KS EU take a
+// `lang` query param, KS CA has no localized variant at all (single fixed
+// URL for every reader). The `lang` value itself follows the page locale
+// (mirrors LANG_TO_SUBSIDIARY's mapping, just spelled `xx_XX`).
+const SYS_MANAGER_LANG: Record<string, string> = {
+  fr: 'fr_FR',
+  en: 'en_GB',
+  de: 'de_DE',
+  es: 'es_ES',
+  it: 'it_IT',
+  pl: 'pl_PL',
+  pt: 'pt_PT',
+};
+
+function sysManagerHref(key: SysksRegion, lang: string): string {
+  const managerLang = SYS_MANAGER_LANG[lang] ?? SYS_MANAGER_LANG.en;
+  switch (key) {
+    case 'ks-eu':
+      // Assumes kimsufi.com's locale path segments match this repo's locale
+      // codes (fr, en, de, es, it, pl, pt) — verify per-locale before
+      // shipping content that relies on this for a locale other than fr.
+      return `https://www.kimsufi.com/${lang}/manager/?lang=${managerLang}#/login`;
+    case 'ks-ca':
+      return 'https://ca.kimsufi.com/manager/#/login';
+    case 'sys-eu':
+      return `https://eu.soyoustart.com/manager/?lang=${managerLang}#/login`;
+    case 'sys-ca':
+      return `https://ca.soyoustart.com/manager/?lang=${managerLang}#/login`;
+  }
+}
 
 interface ManagerLinkProps {
   /**
@@ -55,7 +105,7 @@ interface ManagerLinkProps {
    */
   authFlow?: boolean;
   /** Override available regions (default: ["eu", "ca"]) */
-  regions?: Region[];
+  regions?: RegionKey[];
   /**
    * Per-region absolute URLs, used verbatim instead of building a manager
    * host + path. For links that aren't Control Panel paths but still need the
@@ -63,7 +113,37 @@ interface ManagerLinkProps {
    * region codes; the selected region's URL opens on click. Falls back to the
    * first allowed region's URL if the selected one is missing.
    */
-  urls?: Partial<Record<Region, string>>;
+  urls?: Partial<Record<RegionKey, string>>;
+  /**
+   * Flag/label metadata for `regions` keys outside the built-in "eu"/"ca"
+   * pair (e.g. <ApiLink>'s `sys-ks` brand keys: "ks-eu", "ks-ca", "sys-eu",
+   * "sys-ca"). Merged over the built-in EU/CA metadata. Its presence also
+   * switches the picker to local component state instead of the shared
+   * cross-widget RegionContext (that context only ever holds "eu"/"ca" —
+   * writing an arbitrary key into it would corrupt every other <Api>/
+   * <ManagerLink> instance reading it on the page) and disables the
+   * zone-based auto-collapse (see `disableZoneShortcut`).
+   */
+  regionMeta?: Record<RegionKey, { flag: string; label: string }>;
+  /**
+   * Skip the "visitor already chose a commercial zone" auto-collapse (see
+   * below) even when it would otherwise apply. Use when the offered keys
+   * encode more than just eu/ca (e.g. a provider dimension), so the zone
+   * alone can't determine the right link. Defaults to `true` when
+   * `regionMeta` is set, `false` otherwise.
+   */
+  disableZoneShortcut?: boolean;
+  /**
+   * Brands to offer, as a list (default `['ovh']`) — same shape as
+   * `regions`. `'ovh'` is the standard eu/ca Control Panel driven by
+   * `to`/`authFlow` as above. `'ks'`/`'sys'` link to the Kimsufi/So you
+   * Start manager login instead (no `to`/`authFlow`/`urls`/`regionMeta` —
+   * the per-region URLs are built in-component), independently selectable
+   * and combinable with `'ovh'`. Whenever `'ks'` and/or `'sys'` is included,
+   * `regions` filters the offered keys (eu/ca) but `urls`/`regionMeta` are
+   * ignored (computed internally instead).
+   */
+  brands?: Brand[];
 }
 
 function buildManagerUrl(
@@ -101,18 +181,67 @@ export function ManagerLink({
   children,
   authFlow = true,
   regions: regionsProp,
-  urls,
+  urls: urlsProp,
+  regionMeta: regionMetaProp,
+  disableZoneShortcut,
+  brands = BRANDS_DEFAULT,
 }: ManagerLinkProps) {
-  const { region: globalRegion, setRegion } = useRegion();
+  const { region: globalRegion, setRegion: setGlobalRegion } = useRegion();
+  const { brandKey, setBrandKey } = useBrandKey();
   const { isSet: zoneChosen } = useZone();
   const lang = useLang();
   const t = useI18n();
 
-  // Default the offered regions to the product's commercial-zone availability
-  // (derived from `to`); an explicit `regions` prop overrides it. Falls back to
-  // both regions when no zoned product matches the path.
-  const regions =
-    regionsProp ?? regionsForPath(to) ?? (['eu', 'ca'] as Region[]);
+  const hasOvhBrand = brands.includes('ovh');
+  const sysProviders = brands.filter((b): b is SysProvider => b !== 'ovh');
+  const hasSysBrand = sysProviders.length > 0;
+
+  // Brand-driven urls/regions/regionMeta, built here instead of via manual
+  // `urls`/`regionMeta` props (which are ignored whenever a sys brand is
+  // included).
+  let urls = urlsProp;
+  let regionMeta = regionMetaProp;
+  let regions: RegionKey[];
+  if (hasSysBrand) {
+    const sysRegions =
+      (regionsProp as SysRegion[] | undefined) ?? SYS_REGIONS_DEFAULT;
+    const sysKeys = sysKeysForProviders(sysProviders, sysRegions);
+    const builtUrls: Record<string, string> = Object.fromEntries(
+      sysKeys.map((k) => [k, sysManagerHref(k, lang)]),
+    );
+    const builtRegionMeta: Record<string, { flag: string; label: string }> =
+      Object.fromEntries(sysKeys.map((k) => [k, sysMeta(k)]));
+    if (hasOvhBrand) {
+      const ovhRegions =
+        (regionsProp as Region[] | undefined) ?? (['eu', 'ca'] as Region[]);
+      for (const r of ovhRegions) {
+        builtUrls[r] = buildManagerUrl(r, to ?? '', authFlow, lang);
+      }
+      regions = [...ovhRegions, ...sysKeys];
+    } else {
+      regions = sysKeys;
+    }
+    urls = builtUrls;
+    regionMeta = builtRegionMeta;
+  } else {
+    // Default the offered regions to the product's commercial-zone
+    // availability (derived from `to`); an explicit `regions` prop overrides
+    // it. Falls back to both regions when no zoned product matches the path.
+    regions = regionsProp ?? regionsForPath(to) ?? (['eu', 'ca'] as Region[]);
+  }
+
+  // Custom keys (via `regionMeta`, or a sys brand) don't fit the shared
+  // eu/ca RegionContext — track the selection in local state instead, same as
+  // <Api>'s hasSys path.
+  const isCustom = hasSysBrand || !!regionMeta;
+  // Sys-brand keys ("sys-eu", "ks-ca" …) are page-wide: share them through
+  // BrandKeyContext so one pick applies to every brand-enabled widget. This
+  // also covers <ApiLink brands>, which reaches us as a `regionMeta` of sys
+  // keys. A caller passing arbitrary custom keys stays on local state.
+  const usesBrandKeyState =
+    hasSysBrand || Object.keys(regionMeta ?? {}).some(isSysksRegion);
+  const [localRegion, setLocalRegion] = useState<RegionKey | null>(null);
+  const skipZoneShortcut = disableZoneShortcut ?? isCustom;
 
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
@@ -123,10 +252,33 @@ export function ManagerLink({
   const menuRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  const setRegion = useCallback(
+    (r: RegionKey) => {
+      if (usesBrandKeyState) {
+        setBrandKey(r);
+      } else if (isCustom) {
+        setLocalRegion(r);
+      } else {
+        setGlobalRegion(r as Region);
+      }
+    },
+    [usesBrandKeyState, setBrandKey, isCustom, setGlobalRegion],
+  );
+
   // Constrain stored region to the regions allowed by this instance
-  const region = regions.includes(globalRegion as Region)
-    ? (globalRegion as Region)
-    : regions[0];
+  const region = usesBrandKeyState
+    ? brandKey && regions.includes(brandKey as RegionKey)
+      ? (brandKey as RegionKey)
+      : regions.includes(globalRegion as RegionKey)
+        ? (globalRegion as RegionKey)
+        : regions[0]
+    : isCustom
+      ? localRegion && regions.includes(localRegion)
+        ? localRegion
+        : regions[0]
+      : regions.includes(globalRegion as Region)
+        ? (globalRegion as Region)
+        : regions[0];
 
   // Position the menu relative to the trigger (uses viewport coords for fixed positioning)
   useLayoutEffect(() => {
@@ -171,14 +323,16 @@ export function ManagerLink({
   }, [open, focusIndex]);
 
   const selectRegion = useCallback(
-    (r: Region) => {
+    (r: RegionKey) => {
       setRegion(r);
       setOpen(false);
       // When explicit per-region URLs are given, use them verbatim; otherwise
-      // build a Control Panel URL from the manager host + path.
+      // build a Control Panel URL from the manager host + path (only reached
+      // for the built-in eu/ca keys — custom `regionMeta` callers always pass
+      // `urls`).
       const url = urls
         ? (urls[r] ?? urls[regions[0]] ?? '')
-        : buildManagerUrl(r, to ?? '', authFlow, lang);
+        : buildManagerUrl(r as Region, to ?? '', authFlow, lang);
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
@@ -232,8 +386,20 @@ export function ManagerLink({
       <p className="ovh-api-dropdown__title">{t('api.regionTooltipTitle')}</p>
       {regions.map((r, i) => {
         const isSelected = r === region;
-        const descKey = `api.regionTooltip${r.toUpperCase()}` as const;
-        const desc = t(descKey);
+        // Same rule as <Api>: prefix the OVHcloud entries only when brand
+        // entries share the list (also covers <ApiLink brands>, whose ovh
+        // keys have no regionMeta entry and fall back to REGIONS here).
+        const fallbackMeta = REGIONS[r as Region];
+        const meta =
+          regionMeta?.[r] ??
+          (usesBrandKeyState && fallbackMeta
+            ? { ...fallbackMeta, label: `OVHcloud ${fallbackMeta.label}` }
+            : fallbackMeta);
+        // Per-region tooltip copy only exists for the built-in eu/ca keys.
+        const descKey = !regionMeta
+          ? (`api.regionTooltip${r.toUpperCase()}` as const)
+          : undefined;
+        const desc = descKey ? t(descKey) : undefined;
         return (
           <button
             key={r}
@@ -249,11 +415,9 @@ export function ManagerLink({
             tabIndex={-1}
           >
             <span className="ovh-api-dropdown__option-header">
-              <span className="ovh-api-dropdown__option-flag">
-                {REGIONS[r].flag}
-              </span>
+              <span className="ovh-api-dropdown__option-flag">{meta.flag}</span>
               <span className="ovh-api-dropdown__option-label">
-                {REGIONS[r].label}
+                {meta.label}
               </span>
               {isSelected && (
                 <span className="ovh-api-dropdown__check" aria-hidden="true">
@@ -268,7 +432,12 @@ export function ManagerLink({
               {/* In `urls` mode show the actual target's host, not the
                   manager host (e.g. api.eu.ovhcloud.com for API links). */}
               {
-                (urls?.[r] ?? REGIONS[r].managerHost)
+                (
+                  urls?.[r] ??
+                  (REGIONS as Record<string, { managerHost: string }>)[r]
+                    ?.managerHost ??
+                  ''
+                )
                   .replace(/^https:\/\//, '')
                   .split(/[/?#]/)[0]
               }
@@ -284,10 +453,12 @@ export function ManagerLink({
   // chosen a commercial zone: picking the manager region on top of the zone is
   // redundant. The zone stays the single source of truth (changeable via the
   // zone switcher); `region` is already clamped to the offered regions above.
-  if (regions.length === 1 || zoneChosen) {
+  // Skipped for callers whose keys encode more than a zone (`skipZoneShortcut`)
+  // — the zone alone can't pick e.g. a Kimsufi vs. So you Start endpoint.
+  if (regions.length === 1 || (zoneChosen && !skipZoneShortcut)) {
     const href = urls
       ? (urls[region] ?? urls[regions[0]] ?? '')
-      : buildManagerUrl(region, to ?? '', authFlow, lang);
+      : buildManagerUrl(region as Region, to ?? '', authFlow, lang);
     return (
       <a
         className="ovh-manager-link__trigger"
