@@ -10,7 +10,11 @@
 import type { ReplaceRule } from '@rspress/shared';
 import { CPNAV_FRAME } from './cpnav/frame';
 import { allKeySets, CPNAV_KEYS } from './cpnav/index';
-import type { CpNavLocation, CpNavLocationText } from './cpnav/types';
+import type {
+  CpNavCrumb,
+  CpNavLocation,
+  CpNavLocationText,
+} from './cpnav/types';
 import { CPNAV_UNIVERSES } from './cpnav/universes';
 import type { Locale } from './shared';
 
@@ -26,10 +30,26 @@ function action(label: string): string {
   return `<code className="action">${label}</code>`;
 }
 
+/** A string crumb is clickable; an object is instruction text with `{n}` label slots. */
+export function renderCrumb(crumb: CpNavCrumb): string {
+  if (typeof crumb === 'string') return action(crumb);
+  const labels = crumb.labels ?? [];
+  return crumb.text.replace(/\{(\d+)\}/g, (whole: string, index: string) => {
+    const label = labels[Number(index)];
+    if (label === undefined) {
+      throw new Error(
+        `[cpnav] crumb text "${crumb.text}" uses ${whole} but declares only ` +
+          `${labels.length} label(s).`,
+      );
+    }
+    return action(label);
+  });
+}
+
 /** One destination's bullets. `withSubLabel` adds the bold product heading above them. */
 function renderLocation(
   text: CpNavLocationText,
-  universeLabel: string,
+  universeCrumb: CpNavCrumb,
   location: Pick<CpNavLocation, 'route' | 'linkKey'>,
   locale: Locale,
   withSubLabel: boolean,
@@ -67,8 +87,8 @@ function renderLocation(
     lines.push(`- **${frame.directLink}** ${anchor}`);
   }
 
-  const steps = [universeLabel, ...text.crumbs].map(action);
-  const path = text.step ? [...steps, text.step] : steps;
+  const chain = [universeCrumb, ...text.crumbs].map(renderCrumb);
+  const path = text.step ? [...chain, text.step] : chain;
   lines.push(`- **${frame.navPath}** ${path.join(' > ')}`);
 
   return lines.join('\n');
@@ -107,15 +127,15 @@ export function renderEntries(
 ): string {
   const entries = keys.flatMap((key) => {
     const entry = CPNAV_KEYS[key];
-    const universeLabel = resolve(CPNAV_UNIVERSES[entry.universe], locale);
-    if (!universeLabel) {
+    const universeCrumb = resolve(CPNAV_UNIVERSES[entry.universe], locale);
+    if (!universeCrumb) {
       throw new Error(
-        `[cpnav] universe "${entry.universe}" has no label for any locale.`,
+        `[cpnav] universe "${entry.universe}" has no entry for any locale.`,
       );
     }
     return entry.locations.map((location) => ({
       location,
-      universeLabel,
+      universeCrumb,
       key,
     }));
   });
@@ -124,12 +144,12 @@ export function renderEntries(
   // one — whether they come from several keys or from one key with several locations.
   const withSubLabel = forceSubLabel || entries.length > 1;
 
-  const rendered = entries.map(({ location, universeLabel, key }) => {
+  const rendered = entries.map(({ location, universeCrumb, key }) => {
     const text = resolve(location.text, locale);
     if (!text) {
       throw new Error(`[cpnav] key "${key}" has no text for any locale.`);
     }
-    return renderLocation(text, universeLabel, location, locale, withSubLabel);
+    return renderLocation(text, universeCrumb, location, locale, withSubLabel);
   });
 
   return rendered.join('\n\n');
