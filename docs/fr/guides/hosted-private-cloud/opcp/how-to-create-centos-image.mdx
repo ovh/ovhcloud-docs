@@ -1,14 +1,14 @@
 ---
 title: "Construction d'images CentOS Stream avec Disk Image Builder pour OPCP"
 description: Découvrez comment construire des images OpenStack CentOS Stream 8 et 9 personnalisées avec diskimage-builder (DiB) pour On-Prem Cloud Platform
-lastUpdated: 2026-09-04
+lastUpdated: 2026-09-10
 ---
 
 ## Objectif
 
 [Disk Image Builder](https://opendev.org/openstack/diskimage-builder) (DiB) est l'outil OpenStack utilisé pour construire des images disque de systèmes d'exploitation personnalisées. Ce guide explique comment construire des images **CentOS Stream 8** et **CentOS Stream 9** prêtes à être importées dans OpenStack Glance et utilisées sur votre On-Prem Cloud Platform (OPCP).
 
-**Ce guide explique comment installer DiB, préparer des éléments personnalisés qui contournent deux problèmes connus de CentOS, puis lancer la construction pour CentOS Stream 8 et CentOS Stream 9.**
+**Ce guide explique comment installer DiB, préparer des éléments personnalisés qui contournent un problème connu de CentOS, puis lancer la construction pour CentOS Stream 8 et CentOS Stream 9.**
 
 Pour un autre exemple basé sur Debian avec une personnalisation via Ansible, consultez le guide [Création d'une image Debian personnalisée pour OPCP](/guides/hosted-private-cloud/opcp/how-to-create-debian-image).
 
@@ -43,11 +43,12 @@ apt install -y \
   squashfs-tools \
   git \
   qemu-utils \
+  qemu-system-x86 \
   curl
 ```
 
 :::info
-`git` est nécessaire pour cloner le dépôt DiB, `qemu-utils` fournit l'outillage `qemu-img` utilisé pour manipuler les images `qcow2` (et pour tester le résultat), et `curl` sert à télécharger les paquets et le contenu des miroirs durant la construction.
+`git` est nécessaire pour cloner le dépôt DiB, `qemu-utils` fournit l'outillage `qemu-img` utilisé pour manipuler les images `qcow2`, `qemu-system-x86` fournit `qemu-system-x86_64` utilisé à l'étape 7 pour tester le résultat, et `curl` sert à télécharger les paquets et le contenu des miroirs durant la construction.
 :::
 
 ### Étape 2 : Installer Disk Image Builder
@@ -59,10 +60,10 @@ virtualenv ~/env-diskimage-builder
 source ~/env-diskimage-builder/bin/activate
 ```
 
-Clonez le dépôt DiB sur un tag spécifique et installez-le. Dans cet exemple, nous utilisons la version `3.36.0` :
+Clonez le dépôt DiB sur un tag spécifique et installez-le. Dans cet exemple, nous utilisons la version `3.42.0` :
 
 ```bash
-git clone --depth 1 --branch 3.36.0 https://opendev.org/openstack/diskimage-builder ~/diskimage-builder
+git clone --depth 1 --branch 3.42.0 https://opendev.org/openstack/diskimage-builder ~/diskimage-builder
 pip install -e ~/diskimage-builder
 ```
 
@@ -98,13 +99,10 @@ sed -i -e 's/550/512/' ~/dib/elements/block-device-efi-custom/block-device-defau
 
 #### Élément personnalisé : `centos-custom`
 
-L'élément `centos` par défaut présente certains problèmes qui ne sont pas encore corrigés. Créez un élément personnalisé basé sur celui-ci pour appliquer les correctifs requis :
+L'élément `centos` par défaut présente un problème qui n'est pas encore corrigé. Créez un élément personnalisé basé sur celui-ci pour appliquer le correctif requis :
 
 ```bash
 cp -pR ~/diskimage-builder/diskimage_builder/elements/centos ~/dib/elements/centos-custom
-
-sed -i -e '/\/bin\/bash/a exit 0' \
-  ~/dib/elements/centos-custom/post-install.d/03-reset-bls-entries
 
 sed -i \
   -e 's/centos.repo/*.repo/' \
@@ -138,14 +136,14 @@ export DIB_GRUB_TIMEOUT=10
 export DIB_DISTRIBUTION_MIRROR=http://vault.centos.org/centos
 export DIB_RELEASE=8-stream
 export DIB_BOOTLOADER_DEFAULT_CMDLINE="nofb nomodeset gfxpayload=text rd.auto"
-export DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG="
+export DIB_DRACUT_ENABLED_MODULES="
 - name: crypt
   packages:
     - cryptsetup
 - name: lvm
   packages:
     - lvm2
-- name: mdadm
+- name: mdraid
   packages:
     - mdadm
 "
@@ -162,7 +160,7 @@ unset DIB_GRUB_TIMEOUT
 unset DIB_DISTRIBUTION_MIRROR
 unset DIB_RELEASE
 unset DIB_BOOTLOADER_DEFAULT_CMDLINE
-unset DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG
+unset DIB_DRACUT_ENABLED_MODULES
 
 source ~/dib/env/centos8/main.env
 
@@ -171,7 +169,7 @@ cd ~/dib
 export TMPDIR="$(pwd)/tmp-build-dir"
 export ELEMENTS_PATH="$(pwd)/elements"
 
-disk-image-create --no-tmpfs -t qcow2 --image-size 16GB \
+disk-image-create --no-tmpfs -t qcow2 --image-size 16GB -a amd64 \
   dracut-regenerate block-device-efi-custom bootloader \
   cloud-init-datasources centos-custom \
   -o my-centos8-image
@@ -206,6 +204,17 @@ export DIB_GRUB_TIMEOUT=10
 export DIB_CLOUD_INIT_DATASOURCES="ConfigDrive, OpenStack"
 export DIB_RELEASE=9-stream
 export DIB_BOOTLOADER_DEFAULT_CMDLINE="nofb nomodeset gfxpayload=text rd.auto"
+export DIB_DRACUT_ENABLED_MODULES="
+- name: crypt
+  packages:
+    - cryptsetup
+- name: lvm
+  packages:
+    - lvm2
+- name: mdraid
+  packages:
+    - mdadm
+"
 EOF
 ```
 
@@ -217,7 +226,7 @@ unset DIB_GRUB_TIMEOUT
 unset DIB_DISTRIBUTION_MIRROR
 unset DIB_RELEASE
 unset DIB_BOOTLOADER_DEFAULT_CMDLINE
-unset DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG
+unset DIB_DRACUT_ENABLED_MODULES
 
 source ~/dib/env/centos9/main.env
 
@@ -226,7 +235,7 @@ cd ~/dib
 export TMPDIR="$(pwd)/tmp-build-dir"
 export ELEMENTS_PATH="$(pwd)/elements"
 
-disk-image-create --no-tmpfs -t qcow2 --image-size 16GB \
+disk-image-create --no-tmpfs -t qcow2 --image-size 16GB -a amd64 \
   dracut-regenerate block-device-efi-custom bootloader \
   cloud-init-datasources centos-custom \
   -o my-centos9-image
@@ -308,7 +317,7 @@ Désactivez ces fonctionnalités à la création du système de fichiers via l'o
 
 ```bash
 disk-image-create --no-tmpfs -t qcow2 --image-size 16GB \
-  --mkfs-options "-O ^metadata_csum,^orphan_file" \
+  --mkfs-options "-O ^metadata_csum_seed,^orphan_file" \
   dracut-regenerate block-device-efi-custom bootloader \
   cloud-init-datasources centos-custom \
   -o my-centos-image
