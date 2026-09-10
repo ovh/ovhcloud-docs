@@ -8,6 +8,7 @@ export const webExchange: CpNavKey = {
   locations: [
     {
       route: '/#/web/exchange',
+      source: { node: 'exchange' },
       text: {
         en: {
           product: 'Exchange',

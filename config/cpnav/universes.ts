@@ -14,6 +14,7 @@ export const CPNAV_UNIVERSES: Record<
   'web-cloud': { en: 'Web Cloud' },
   'hosted-private-cloud': { en: 'Hosted Private Cloud' },
   'bare-metal-cloud': { en: 'Bare Metal Cloud' },
+  'public-cloud': { en: 'Public Cloud' },
   // Manager i18n `sidebar_security_identity_operations`. Translated, unlike the brand
   // universes above, so every locale is listed.
   'identity-security-operations': {

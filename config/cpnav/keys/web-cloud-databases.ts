@@ -6,6 +6,7 @@ export const webCloudDatabases: CpNavKey = {
   locations: [
     {
       route: '/#/web/private_database',
+      source: { node: 'web-databases' },
       text: {
         en: {
           product: 'Web Cloud Databases',

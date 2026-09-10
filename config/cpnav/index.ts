@@ -19,6 +19,10 @@ import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
+import { publiccloudDatabases } from './keys/publiccloud-databases';
+import { publiccloudLogs } from './keys/publiccloud-logs';
+import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
+import { publiccloudProjects } from './keys/publiccloud-projects';
 import { securityKms } from './keys/security-kms';
 import { webCloudDatabases } from './keys/web-cloud-databases';
 import { webEmailPro } from './keys/web-email-pro';
@@ -36,6 +40,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-exchange': webExchange,
   // --- Hosted Private Cloud ----------------------------------------------------------
   'privatecloud-nutanix': privatecloudNutanix,
+  // --- Public Cloud, in Manager sidebar order ------------------------------------------
+  // Every product route carries {projectId}, so no product has a project-independent
+  // URL: the chain names the product, the link is always the project list.
+  'publiccloud-projects': publiccloudProjects,
+  'publiccloud-databases': publiccloudDatabases,
+  'publiccloud-object-storage': publiccloudObjectStorage,
+  'publiccloud-logs': publiccloudLogs,
   // --- Identity, Security & Operations, in Manager sidebar order ----------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
