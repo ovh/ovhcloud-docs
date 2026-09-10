@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.09.10
+
+### Fixes
+- iam: example should match the specification (#745)
+
+### Documentation
+- 284 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.08
 
 ### Features
