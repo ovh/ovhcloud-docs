@@ -154,7 +154,7 @@
         + [Overview](bare-metal-cloud/dedicated-servers/overview)
         + [Key Concepts](bare-metal-cloud-dedicated-servers-key-concepts)
             + [Bare Metal 3-AZ Region - Service presentation](bare-metal-cloud/dedicated-servers/3az-presentation)
-            + [Kimsufi and So You Start customers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/getting-familiar-with-ovhcloud-control-panel)
+            + [Kimsufi and So you Start customers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/getting-familiar-with-ovhcloud-control-panel)
             + [Dedicated Servers - Shared responsiblity](account-and-service-management/responsibility-sharing/dedicated-servers)
             + [Understanding the dedicated server boot process](bare-metal-cloud/dedicated-servers/boot-process)
         + [Getting Started](bare-metal-cloud-dedicated-servers-getting-started)
