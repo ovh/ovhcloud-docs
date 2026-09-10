@@ -9,10 +9,11 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { regionsForPath } from '../Api/productRegions';
-import { useRegion } from '../Api/RegionContext';
+import { useBrandKey, useRegion } from '../Api/RegionContext';
 import {
   BRANDS_DEFAULT,
   type Brand,
+  isSysksRegion,
   SYS_REGIONS_DEFAULT,
   type SysksRegion,
   type SysProvider,
@@ -186,6 +187,7 @@ export function ManagerLink({
   brands = BRANDS_DEFAULT,
 }: ManagerLinkProps) {
   const { region: globalRegion, setRegion: setGlobalRegion } = useRegion();
+  const { brandKey, setBrandKey } = useBrandKey();
   const { isSet: zoneChosen } = useZone();
   const lang = useLang();
   const t = useI18n();
@@ -232,6 +234,12 @@ export function ManagerLink({
   // eu/ca RegionContext — track the selection in local state instead, same as
   // <Api>'s hasSys path.
   const isCustom = hasSysBrand || !!regionMeta;
+  // Sys-brand keys ("sys-eu", "ks-ca" …) are page-wide: share them through
+  // BrandKeyContext so one pick applies to every brand-enabled widget. This
+  // also covers <ApiLink brands>, which reaches us as a `regionMeta` of sys
+  // keys. A caller passing arbitrary custom keys stays on local state.
+  const usesBrandKeyState =
+    hasSysBrand || Object.keys(regionMeta ?? {}).some(isSysksRegion);
   const [localRegion, setLocalRegion] = useState<RegionKey | null>(null);
   const skipZoneShortcut = disableZoneShortcut ?? isCustom;
 
@@ -246,23 +254,31 @@ export function ManagerLink({
 
   const setRegion = useCallback(
     (r: RegionKey) => {
-      if (isCustom) {
+      if (usesBrandKeyState) {
+        setBrandKey(r);
+      } else if (isCustom) {
         setLocalRegion(r);
       } else {
         setGlobalRegion(r as Region);
       }
     },
-    [isCustom, setGlobalRegion],
+    [usesBrandKeyState, setBrandKey, isCustom, setGlobalRegion],
   );
 
   // Constrain stored region to the regions allowed by this instance
-  const region = isCustom
-    ? localRegion && regions.includes(localRegion)
-      ? localRegion
-      : regions[0]
-    : regions.includes(globalRegion as Region)
-      ? (globalRegion as Region)
-      : regions[0];
+  const region = usesBrandKeyState
+    ? brandKey && regions.includes(brandKey as RegionKey)
+      ? (brandKey as RegionKey)
+      : regions.includes(globalRegion as RegionKey)
+        ? (globalRegion as RegionKey)
+        : regions[0]
+    : isCustom
+      ? localRegion && regions.includes(localRegion)
+        ? localRegion
+        : regions[0]
+      : regions.includes(globalRegion as Region)
+        ? (globalRegion as Region)
+        : regions[0];
 
   // Position the menu relative to the trigger (uses viewport coords for fixed positioning)
   useLayoutEffect(() => {

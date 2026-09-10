@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { regionsForPath } from './productRegions';
-import { useRegion } from './RegionContext';
+import { useBrandKey, useRegion } from './RegionContext';
 import {
   BRANDS_DEFAULT,
   type Brand,
@@ -71,9 +71,11 @@ export default function Api({
   const hasOvh = brands.includes('ovh');
   const sysProviders = brands.filter((b): b is SysProvider => b !== 'ovh');
   const hasSys = sysProviders.length > 0;
-  // Mixing OVH keys with sys keys (or sys-only) can't share the global
-  // eu/ca-only RegionContext — track selection locally in that case.
-  const usesLocalKeyState = hasSys;
+  // Mixing OVH keys with sys keys (or sys-only) can't use the global
+  // eu/ca-only RegionContext — those instances share the brand-extended
+  // BrandKeyContext instead, so one pick applies to every brand-enabled
+  // widget on the page.
+  const usesBrandKeyState = hasSys;
   const resolvedVersion = version ?? 'v1';
 
   if (process.env.NODE_ENV !== 'production') {
@@ -85,6 +87,7 @@ export default function Api({
   }
 
   const { region: globalRegion, setRegion } = useRegion();
+  const { brandKey, setBrandKey } = useBrandKey();
 
   // Default the offered OVH regions to the product's commercial-zone
   // availability (derived from the route, then the section); an explicit
@@ -110,11 +113,16 @@ export default function Api({
     [hasOvh, ovhRegions, hasSys, sysProviders, sysRegions],
   );
 
-  const [localKey, setLocalKey] = useState<EndpointKey | null>(null);
-  const selectedKey: EndpointKey = usesLocalKeyState
-    ? localKey && keys.includes(localKey)
-      ? localKey
-      : keys[0]
+  // No pick yet: fall back to the visitor's commercial zone when this
+  // instance offers it, so a CA reader starts on CA here too — same default
+  // as a brandless <Api>. Only then to the first offered key.
+  const brandFallback: EndpointKey = keys.includes(globalRegion)
+    ? globalRegion
+    : keys[0];
+  const selectedKey: EndpointKey = usesBrandKeyState
+    ? brandKey && keys.includes(brandKey as EndpointKey)
+      ? (brandKey as EndpointKey)
+      : brandFallback
     : ovhRegions.includes(globalRegion)
       ? globalRegion
       : ovhRegions[0];
@@ -124,13 +132,13 @@ export default function Api({
 
   const selectKey = useCallback(
     (key: EndpointKey) => {
-      if (usesLocalKeyState) {
-        setLocalKey(key);
+      if (usesBrandKeyState) {
+        setBrandKey(key);
       } else {
         setRegion(key as Region);
       }
     },
-    [usesLocalKeyState, setRegion],
+    [usesBrandKeyState, setBrandKey, setRegion],
   );
 
   const apiAnchor = `${method.toLocaleLowerCase()}-${route.replace(/\\?\{([^\\}]+)\\?\}/g, '-$1-')}`;
