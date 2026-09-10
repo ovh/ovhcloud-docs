@@ -344,14 +344,14 @@ To target **Kimsufi / So you Start** specific endpoints (not the OVHcloud API), 
 <Api brands={['sys', 'ks']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
 ```
 
-Some API calls are available on SoYouStart endpoints only, not on Kimsufi endpoints:
+Some API calls are available on So you Start endpoints only, not on Kimsufi endpoints:
 
 ```mdx
 <!-- So you Start only (EU/CA) -->
 <Api brands={['sys']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
 ```
 
-`'ovh'`, `'ks'` and `'sys'` are independently selectable — mix them freely (e.g. `brands={['ovh', 'sys']}` for OVHcloud + So you Start only, or `brands={['ks']}` for Kimsufi only). Defaults to `brands={['ovh']}` (the standard EU/CA OVHcloud console, whose `version` defaults to `'v1'` if omitted), offering both EU and CA unless restricted with `regions` — e.g. `regions={["eu"]}` on a `brands={['sys']}` call shows only SoYouStart EU. Note `regions` is validated against a Kimsufi/So you Start-specific EU/CA set when `brands` includes `ks`/`sys`, kept separate from the OVHcloud regions so the two can diverge (e.g. if OVH later adds a third zone that Kimsufi/So you Start never will).
+`'ovh'`, `'ks'` and `'sys'` are independently selectable — mix them freely (e.g. `brands={['ovh', 'sys']}` for OVHcloud + So you Start only, or `brands={['ks']}` for Kimsufi only). Defaults to `brands={['ovh']}` (the standard EU/CA OVHcloud console, whose `version` defaults to `'v1'` if omitted), offering both EU and CA unless restricted with `regions` — e.g. `regions={["eu"]}` on a `brands={['sys']}` call shows only So you Start EU. Note `regions` is validated against a Kimsufi/So you Start-specific EU/CA set when `brands` includes `ks`/`sys`, kept separate from the OVHcloud regions so the two can diverge (e.g. if OVH later adds a third zone that Kimsufi/So you Start never will).
 
 ### Other components
 
