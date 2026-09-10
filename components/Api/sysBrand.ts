@@ -20,7 +20,7 @@ export const SYS_PROVIDERS = {
     base: (r: SysRegion) => `https://${r}.api.kimsufi.com/console/`,
   },
   sys: {
-    label: 'SoYouStart',
+    label: 'So you Start',
     base: (r: SysRegion) => `https://${r}.api.soyoustart.com/console/`,
   },
 } as const;
