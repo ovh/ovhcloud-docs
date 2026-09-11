@@ -2058,6 +2058,7 @@
                 + [Configuring two-factor authentication on an Exchange account](web-cloud/email-and-collaborative-solutions/microsoft-exchange/manage-2fa-exchange)
                 + [Using resource accounts](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-resources)
                 + [Creating and using a shared account](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-shared-account)
+                + [Exporting an Exchange mailbox to a PST file](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-export-pst)
                 + [Creating automatic signatures](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-footers)
                 + [How to obtain an Outlook licence for Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/office-outlook-license)
                 + [Creating send connector for Private and Trusted Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
