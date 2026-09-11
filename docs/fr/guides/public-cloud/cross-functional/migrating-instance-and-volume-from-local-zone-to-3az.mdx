@@ -1,0 +1,316 @@
+---
+title: Migrer une instance compute et son volume Block Storage d'une Local Zone vers une région 3-AZ
+description: Découvrez comment migrer une instance Public Cloud et son volume Block Storage attaché d'une Local Zone vers une région 3-AZ, à l'aide de la CLI OpenStack.
+lastUpdated: 2026-09-11
+---
+
+## Objectif
+
+Une Local Zone et une région 3-AZ sont deux régions OpenStack distinctes. Il n'existe pas de méthode directe, en un clic, pour déplacer une instance ou un volume entre les deux : les deux doivent être exportés sous forme d'images, puis réimportés et recréés sur la région cible.
+
+**Ce guide explique comment migrer une instance compute et son volume Block Storage attaché d'une Local Zone vers une région 3-AZ, à l'aide de la CLI OpenStack.**
+
+Il est illustré par l'exemple suivant :
+
+- Une instance `b3-16` s'exécutant dans la Local Zone de Milan (`EU-SOUTH-LZ-MIL-A`), avec un volume Block Storage qui lui est attaché.
+- Les deux sont migrés vers la région 3-AZ de Milan (`EU-SOUTH-MIL`).
+
+Les mêmes étapes s'appliquent à toute autre Local Zone et à sa région 3-AZ parente.
+
+:::info
+Avant de migrer, il est utile de bien comprendre les différences entre les modes de déploiement proposés par le Public Cloud OVHcloud. Chaque mode (1-AZ, 3-AZ ou Local Zones) a un impact direct sur la résilience, la disponibilité et la conception de votre infrastructure.
+
+Pour en savoir plus, consultez « [Comparaison et résilience des modes de déploiement - Comprendre les régions 3-AZ / 1-AZ / Local Zones](/guides/public-cloud/cross-functional/deployment-modes-comparison-resilience-details) ».
+:::
+
+## Prérequis
+
+- Une instance et un volume Block Storage s'exécutant dans une Local Zone, dans le même [projet Public Cloud](https://www.ovhcloud.com/fr/public-cloud/) que la région 3-AZ cible.
+- La CLI OpenStack, installée et prête à l'emploi. Suivez notre guide « [Préparer l'environnement pour utiliser l'API OpenStack](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment) » si ce n'est pas déjà le cas.
+- Suffisamment d'espace disque local pour stocker temporairement l'image et la sauvegarde de volume exportées (au moins la taille du disque système de l'instance plus la taille du volume).
+
+{/* CP-NAV-START:publiccloud-projects */}
+---
+
+### Accès à l'espace client OVHcloud
+
+- **Lien direct :** <ManagerLink to="/#/pci/projects">Projets Public Cloud</ManagerLink>
+- **Pour accéder à vos services :** <code className="action">Public Cloud</code> > Sélectionnez votre projet
+
+---
+{/* CP-NAV-END:publiccloud-projects */}
+
+## En pratique
+
+### Récupérer les identifiants OpenStack pour les deux régions
+
+La migration nécessite des identifiants OpenStack (un fichier OpenRC) pour **les deux** régions, la Local Zone source et la région 3-AZ cible, puisqu'elle implique deux régions différentes d'un même projet OpenStack.
+
+Pour télécharger un fichier OpenRC :
+
+1. Ouvrez <code className="action">Utilisateurs & Rôles</code> dans le menu de gauche, sous la rubrique **Paramètres**.
+2. À côté de l'utilisateur que vous souhaitez utiliser, cliquez sur le bouton <code className="action">...</code>, puis sélectionnez <code className="action">Télécharger le fichier RC d'OpenStack</code>.
+3. Dans la boîte de dialogue, sélectionnez la région à laquelle le fichier s'appliquera — pour cette migration, sélectionnez d'abord votre **Local Zone** (par exemple `Milan (EU-SOUTH-LZ-MIL-A)`), puis cliquez sur <code className="action">Télécharger</code>.
+4. Répétez l'opération, cette fois en sélectionnant la **région 3-AZ** correspondante (par exemple `EU-SOUTH-MIL`).
+
+:::info
+Un fichier OpenRC est associé à un seul utilisateur et une seule région — il ne peut pas être utilisé pour gérer plusieurs régions à la fois. Conservez les deux fichiers téléchargés séparément, et chargez celui qui correspond à la région sur laquelle vous travaillez.
+
+Consultez notre guide « [Charger les variables d'environnement OpenStack](/guides/public-cloud/cross-functional/compute-set-openstack-environment-variables) » pour plus de détails sur le chargement d'un fichier OpenRC et la configuration de `OS_REGION_NAME`.
+:::
+
+### Vue d'ensemble de la migration
+
+Pour **l'instance compute** :
+
+1. Créer une image à partir de l'instance de la Local Zone (celle-ci n'inclut pas les volumes attachés).
+2. Exporter et télécharger cette image.
+3. Charger l'image sur le projet 3-AZ.
+4. Créer une nouvelle instance à partir de cette image.
+
+Pour **le volume Block Storage** :
+
+1. Créer une sauvegarde du volume de la Local Zone.
+2. Exporter et télécharger cette sauvegarde sous forme d'image.
+3. Charger l'image sur le projet 3-AZ.
+4. Créer un nouveau volume à partir de cette image, et l'attacher à l'instance migrée.
+
+:::info
+Pour garantir la cohérence des données, il est recommandé d'éteindre l'instance source avant de démarrer la migration.
+:::
+
+### Préparer l'instance et le volume source <a name="prepare-source"></a>
+
+Identifiez l'instance et le volume à migrer :
+
+```bash
+$ openstack server list
++--------------------------------------+-------------+--------+---------------------------------------------------------------+--------------+--------+
+| ID                                   | Name        | Status | Networks                                                       | Image        | Flavor |
++--------------------------------------+-------------+--------+---------------------------------------------------------------+--------------+--------+
+| 62abae51-f521-416a-9d14-0fcff617cb8a | test-LZ-MIL | ACTIVE | Ext-Net=xx.xx.xx.xx, xx:xx::xx:xx:xx; test-LZ-MIL=xx.xx.xx.xx  | Ubuntu 26.04 | b3-16  |
++--------------------------------------+-------------+--------+---------------------------------------------------------------+--------------+--------+
+
+$ openstack volume list
++--------------------------------------+-------------+--------+------+--------------------------------------+
+| ID                                   | Name        | Status | Size | Attached to                         |
++--------------------------------------+-------------+--------+------+--------------------------------------+
+| 39312ab3-f855-41ab-baeb-b24a6ebed79b | test-LZ-MIL | in-use |   10 | Attached to test-LZ-MIL on /dev/sdb |
++--------------------------------------+-------------+--------+------+--------------------------------------+
+```
+
+Un volume doit être détaché (statut `available`) avant de pouvoir être sauvegardé. Détachez-le de l'instance :
+
+```bash
+$ openstack server remove volume test-LZ-MIL test-LZ-MIL
+
+$ openstack volume list
++--------------------------------------+-------------+-----------+------+-------------+
+| ID                                   | Name        | Status    | Size | Attached to |
++--------------------------------------+-------------+-----------+------+-------------+
+| 39312ab3-f855-41ab-baeb-b24a6ebed79b | test-LZ-MIL | available |   10 |             |
++--------------------------------------+-------------+-----------+------+-------------+
+```
+
+### Partie 1 — Migrer l'instance compute
+
+#### Étape 1 : créer une image de l'instance
+
+```bash
+openstack server image create --name image-test-LZ-MIL --wait test-LZ-MIL
+```
+
+Le paramètre `--wait` fait en sorte que la commande ne se termine qu'une fois l'image `active`. Vous pouvez également vérifier son statut séparément :
+
+```bash
+$ openstack image list --name image-test-LZ-MIL
++--------------------------------------+-------------------+--------+
+| ID                                   | Name              | Status |
++--------------------------------------+-------------------+--------+
+| 4ba54315-4c98-46ab-a098-f834d02b0e35 | image-test-LZ-MIL | active |
++--------------------------------------+-------------------+--------+
+```
+
+:::info
+Cette image ne capture que le disque système de l'instance — les volumes Block Storage attachés ne sont pas inclus et doivent être migrés séparément (voir [Partie 2](#part2-volume-migration)).
+:::
+
+#### Étape 2 : exporter et télécharger l'image
+
+Les images stockées dans une Local Zone ne peuvent pas être téléchargées directement avec `openstack image save`. Contactez notre [support](https://help.ovhcloud.com/csm?id=csm_get_help) et demandez l'export de l'image — vous recevrez une URL S3 présignée pour la télécharger.
+
+Une fois téléchargée, décompressez le fichier si nécessaire.
+
+#### Étape 3 : charger l'image sur la région 3-AZ
+
+Chargez le fichier OpenRC de la région 3-AZ cible (ou changez de région en mettant à jour `OS_REGION_NAME`, par exemple de `EU-SOUTH-LZ-MIL-A` vers `EU-SOUTH-MIL`), puis chargez l'image :
+
+```bash
+openstack image create \
+  --file image-test-LZ-MIL \
+  --disk-format raw \
+  --container-format bare \
+  image-test-3AZ-MIL
+```
+
+:::warning
+Le format du disque doit être `raw`, et non `qcow2`. Selon la taille de l'image, le chargement peut prendre un certain temps — laissez-le se terminer.
+:::
+
+#### Étape 4 : créer l'instance sur la région 3-AZ
+
+Créez la nouvelle instance à partir de l'image chargée :
+
+- Choisissez un flavor dont le disque système est au moins aussi grand que celui de l'instance source. Dans cet exemple, `b3-16` dispose d'un disque système de 100 Go et est disponible avec des caractéristiques identiques en Local Zone comme en 3-AZ.
+- Indiquez la [zone de disponibilité](/guides/public-cloud/cross-functional/deployment-modes-comparison-resilience-details) dans laquelle l'instance doit être créée.
+- Le groupe de sécurité `default` existe déjà dans chaque projet et suffit pour démarrer ; personnalisez-le plus tard si besoin avec « [Créer et configurer un groupe de sécurité dans Horizon](/guides/public-cloud/compute/setup-security-group) ».
+- Si vous n'avez pas encore de paire de clés SSH, créez-en une en suivant la section **Création de paires de clés pour les connexions OpenSSH** du guide « [Comment créer et utiliser des clés d'authentification pour les connexions SSH aux instances Public Cloud](/guides/public-cloud/compute/creating-ssh-keys) ».
+- L'instance a besoin d'un réseau existant. Pour en créer un avec une gateway via la CLI OpenStack, suivez la section **Créer un réseau privé avec une Gateway** du guide « [Créer un réseau privé avec une Gateway](/guides/public-cloud/network-services/create-private-network-gateway) ».
+- Pour joindre l'instance depuis Internet, attachez une Floating IP en suivant la section **Depuis l'API OpenStack** (sous « Attacher une Floating IP à une instance ») du guide « [Attacher une adresse Floating IP à une instance Public Cloud](/guides/public-cloud/network-services/attach-floating-ip-to-instance) ».
+
+```bash
+openstack server create \
+  --flavor b3-16 \
+  --image image-test-3AZ-MIL \
+  --network test-3AZ-MIL \
+  --security-group default \
+  --key-name my_key \
+  --availability-zone eu-south-mil-b \
+  test-3AZ-MIL
+```
+
+Attendez que l'instance atteigne le statut `ACTIVE` :
+
+```bash
+$ openstack server list --name test-3AZ-MIL
++--------------------------------------+--------------+--------+---------------------------+--------------------+--------+
+| ID                                   | Name         | Status | Networks                  | Image              | Flavor |
++--------------------------------------+--------------+--------+---------------------------+--------------------+--------+
+| 90d2a04a-3aad-40f3-99bb-c561348aee0e | test-3AZ-MIL | ACTIVE | test-3AZ-MIL=192.168.0.46 | image-test-3AZ-MIL | b3-16  |
++--------------------------------------+--------------+--------+---------------------------+--------------------+--------+
+```
+
+#### Étape 5 : à propos du premier démarrage
+
+À ce stade, le volume attaché n'a pas encore été migré, le démarrage ne peut donc pas se terminer : le journal de la console affichera le système en attente du disque manquant, avant de basculer en mode d'urgence (emergency mode). C'est normal — cela confirme que l'image elle-même est correcte.
+
+```bash
+$ openstack console log show test-3AZ-MIL | tail -6
+[ TIME ] Timed out waiting for device dev-disk-by\x2dlabel-data.device - /dev/disk/by-label/data.
+[DEPEND] Dependency failed for systemd-fsck-data.service - File System Check on /dev/disk/by-label/data.
+[DEPEND] Dependency failed for mnt-data.mount - /mnt/data.
+[DEPEND] Dependency failed for local-fs.target - Local File Systems.
+[  OK  ] Reached target emergency.target - Emergency Mode.
+You are in emergency mode. After logging in, type "journalctl -xb" to view system logs...
+```
+
+Poursuivez avec la migration du volume ci-dessous, puis attachez le volume et redémarrez l'instance — le démarrage se terminera alors normalement.
+
+:::info
+Si votre `fstab` monte le volume par nom de périphérique (par exemple `/dev/vdb`) plutôt que par `LABEL` ou `UUID`, ce nom peut différer une fois le volume rattaché, et le démarrage pourrait échouer à nouveau. L'utilisation de `LABEL=` dans `fstab` évite ce problème. Si l'instance est déjà injoignable, démarrez-la en [mode rescue](/guides/public-cloud/compute/put-an-instance-in-rescue-mode) pour corriger `fstab`.
+:::
+
+### Partie 2 — Migrer le volume Block Storage <a name="part2-volume-migration"></a>
+
+Le volume doit toujours être détaché (statut `available`) à ce stade, comme préparé dans [Préparer l'instance et le volume source](#prepare-source).
+
+#### Étape 6 : sauvegarder le volume
+
+```bash
+openstack volume backup create --name backup-test-LZ-MIL --wait test-LZ-MIL
+```
+
+Vérifiez que la sauvegarde est `available` :
+
+```bash
+$ openstack volume backup list
++--------------------------------------+--------------------+-------------+-----------+------+-------------+----------------------------+
+| ID                                   | Name               | Description | Status    | Size | Incremental | Created At                 |
++--------------------------------------+--------------------+-------------+-----------+------+-------------+----------------------------+
+| 5d0f8780-8dc2-4a39-a14a-b3e2a8c7c182 | backup-test-LZ-MIL | None        | available |   10 | False       | 2026-08-10T14:11:35.000000 |
++--------------------------------------+--------------------+-------------+-----------+------+-------------+----------------------------+
+```
+
+#### Étape 7 : exporter et télécharger la sauvegarde
+
+Comme pour l'image de l'instance, contactez notre [support](https://help.ovhcloud.com/csm?id=csm_get_help) et demandez l'export de la sauvegarde du volume sous forme d'image. Vous recevrez une URL S3 présignée pour la télécharger, et pourrez décompresser le fichier si nécessaire.
+
+#### Étape 8 : charger l'image de sauvegarde sur la région 3-AZ
+
+Avec le fichier OpenRC de la région 3-AZ chargé :
+
+```bash
+openstack image create \
+  --file volume-backup-test-LZ-MIL \
+  --disk-format raw \
+  --container-format bare \
+  volume-backup-test-LZ-MIL
+```
+
+Le format du disque doit être `raw`. Cela peut prendre un certain temps selon la taille de l'image.
+
+#### Étape 9 : créer le volume à partir de l'image
+
+```bash
+openstack volume create \
+  --image volume-backup-test-LZ-MIL \
+  --availability-zone eu-south-mil-b \
+  --type high-speed \
+  --size 10 \
+  test-LZ-MIL
+```
+
+:::info
+- `--size` doit être au moins égal à la taille du volume d'origine.
+- `--availability-zone` doit correspondre à la zone de disponibilité de l'instance si vous utilisez la classe de stockage `high-speed` ou `high-speed-gen2`.
+:::
+
+Attendez que le volume soit `available` :
+
+```bash
+$ openstack volume list --name test-LZ-MIL
++--------------------------------------+-------------+-----------+------+-------------+
+| ID                                   | Name        | Status    | Size | Attached to |
++--------------------------------------+-------------+-----------+------+-------------+
+| 6e7f5de3-672f-4d00-9636-9679f8b561cb | test-LZ-MIL | available |   10 |             |
++--------------------------------------+-------------+-----------+------+-------------+
+```
+
+#### Étape 10 : attacher le volume et redémarrer l'instance
+
+Arrêtez l'instance, attachez le volume, puis redémarrez-la :
+
+```bash
+$ openstack server stop test-3AZ-MIL
+
+(attendez que l'instance soit à l'état SHUTOFF)
+
+$ openstack server add volume test-3AZ-MIL test-LZ-MIL
+
+$ openstack server start test-3AZ-MIL
+```
+
+Grâce à `LABEL` utilisé dans `fstab`, le volume est détecté et monté automatiquement, et le démarrage se termine désormais correctement :
+
+```bash
+$ ssh ubuntu@xx.xx.xx.xx hostname
+test-3az-mil
+
+$ ssh ubuntu@xx.xx.xx.xx df -h /mnt/data
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vdb1       9.8G  5.1G  4.3G  55% /mnt/data
+```
+
+L'instance et son volume Block Storage sont désormais migrés vers la région 3-AZ.
+
+## Aller plus loin
+
+[Comparaison et résilience des modes de déploiement - Comprendre les régions 3-AZ / 1-AZ / Local Zones](/guides/public-cloud/cross-functional/deployment-modes-comparison-resilience-details)
+
+[Migration d'instances entre zones de disponibilité (AZ)](/guides/public-cloud/compute/migration-between-regions)
+
+[Télécharger et transférer la sauvegarde d'une instance d'une région OpenStack à une autre](/guides/public-cloud/compute/transfer-instance-backup-from-one-datacentre-to-another)
+
+[Local Zone Compute - Fonctionnalités, capacités et limites](/guides/public-cloud/compute/local-zones-capabilities-limitations)
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
