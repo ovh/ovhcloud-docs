@@ -1798,6 +1798,7 @@
                     + [CEL Conditions](public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions){label=CEL Conditions}
                     + [Testing & Troubleshooting](public-cloud/data-platform/lakehouse-manager-policy-tags-testing)
                     + [Example: Team Access with Groups](public-cloud/data-platform/lakehouse-manager-policy-tags-groups-example)
+                + [Row Filters](public-cloud/data-platform/lakehouse-manager-row-filters){label=Row Filters}
             + [Data Processing Engine](public-cloud-data-platform-data-processing-engine){landing=public-cloud/data-platform/landing-page-dpe}
                 + [Actions](public-cloud-data-platform-actions){landing=public-cloud/data-platform/landing-page-dpe-actions}
                     + [Create and manage actions](public-cloud/data-platform/dpe-actions-manage)

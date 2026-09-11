@@ -1,0 +1,147 @@
+---
+title: Restrict which rows a user can see with row filters
+description: Row filters restrict which rows of a table a user or group can see when they query it, without duplicating the table
+lastUpdated: 2026-09-14
+---
+
+## Objective
+
+**Row filters** decide which rows of a [table](/guides/public-cloud/data-platform/lakehouse-manager-tables) a given user or group can see. The table stays one table: same name, same columns, one copy of the data. Two people querying it can get different results, because each of them carries their own filters.
+
+A filter that says *"Marie only sees rows where `country = 'France'`"* means that when Marie queries that table, France rows come back and everything else is simply absent. She gets no error, no warning, and no notice that rows were hidden: the table looks to her like a smaller table. The counts, aggregates and joins she runs are computed on her visible rows only. Nobody else's view changes: a colleague with no filter on that table still sees everything.
+
+One filter covers one table and applies to the users and groups you assign to it. You will find them in the Lakehouse Manager, in the **Row filters** section, which lists every filter in the project.
+
+<img className="thumbnail" alt="The Row filters section listing every filter in the project" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-overview.png" loading="lazy" />
+
+:::warning
+Row filters are enforced on the **Trino query path**, which is what [Analytics Manager](/guides/public-cloud/data-platform/analytics-manager-queries) queries and dashboards and [Trino consumers](/guides/public-cloud/data-platform/connectors-consumers-trino) use. Someone reading the same table another way is **not filtered and sees every row**: a [notebook](/guides/public-cloud/data-platform/dpe-notebooks) using PySpark or PyIceberg, or direct catalog and object storage access.
+
+Row filters are therefore a control over how data is consumed through SQL, not a substitute for withholding access to the underlying storage. Anyone whose access must genuinely be limited must not hold direct storage credentials for that table. Tell the teams running notebooks or ETL against a table before you filter it, so nobody assumes a protection that is not there on their path.
+:::
+
+## Instructions
+
+### Create a row filter
+
+Go to the *Row filters* section in the Lakehouse Manager and click **+ New filter**. The modal has two steps: the filter itself, then the people it applies to.
+
+Step 1 asks for three things:
+
+- a **Filter name**, so the list reads as intent rather than as a list of expressions,
+- the **target table**, picked as a [dataset](/guides/public-cloud/data-platform/lakehouse-manager-datasets) then a table in it,
+- the **filter condition**: rows not matching it will not be visible to the assigned users and groups.
+
+<img className="thumbnail" alt="Create a row filter, step 1 of the New row filter modal" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-create.png" loading="lazy" />
+
+You have two ways to write the condition: the **builder mode**, which is the default, and the **SQL mode**.
+
+### Build a condition in builder mode
+
+Builder mode is the simple mode, and the one to use unless you need something it cannot express. Pick a column from the dropdown (its type is shown next to its name), pick an operator, and enter the value. The **generated SQL** appears below the condition as soon as the value is entered, so you always see the condition you are actually saving.
+
+Click **+ Add condition** for a second line. From two conditions on, you choose how they combine: **Match ALL conditions (AND)** or **Match ANY condition (OR)**. That choice applies to every condition in the filter, so builder mode gives you one AND group or one OR group, never a mix of the two. A condition that needs both, or any other nesting, belongs in SQL mode.
+
+<img className="thumbnail" alt="Two conditions combined with Match ALL conditions (AND), with the generated SQL below" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-conditions.png" loading="lazy" />
+
+Which operators you can pick depends on the column's type:
+
+| Column type | Available operators |
+|---|---|
+| **Text** | equals, not equals, like, is one of, is not one of, is empty, is not empty |
+| **Number** | equals, not equals, `<`, `≤`, `>`, `≥`, is one of, is not one of, is empty, is not empty |
+| **Date and time** | same as number: ordering a date is as meaningful as ordering a number |
+| **Boolean** | equals, is empty, is not empty |
+
+**Empty values** have their own operators. You cannot find blank rows by comparing a column to an empty value, and the platform tells you so rather than saving a filter that quietly matches nothing. *Is empty* and *is not empty* split a table exactly: their row counts always add up to the total.
+
+**Values are checked against the column as you write them.** Compare a date column against `01/02/2024` and you are told immediately what format that column needs, instead of saving a filter that looks fine and then breaks every query the restricted person runs. Dates want `2024-01-01`, timestamps want `2024-01-01 10:30:00`, times want `09:30:00`, and a value carrying a time zone is refused rather than silently shifted: send the local wall-clock value the column actually holds.
+
+A condition has room for:
+
+| Limit | Value |
+|---|---|
+| Comparisons in one condition | 200 |
+| Values in a single *is one of* | 100 |
+| Characters in a text value | 500 |
+
+### Write a condition in SQL mode
+
+For conditions the builder cannot express, click **Switch to SQL mode** and write the condition directly as a SQL expression, for example `country = 'France' AND lower(dept) = 'sales'`. Whatever you built in the builder is carried over, so the usual path is to start in the builder and switch when you hit its limits.
+
+This is a plain condition: no `WHERE`, no semicolon, no statement. It is checked before it is saved, and it is refused if it references another table, uses a subquery, contains a comment or a statement separator, or calls a function outside the allowed list. The allowed functions are the cheap per-row ones: text handling, `coalesce`, `cast`, date truncation and similar. Aggregates, regular expressions and JSON functions are not available, because a row filter runs on every row of every query against that table and has to stay cheap.
+
+Column names behave the way they do in SQL: unquoted names are case-insensitive, and you quote a name to reach a column whose case actually matters.
+
+:::warning
+**Switching back from SQL mode to builder mode discards your SQL.** The builder cannot represent every condition SQL can, so it starts from an empty condition rather than from an approximation of yours. The platform warns you before it happens.
+:::
+
+### Assign the filter and check its impact
+
+Click **Next** for step 2. It opens with a **filter summary**: the name, the dataset, the table and the condition, exactly as they will be saved.
+
+Below it, **Impact** reports what the condition does to that table right now, for example *"227,712 of 528,363 rows would be visible with this filter, 300,651 rows would be hidden"*. It is counts only, never row data, so it is safe to look at on a table whose contents you should not be reading. Read it before you assign anyone: it is the cheapest way to catch a condition that keeps nothing, or everything.
+
+Then pick the **principals**, the users and groups this filter applies to. A filter can name several of each. Group membership is resolved every time the filters are published, not when you write the filter, so someone added to a restricted group next month is filtered from then on with no need to touch the filter.
+
+<img className="thumbnail" alt="Step 2 of the New row filter modal: filter summary, impact, and principals" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-principals.png" loading="lazy" />
+
+Finish with **Save and activate**, or with **Save as inactive** to park the filter until you want it to bite.
+
+{/* verify: the source doc caps one filter at 200 targets, but that number came from a description that also included roles. Confirm the cap before publishing. */}
+
+### How several filters combine
+
+If more than one filter applies to the same person on the same table, **all of them apply at once, and every one of them must be satisfied** for a row to be visible. Filters never widen what someone sees: adding a second one can only ever take more rows away.
+
+This is the most common source of surprise. Two filters that each look reasonable, *"EMEA only"* and *"North America only"*, intersect to nothing and the person sees an empty table. Being targeted twice by the same condition, named directly and through a group you belong to, is harmless: the same condition applied twice hides the same rows.
+
+### Manage filters day to day
+
+The *Row filters* list covers the whole project and shows, for every filter, its active toggle, name, principals, dataset, table and condition, with **edit**, **duplicate** and **delete** actions.
+
+- **Deactivating** a filter with the toggle stops the restriction from applying and keeps the filter on the list, ready to be switched back on.
+- **Editing** a filter changes its condition or its principals.
+- **A filter covers one table.** To apply the same condition to another table, duplicate the filter and change the target table on the copy.
+
+Row filters are part of the project's configuration, so they travel with a [configuration export](/guides/public-cloud/data-platform/tutorials-export-import-config) and can be imported into another project alongside the datasets they protect.
+
+### Permissions
+
+Two things are gated separately, and they do not imply each other: managing filters says something about the policy, while the impact count says something about the data.
+
+| To do this | You need |
+|---|---|
+| See, create, edit, duplicate and delete row filters | The *Row filter* permissions in the Lakehouse Manager section of the [Identity Access Manager](/guides/public-cloud/data-platform/iam-roles-conditions) |
+| Read the impact count on a table | Read access to the dataset |
+
+{/* verify: the IAM permission reads "data manager | row filter | * / read / write / bind / delete". Confirm which verb covers which action, and confirm the impact count is gated on dataset read. */}
+
+### Good to know
+
+- **Saving is not instant.** Filters are published to the query engine, which picks them up on its own cycle, so a new, changed, deactivated or deleted filter takes a few seconds before queries reflect it. If you save a filter and immediately query as the restricted person, you may still see unfiltered rows: retry rather than concluding the filter did not work.
+- **A filter that cannot be published restricts nobody.** If a filter targets a group that can no longer be resolved, the platform cannot publish a restriction for it and the targeted people see every row. The filter still appears in the list and still reads as active. When a restriction genuinely matters, confirm it by querying as one of the restricted people rather than by reading the list.
+- **A column dropped after the filter was saved is not covered.** On save, the columns a condition names are checked against the table as it physically exists, so a column the catalog knows about but the table does not is refused, and re-syncing the table is the fix. A column dropped later is not re-checked on its own: opening the filter recomputes its impact, which is what surfaces the problem. {/* verify: that editing a filter re-checks its columns and recomputes impact. */}
+
+### Troubleshooting
+
+| Symptom | Where to look |
+|---|---|
+| "I see no rows at all" | Check every filter reaching that person on that table. Several filters combine narrowly, and two sensible ones can intersect to nothing. |
+| "I see no rows, and only one filter applies" | The condition is being applied correctly and no row satisfies it. That is a data question, not a filter question. |
+| "The filter did not apply" | Wait a few seconds and retry: publication is not instantaneous. |
+| "The filter still does not apply" | Confirm the person is reading through Trino. A notebook using PySpark or PyIceberg, or direct storage access, is not filtered. |
+| "The filter is active but nobody is restricted" | Its principals may no longer resolve. Verify by querying as one of the restricted people. |
+| "It saved, then their queries started failing" | The condition may name a column that has since been dropped. Open the filter to re-check it. |
+| "Someone unrestricted sees fewer rows than expected" | Row filters only apply to the people a filter names. Look at their dataset permissions instead. |
+
+## Go further
+
+If you need training or technical assistance to implement our solutions, contact your sales representative or click on [this link](/links/professional-services) to get a quote and ask our Professional Services experts for a custom analysis of your project.
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
