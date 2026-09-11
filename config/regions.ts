@@ -85,11 +85,9 @@ const COPYRIGHT_YEAR = new Date().getFullYear();
  * both sides must be deployed for this to take effect.
  */
 export function peerRegion(region: Region): RegionConfig | undefined {
-  // Entries are added per direction. A cluster is only honoured by search
-  // engines when BOTH sides advertise each other, so adding one direction
-  // alone is inert rather than harmful — which lets the two sites be
-  // deployed independently.
-  const peer: Partial<Record<Region, Region>> = { us: 'eu' };
+  // Both directions are declared: a cluster is only honoured by search engines
+  // when each side advertises the other, so US -> EU alone would be inert.
+  const peer: Partial<Record<Region, Region>> = { us: 'eu', eu: 'us' };
   const key = peer[region];
   return key ? REGIONS[key] : undefined;
 }
