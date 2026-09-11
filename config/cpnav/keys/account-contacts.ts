@@ -5,6 +5,7 @@ export const accountContacts: CpNavKey = {
   locations: [
     {
       route: '/#/account/contacts/services',
+      source: { labels: ['user_account_menu_my_contacts'] },
       text: {
         en: { product: 'My contacts', crumbs: ['My contacts'] },
         fr: { product: 'Mes contacts', crumbs: ['Mes contacts'] },

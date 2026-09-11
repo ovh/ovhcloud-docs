@@ -5,6 +5,7 @@ export const iamSamlSso: CpNavKey = {
   locations: [
     {
       route: '/#/iam/identities/sso',
+      source: { labels: ['iam_identities', 'iam_identities_sso'] },
       text: {
         en: { product: 'SSO', crumbs: ['Identities', 'SSO'] },
         fr: { product: 'SSO', crumbs: ['Identités', 'SSO'] },

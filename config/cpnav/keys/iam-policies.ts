@@ -5,6 +5,7 @@ export const iamPolicies: CpNavKey = {
   locations: [
     {
       route: '/#/iam/policies/myPolicies',
+      source: { node: 'iam-policies' },
       text: {
         en: { product: 'Policies', crumbs: ['Policies'] },
         fr: { product: 'Politiques', crumbs: ['Politiques'] },

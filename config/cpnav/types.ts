@@ -22,6 +22,7 @@ export type UniverseId =
   | 'web-cloud'
   | 'hosted-private-cloud'
   | 'bare-metal-cloud'
+  | 'public-cloud'
   | 'identity-security-operations'
   | 'account-menu';
 
@@ -81,6 +82,20 @@ export interface CpNavLocation {
    * resolves in the same pass — the ordering the fragment rules also rely on.
    */
   linkKey?: string;
+  /**
+   * Where this destination's route and labels came from in the `manager` repo, so a
+   * Manager change can be diffed mechanically instead of re-derived by hand.
+   *
+   * `node` is a nav-tree node id (`nav-reshuffle/sidebar/navigation-tree/`), which is the
+   * normal case. `labels` carries translation keys instead, for a destination whose
+   * label is a TAB inside a screen and therefore has no nav node — e.g. the IAM
+   * Identities tabs, or a service's Logs tab.
+   *
+   * Checked by `tempscripts/cpnav_drift.py`, which is deliberately NOT part of the build:
+   * the `manager` repo is a local checkout, unavailable in CI — the same constraint
+   * `config/product-availability.ts` documents.
+   */
+  source?: { node?: string; labels?: string[] };
   text: Partial<Record<Locale, CpNavLocationText>>;
 }
 

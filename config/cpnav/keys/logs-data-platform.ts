@@ -5,6 +5,7 @@ export const logsDataPlatform: CpNavKey = {
   locations: [
     {
       route: '/#/dedicated/dbaas/logs',
+      source: { node: 'security-identity-operation-logs' },
       text: {
         en: {
           product: 'Logs Data Platform',

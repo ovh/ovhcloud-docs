@@ -8,6 +8,7 @@ export const privatecloudNutanix: CpNavKey = {
   locations: [
     {
       linkKey: 'control-panel/privatecloud-nutanix',
+      source: { node: 'nutanix' },
       text: {
         en: {
           product: 'Nutanix',
