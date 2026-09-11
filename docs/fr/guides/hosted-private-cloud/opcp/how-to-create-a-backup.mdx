@@ -1,0 +1,92 @@
+---
+title: "Créer un backup"
+excerpt: "Découvrez les étapes nécessaires pour effectuer une sauvegarde de l'OPCP"
+lastUpdated: 2026-09-11
+---
+
+# Créer une sauvegarde
+
+## Introduction
+
+Les sauvegardes dans OPCP sont automatiquement planifiées toutes les heures pour les bases de données, les PVs, les partages KMS autounsealer et tfstate. Les sauvegardes de base de données sont effectuées avec la ressource kubernetes `ScheduledBackups`, les PVs, les partages KMS autounsealer et tfstate sont effectués en utilisant [velero](https://velero.io/).
+
+## Prérequis
+
+Assurez-vous que vos données sont sauvegardées quelque part en dehors du cluster. Pour ce faire, vérifiez `opcp-cli config edit`. Assurez-vous que `backups.endpoint.url` pointe en dehors du cluster. De plus, `backups.endpoint.region` doit être défini en conséquence. Les noms de compartiment configurés dans `backups.db.bucket` et `backups.pv.bucket` doivent exister.
+
+Les identifiants doivent également être définis correctement avec `opcp-cli secrets passwords --edit`. Les clés `stringData.backup_access_key_id` et `stringData.backup_secret_access_key` doivent être définies avec les secrets fournis par le fournisseur S3. Assurez-vous que l'utilisateur a accès à tous les compartiments.
+
+## Instructions
+
+Il est possible de planifier des sauvegardes depuis le terminal.
+
+### tl;dr
+
+Exécutez les lignes suivantes en tant que `root` (en utilisant `sudo -i`) sur le nœud contrôleur OPCP.
+
+```bash
+kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash
+velero get schedule -o json | jq -r '.items[] | .metadata.name as $name | {cmd: ("velero backup create --from-schedule " + $name)} | .cmd' | bash
+```
+
+Vérifiez en exécutant ce qui suit sur le nœud contrôleur OPCP.
+
+```bash
+kubectl get backup -A
+velero backup get
+```
+
+### Bases de données
+
+Pour lister toutes les bases de données, exécutez `kubectl get cluster -A`. Effectuez une sauvegarde en exécutant `kubectl cnpg backup {db-name} -n {namespace}`. Remplacez `{name}` par le nom du cluster de bases de données et `{namespace}` par l'espace de noms correspondant.
+
+Il existe un raccourci pour déclencher les sauvegardes de tous les clusters de base de données : `kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash`.
+
+### Partages KMS autounsealer
+
+Créer une sauvegarde de `kms-autounsealer-shares-backup` :
+
+```bash
+velero backup create --from-schedule kms-autounsealer-shares-backup
+```
+
+### PVs
+
+Créer une sauvegarde des PVs :
+
+```bash
+velero backup create --from-schedule pvs-backup
+```
+
+### tfstate
+
+OPCP s'appuie sur [opentofu](https://opentofu.org/) lors de la configuration. Nous devons stocker l'état. Les sauvegardes sont créées en exécutant
+
+```bash
+velero backup create --from-schedule tfstate-backup
+```
+
+### Vérification
+
+Vérifiez que les sauvegardes de la base de données sont terminées en tapant `kubectl get backup -A`. Tous les sauvegardes de base de données disponibles sont répertoriés.
+
+Pour vérifier que les sauvegardes des PVs, des partages KMS autounsealer et de tfstate sont présentes, tapez `velero get schedule`.
+
+Vous devriez également vérifier vos compartiments S3. S'il n'y a pas de données, quelque chose s'est mal passé lors de la configuration des sauvegardes. Vous pouvez le faire en utilisant [s3cmd](https://s3tools.org/s3cmd). Configurez d'abord `s3cmd` pour lire depuis votre compartiment :
+
+```bash
+cat << EOF > ~/.s3cfg
+[default]
+access_key = ${ACCESS_KEY_ID}
+secret_key = ${SECRET_ACCESS_KEY}
+bucket_location = ${REGION}
+host_base = s3.gra.io.cloud.ovh.net
+host_bucket = %(bucket)s.s3.gra.io.cloud.ovh.net
+EOF
+```
+
+Ajustez les valeurs selon vos besoins. Vous pouvez alors faire un `s3cmd ls s3://bucket-name` pour voir s'il y a des données.
+
+## Aller plus loin
+
+Pour plus d'informations sur la configuration de vos sauvegardes, consultez [la documentation sur la mise à jour des compartiments S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets).
