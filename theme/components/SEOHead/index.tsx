@@ -108,11 +108,19 @@ export function SEOHead() {
     ? [{ hrefLang: HTML_LANG ?? currentLocale, href: localeUrl(currentLocale) }]
     : LOCALES.map((l) => ({ hrefLang: l, href: localeUrl(l) }));
 
-  // The peer site's alternates. Its `en` is the worldwide English page, which
-  // is a different page from the US one, so both legitimately coexist in the
-  // cluster under different tags (`en` vs `en-us`).
+  // The peer site's alternates, emitted on the HOME PAGE ONLY.
+  //
+  // An hreflang alternate must point at the same content in another language
+  // or region. That holds for the two home pages, but NOT per guide: the two
+  // sites carry different catalogues at different paths (only 22 of the 793
+  // US guides share a path with a worldwide one), so deriving a peer URL from
+  // this page's path would advertise a 404 on 771 of them — worse for SEO
+  // than emitting nothing, since a cluster containing dead URLs is discarded
+  // wholesale. Per-guide alternates need a real guide-to-guide mapping; until
+  // that exists, the home pages carry the cluster.
+  const isHome = cleanRel === '/';
   const peerAlternates =
-    PEER_SITE_URL && PEER_LOCALES.length > 0
+    isHome && PEER_SITE_URL && PEER_LOCALES.length > 0
       ? PEER_LOCALES.map((l) => ({
           hrefLang: PEER_HTML_LANG[l] ?? l,
           href: peerUrl(l),
@@ -122,7 +130,7 @@ export function SEOHead() {
   // x-default points at the generic (non-region-specific) English page: the
   // worldwide site's English when we are the US site, our own otherwise.
   const xDefaultHref =
-    SINGLE_LOCALE && PEER_SITE_URL && PEER_LOCALES.includes('en')
+    isHome && SINGLE_LOCALE && PEER_SITE_URL && PEER_LOCALES.includes('en')
       ? peerUrl('en')
       : localeUrl(DEFAULT_LOCALE);
 
