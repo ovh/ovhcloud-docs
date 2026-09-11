@@ -25,11 +25,13 @@ import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
+import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudInstances } from './keys/publiccloud-instances';
 import { publiccloudLogs } from './keys/publiccloud-logs';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudProjects } from './keys/publiccloud-projects';
+import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
@@ -65,6 +67,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
   'publiccloud-contacts-rights': publiccloudContactsRights,
+  'publiccloud-quota-regions': publiccloudQuotaRegions,
+  'publiccloud-credits-vouchers': publiccloudCreditsVouchers,
   // --- Identity, Security & Operations, in Manager sidebar order ----------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
