@@ -13,7 +13,12 @@ import { defineConfig } from '@rspress/core';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
-import { regionConfig } from './config/regions';
+import {
+  htmlLangFor,
+  peerRegion,
+  REGION,
+  regionConfig,
+} from './config/regions';
 import type { Locale } from './config/shared';
 import { locales } from './config/shared';
 import { sidebar } from './config/sidebar';
@@ -109,6 +114,10 @@ export default defineConfig({
 
   // Locales included for language switcher functionality (region-scoped)
   locales: [...regionLocales],
+  // NOTE: this is Rspress's i18n lookup key, not just the `<html lang>` value —
+  // setting a BCP 47 tag here ("en-us") makes every themeText lookup fail at
+  // SSG time. The regional tag is applied to <html lang> by a small script in
+  // `html.tags` below instead.
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
@@ -126,6 +135,25 @@ export default defineConfig({
       // not-fully-hydrated DOM and silently fails to inject. Dynamic
       // injection from useEffect guarantees React has hydrated first.
       tags: [
+        ...(htmlLangFor(regionConfig, locale) !== locale
+          ? [
+              {
+                // Rspress writes <html lang="{locale}"> and also uses `lang`
+                // as its i18n lookup key, so the regional BCP 47 tag cannot be
+                // set through config (it would break every themeText lookup).
+                // Patch the attribute in <head>, before paint: the US site
+                // serves US-specific content and must declare `en-us` so search
+                // engines treat it as the US regional variant rather than a
+                // duplicate of the worldwide English pages.
+                tag: 'script',
+                head: true,
+                append: false,
+                children: `document.documentElement.lang=${JSON.stringify(
+                  htmlLangFor(regionConfig, locale),
+                )};`,
+              },
+            ]
+          : []),
         {
           // Trailing-slash normalization (runs before paint, no flash).
           // Rspress cleanUrls emits flat files (foo.html), so the static
@@ -193,6 +221,15 @@ export default defineConfig({
         // would emit canonical/hreflang pointing at the EU origin.
         __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
         __LOCALES__: JSON.stringify(regionConfig.locales),
+        __HTML_LANG__: JSON.stringify(htmlLangFor(regionConfig, locale)),
+        // The sibling site, so each region's pages can advertise the other in
+        // their hreflang cluster (see theme/components/SEOHead).
+        __PEER_SITE_URL__: JSON.stringify(peerRegion(REGION)?.siteUrl ?? ''),
+        __PEER_LOCALES__: JSON.stringify(peerRegion(REGION)?.locales ?? []),
+        __PEER_LOCALE_PREFIX__: JSON.stringify(
+          peerRegion(REGION)?.localePrefix ?? false,
+        ),
+        __PEER_HTML_LANG__: JSON.stringify(peerRegion(REGION)?.htmlLang ?? {}),
       },
     },
     resolve: {

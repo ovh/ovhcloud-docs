@@ -515,11 +515,16 @@ async function combineSingleRoot(): Promise<void> {
   console.log('\n2️⃣  Setting up robots.txt...');
   sectionStart = Date.now();
 
+  // Mirrors the multi-locale robots.txt: advertise the sitemap and point AI
+  // agents at llms.txt (Rspress emits it at the root here, since this region
+  // has no /<locale>/ segment).
   fs.writeFileSync(
     path.join(DIST_DIR, 'robots.txt'),
-    `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`,
+    `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n\n` +
+      `# AI/LLM index (per-page raw Markdown available at <url>.md):\n` +
+      `# ${SITE_URL}/llms.txt\n`,
   );
-  console.log('   ✓ Created robots.txt');
+  console.log('   ✓ Created robots.txt (sitemap + llms.txt)');
   console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
   // ------------------------------------------------------------------

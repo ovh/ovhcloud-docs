@@ -49,6 +49,14 @@ export interface RegionConfig {
    * guides (e.g. US in v1), to avoid dead sidebar links.
    */
   includeSupplements: boolean;
+  /**
+   * BCP 47 language tags emitted in `<html lang>` and in hreflang, keyed by
+   * locale. Only regions whose content is region-specific need an entry: the
+   * US site is written for a US audience, so it declares `en-us` rather than
+   * the generic `en` the worldwide site uses. Locales absent from this map
+   * fall back to their bare locale code.
+   */
+  htmlLang?: Readonly<Record<string, string>>;
   /** Canonical site origin, used for sitemaps and canonical URLs. */
   siteUrl: string;
   /** OVHcloud API console URL used by the "API Reference" sidebar header item. */
@@ -69,6 +77,27 @@ export interface RegionConfig {
 //   - Turborepo caches `build:{locale}` on file inputs only, so a year rollover
 //     alone will NOT invalidate the cache — force a rebuild in January.
 const COPYRIGHT_YEAR = new Date().getFullYear();
+
+/**
+ * The sibling documentation site, or undefined when a region has none.
+ * US and EU are regional variants of the same corpus, so each advertises the
+ * other in its hreflang cluster. Google only honours a reciprocal cluster, so
+ * both sides must be deployed for this to take effect.
+ */
+export function peerRegion(region: Region): RegionConfig | undefined {
+  // Entries are added per direction. A cluster is only honoured by search
+  // engines when BOTH sides advertise each other, so adding one direction
+  // alone is inert rather than harmful — which lets the two sites be
+  // deployed independently.
+  const peer: Partial<Record<Region, Region>> = { us: 'eu' };
+  const key = peer[region];
+  return key ? REGIONS[key] : undefined;
+}
+
+/** BCP 47 tag for a locale in the active region (`en` -> `en-us` on the US site). */
+export function htmlLangFor(region: RegionConfig, locale: string): string {
+  return region.htmlLang?.[locale] ?? locale;
+}
 
 export const REGIONS: Record<Region, RegionConfig> = {
   eu: {
@@ -92,6 +121,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     repoSubdir: 'docs-us',
     localePrefix: false,
     includeSupplements: false,
+    htmlLang: { en: 'en-us' },
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',
