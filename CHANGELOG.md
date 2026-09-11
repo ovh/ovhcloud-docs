@@ -2,11 +2,14 @@
 
 ## 2026.09.11
 
+### Fixes
+- add vertical spacing inside tab panels
+
 ### Maintenance
 - **links:** centralise Public Cloud URLs and fix the valkey routes (#756)
 
 ### Documentation
-- 344 guides updated across de, en, es, fr, it, pl, pt
+- 719 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.09.10.1
 
