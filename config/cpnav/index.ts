@@ -27,11 +27,17 @@ import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
+import { publiccloudGateway } from './keys/publiccloud-gateway';
 import { publiccloudInstances } from './keys/publiccloud-instances';
+import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
+import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
 import { publiccloudLogs } from './keys/publiccloud-logs';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
+import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
 import { publiccloudProjects } from './keys/publiccloud-projects';
+import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
+import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
@@ -66,6 +72,12 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-instances': publiccloudInstances,
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
+  'publiccloud-load-balancer': publiccloudLoadBalancer,
+  'publiccloud-public-ips': publiccloudPublicIps,
+  'publiccloud-gateway': publiccloudGateway,
+  'publiccloud-rancher': publiccloudRancher,
+  'publiccloud-kubernetes': publiccloudKubernetes,
+  'publiccloud-private-registry': publiccloudPrivateRegistry,
   'publiccloud-contacts-rights': publiccloudContactsRights,
   'publiccloud-quota-regions': publiccloudQuotaRegions,
   'publiccloud-credits-vouchers': publiccloudCreditsVouchers,
