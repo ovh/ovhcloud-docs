@@ -1,0 +1,163 @@
+---
+title: "Générer et utiliser des secrets JWT Seald"
+description: "Créez des secrets JWT Seald pour autoriser la création d'identités, l'ajout de connecteurs et le chiffrement anonyme depuis votre backend."
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide explique comment créer et utiliser des JSON Web Tokens (JWT) avec le SDK Seald. Les JWT sont requis par mesure de sécurité pour les opérations sensibles : création d'identité, ajout d'identifiants personnalisés (`connector`), et chiffrement anonyme. Chaque JWT est signé par votre backend avec un `JWTSecret` et ne peut être utilisé qu'une seule fois si un `jti` est défini.
+
+## Prérequis
+
+- Un compte Seald actif avec accès au tableau de bord d'administration.
+- Un `JWTSecretId` et un `JWTSecret` générés depuis le tableau de bord.
+- Un backend capable de signer des JWT avec l'algorithme `HS256`.
+
+## En pratique
+
+Cette section couvre la création de secrets JWT, la table des permissions, et la génération des différents types de JWT nécessaires à votre intégration.
+
+### Étape 1 — Créer un secret JWT
+
+Chaque JWT est signé avec un `JWTSecret`. Pour en créer un :
+
+**Via le tableau de bord :**
+
+1. Connectez-vous à votre tableau de bord d'administration Seald.
+2. Allez dans **Paramètres** > onglet **Secret de JWT**.
+3. Cliquez sur **Créer un secret**.
+4. Sélectionnez les permissions souhaitées et confirmez.
+5. Récupérez le `JWTSecretId` et le `JWTSecret`.
+
+**Via l'API :**
+
+```shell
+curl -X POST https://dashboard.seald.io/dashboardapi/v2/jwtsharedsecret/ \
+  -H 'X-DASHBOARD-API-KEY: VOTRE_JETON_DACCES' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"permissions": [3]}'
+```
+
+:::warning
+Le `JWTSecret` est secret — stockez-le de manière sécurisée sur votre backend. Le `JWTSecretId` n'est pas secret.
+:::
+
+### Étape 2 — Comprendre les permissions JWT
+
+Chaque secret JWT possède un ensemble de permissions. Chaque JWT ne peut inclure que les permissions du secret qui l'a généré.
+
+| Valeur | Constante | Usage |
+|--------|-----------|-------|
+| `-1` | `PERMISSION_ALL` | Toutes les permissions |
+| `0` | `PERMISSION_ANONYMOUS_CREATE_SESSION` | Créer une session de chiffrement anonyme |
+| `1` | `PERMISSION_ANONYMOUS_FIND_KEYS` | Récupérer les clés de chiffrement des destinataires |
+| `2` | `PERMISSION_ANONYMOUS_FIND_SIGCHAIN` | Récupérer la SigChain (non utilisé) |
+| `3` | `PERMISSION_JOIN_TEAM` | Rejoindre une équipe Seald (création d'identité) |
+| `4` | `PERMISSION_ADD_CONNECTOR` | Ajouter un identifiant personnalisé à une identité |
+| `5` | `PERMISSION_ANONYMOUS_FIND_SYMENCKEY` | Récupérer une session via une SymEncKey anonymement |
+
+### Étape 3 — Générer un JWT d'inscription
+
+Générez ce JWT **sur votre backend** pour permettre la création d'une identité Seald :
+
+```javascript
+import { SignJWT } from 'jose'
+
+const token = new SignJWT({
+  iss: JWTSecretId,
+  jti: crypto.randomUUID(),              // nonce unique — rend le JWT à usage unique
+  iat: Math.floor(Date.now() / 1000),   // expire après 10 min par défaut
+  scopes: [3],                           // PERMISSION_JOIN_TEAM
+  join_team: true
+})
+  .setProtectedHeader({ alg: 'HS256' })
+
+const signupJWT = await token.sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+Utilisez ce JWT côté client :
+
+```javascript
+await seald.initiateIdentity({ signupJWT })
+```
+
+### Étape 4 — Générer un JWT d'ajout de connector (optionnel)
+
+Un `connector` associe un identifiant personnalisé (UUID, ID interne) à une identité Seald. Format requis : `${IDENTIFIANT}@${APP_ID}`, type `AP` :
+
+```javascript
+const connectorJWT = await new SignJWT({
+  iss: JWTSecretId,
+  jti: crypto.randomUUID(),
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [4],                           // PERMISSION_ADD_CONNECTOR
+  connector_add: {
+    value: `${identifiantUtilisateur}@${appId}`,
+    type: 'AP'
+  }
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+Côté client, sur une identité déjà initialisée :
+
+```javascript
+await seald.pushJWT(connectorJWT)
+```
+
+:::warning
+Le `connector` est stocké en clair dans la base de données Seald. Évitez d'utiliser une adresse e-mail ou toute autre donnée personnelle — préférez un UUID.
+:::
+
+### Étape 5 — Générer des JWT pour le chiffrement anonyme (optionnel)
+
+Le chiffrement anonyme nécessite deux JWT : un pour la récupération des clés des destinataires, un pour la création de session.
+
+```javascript
+// JWT de récupération des clés (pas de jti — la requête peut être paginée)
+const getKeysToken = await new SignJWT({
+  iss: JWTSecretId,
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [1],                           // PERMISSION_ANONYMOUS_FIND_KEYS
+  recipients: [sealdIdUser1, sealdIdUser2]
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+
+// JWT de création de session (avec jti — usage unique)
+const encryptionToken = await new SignJWT({
+  iss: JWTSecretId,
+  jti: crypto.randomUUID(),
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [0],                           // PERMISSION_ANONYMOUS_CREATE_SESSION
+  recipients: [sealdIdUser1, sealdIdUser2],
+  owner: sealdIdUser1
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+### Étape 6 — Générer un JWT pour la récupération via SymEncKey (optionnel)
+
+Pour autoriser la récupération anonyme d'une session via une SymEncKey :
+
+```javascript
+const retrieveSessionToken = await new SignJWT({
+  iss: JWTSecretId,
+  jti: crypto.randomUUID(),
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [5],                           // PERMISSION_ANONYMOUS_FIND_SYMENCKEY
+  sym_enc_keys: [symEncKeyId]
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+## Aller plus loin
+
+- [Premiers pas avec Seald : application web](/guides/public-cloud/seald/seald-quickstart-web)
+- [Chiffrement anonyme](/guides/public-cloud/seald/seald-anonymous-encryption)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

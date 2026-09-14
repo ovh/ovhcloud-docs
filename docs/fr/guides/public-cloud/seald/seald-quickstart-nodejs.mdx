@@ -1,0 +1,235 @@
+---
+title: "Premiers pas avec Seald : Node.js"
+description: "Intégrez le chiffrement de bout en bout dans une application Node.js avec le SDK Seald : installez, créez une identité et chiffrez des données."
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide vous explique une intégration Seald complète dans une application Node.js. Il couvre trois phases :
+
+1. Installer et initialiser le SDK Seald.
+2. Créer et persister une identité Seald.
+3. Chiffrer et déchiffrer des messages et des fichiers.
+
+À l'issue de ce guide, vous disposerez d'une intégration Seald fonctionnelle capable de chiffrer des données pour des destinataires spécifiques et de les déchiffrer ultérieurement.
+
+> [!INFO]
+> Node.js ne nécessite aucune configuration de polyfill. La syntaxe `import` ou `require` standard fonctionne directement avec le package `@seald-io/sdk`.
+
+## Prérequis
+
+- Un compte Seald (staging ou production)
+- Node.js 18 ou version ultérieure et npm
+- Les identifiants suivants depuis le tableau de bord d'administration Seald : `appId`, `apiURL` (staging uniquement — à omettre en production), `JWTSecretId` et `JWTSecret`
+
+## En pratique
+
+Les étapes ci-dessous supposent un environnement Node.js côté serveur (ou Electron). Tous les exemples de code utilisent la syntaxe ES module ; remplacez `import` par `require` si vous utilisez CommonJS.
+
+### Étape 1 — Installer le SDK
+
+Exécutez la commande suivante dans le répertoire de votre projet :
+
+```bash
+npm install --save @seald-io/sdk
+```
+
+Si vous souhaitez stocker les identités utilisateur via un serveur SSKS (optionnel), installez également le plugin correspondant :
+
+```bash
+npm install --save @seald-io/sdk-plugin-ssks-password  # stockage basé sur un mot de passe
+npm install --save @seald-io/sdk-plugin-ssks-2mr        # stockage par règle des deux hommes
+```
+
+### Étape 2 — Initialiser le SDK
+
+Importez le package et créez une instance du SDK. Appelez `initialize()` avant d'effectuer toute opération.
+
+```javascript
+import SealdSDK from '@seald-io/sdk'
+
+const seald = SealdSDK({ appId, apiURL })
+await seald.initialize()
+```
+
+> [!INFO]
+> En production, omettez `apiURL`. Le SDK utilise par défaut le point de terminaison de production Seald.
+
+### Étape 3 — Créer une identité Seald
+
+Avant qu'un utilisateur puisse chiffrer ou déchiffrer des données, il a besoin d'une identité Seald. La création d'une identité nécessite un JWT signé que votre backend génère et passe au client.
+
+**3.1 — Générer le JWT de signup sur votre backend**
+
+Générez le JWT avec une courte expiration et un nonce unique :
+
+```javascript
+import { SignJWT } from 'jose'
+import { v4 as uuidv4 } from 'uuid'
+
+const signupJWT = await new SignJWT({
+  iss: JWTSecretId,
+  jti: uuidv4(),
+  iat: Math.floor(Date.now() / 1000),
+  scopes: [3], // scope 3 = JOIN_TEAM (création d'identité)
+  join_team: true
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .sign(Buffer.from(JWTSecret, 'ascii'))
+```
+
+:::warning
+N'exposez jamais `JWTSecret` au client. Générez les JWT exclusivement sur votre backend et transmettez uniquement le jeton signé à la couche frontend ou applicative.
+:::
+
+**3.2 — Initialiser l'identité**
+
+Passez le JWT signé à `initiateIdentity()` :
+
+```javascript
+const { sealdId: mySealdId } = await seald.initiateIdentity({ signupJWT })
+```
+
+Le `mySealdId` retourné identifie cet utilisateur de façon unique dans l'écosystème Seald. Stockez-le dans votre base de données à côté de l'enregistrement utilisateur.
+
+**3.3 — Exporter et stocker l'identité**
+
+Exportez l'identité sous forme de Buffer et stockez-la chiffrée dans votre base de données :
+
+```javascript
+const exportedIdentity = await seald.exportIdentity()
+// exportedIdentity est un Buffer contenant le matériel de clé privée de l'utilisateur
+```
+
+:::warning
+`exportIdentity()` retourne un Buffer qui contient du matériel cryptographique sensible. Stockez-le chiffré au repos (par exemple, chiffré avec une clé dérivée du mot de passe de l'utilisateur). Quiconque obtient ce Buffer peut déchiffrer toutes les données chiffrées pour cette identité.
+:::
+
+### Étape 4 — Charger une identité existante
+
+Lors des sessions suivantes, récupérez le Buffer stocké depuis votre base de données et importez-le au lieu d'appeler à nouveau `initiateIdentity()` :
+
+```javascript
+await seald.importIdentity(exportedIdentity)
+// Le SDK est maintenant prêt à chiffrer et déchiffrer des données pour cette identité
+```
+
+### Étape 5 — Chiffrer et déchiffrer des données
+
+**5.1 — Chiffrer et déchiffrer un message**
+
+Créez une session de chiffrement pour un ensemble de destinataires identifiés par leur `sealdId`, puis chiffrez une chaîne de caractères :
+
+```javascript
+// Créer une session — tous les destinataires listés pourront déchiffrer
+const session = await seald.createEncryptionSession(
+  { sealdIds: [mySealdId, destinataireSealdId] }
+)
+
+const encryptedMessage = await session.encryptMessage('Message secret')
+```
+
+Pour déchiffrer, récupérez la session par son ID et appelez `decryptMessage()` :
+
+```javascript
+const retrievedSession = await seald.retrieveEncryptionSession({
+  sessionId: session.sessionId
+})
+const decryptedMessage = await retrievedSession.decryptMessage(encryptedMessage)
+```
+
+**5.2 — Chiffrer et déchiffrer un fichier (Buffer)**
+
+Utilisez `encryptFile()` pour chiffrer des données binaires. L'option `filename` est stockée dans l'enveloppe chiffrée et retournée lors du déchiffrement :
+
+```javascript
+const encryptedBuffer = await seald.encryptFile(
+  Buffer.from('Contenu du fichier secret', 'utf8'),
+  { sealdIds: [mySealdId, destinataireSealdId] },
+  { filename: 'secret.txt' }
+)
+
+const { data, filename } = await seald.decryptFile(encryptedBuffer)
+console.log(filename)          // 'secret.txt'
+console.log(data.toString('utf8')) // 'Contenu du fichier secret'
+```
+
+**5.3 — Réutiliser une session pour plusieurs fichiers**
+
+Créez la session une seule fois et appelez `encryptFile()` plusieurs fois pour éviter de créer une session séparée pour chaque fichier :
+
+```javascript
+const session = await seald.createEncryptionSession(
+  { sealdIds: [mySealdId, destinataireSealdId] }
+)
+
+const fichier1Encrypted = await session.encryptFile(
+  Buffer.from('contenu du fichier 1'),
+  { filename: 'fichier1.txt' }
+)
+const fichier2Encrypted = await session.encryptFile(
+  Buffer.from('contenu du fichier 2'),
+  { filename: 'fichier2.txt' }
+)
+```
+
+### Étape 6 — Gérer les destinataires de la session (optionnel)
+
+Après la création d'une session, vous pouvez ajouter ou supprimer des destinataires. Seul le créateur de la session peut révoquer des destinataires par défaut.
+
+**Ajouter un destinataire :**
+
+```javascript
+await session.addRecipients({ sealdIds: [nouveauDestinataire] })
+```
+
+**Révoquer un destinataire :**
+
+```javascript
+await session.revokeRecipients({ sealdIds: [destinataireRevoque] })
+```
+
+> [!INFO]
+> La révocation d'un destinataire empêche les futures tentatives de déchiffrement par ce destinataire. Elle n'affecte pas les copies déjà déchiffrées des données.
+
+### Étape 7 — Chiffrement côté serveur avec le SDK anonyme (optionnel)
+
+Le SDK anonyme permet à un service backend de chiffrer des données pour des utilisateurs Seald sans détenir d'identité Seald. C'est utile pour les processus côté serveur tels que le chiffrement de fichiers avant leur stockage au nom des utilisateurs.
+
+**Initialiser le SDK anonyme :**
+
+```javascript
+import { AnonymousSDKBuilder } from '@seald-io/sdk'
+
+const anonymousSDK = AnonymousSDKBuilder({ apiURL })
+```
+
+**Chiffrer des données pour un destinataire :**
+
+Votre backend doit fournir deux JWT de courte durée :
+
+- `getKeysToken` : signé avec le scope `1` (`ANONYMOUS_FIND_KEYS`)
+- `encryptionToken` : signé avec le scope `0` (`ANONYMOUS_CREATE_SESSION`)
+
+```javascript
+const { id, encryptedFile } = await anonymousSDK.encrypt({
+  getKeysToken,     // JWT avec scope ANONYMOUS_FIND_KEYS (1)
+  encryptionToken,  // JWT avec scope ANONYMOUS_CREATE_SESSION (0)
+  recipients: { sealdIds: [destinataireSealdId] },
+  clearFile: Buffer.from('Données secrètes'),
+  filename: 'data.txt'
+})
+```
+
+Le destinataire peut ensuite récupérer et déchiffrer la session à l'aide de son identité Seald standard.
+
+## Aller plus loin
+
+- [Installer le SDK Seald](/guides/public-cloud/seald/seald-install-sdk)
+- [Gérer les identités Seald](/guides/public-cloud/seald/seald-identities)
+- [Sessions de chiffrement](/guides/public-cloud/seald/seald-encryption-sessions)
+- [Générer et gérer les secrets JWT](/guides/public-cloud/seald/seald-jwt)
+- [Chiffrement anonyme côté serveur](/guides/public-cloud/seald/seald-anonymous-encryption)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

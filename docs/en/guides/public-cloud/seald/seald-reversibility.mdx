@@ -1,0 +1,151 @@
+---
+title: "Export and decrypt data with the Seald reversibility tool"
+description: "Decrypt all data encrypted with the Seald SDK by combining a Seald server export with your backend's identity and key data using the reversibility tools package."
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide explains how to use the `@seald-io/reversibility-tools` package to decrypt all data encrypted with the Seald SDK if you need to migrate away from the service or recover data in bulk. The process combines encrypted exports from the Seald API and SSKS servers with key material from your own backend.
+
+:::danger
+Using the reversibility tool breaks end-to-end encryption for the affected data. Use it only for exceptional bulk-recovery scenarios, never as part of a routine workflow.
+:::
+
+:::warning
+This procedure requires access to every user's identity. If you use only SSKS Password protection, identities can only be decrypted by users who know their passwords. If you use SSKS 2MR, you can provide `twoManRuleKey` values to recover identities. Test the full procedure on staging before relying on it in production.
+:::
+
+## Requirements
+
+- A Seald account and access to contact [Seald support](mailto:support@seald.io) to request the server data exports.
+- The `@seald-io/reversibility-tools` package (`npm install @seald-io/reversibility-tools`).
+- The `sscrypto` package for key operations.
+- Your application's private key (used to decrypt the Seald exports).
+- Backend exports: `twoManRuleKey` or `rawTwoManRuleKey` per user (for SSKS 2MR), or passwords/raw encryption keys (for SSKS Password).
+
+## Instructions
+
+This section walks through the three-step reversibility process: decrypting identities, decrypting session keys, and decrypting the data itself.
+
+### Step 1 — Obtain the Seald server exports
+
+Contact Seald support to request the encrypted data exports for your application:
+
+- **SSKS export** (`ssks.backup`) — contains encrypted identities stored on the SSKS server.
+- **API export** (`api.backup`) — contains encrypted session keys from the main Seald API.
+
+Both files are encrypted with your application's private key. Seald can also configure periodic exports to an S3-compatible object storage bucket under your control; contact support for details.
+
+Store your private key offline on physically secure media (USB drive, external hard drive). It can also be held in escrow by a trusted third party.
+
+### Step 2 — Export your backend key material
+
+Export the identity-protection key material from your own database. The format depends on your protection method:
+
+**For SSKS 2MR** — create a JSONLines file (`ssks-tmr-keys.jsonl`), one entry per user:
+
+```
+{ "userId": "user-001", "twoManRuleKey": "your-two-man-rule-key" }
+{ "userId": "user-002", "rawTwoManRuleKey": "base64-64-byte-raw-key==" }
+```
+
+Each line must contain either `twoManRuleKey` **or** `rawTwoManRuleKey`, not both. Optionally include `sealdId` and `deviceId` for verification.
+
+**For SSKS Password** — create a JSONLines file (`ssks-strict-passwords.jsonl`), one entry per user:
+
+```
+{ "userId": "user-001", "password": "user-password" }
+{ "userId": "user-002", "rawEncryptionKey": "base64-64-byte-raw-key==" }
+```
+
+### Step 3 — Decrypt identities (`decryptSsksExport`)
+
+Run `decryptSsksExport` to produce a JSONLines file of decrypted identities:
+
+```javascript
+const { node: sscrypto } = require('sscrypto')
+const fs = require('node:fs')
+const { decryptSsksExport } = require('@seald-io/reversibility-tools')
+
+const privateKeyB64 = await fs.promises.readFile('./private_key', 'utf8')
+const privateKey = sscrypto.PrivateKey.fromB64(privateKeyB64)
+
+await decryptSsksExport(
+  './seald-exports/ssks.backup',       // SSKS export from Seald support
+  privateKey,
+  './output/identities.jsonl',         // output path (directory must exist)
+  {
+    appId: 'YOUR_APP_ID',
+    ssksTmrKeysPath: './exports/ssks-tmr-keys.jsonl',           // optional, for 2MR
+    ssksStrictPasswordsPath: './exports/ssks-strict-passwords.jsonl' // optional, for Password
+  }
+)
+```
+
+The output file contains one line per identity:
+
+```
+{ "sealdId": "...", "deviceId": "...", "identity": "<base64-encoded-private-key>" }
+```
+
+### Step 4 — Decrypt session keys (`decryptApiExport`)
+
+Run `decryptApiExport` using the identities from Step 3 to produce a JSONLines file of decrypted session keys:
+
+```javascript
+const { decryptApiExport } = require('@seald-io/reversibility-tools')
+
+await decryptApiExport(
+  './seald-exports/api.backup',        // API export from Seald support
+  './output/identities.jsonl',         // output from Step 3
+  privateKey,
+  './output/sessions.jsonl',           // output path
+  {
+    // Optional: provide over-encryption keys for TMR Accesses
+    tmrAccessesOverEncryptionKeysPath: './exports/tmr-over-keys.jsonl',
+    // Optional: provide over-encryption keys for Group TMR Temporary Keys
+    groupTmrTemporaryKeysOverEncryptionKeysPath: './exports/gtmr-over-keys.jsonl',
+    // Optional: provide SymEncKey secrets
+    symEncKeysPath: './exports/sym-enc-keys.jsonl',
+    appId: 'YOUR_APP_ID'
+  }
+)
+```
+
+The output file contains one line per session:
+
+```
+{ "sessionId": "...", "key": "<base64-session-key>" }
+```
+
+### Step 5 — Decrypt data (`decryptMessage` / `decryptFile`)
+
+Use the session keys from Step 4 to decrypt individual messages and files:
+
+```javascript
+const { decryptMessage, decryptFile } = require('@seald-io/reversibility-tools')
+
+// Decrypt a message
+const encryptedMessage = await fs.promises.readFile('./encrypted/message.bin', 'utf8')
+const clearMessage = await decryptMessage(encryptedMessage, './output/sessions.jsonl')
+
+// Decrypt a file
+const fileResult = decryptFile(
+  fs.createReadStream('./encrypted/document.seald'),
+  './output/sessions.jsonl'
+)
+// fileResult.stream is a Readable containing the clear-text file data
+// fileResult.promise resolves with { size, filename, protocol, mid }
+await fs.promises.writeFile('./output/document.pdf', fileResult.stream)
+```
+
+> [!INFO]
+> **Raw messages:** If a message was encrypted with `{ raw: true }`, pass `{ raw: true, sessionId: '...' }` to `decryptMessage`. You must supply the `sessionId` separately since it is not embedded in the raw ciphertext.
+
+## Go further
+
+- [Move from Seald staging to production](/guides/public-cloud/seald/seald-staging-to-production)
+- [Security best practices](/guides/public-cloud/seald/seald-security-best-practices)
+
+Join our [community of users](/links/community).

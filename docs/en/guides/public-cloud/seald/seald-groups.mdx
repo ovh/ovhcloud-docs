@@ -1,0 +1,146 @@
+---
+title: "Create and manage Seald SDK groups"
+description: "Create groups to encrypt data for multiple users at once, manage membership and admin roles, and invite users via two-man rule temporary keys."
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide explains how to use Seald SDK groups to encrypt data for multiple users simultaneously. Groups act as a Seald identity: any data encrypted for a group can be decrypted by all its members. Adding or removing members immediately grants or revokes access to all group-encrypted data.
+
+## Requirements
+
+- An active Seald account with an `appId` and `apiURL`.
+- The `@seald-io/sdk` package installed and initialised. See the [Install the Seald SDK](/guides/public-cloud/seald/seald-install-sdk) guide.
+- All group members must have existing Seald identities and their `sealdId` values must be known.
+
+## Instructions
+
+This section covers creating a group, encrypting and decrypting for a group, managing members and admin roles, renewing group keys, and inviting unregistered users via Group TMR Temporary Keys.
+
+### Step 1 — Create a group
+
+Call `sdk.createGroup` and provide at least one member and one admin. Both lists must include the user creating the group:
+
+```javascript
+const group = await seald.createGroup({
+  groupName: 'My team',           // display name in the admin dashboard
+  members: { sealdIds: [mySealdId, user2SealdId] },
+  admins: { sealdIds: [mySealdId] }
+})
+
+// group.id is the sealdId of the group — use it as an encryption recipient
+// group.groupName is the name you just assigned
+```
+
+> [!INFO]
+> To speed up group creation, pre-generate identity keys in advance by calling `seald.preGenerateIdentityKeys(1)` before creating the group.
+
+### Step 2 — Encrypt and decrypt data for a group
+
+Use the group's `id` as a recipient in any encryption call:
+
+```javascript
+// Encrypt a file for the group
+const encrypted = await seald.encryptFile(
+  Buffer.from('Secret content', 'utf8'),
+  { sealdIds: [group.id] },
+  { filename: 'secret.txt' }
+)
+
+// Any group member can decrypt it
+const { data } = await memberSDKInstance.decryptFile(encrypted)
+```
+
+> [!INFO]
+> If the encrypting user is also a group member, pass `encryptForSelf: false` to skip direct encryption to their own identities. They can still decrypt via their group membership, which improves performance.
+
+### Step 3 — Add and remove members
+
+Only group admins can add or remove members.
+
+When a user is added, they immediately gain access to all data previously encrypted for the group. When a user is removed, they immediately lose that access:
+
+```javascript
+// Add a new member (admin only)
+await adminSDKInstance.addGroupMembers(group.id, {
+  sealdIds: [newMemberSealdId]
+})
+
+// Remove a member (admin only)
+await adminSDKInstance.removeGroupMembers(group.id, {
+  sealdIds: [removedMemberSealdId]
+})
+```
+
+### Step 4 — Renew group keys after removing a member
+
+After removing a member, renew the group's cryptographic keys to prevent the removed user from decrypting future data added to the group:
+
+```javascript
+await adminSDKInstance.renewGroupKey(group.id)
+```
+
+### Step 5 — Manage admin roles
+
+Admins can promote members to admin or demote existing admins:
+
+```javascript
+// Promote a member to admin
+await adminSDKInstance.setGroupAdmin(group.id, { sealdIds: [newAdminSealdId] }, true)
+
+// Demote an admin to member
+await adminSDKInstance.setGroupAdmin(group.id, { sealdIds: [oldAdminSealdId] }, false)
+```
+
+### Step 6 — Invite a user to a group via TMR (optional)
+
+Group TMR Temporary Keys allow an admin to invite a user to a group via an email or SMS challenge, even before the user has a Seald identity. This is useful when sending an invitation.
+
+**Create the temporary key (admin):**
+
+```javascript
+// rawOverEncryptionKey must be exactly 64 bytes, Base64-encoded, cryptographically random
+const rawOverEncryptionKey = await seald.utils.generateB64EncodedSymKey()
+
+const tmrKey = await seald.createGroupTMRTemporaryKey(group.id, {
+  rawOverEncryptionKey,
+  authFactor: { type: 'EM', value: 'invited.user@example.com' },
+  isAdmin: false
+})
+// tmrKey.id is not secret — send it with rawOverEncryptionKey to your backend for storage
+```
+
+**Convert the temporary key (invited user, once they have an identity):**
+
+```javascript
+// 1. Obtain a TMR JWT from SSKS by providing the challenge sent to the auth factor
+const { token } = await newUserSDK.ssks2MR.getFactorToken({
+  sessionId: ssksSessionId,
+  authFactor: { type: 'EM', value: 'invited.user@example.com' },
+  challenge: 'challenge-from-email'
+})
+
+// 2. Convert the temporary key to join the group
+await newUserSDK.convertGroupTMRTemporaryKey(
+  group.id,
+  tmrKey.id,
+  token,
+  rawOverEncryptionKey, // retrieved from your backend
+  { deleteOnConvert: true }
+)
+```
+
+> [!INFO]
+> Store each `rawOverEncryptionKey` on your backend alongside the `tmrKey.id`. Limit access to the creating admin and the invited user. Use a different `rawOverEncryptionKey` for each invitation, even if the same admin is inviting the same auth factor.
+
+:::warning
+To list or search Group TMR Temporary Keys, use `sdk.listGroupTMRTemporaryKeys()` or `sdk.searchGroupTMRTemporaryKeys()`. To delete one, use `sdk.deleteGroupTMRTemporaryKey()`.
+:::
+
+## Go further
+
+- [Create and use encryption sessions](/guides/public-cloud/seald/seald-encryption-sessions)
+- [Implement anonymous encryption](/guides/public-cloud/seald/seald-anonymous-encryption)
+
+Join our [community of users](/links/community).

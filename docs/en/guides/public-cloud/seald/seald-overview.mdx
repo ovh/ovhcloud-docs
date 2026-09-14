@@ -1,0 +1,183 @@
+---
+title: What is Seald — Key Concepts
+description: Understand how Seald provides client-side end-to-end encryption for web, mobile, and desktop applications built on OVHcloud.
+lastUpdated: 2026-05-19
+---
+
+## Objective
+
+This guide explains what Seald is, what problem it solves, and the core concepts you need to understand before integrating the Seald SDK into your application. It is intended for developers evaluating Seald as an OVHcloud Public Cloud product.
+
+By the end of this guide, you will understand how cryptographic identities, encryption sessions, and key storage work together, and you will be ready to follow the getting-started guides.
+
+## Overview
+
+### What problem Seald solves
+
+Most applications protect data in two ways: TLS encrypts data in transit, and at-rest encryption (sometimes backed by a key management service) protects data on disk. Both approaches share a structural weakness: the application backend processes data in cleartext at runtime. If the backend is compromised — by an external attacker, a rogue insider, or a compromised hosting environment — all data the backend can access is at risk.
+
+Seald addresses this by moving encryption to the client side. Data is encrypted in the frontend — the browser, mobile app, or desktop app — before it is sent to the server. The backend stores and transmits ciphertext only. Even if the backend is fully compromised, it cannot read the protected data.
+
+This is the end-to-end (E2E) encryption model. Seald makes it practical to integrate into existing application architectures using a JavaScript/TypeScript SDK distributed under the `@seald-io` npm namespace.
+
+> [!INFO]
+> "Client-side" in this context means that encryption and decryption operations are performed in your application frontend code, using the Seald SDK. The Seald API handles key distribution — it never sees plaintext data.
+
+### Architecture
+
+The table below summarizes how the three components interact at a high level.
+
+| Component | Role |
+|---|---|
+| Frontend (your app) | Runs the Seald SDK (`@seald-io/sdk`); encrypts and decrypts data locally, and exchanges public identities and encrypted keys with the Seald API |
+| Your Backend | Stores and transmits encrypted data only; never handles plaintext or decryption keys |
+| Seald Infrastructure (Seald API + SSKS) | Distributes public keys and encrypted keys; SSKS optionally stores encrypted identities so they can be retrieved on a new device |
+
+The key point is that **your backend only ever handles ciphertext**. The Seald API handles public key distribution and encrypted key delivery — it does not hold decryption keys in a form it can use.
+
+### How the SDK fits into your stack
+
+You install the Seald SDK in your frontend application:
+
+```bash
+npm install @seald-io/sdk
+```
+
+The SDK manages a user's cryptographic identity locally. When a user needs to encrypt data for a set of recipients, the SDK:
+
+1. Contacts the Seald API to retrieve the recipients' public keys.
+2. Generates a symmetric encryption key for the session.
+3. Encrypts that key for each recipient using their public key.
+4. Encrypts the data with the symmetric key.
+5. Sends the ciphertext (data + encrypted keys) to your backend for storage.
+
+Decryption follows the reverse path: the SDK retrieves the encrypted key from the Seald API, decrypts it locally with the user's private key, then decrypts the data.
+
+## Key concepts
+
+### Cryptographic identities
+
+A **Seald identity** is an asymmetric key pair (public key + private key) generated locally on the user's device the first time they initialise the SDK. The private key never leaves the device in plaintext; the public key is registered with the Seald API so that other users can encrypt data for this identity.
+
+Each user has one Seald identity. That identity can be stored in several ways:
+
+- **Local persistent database:** The identity is stored on the device, encrypted by a `databaseKey` that your backend generates and controls. This is the simplest option for single-device scenarios.
+- **SSKS with password protection:** See [SSKS](#ssks-seald-sdk-key-storage) below.
+- **SSKS with two-man rule:** See [Two-man rule (2MR)](#two-man-rule-2mr) below.
+
+:::warning
+If a user's identity is stored only in a local database and that database is lost (device reset, uninstall), the identity is permanently lost and previously encrypted data cannot be decrypted. Plan your identity storage strategy before going to production.
+:::
+
+### Encryption sessions
+
+An **encryption session** represents a set of encrypted data and the authorised recipients who can decrypt it. When you call the SDK to encrypt a document or a field, the SDK:
+
+1. Creates a new symmetric key specific to that session.
+2. Encrypts the key for each authorised recipient (users or groups).
+3. Stores the encrypted key distribution on the Seald API.
+4. Returns the ciphertext.
+
+Later, any authorised recipient can open the session to decrypt the data. You can also modify the recipient list after the fact: add a new user, remove a user, or add a group — without re-encrypting the underlying data.
+
+This design means that access control is managed through key distribution, not data re-encryption, which is efficient even for large datasets.
+
+### SSKS (Seald SDK Key Storage)
+
+**SSKS** (Seald SDK Key Storage) is an optional server-side service that stores a user's Seald identity in encrypted form so that the identity can be retrieved on a new device. The identity is always encrypted before being sent to SSKS — SSKS itself cannot read it.
+
+Two plugins interact with SSKS:
+
+| Plugin | How identity is protected |
+|--------|--------------------------|
+| `@seald-io/sdk-plugin-ssks-password` | Encrypted with the user's password. Only the user can retrieve it. |
+| `@seald-io/sdk-plugin-ssks-2mr` | Split between your backend and SSKS using the two-man rule (see below). |
+
+Use SSKS when users need to access their encrypted data from multiple devices or after reinstalling the application.
+
+> [!INFO]
+> SSKS stores ciphertext only. If a user forgets their password (password-based storage) and no recovery mechanism is in place, the identity cannot be recovered. Design a recovery flow as part of your integration.
+
+### Two-man rule (2MR)
+
+The **two-man rule** (2MR) is an identity storage scheme that removes the risk of a single-point compromise. The user's identity is split between two independent parties:
+
+1. **Your application backend** holds one share.
+2. **The SSKS server** holds the other share.
+
+Neither party alone can reconstruct the user's identity. To retrieve an identity (for example, on a new device), the user must authenticate successfully with both systems. This is enforced by the `@seald-io/sdk-plugin-ssks-2mr` plugin.
+
+The 2MR scheme is appropriate when you need strong guarantees against a compromised backend: even if your backend is fully taken over, the attacker cannot retrieve user identities without also compromising SSKS. Retrieving an identity on a new device follows three steps:
+
+1. The user authenticates with your backend (for example, with a session token) and receives their backend identity share, encrypted.
+2. The user authenticates with SSKS (for example, via an email challenge) and receives their SSKS identity share, encrypted.
+3. The user reconstructs their identity locally from both shares.
+
+> [!INFO]
+> The two-man rule is distinct from two-factor authentication. 2MR protects the identity recovery path specifically; it does not replace application-level authentication.
+
+## Use cases
+
+### Protecting sensitive user data
+
+The primary use case is end-to-end encryption of user-generated content — messages, documents, form fields — so that the application backend can store and relay the data without being able to read it. This is relevant for applications handling personal health information, legal documents, financial data, or any content subject to strict confidentiality requirements.
+
+### Pseudonymisation
+
+A common architecture pattern involves splitting a data record into two parts:
+
+- **Non-identifying data** — processed by the backend without encryption (aggregations, statistics, business logic).
+- **Identifying data** — encrypted client-side by the Seald SDK, accessible only to authorised users.
+
+This pattern aligns with the pseudonymisation technique recommended under GDPR Article 32. The backend processes the anonymised portion normally; the encrypted portion cannot be linked to an individual without the decryption key.
+
+### Server-side processing with temporary access
+
+Some backend operations — PDF generation, full-text indexing, image transcoding — require access to plaintext data. Seald accommodates this through a **temporary rights grant**:
+
+1. Grant decryption rights to a **service identity** (a Seald identity held by the backend process).
+2. The backend decrypts, processes, and re-encrypts the result.
+3. Revoke the service identity's access immediately after processing.
+
+The exposure window is limited to the processing duration. If the backend is compromised after the rights are revoked, previously processed data is no longer accessible through the service identity.
+
+:::warning
+Temporarily granting rights to a backend service identity means that data is briefly accessible in cleartext on the server during the processing window. Assess whether this is acceptable for your threat model before adopting this pattern.
+:::
+
+## Prerequisites and limitations
+
+### Prerequisites
+
+Before integrating Seald you will need:
+
+- A Seald account. Contact Seald or your OVHcloud representative to obtain credentials.
+- A frontend application in a supported environment: web (modern browsers), React Native, or Electron.
+- Node.js 18 or later for local development and build tooling.
+- A backend capable of generating and securely storing a `databaseKey` per user (required for local identity storage).
+
+Refer to the [SDK installation guide](/guides/public-cloud/seald/seald-install-sdk) for the full environment requirements.
+
+### Technical limits
+
+**Staging environment:**
+
+The staging environment is provided for development and testing. It runs on a single server with no high availability and no data persistence guarantee. The `fake_otp: true` test flag is available in staging, which bypasses the email challenge during 2MR identity recovery. Do not use staging credentials or data in production.
+
+**Production environment:**
+
+The production environment runs on replicated servers with high availability and regular backups. The `fake_otp` flag is blocked in production. Contact Seald to provision a production account.
+
+:::warning
+Data created in the staging environment may be lost without notice. Do not store real user data or production identities in staging.
+:::
+
+For a complete list of supported platforms, browser versions, and known limitations, see the [Seald glossary](/guides/public-cloud/seald/seald-glossary).
+
+## Go further
+
+- [Getting started with Seald on the web](/guides/public-cloud/seald/seald-quickstart-web)
+- [Install the Seald SDK](/guides/public-cloud/seald/seald-install-sdk)
+- [Seald glossary](/guides/public-cloud/seald/seald-glossary)
+
+Join our [community of users](/links/community).

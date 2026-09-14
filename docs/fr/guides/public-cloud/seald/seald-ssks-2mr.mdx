@@ -1,0 +1,193 @@
+---
+title: "Protéger les identités Seald avec SSKS 2MR"
+description: "Implémentez la protection d'identité par règle des deux hommes — divisez une identité Seald entre votre backend et SSKS afin qu'aucune des deux parties ne puisse la reconstruire seule."
+lastUpdated: 2026-05-19
+---
+
+## Objectif
+
+Ce guide explique comment protéger une identité du SDK Seald en utilisant le mode règle des deux hommes (2MR). L'identité est divisée entre votre backend applicatif (qui stocke un `twoManRuleKey`) et le serveur SSKS (qui stocke l'identité chiffrée). Aucune des deux parties ne peut reconstruire l'identité seule.
+
+Ce mode permet aux utilisateurs de récupérer leur identité après avoir perdu tous leurs appareils ou mots de passe, au prix d'un chiffrement de bout en bout non strict : une compromission simultanée de votre backend et de SSKS exposerait l'identité.
+
+:::warning
+Ce mode n'est pas strictement de bout en bout : l'identité peut être reconstruite sans l'implication de l'utilisateur en combinant le `twoManRuleKey` de votre backend et l'`encryptedIdentity` de SSKS.
+:::
+
+## Prérequis
+
+- Un compte Seald actif avec un `appId`, `apiURL`, `keyStorageURL`, `ssksAppId` et `ssksAppKey`.
+- Les packages `@seald-io/sdk` et `@seald-io/sdk-plugin-ssks-2mr` installés. Consultez le guide [Installer le SDK Seald](/guides/public-cloud/seald/seald-install-sdk).
+- La capacité côté serveur d'appeler `POST https://{SSKS_URL}/tmr/back/challenge_send/` avec votre `ssksAppKey`.
+
+## En pratique
+
+Cette section décrit l'intégration backend, les flux de sauvegarde et de récupération frontend, et comment utiliser `fake_otp` pendant le développement.
+
+### Étape 1 — Implémenter le point de terminaison backend `getSSKSSession`
+
+Votre backend doit exposer un point de terminaison authentifié qui :
+
+1. Appelle `POST https://{SSKS_URL}/tmr/back/challenge_send/` avec le corps suivant :
+
+```json
+{
+  "create_user": true,
+  "user_id": "<userId>",
+  "auth_factor": {
+    "type": "EM",
+    "value": "utilisateur@exemple.com"
+  },
+  "template_id": "<votre-id-de-template-email>"
+}
+```
+
+En-têtes requis : `X-SEALD-APPID: <ssksAppId>` et `X-SEALD-APIKEY: <ssksAppKey>`.
+
+SSKS retourne `session_id` et `must_authenticate`. Si `must_authenticate` est `true`, SSKS envoie un challenge par e-mail ou SMS (valide 6 heures) au facteur d'authentification de l'utilisateur.
+
+2. Génère et stocke un `twoManRuleKey` pour cet utilisateur (une chaîne aléatoire cryptographiquement sûre — par exemple, un UUID v4).
+
+3. Retourne `session_id`, `must_authenticate`, `twoManRuleKey` et l'`auth_factor` au frontend.
+
+Exemple Python (Django) :
+
+```python
+import requests
+from django.http import JsonResponse
+
+def get_ssks_session(request):
+    utilisateur = request.user
+    result = requests.post(
+        "https://SSKS_URL/tmr/back/challenge_send",
+        json={
+            "create_user": True,
+            "user_id": str(utilisateur.id),
+            "auth_factor": {"type": "EM", "value": utilisateur.email},
+            "template_id": "00000000-0000-0000-0000-000000000000"
+        },
+        headers={"X-SEALD-APPID": "VOTRE_APP_ID", "X-SEALD-APIKEY": "VOTRE_API_KEY"}
+    ).json()
+    return JsonResponse({
+        "session_id": result["session_id"],
+        "must_authenticate": result["must_authenticate"],
+        "two_man_rule_key": get_ou_creer_tmr_key(utilisateur),
+        "auth_factor": {"type": "EM", "value": utilisateur.email}
+    })
+```
+
+:::warning
+Les valeurs de facteur d'authentification (adresses e-mail, numéros de téléphone) envoyées à SSKS doivent être normalisées. Consultez la documentation de l'API SSKS pour les règles de normalisation.
+:::
+
+### Étape 2 — Sauvegarder une identité avec SSKS 2MR (frontend)
+
+Instanciez le SDK avec le plugin `SealdSDKPluginSSKS2MR`, créez l'identité, puis appelez votre backend pour obtenir `sessionId` et `twoManRuleKey` :
+
+```javascript
+import SealdSDK from '@seald-io/sdk'
+import SealdSDKPluginSSKS2MR from '@seald-io/sdk-plugin-ssks-2mr'
+
+const seald = SealdSDK({
+  appId,
+  apiURL,
+  plugins: [SealdSDKPluginSSKS2MR(keyStorageURL)]
+})
+await seald.initialize()
+
+await seald.initiateIdentity({ signupJWT: 'votre-signup-jwt' })
+
+// Appeler votre backend pour obtenir la session SSKS
+const { sessionId, twoManRuleKey, mustAuthenticate } = await APIClient.getSSKSSession()
+
+// Si mustAuthenticate est true, affichez le facteur d'auth à l'utilisateur et collectez le challenge
+const challenge = mustAuthenticate ? await demanderChallenge() : null
+
+await seald.ssks2MR.saveIdentity({
+  userId: 'identifiant-utilisateur-unique',
+  sessionId,
+  authFactor: { type: 'EM', value: 'utilisateur@exemple.com' }, // doit correspondre à ce qui a été envoyé à SSKS
+  twoManRuleKey,
+  challenge // passer null ou omettre si mustAuthenticate était false
+})
+```
+
+> [!INFO]
+> Affichez toujours la valeur `authFactor` à l'utilisateur avant d'appeler `saveIdentity`, afin qu'il puisse confirmer qu'elle correspond à ce qu'il attend. Cela prévient une attaque MITM côté serveur.
+
+### Étape 3 — Récupérer une identité avec SSKS 2MR (frontend)
+
+Lors d'une nouvelle session, appelez votre backend pour obtenir `sessionId` et le `twoManRuleKey` stocké, puis collectez le challenge auprès de l'utilisateur :
+
+```javascript
+const seald = SealdSDK({
+  appId,
+  apiURL,
+  plugins: [SealdSDKPluginSSKS2MR(keyStorageURL)]
+})
+await seald.initialize()
+
+const { sessionId, twoManRuleKey } = await APIClient.getSSKSSession()
+
+// SSKS envoie un challenge à l'e-mail ou au téléphone de l'utilisateur
+const challenge = await demanderChallenge()
+
+await seald.ssks2MR.retrieveIdentity({
+  userId: 'identifiant-utilisateur-unique',
+  sessionId,
+  authFactor: { type: 'EM', value: 'utilisateur@exemple.com' },
+  challenge,
+  twoManRuleKey
+})
+// Le SDK est maintenant prêt à chiffrer et déchiffrer
+```
+
+:::warning
+N'appelez pas `ssks2MR.retrieveIdentity` pour le même utilisateur sur plusieurs appareils simultanément (par exemple dans des tests automatisés). Attendez qu'une récupération soit terminée avant d'en démarrer une autre.
+:::
+
+### Étape 4 — Utiliser `fake_otp` en développement
+
+Pendant le développement et les tests automatisés, votre backend peut ajouter `fake_otp: true` à la requête `challenge_send`. Cela empêche SSKS d'envoyer un vrai challenge ; le challenge est fixé à `'aaaaaaaa'`.
+
+```python
+# développement uniquement — ne jamais utiliser en production
+result = requests.post(
+    "https://SSKS_URL/tmr/back/challenge_send",
+    json={
+        "create_user": True,
+        "user_id": str(utilisateur.id),
+        "auth_factor": {"type": "EM", "value": utilisateur.email},
+        "fake_otp": True
+    },
+    headers={"X-SEALD-APPID": "VOTRE_APP_ID", "X-SEALD-APIKEY": "VOTRE_API_KEY"}
+)
+```
+
+:::danger
+N'envoyez jamais `fake_otp: true` dans un environnement de production. SSKS retourne une erreur `406 Not Acceptable`, et l'activer permettrait à votre serveur d'usurper l'identité des utilisateurs, brisant les garanties de chiffrement de bout en bout.
+:::
+
+### Étape 5 — Personnaliser les templates d'e-mail et SMS (optionnel)
+
+Vous pouvez définir des templates d'e-mail et SMS personnalisés dans votre tableau de bord d'administration Seald :
+
+1. Accédez à la page de gestion SSKS.
+2. Cliquez sur **Créer un template** dans la section e-mail ou SMS.
+3. Remplissez les champs du template. Incluez `$$CHALLENGE$$` à l'endroit où le code challenge doit apparaître.
+4. En staging, le template est immédiatement disponible. En production, il doit être validé par l'équipe Seald (jusqu'à 2 jours ouvrés).
+5. Une fois validé, copiez l'ID du template et passez-le comme `template_id` dans vos appels `challenge_send`.
+
+> [!INFO]
+> **Avancé — clé brute :** Si vous souhaitez ignorer la dérivation scrypt pour des raisons de performance, remplacez `twoManRuleKey` par `rawTwoManRuleKey`. Ce doit être l'encodage Base64 d'un buffer aléatoire cryptographiquement sûr de 64 octets :
+> ```javascript
+> const { randomBytes } = require('node:crypto')
+> const rawKey = randomBytes(64).toString('base64')
+> ```
+
+## Aller plus loin
+
+- [Configurer une base de données locale persistante](/guides/public-cloud/seald/seald-local-database)
+- [Bonnes pratiques de sécurité](/guides/public-cloud/seald/seald-security-best-practices)
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
