@@ -23,21 +23,27 @@ import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
+import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
+import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
+import { publiccloudInstanceBackup } from './keys/publiccloud-instance-backup';
 import { publiccloudInstances } from './keys/publiccloud-instances';
 import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
 import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
 import { publiccloudLogs } from './keys/publiccloud-logs';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
+import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjects } from './keys/publiccloud-projects';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
+import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
@@ -70,17 +76,23 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
   'publiccloud-users-roles': publiccloudUsersRoles,
   'publiccloud-instances': publiccloudInstances,
+  'publiccloud-instance-backup': publiccloudInstanceBackup,
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
+  'publiccloud-file-storage': publiccloudFileStorage,
+  'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
   'publiccloud-public-ips': publiccloudPublicIps,
   'publiccloud-gateway': publiccloudGateway,
   'publiccloud-rancher': publiccloudRancher,
   'publiccloud-kubernetes': publiccloudKubernetes,
   'publiccloud-private-registry': publiccloudPrivateRegistry,
+  'publiccloud-billing': publiccloudBilling,
   'publiccloud-contacts-rights': publiccloudContactsRights,
   'publiccloud-quota-regions': publiccloudQuotaRegions,
   'publiccloud-credits-vouchers': publiccloudCreditsVouchers,
+  'publiccloud-savings-plan': publiccloudSavingsPlan,
+  'publiccloud-project-settings': publiccloudProjectSettings,
   // --- Identity, Security & Operations, in Manager sidebar order ----------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.

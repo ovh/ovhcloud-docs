@@ -5,32 +5,40 @@ export const publiccloudProjects: CpNavKey = {
   locations: [
     {
       route: '/#/public-cloud/pci/projects',
-      source: { labels: ['sidebar_pci', 'sidebar_pci_project_list'] },
+      source: { labels: ['sidebar_pci', 'sidebar_pci_all'] },
       text: {
-        en: { product: 'My projects', crumbs: [], step: 'Select your project' },
+        en: {
+          product: 'All my Public Cloud projects',
+          crumbs: [],
+          step: 'Select your project',
+        },
         fr: {
-          product: 'Mes projets',
+          product: 'Tous mes projets Public Cloud',
           crumbs: [],
           step: 'Sélectionnez votre projet',
         },
         de: {
-          product: 'Meine Projekte',
+          product: 'Meine Public Cloud-Projekte',
           crumbs: [],
           step: 'Wählen Sie Ihr Projekt aus',
         },
         es: {
-          product: 'Mis proyectos',
+          product: 'Todos mis proyectos Public Cloud',
           crumbs: [],
           step: 'Seleccione su proyecto',
         },
         it: {
-          product: 'I tuoi progetti',
+          product: 'Tutti i tuoi progetti Public Cloud',
           crumbs: [],
           step: 'Seleziona il tuo progetto',
         },
-        pl: { product: 'Moje projekty', crumbs: [], step: 'Wybierz projekt' },
+        pl: {
+          product: 'Wszystkie moje projekty Public Cloud',
+          crumbs: [],
+          step: 'Wybierz projekt',
+        },
         pt: {
-          product: 'Os meus projetos',
+          product: 'Todos os meus projetos Public Cloud',
           crumbs: [],
           step: 'Selecione o seu projeto',
         },

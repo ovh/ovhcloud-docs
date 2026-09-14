@@ -7,35 +7,35 @@ export const publiccloudPublicIps: CpNavKey = {
       route: '/#/public-cloud/pci/projects',
       source: {
         node: 'pci-additional-ips',
-        labels: ['sidebar_pci_project_list'],
+        labels: ['sidebar_pci_all'],
       },
       text: {
         en: {
-          product: 'My projects',
+          product: 'All my Public Cloud projects',
           crumbs: [{ text: 'Select your project' }, 'Public IPs'],
         },
         fr: {
-          product: 'Mes projets',
+          product: 'Tous mes projets Public Cloud',
           crumbs: [{ text: 'Sélectionnez votre projet' }, 'IP Publiques'],
         },
         de: {
-          product: 'Meine Projekte',
+          product: 'Meine Public Cloud-Projekte',
           crumbs: [{ text: 'Wählen Sie Ihr Projekt aus' }, 'Öffentliche IPs'],
         },
         es: {
-          product: 'Mis proyectos',
+          product: 'Todos mis proyectos Public Cloud',
           crumbs: [{ text: 'Seleccione su proyecto' }, 'IP públicas'],
         },
         it: {
-          product: 'I tuoi progetti',
+          product: 'Tutti i tuoi progetti Public Cloud',
           crumbs: [{ text: 'Seleziona il tuo progetto' }, 'IP pubblici'],
         },
         pl: {
-          product: 'Moje projekty',
+          product: 'Wszystkie moje projekty Public Cloud',
           crumbs: [{ text: 'Wybierz projekt' }, 'Publiczne adresy IP'],
         },
         pt: {
-          product: 'Os meus projetos',
+          product: 'Todos os meus projetos Public Cloud',
           crumbs: [{ text: 'Selecione o seu projeto' }, 'IP públicos'],
         },
       },

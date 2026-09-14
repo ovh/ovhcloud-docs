@@ -7,35 +7,35 @@ export const publiccloudLoadBalancer: CpNavKey = {
       route: '/#/public-cloud/pci/projects',
       source: {
         node: 'pci-octavia-load-balancer',
-        labels: ['sidebar_pci_project_list'],
+        labels: ['sidebar_pci_all'],
       },
       text: {
         en: {
-          product: 'My projects',
+          product: 'All my Public Cloud projects',
           crumbs: [{ text: 'Select your project' }, 'Load Balancer'],
         },
         fr: {
-          product: 'Mes projets',
+          product: 'Tous mes projets Public Cloud',
           crumbs: [{ text: 'Sélectionnez votre projet' }, 'Load Balancer'],
         },
         de: {
-          product: 'Meine Projekte',
+          product: 'Meine Public Cloud-Projekte',
           crumbs: [{ text: 'Wählen Sie Ihr Projekt aus' }, 'Loadbalancer'],
         },
         es: {
-          product: 'Mis proyectos',
+          product: 'Todos mis proyectos Public Cloud',
           crumbs: [{ text: 'Seleccione su proyecto' }, 'Load Balancer'],
         },
         it: {
-          product: 'I tuoi progetti',
+          product: 'Tutti i tuoi progetti Public Cloud',
           crumbs: [{ text: 'Seleziona il tuo progetto' }, 'Load Balancer'],
         },
         pl: {
-          product: 'Moje projekty',
+          product: 'Wszystkie moje projekty Public Cloud',
           crumbs: [{ text: 'Wybierz projekt' }, 'Load Balancer'],
         },
         pt: {
-          product: 'Os meus projetos',
+          product: 'Todos os meus projetos Public Cloud',
           crumbs: [{ text: 'Selecione o seu projeto' }, 'Load Balancer'],
         },
       },

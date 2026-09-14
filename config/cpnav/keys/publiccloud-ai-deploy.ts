@@ -5,34 +5,34 @@ export const publiccloudAiDeploy: CpNavKey = {
   locations: [
     {
       route: '/#/public-cloud/pci/projects',
-      source: { node: 'pci-ai-deploy', labels: ['sidebar_pci_project_list'] },
+      source: { node: 'pci-ai-deploy', labels: ['sidebar_pci_all'] },
       text: {
         en: {
-          product: 'My projects',
+          product: 'All my Public Cloud projects',
           crumbs: [{ text: 'Select your project' }, 'AI Deploy'],
         },
         fr: {
-          product: 'Mes projets',
+          product: 'Tous mes projets Public Cloud',
           crumbs: [{ text: 'Sélectionnez votre projet' }, 'AI Deploy'],
         },
         de: {
-          product: 'Meine Projekte',
+          product: 'Meine Public Cloud-Projekte',
           crumbs: [{ text: 'Wählen Sie Ihr Projekt aus' }, 'AI Deploy'],
         },
         es: {
-          product: 'Mis proyectos',
+          product: 'Todos mis proyectos Public Cloud',
           crumbs: [{ text: 'Seleccione su proyecto' }, 'AI Deploy'],
         },
         it: {
-          product: 'I tuoi progetti',
+          product: 'Tutti i tuoi progetti Public Cloud',
           crumbs: [{ text: 'Seleziona il tuo progetto' }, 'AI Deploy'],
         },
         pl: {
-          product: 'Moje projekty',
+          product: 'Wszystkie moje projekty Public Cloud',
           crumbs: [{ text: 'Wybierz projekt' }, 'AI Deploy'],
         },
         pt: {
-          product: 'Os meus projetos',
+          product: 'Todos os meus projetos Public Cloud',
           crumbs: [{ text: 'Selecione o seu projeto' }, 'AI Deploy'],
         },
       },

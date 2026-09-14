@@ -5,10 +5,10 @@ export const publiccloudLogs: CpNavKey = {
   locations: [
     {
       route: '/#/public-cloud/pci/projects',
-      source: { labels: ['sidebar_pci_project_list', 'logsTab'] },
+      source: { labels: ['sidebar_pci_all', 'logsTab'] },
       text: {
         en: {
-          product: 'My projects',
+          product: 'All my Public Cloud projects',
           crumbs: [
             { text: 'Select your project' },
             { text: 'Select a service' },
@@ -16,7 +16,7 @@ export const publiccloudLogs: CpNavKey = {
           ],
         },
         fr: {
-          product: 'Mes projets',
+          product: 'Tous mes projets Public Cloud',
           crumbs: [
             { text: 'Sélectionnez votre projet' },
             { text: 'Sélectionnez un service' },
@@ -24,7 +24,7 @@ export const publiccloudLogs: CpNavKey = {
           ],
         },
         de: {
-          product: 'Meine Projekte',
+          product: 'Meine Public Cloud-Projekte',
           crumbs: [
             { text: 'Wählen Sie Ihr Projekt aus' },
             { text: 'Wählen Sie einen Service aus' },
@@ -32,7 +32,7 @@ export const publiccloudLogs: CpNavKey = {
           ],
         },
         es: {
-          product: 'Mis proyectos',
+          product: 'Todos mis proyectos Public Cloud',
           crumbs: [
             { text: 'Seleccione su proyecto' },
             { text: 'Seleccione un servicio' },
@@ -40,7 +40,7 @@ export const publiccloudLogs: CpNavKey = {
           ],
         },
         it: {
-          product: 'I tuoi progetti',
+          product: 'Tutti i tuoi progetti Public Cloud',
           crumbs: [
             { text: 'Seleziona il tuo progetto' },
             { text: 'Seleziona un servizio' },
@@ -48,7 +48,7 @@ export const publiccloudLogs: CpNavKey = {
           ],
         },
         pl: {
-          product: 'Moje projekty',
+          product: 'Wszystkie moje projekty Public Cloud',
           crumbs: [
             { text: 'Wybierz projekt' },
             { text: 'wybierz usługę' },
@@ -56,7 +56,7 @@ export const publiccloudLogs: CpNavKey = {
           ],
         },
         pt: {
-          product: 'Os meus projetos',
+          product: 'Todos os meus projetos Public Cloud',
           crumbs: [
             { text: 'Selecione o seu projeto' },
             { text: 'Selecione um serviço' },
