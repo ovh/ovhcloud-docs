@@ -1,0 +1,344 @@
+---
+title: Ein Block Storage Volume mit LUKS verschlüsseln
+description: Erfahren Sie hier, wie Sie ein Block Storage Volume mit LUKS verschlüsseln und Ihren eigenen kundenverwalteten Schlüssel (CMK) aus OKMS verwenden
+lastUpdated: 2026-09-14
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+import Api from '@components/Api';
+
+## Ziel
+
+OVHcloud Block Storage Volumes können im Ruhezustand mit <Tooltip term="luks">LUKS</Tooltip> verschlüsselt werden. Der Verschlüsselungsschlüssel — Serviceschlüssel genannt — wird in [OVHcloud Key Management Service (OKMS)](/guides/manage-and-operate/kms/overview) erzeugt und gespeichert.
+
+Standardmäßig wird dieser Serviceschlüssel vollständig von OVHcloud erzeugt und verwaltet: Sie bestellen einfach einen verschlüsselten Volume-Typ (`-luks`) und OVHcloud übernimmt den Rest. Optional können Sie stattdessen einen **kundenverwalteten Schlüssel (CMK, Customer-Managed Key)** verwenden: einen Serviceschlüssel, den Sie selbst in Ihrer eigenen OKMS-Domain erstellen und steuern, einschließlich Rotation, Sperrung und Löschung.
+
+**Diese Anleitung erklärt zunächst, wie die standardmäßige (von OVHcloud verwaltete) LUKS-Verschlüsselung funktioniert, und anschließend, wie Sie zu einem kundenverwalteten Schlüssel (CMK) wechseln.**
+
+:::warning
+Verschlüsselte Volumes (LUKS) weisen im Vergleich zu gleichwertigen unverschlüsselten Volumes Leistungseinbußen von etwa 10% auf.
+:::
+
+## Standardmäßige Verschlüsselung (von OVHcloud verwalteter Schlüssel)
+
+Um ein Block Storage Volume mit dem standardmäßigen, von OVHcloud verwalteten Schlüssel zu verschlüsseln, bestellen Sie die verschlüsselte Variante eines beliebigen Volume-Typs (`classic-luks`, `high-speed-luks`, `high-speed-gen2-luks`) — über das Kundencenter oder mit den Tools, die in der Anleitung [Zusätzliches Volume auf einer Instanz erstellen und konfigurieren](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance#die-verschiedenen-volume-typen) beschrieben sind. OVHcloud erzeugt und verwaltet den Serviceschlüssel in OKMS automatisch: Es gibt keine OKMS-Domain zu erstellen, keinen Serviceschlüssel zu verwalten und keine IAM-Richtlinie zu konfigurieren.
+
+:::info
+Sobald es mit Ihrer Instanz verbunden ist, verhält sich ein verschlüsseltes Volume wie ein Standard-Volume — Verschlüsselung und Entsperrung werden vollständig von der OVHcloud Infrastruktur übernommen. Lesen Sie die Anleitung [Migrating a Block Storage volume to an encrypted LUKS volume](/guides/public-cloud/compute/migrating-non-encrypted-to-encrypted-volume), wenn Sie ein bestehendes, unverschlüsseltes Volume verschlüsseln möchten.
+:::
+
+:::warning
+Ändern oder löschen Sie nicht den automatisch erzeugten Schlüssel, der mit einem `-luks` Volume verknüpft ist. Andernfalls wären die Daten auf diesem Volume sowie alle zugehörigen Snapshots dauerhaft nicht wiederherstellbar.
+:::
+
+Der Rest dieser Anleitung behandelt die Alternative des kundenverwalteten Schlüssels (CMK).
+
+## Einen kundenverwalteten Schlüssel (CMK) verwenden
+
+Die meisten der folgenden Schritte sind auf 2 Arten dokumentiert:
+
+- über das **OVHcloud Kundencenter**, heute bereits für die OKMS- und IAM-Vorgänge verfügbar;
+- über die **OVHcloud API** oder die **OpenStack CLI**, derzeit die einzigen Möglichkeiten, das verschlüsselte Block Storage Volume selbst zu erstellen. Die Unterstützung der Volume-Erstellung mit einem CMK im Kundencenter folgt in Kürze.
+
+## Voraussetzungen
+
+Diese Voraussetzungen gelten ausschließlich für den nachfolgenden Ablauf mit kundenverwaltetem Schlüssel (CMK).
+
+- Sie verfügen über einen aktiven OVHcloud Kunden-Account mit ausreichenden Rechten zur Verwaltung von IAM, OKMS und Block Storage.
+- Sie verfügen über einen API-Zugang mit gültigen Zugangsdaten — ein Bearer-Token (OAuth2 über einen IAM-Serviceaccount) oder die klassische Authentifizierung über Application Key / Signatur. Lesen Sie hierzu die Anleitung [Erste Schritte mit der OVHcloud API](/guides/manage-and-operate/api/first-steps).
+- Optional haben Sie die OpenStack CLI für die Zielregion installiert und konfiguriert, als Alternative zur OVHcloud API für das Erstellen des Volumes. Lesen Sie hierzu die Anleitung [System für die Verwendung der OpenStack API vorbereiten](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment).
+- Sie verfügen über die passenden IAM-Berechtigungen, um Richtlinien zu erstellen und sie OVHcloud NICs zuzuweisen — insbesondere über die Aktion `account:apiovh:iam/policy/create`.
+
+[[cpnav:iam-policies+security-kms]]
+
+## In der praktischen Anwendung
+
+Jeder der folgenden Schritte stellt die verfügbaren Schnittstellen als Tabs dar: OVHcloud Kundencenter, OVHcloud API oder OpenStack CLI.
+
+:::info
+Für API-Aufrufe lautet die Basis-URL `https://api.eu.ovhcloud.com` in Europa und `https://api.ca.ovhcloud.com` in Kanada, wobei jede sowohl die `/v1/*` als auch die `/v2/*` Endpunkte bedient.
+
+:::
+
+### Schritt 1: Eine OKMS-Domain erstellen <a id="step1"></a>
+
+Eine OKMS-Domain ist ein logischer Namensraum innerhalb von OKMS, der Ihre Serviceschlüssel enthält. Jede Domain ist an eine bestimmte Region gebunden.
+
+Eine OKMS-Domain wird als Service über das OVHcloud Kundencenter bestellt; die OVHcloud API dient anschließend dazu, deren ID abzurufen.
+
+<Tabs>
+  <Tab label="OVHcloud Kundencenter">
+    Um eine OKMS-Domain zu bestellen, folgen Sie dem Abschnitt "Ihren KMS bestellen" der Anleitung [Erste Schritte mit OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/quick-start#ihren-kms-bestellen).
+  </Tab>
+  <Tab label="OVHcloud API">
+    Sobald Sie eine Domain bestellt haben, können Sie Ihre Domains auflisten und deren IDs über die API abrufen:
+
+    **Alle Ihre OKMS-Domains auflisten:**
+
+    <Api version="v2" section="/okms" method="GET" route={"/okms/resource"} />
+
+    **Details einer bestimmten OKMS-Domain abrufen:**
+
+    <Api version="v2" section="/okms" method="GET" route={"/okms/resource/\{okmsId\}"} />
+
+    | Variable | Beschreibung |
+    |---|---|
+    | `okmsId` | UUID Ihrer OKMS-Domain. |
+  </Tab>
+</Tabs>
+
+:::info
+Notieren Sie sich die **ID Ihrer OKMS-Domain** (`okms_domain_id` / `domainId`). Sie benötigen sie beim Erstellen des LUKS Volumes in [Schritt 4](#step4).
+:::
+
+### Schritt 2: Einen Serviceschlüssel erstellen <a id="step2"></a>
+
+Ein Serviceschlüssel ist ein kryptografischer Schlüssel, der in Ihrer OKMS-Domain gespeichert wird. Der Block Storage Service nutzt ihn, um die Schlüssel zur Datenverschlüsselung (DEK) zu erzeugen und zu schützen, mit denen Ihre Volumes verschlüsselt werden.
+
+<Tabs>
+  <Tab label="OVHcloud Kundencenter">
+    Um den Serviceschlüssel zu erstellen, folgen Sie dem Abschnitt "Einen Verschlüsselungsschlüssel erstellen" der Anleitung [Erste Schritte mit OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/quick-start#einen-verschlüsselungsschlüssel-erstellen) und legen Sie die folgenden Parameter fest:
+
+    | Parameter | Erforderlicher Wert | Hinweise |
+    |---|---|---|
+    | Typ des Serviceschlüssels | AES | Symmetrischer Verschlüsselungsalgorithmus, der für die Verschlüsselung von LUKS Volumes erforderlich ist. |
+    | Größe des Serviceschlüssels (Algorithmus) | 256 Bit | Schlüssellänge von 256 Bit, für die Stärke der AES-256-Verschlüsselung. |
+    | Verwendung des Serviceschlüssels | Wrap / Unwrap, Verschlüsseln / Entschlüsseln | Diese Vorgänge sind zwingend erforderlich. |
+
+    Notieren Sie sich nach dem Erstellen die **ID des Serviceschlüssels** (`okms_servicekey_id` / `serviceKeyId`).
+  </Tab>
+  <Tab label="OVHcloud API">
+    Erstellen Sie den Serviceschlüssel mit dem folgenden API-Aufruf:
+
+    <Api version="v2" section="/okms" method="POST" route={"/okms/resource/\{okmsId\}/serviceKey"} />
+
+    | Variable | Beschreibung |
+    |---|---|
+    | `okmsId` | UUID Ihrer OKMS-Domain (Schritt 1). |
+
+    Payload:
+
+    ```json
+    {
+      "name": "cmk-luks-volumes",
+      "type": "oct",
+      "size": 256,
+      "operations": ["encrypt", "decrypt", "wrapKey", "unwrapKey"]
+    }
+    ```
+
+    | Feld | Wert | Hinweise |
+    |---|---|---|
+    | `name` | freier Text | Ein beschreibender Name für den Schlüssel. |
+    | `type` | `oct` | Symmetrischer Schlüssel (AES). Die API verwendet die JWK-Benennung: `oct` = octet sequence / symmetrisch. |
+    | `size` | `256` | Schlüsselgröße in Bit. |
+    | `operations` | `encrypt`, `decrypt`, `wrapKey`, `unwrapKey` | Alle 4 sind für die Verschlüsselung von LUKS Volumes erforderlich. |
+
+    Die Antwort enthält das Feld `id` des Schlüssels — dies ist die ID Ihres Serviceschlüssels.
+  </Tab>
+</Tabs>
+
+:::info
+**Warum Wrap / Unwrap?** Der Block Storage Service verwendet den Serviceschlüssel, um den erzeugten Schlüssel zur Datenverschlüsselung (DEK) vor dem Speichern einzupacken (Wrap, verschlüsseln) und ihn wieder auszupacken (Unwrap, entschlüsseln), wenn auf das Volume zugegriffen werden muss. Der Serviceschlüssel selbst verlässt OKMS niemals.
+:::
+
+:::info
+**BYOK.** Anstatt den Serviceschlüssel von OKMS erzeugen zu lassen, können Sie Ihr eigenes Schlüsselmaterial über [Bring Your Own Key (BYOK)](/guides/manage-and-operate/kms/import-export-keys-byok) importieren. Dabei wird der Schlüssel mit einem RSA-Transportschlüsselpaar eingepackt, sodass er niemals im Klartext übertragen wird.
+:::
+
+### Schritt 3: Zugriff über eine IAM-Richtlinie delegieren
+
+Damit die OpenStack Services von OVHcloud LUKS Volumes mit Ihrem Schlüssel erstellen und verwenden können, müssen Sie dem OVHcloud NIC, der dem Block Storage Service in Ihrer Region zugeordnet ist, bestimmte IAM-Berechtigungen erteilen.
+
+#### 3.1 Den OVHcloud NIC Ihrer Region ermitteln
+
+Jede OVHcloud Region verfügt über einen dedizierten internen NIC, den der Block Storage Service für die Kommunikation mit OKMS verwendet:
+
+| Region | OVHcloud NIC |
+|---|---|
+| `GRA1`, `GRA3`, `GRA5`, `GRA7`, `GRA9`, `GRA11` | `vt202366-ovh` |
+| `BHS1`, `BHS3`, `BHS5` | `rh149494-ovh` |
+| `SBG5`, `SBG7` | `yq2822-ovh` |
+| `EU-WEST-PAR` | `dy230283-ovh` |
+| `EU-SOUTH-MIL` | `xz3473-ovh` |
+| `DE1` | `qy10886-ovh` |
+| `UK1` | `gz25568-ovh` |
+| `WAW1` | `xe2946-ovh` |
+| `RBX-A` | `xz3500-ovh` |
+| `SGP1` | `sc1243248-ovh` |
+| `SYD1` | `oy31561-ovh` |
+| `AP-SOUTHEAST-SYD-2` | `td444999-ovh` |
+| `AP-SOUTH-MUM-1` | `pu54673-ovh` |
+
+:::warning
+Wenn Ihre Region hier nicht aufgeführt ist, wenden Sie sich an den [OVHcloud Support](/links/support), um den korrekten NIC zu erhalten.
+:::
+
+#### 3.2 Die IAM-Richtlinie erstellen
+
+<Tabs>
+  <Tab label="OVHcloud Kundencenter">
+    Erstellen Sie eine neue IAM-Richtlinie im Kundencenter, wie in der Anleitung [Verwendung von IAM-Richtlinie über Ihr Kundencenter](/guides/account-and-service-management/account-information/iam-policy-ui) beschrieben, und konfigurieren Sie sie mit den folgenden Werten:
+
+    | Feld | Wert |
+    |---|---|
+    | Identitäten | Klicken Sie unter **Andere OVHcloud Kunden-Accounts** auf <code className="action">Account hinzufügen</code> und geben Sie den NIC Ihrer Region ein (siehe 3.1). |
+    | Produkttypen | <code className="action">Key Management Service (OKMS) / Service Keys</code> |
+    | Ressourcen | Wählen Sie den in Schritt 2 erstellten Serviceschlüssel aus. |
+    | Aktionen | Siehe [3.3 Zu autorisierende Aktionen](#actions33) weiter unten. |
+  </Tab>
+  <Tab label="OVHcloud API">
+    Rufen Sie zunächst die **IAM-URN** Ihres Serviceschlüssels ab (zurückgegeben im Feld `urn` des Blocks `iam` der Antwort):
+
+    <Api version="v2" section="/okms" method="GET" route={"/okms/resource/\{okmsId\}/serviceKey/\{keyId\}"} />
+
+    | Variable | Beschreibung |
+    |---|---|
+    | `okmsId` | UUID Ihrer OKMS-Domain (Schritt 1). |
+    | `keyId` | UUID Ihres Serviceschlüssels (Schritt 2). |
+
+    Erstellen Sie anschließend die Richtlinie:
+
+    <Api version="v2" section="/iam" method="POST" route={"/iam/policy"} />
+
+    Payload:
+
+    ```json
+    {
+      "name": "allow-blockstorage-cmk-luks",
+      "description": "Allow the regional Block Storage NIC to use my Service Key for LUKS volumes",
+      "identities": [
+        "urn:v1:eu:identity:account:{blockStorageNic}"
+      ],
+      "resources": [
+        { "urn": "{serviceKeyIamUrn}" }
+      ],
+      "permissions": {
+        "allow": [
+          { "action": "okms:apikms:serviceKey/dataKey/create" },
+          { "action": "okms:apikms:serviceKey/dataKey/decrypt" }
+        ]
+      }
+    }
+    ```
+
+    | Variable / Feld | Wert | Hinweise |
+    |---|---|---|
+    | `blockStorageNic` | z. B. `dy230283-ovh` | Der in 3.1 ermittelte regionale OVHcloud NIC. |
+    | `serviceKeyIamUrn` | IAM-URN des Serviceschlüssels | Der oben abgerufene Wert `iam.urn` — beschränkt die Richtlinie auf genau diesen Schlüssel. |
+    | `permissions.allow` | siehe 3.3 | Die 2 zwingend erforderlichen Aktionen. |
+  </Tab>
+</Tabs>
+
+#### 3.3 Zu autorisierende Aktionen <a id="actions33"></a>
+
+Unter <code className="action">Key Management Service (OKMS) / Service Keys</code>, in der Kategorie <code className="action">OPERATE</code>:
+
+| Aktion | Zweck |
+|---|---|
+| `okms:apikms:serviceKey/dataKey/create` | Erlaubt Block Storage, einen neuen Schlüssel zur Datenverschlüsselung (DEK) zu erzeugen. |
+| `okms:apikms:serviceKey/dataKey/decrypt` | Erlaubt Block Storage, den Datenschlüssel zu entschlüsseln, um auf verschlüsselte Daten zuzugreifen. |
+
+### Schritt 4: Das LUKS Volume erstellen <a id="step4"></a>
+
+:::warning
+Die Erstellung eines Volumes mit einem CMK ist derzeit **nur über die API** möglich (OVHcloud API oder OpenStack CLI). Die Unterstützung im Kundencenter folgt in Kürze.
+:::
+
+<Tabs>
+  <Tab label="OVHcloud API">
+    Erstellen Sie das LUKS Volume mit dem folgenden API-Aufruf:
+
+    <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/region/\{regionName\}/volume"} />
+
+    | Variable | Beschreibung |
+    |---|---|
+    | `serviceName` | Die ID Ihres Public Cloud Projekts. |
+    | `regionName` | Zielregion, zum Beispiel `EU-WEST-PAR`. |
+
+    Payload:
+
+    ```json
+    {
+      "name": "my-encrypted-volume",
+      "description": "CMK LUKS encrypted volume",
+      "size": 50,
+      "type": "high-speed-gen2-luks",
+      "availabilityZone": "eu-west-par-a",
+      "encryption": {
+        "encrypted": true,
+        "kms": {
+          "domainId": "{okmsDomainId}",
+          "serviceKeyId": "{serviceKeyId}"
+        }
+      }
+    }
+    ```
+
+    | Feld | Beispielwert | Beschreibung |
+    |---|---|---|
+    | `size` | `50` | Größe des Volumes in Gigabyte. |
+    | `type` | `high-speed-gen2-luks` | Volume-Typ mit LUKS-Verschlüsselung (`classic-luks`, `high-speed-luks`, `high-speed-gen2-luks`). `classic-luks` ist in 3-AZ-Regionen nicht verfügbar — verwenden Sie dort `high-speed-gen2-luks`. Weitere Informationen finden Sie in der [Übersicht der Volume-Typen](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance#die-verschiedenen-volume-typen). |
+    | `availabilityZone` | `eu-west-par-a` | Ziel-Availability-Zone (3-AZ-Regionen). |
+    | `encryption.kms.domainId` | `{okmsDomainId}` | UUID Ihrer OKMS-Domain (Schritt 1). |
+    | `encryption.kms.serviceKeyId` | `{serviceKeyId}` | UUID Ihres Serviceschlüssels (Schritt 2). |
+  </Tab>
+  <Tab label="OpenStack CLI">
+    ```bash
+    openstack volume create \
+      --size 50 \
+      --property okms_domain_id={okmsDomainId} \
+      --property okms_servicekey_id={serviceKeyId} \
+      --type high-speed-gen2-luks \
+      my-encrypted-volume
+    ```
+
+    | Parameter oder Argument | Beispielwert | Beschreibung |
+    |---|---|---|
+    | `--size` | `50` | Größe des Volumes in Gigabyte. |
+    | `--property okms_domain_id` | `{okmsDomainId}` | UUID Ihrer OKMS-Domain. |
+    | `--property okms_servicekey_id` | `{serviceKeyId}` | UUID Ihres Serviceschlüssels innerhalb der OKMS-Domain. |
+    | `--type` | `high-speed-gen2-luks` | Volume-Typ, der die LUKS-Verschlüsselung aktiviert. `classic-luks` ist in 3-AZ-Regionen nicht verfügbar. |
+    | `my-encrypted-volume` | — | Ein beschreibender Name für Ihr neues Volume. |
+  </Tab>
+</Tabs>
+
+### Schritt 5: Das Volume verwenden
+
+Nach der Erstellung verhält sich ein mit CMK verschlüsseltes LUKS Volume wie ein Standard Block Storage Volume von OVHcloud: Sie [verbinden](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance#ein-neues-volume-hinzufügen) und [trennen](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance#volume-abtrennen) es auf die gleiche Weise. Das Löschen des Volumes löscht Ihren Serviceschlüssel nicht.
+
+:::warning
+**Verfügbarkeit des Schlüssels.** Wenn Ihr Serviceschlüssel in OKMS gesperrt oder gelöscht wird, sind die entsprechenden Volumes nach dem Trennen nicht mehr zugänglich. Stellen Sie stets sicher, dass die Verwaltung des Lebenszyklus Ihres Schlüssels zu Ihren Anforderungen an den Datenzugriff passt.
+:::
+
+In Arbeit — die folgenden Funktionen für LUKS Volumes mit CMK folgen in Kürze:
+
+- Snapshot des Volumes
+- Backup des Volumes
+- Größenänderung des Volumes
+
+## Einschränkungen
+
+Die Umwandlung eines Volumes in ein Image wird für LUKS Volumes nicht unterstützt, unabhängig davon, ob die verschlüsselte Version einen CMK oder den standardmäßigen, von OVHcloud verwalteten Schlüssel verwendet. Diese Einschränkung gilt unabhängig vom verwendeten Tool — Kundencenter, OVHcloud API, OpenStack CLI oder Terraform.
+
+## Zusammenfassung
+
+| # | Schritt | Kundencenter | API |
+|---|---|---|---|
+| 1 | OKMS-Domain erstellen | Bestellung über das Kundencenter | Auflisten/Lesen über `GET /v2/okms/resource` |
+| 2 | Serviceschlüssel erstellen | ✅ | `POST /v2/okms/resource/{okmsId}/serviceKey` |
+| 3 | IAM-Richtlinie erstellen | ✅ | `POST /v2/iam/policy` |
+| 4 | LUKS Volume erstellen | Folgt in Kürze | `POST /v1/cloud/project/{serviceName}/region/{regionName}/volume` oder OpenStack CLI |
+| 5 | Volume verwenden | ✅ | Standardvorgänge für Volumes |
+
+## Weiterführende Informationen
+
+[Zusätzliches Volume auf einer Instanz erstellen und konfigurieren](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance)
+
+[Migrating a Block Storage volume to an encrypted LUKS volume](/guides/public-cloud/compute/migrating-non-encrypted-to-encrypted-volume)
+
+[Erste Schritte mit OVHcloud Key Management Service (KMS)](/guides/manage-and-operate/kms/quick-start)
+
+[Verwendung von IAM-Richtlinie über Ihr Kundencenter](/guides/account-and-service-management/account-information/iam-policy-ui)
+
+Treten Sie unserer [User Community](/links/community) bei.

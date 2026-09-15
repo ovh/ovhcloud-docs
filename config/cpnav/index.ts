@@ -123,6 +123,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
  * Order within an entry does not matter — entries are canonicalised.
  */
 export const CPNAV_SETS: string[][] = [
+  ['iam-policies', 'security-kms'],
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
