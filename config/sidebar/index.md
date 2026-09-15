@@ -616,6 +616,7 @@
             + [How to use Terraform](hosted-private-cloud/opcp/use-terraform)
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
             + [How to upgrade OPCP](hosted-private-cloud/opcp/how-to-upgrade-opcp)
+            + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
