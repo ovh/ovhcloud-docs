@@ -1,0 +1,92 @@
+---
+title: "Creating a backup"
+excerpt: "Discover the steps required to make a backup of the OPCP"
+lastUpdated: 2026-09-11
+---
+
+# Creating a backup
+
+## Introduction
+
+Backups in OPCP are automatically scheduled hourly for databases, PVs, KMS autounsealer shares and tfstate. Database backups are done with the kubernetes resource `ScheduledBackups`, PVs, KMS autounsealer shares and tfstate is done using [velero](https://velero.io/).
+
+## Prerequisites
+
+Make sure your data is backed up somewhere outside of the cluster. Do so by checking `opcp-cli config edit`. Make sure, that `backups.endpoint.url` is pointing outside of the cluster. Also `backups.endpoint.region` must be set accordingly. The bucket names, configured in `backups.db.bucket` and `backups.pv.bucket` must be exist.
+
+Credentials must also be set correctly with `opcp-cli secrets passwords --edit`. The keys `stringData.backup_access_key_id` and `stringData.backup_secret_access_key` must be set with the secrets provided by the S3 provider. Make sure the user has access to all the buckets.
+
+## Instructions
+
+It is possible to schedule backups from the terminal.
+
+### tl;dr
+
+Run the following lines as `root` (using `sudo -i`) on the OPCP controller node.
+
+```bash
+kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash
+velero get schedule -o json | jq -r '.items[] | .metadata.name as $name | {cmd: ("velero backup create --from-schedule " + $name)} | .cmd' | bash
+```
+
+Verify by running the following on the OPCP controller node.
+
+```bash
+kubectl get backup -A
+velero backup get
+```
+
+### Databases
+
+To list all database, run `kubectl get cluster -A`. Do a backup by running `kubectl cnpg backup {db-name} -n {namespace}`. Replace `{name}` with the database cluster name and `{namespace}` with the corresponding namespace.
+
+There is a shortcut to trigger backups of all the databse clusters: `kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash`.
+
+### KMS autounsealer shares
+
+Create a backup of `kms-autounsealer-shares-backup`:
+
+```bash
+velero backup create --from-schedule kms-autounsealer-shares-backup
+```
+
+### PVs
+
+Create a backup of the PVs:
+
+```bash
+velero backup create --from-schedule pvs-backup
+```
+
+### tfstate
+
+OPCP relies on [opentofu](https://opentofu.org/) during setup. We need to store the state. Backups are created by running
+
+```bash
+velero backup create --from-schedule tfstate-backup
+```
+
+### Verification
+
+Verify db backups are done by typing `kubectl get backup -A`. There are all the database backups, that are available listed.
+
+To verify PV, KMS autounsealer shares and tfstate backups are present, type `velero get schedule`.
+
+You should also check your S3 buckets. If there is no data in there, something went wrong when configuring the backups. You can do so by using [s3cmd](https://s3tools.org/s3cmd). First configure `s3cmd` to read from your bucket:
+
+```bash
+cat << EOF > ~/.s3cfg
+[default]
+access_key = ${ACCESS_KEY_ID}
+secret_key = ${SECRET_ACCESS_KEY}
+bucket_location = ${REGION}
+host_base = s3.gra.io.cloud.ovh.net
+host_bucket = %(bucket)s.s3.gra.io.cloud.ovh.net
+EOF
+```
+
+Adjust the values as you need it. Then you can do a `s3cmd ls s3://bucket-name` to see if there is any data in there.
+
+## Go further
+
+For more information about how to configure your backups, read [the documentation about how to update backup S3 buckets](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets).
