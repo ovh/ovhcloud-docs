@@ -10,6 +10,9 @@ import { accountDashboard } from './keys/account-dashboard';
 import { accountMessages } from './keys/account-messages';
 import { accountProfile } from './keys/account-profile';
 import { accountSecurity } from './keys/account-security';
+import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
+import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
+import { baremetalVps } from './keys/baremetal-vps';
 import { billingInvoices } from './keys/billing-invoices';
 import { billingOrders } from './keys/billing-orders';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
@@ -19,6 +22,9 @@ import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
+import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
+import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
+import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
@@ -61,8 +67,15 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-email-pro': webEmailPro,
   'web-mx-plan': webMxPlan,
   'web-exchange': webExchange,
-  // --- Hosted Private Cloud ----------------------------------------------------------
+  // --- Hosted Private Cloud, in Manager sidebar order ---------------------------------
+  'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
+  'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-nutanix': privatecloudNutanix,
+  'privatecloud-sap-hana': privatecloudSapHana,
+  // --- Bare Metal Cloud, in Manager sidebar order -------------------------------------
+  'baremetal-dedicated-servers': baremetalDedicatedServers,
+  'baremetal-vps': baremetalVps,
+  'baremetal-backup-agent': baremetalBackupAgent,
   // --- Public Cloud, in Manager sidebar order ------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
@@ -123,6 +136,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
  * Order within an entry does not matter — entries are canonicalised.
  */
 export const CPNAV_SETS: string[][] = [
+  // `nutanix-on-ovhcloud/hardware-gateway-replacement`: the gateway is a dedicated server
+  // reached from Bare Metal Cloud, the cluster from Hosted Private Cloud.
+  ['privatecloud-nutanix', 'baremetal-dedicated-servers'],
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
