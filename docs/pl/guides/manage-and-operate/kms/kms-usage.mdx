@@ -1,7 +1,7 @@
 ---
 title: Korzystanie z OVHcloud Key Management Service (KMS)
 description: Szyfruj lub podpisuj swoje dane za pomocą regionalnego API REST usługi OVHcloud Key Management Service (KMS)
-lastUpdated: 2026-08-27
+lastUpdated: 2026-09-14
 ---
 
 import Api from '@components/Api';
@@ -202,13 +202,44 @@ Do zarządzania kluczami szyfrującymi dostępnych jest kilka API:
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/activate|Aktywuje klucz szyfrujący|
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/deactivate|Dezaktywuje klucz szyfrujący|
 
-Dezaktywacja klucza szyfrującego oznacza, że nie będzie on już mógł być używany, mimo że klucz pozostaje w KMS.
+Klucze są tworzone i importowane bezpośrednio w stanie `active`. Dezaktywacja klucza uniemożliwia użycie kryptograficzne, przy zachowaniu klucza w KMS. Usunięcie jest trwałe i dozwolone tylko wtedy, gdy klucz jest już w stanie `deactivated` lub `compromised`.
 
-Usunięcie klucza szyfrującego jest możliwe wyłącznie w przypadku klucza wcześniej dezaktywowanego.
+Operacje dozwolone w każdym stanie znajdziesz w sekcji [Stany kluczy serwisowych i dozwolone operacje](#stany-kluczy-serwisowych-i-dozwolone-operacje).
 
 :::warning
-Usunięcie klucza szyfrującego jest nieodwracalne. Wszystkie dane zaszyfrowane za jego pomocą będą trwale niedostępne.
+Usunięcie klucza szyfrującego jest nieodwracalne. Wszystkie dane zaszyfrowane tym kluczem stają się trwale niedostępne.
+:::
 
+#### Stany kluczy serwisowych i dozwolone operacje
+
+Stan klucza serwisowego określa, które operacje akceptuje KMS. To zachowanie jest zgodne z modelami cyklu życia kluczy [KMIP](https://docs.oasis-open.org/kmip/kmip-spec/v2.1/os/kmip-spec-v2.1-os.html) i [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final):
+
+- Klucz `active` może wykonywać każdą operację kryptograficzną wymienioną w atrybucie `operations`.
+- Klucz `deactivated` lub `compromised` nie akceptuje operacji kryptograficznych: nie może już chronić danych (`encrypt`, `sign`, opakowywać, generować data keys), odzyskiwać danych (`decrypt`, odpakowywać data keys) ani weryfikować podpisów. Operacje zarządzania (odczyt, lista, patch, aktywacja, usunięcie) pozostają dostępne.
+- Po `DELETE` klucz jest trwale usunięty: każda późniejsza operacja skierowana do niego zwraca `404 Not Found`.
+
+Kontrole stanu są egzekwowane przy każdym żądaniu, bez opóźnienia propagacji. Żądanie zmiany stanu (`activate`, `deactivate` lub `DELETE`) kończy się powodzeniem dopiero po faktycznym zastosowaniu nowego stanu; od tej chwili każde kolejne żądanie jest oceniane względem nowego stanu. Pierwsze żądanie otrzymane po udanej zmianie stanu odzwierciedla więc już nowy stan.
+
+| Operacja | `active` | `deactivated` | `compromised` | po `DELETE` |
+| --- | --- | --- | --- | --- |
+| `GET /servicekey/{keyId}` | tak | tak | tak | 404 |
+| `GET /servicekey` | tak | tak<br />Wymaga `state=deactivated`<br />lub `state=all` | tak<br />Wymaga `state=compromised`<br />lub `state=all` | nie na liście |
+| `PATCH /servicekey/{keyId}` | tak | tak | tak | 404 |
+| `POST …/activate` | no-op<br />204 | tak<br />Przywraca `active` | tak<br />Przywraca `active` | 404 |
+| `POST …/deactivate` | tak | no-op przy tym samym powodzie<br />W przeciwnym razie aktualizuje powód<br />(i ewentualnie stan) | no-op przy tym samym powodzie<br />W przeciwnym razie aktualizuje powód<br />(i ewentualnie stan) | 404 |
+| `DELETE /servicekey/{keyId}` | **nie**<br />400 | tak | tak | 404 |
+| `POST …/encrypt` | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `POST …/decrypt` | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `POST …/datakey` | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `POST …/datakey/decrypt` | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `POST …/sign` | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `POST …/verify` | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Eksport opakowanego klucza, stan klucza **eksportowanego** | tak | tak | tak | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Eksport opakowanego klucza, stan klucza **opakowującego** | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+| `POST /servicekey` + `wrappedKeys`<br />Import opakowanego klucza, stan klucza **opakowującego** | tak | **nie**<br />400 | **nie**<br />400 | 404 |
+
+:::warning
+Dezaktywacja natychmiast uniemożliwia odzyskanie danych chronionych przez klucz. Przy szyfrowaniu kopertowym (envelope encryption) data keys opakowane dezaktywowanym kluczem serwisowym nie mogą zostać odpakowane, dopóki klucz nie zostanie ponownie aktywowany. Upewnij się, że aplikacje nie wymagają już klucza przed jego dezaktywacją, albo zachowaj ścieżkę odzyskania przez `POST …/activate`.
 :::
 
 #### Atrybuty wrażliwości kluczy serwisowych
