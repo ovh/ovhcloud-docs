@@ -73,15 +73,9 @@ export interface CpNavLocation {
    * Locale-free Manager route. `<ManagerLink>` appends it to the manager host and owns the
    * EU/CA picker, so nothing here is zone-aware.
    *
-   * NOT simply `/#/<application>/<hash>`. The Manager builds a sidebar href from
-   * `navigation.getURL(application, hash)`, which resolves the application through the
-   * shell configuration to its `publicURL` — and **28 of 52 applications are published
-   * under a base unrelated to their id**: every `pci-*` app under `/#/public-cloud`,
-   * `hpc-vmware-public-vcf-aas` under `/#/vmware/public-vcf-aas`. Composing from the id is
-   * how `/#/pci/projects` came to be wrong in 1002 places.
-   * `tempscripts/mgr_node.py` composes from `publicURL`; `cpnav_drift.py` compares against
-   * that, and also accepts a legacy path named by the node's `pathMatcher` (which only
-   * drives active-row highlighting — it never decides the URL).
+   * The path is the nav node's application resolved to its `publicURL`, plus the node's
+   * hash — not `/#/<application>/<hash>`, which differs for most applications.
+   * `tempscripts/mgr_node.py` composes it; `cpnav_drift.py` checks it.
    */
   route?: string;
   /**

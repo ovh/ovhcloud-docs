@@ -67,21 +67,35 @@ import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
 import { webCloudDatabases } from './keys/web-cloud-databases';
-import { webHosting } from './keys/web-hosting';
+import { webDnsZone } from './keys/web-dns-zone';
+import { webDomains } from './keys/web-domains';
 import { webEmailPro } from './keys/web-email-pro';
 import { webExchange } from './keys/web-exchange';
+import { webHosting } from './keys/web-hosting';
+import { webMicrosoft365 } from './keys/web-microsoft-365';
 import { webMxPlan } from './keys/web-mx-plan';
+import { webOngoingOperations } from './keys/web-ongoing-operations';
+import { webVideoCenter } from './keys/web-video-center';
+import { webWebsiteView } from './keys/web-website-view';
+import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webZimbra } from './keys/web-zimbra';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Web Cloud, in Manager sidebar order -------------------------------------------
+  'web-domains': webDomains,
+  'web-dns-zone': webDnsZone,
+  'web-ongoing-operations': webOngoingOperations,
   'web-hosting': webHosting,
+  'web-website-view': webWebsiteView,
+  'web-wordpress-hosting': webWordpressHosting,
+  'web-video-center': webVideoCenter,
   'web-cloud-databases': webCloudDatabases,
   'web-zimbra': webZimbra,
   'web-email-pro': webEmailPro,
   'web-mx-plan': webMxPlan,
   'web-exchange': webExchange,
+  'web-microsoft-365': webMicrosoft365,
   // --- Hosted Private Cloud, in Manager sidebar order ---------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,

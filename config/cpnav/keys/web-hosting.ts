@@ -6,7 +6,7 @@ export const webHosting: CpNavKey = {
   locations: [
     {
       route: '/#/web/hosting',
-      source: { node: 'hosting' },
+      source: { node: 'hosting', labels: ['sidebar_hosting'] },
       text: {
         en: {
           product: 'Hosting plans',

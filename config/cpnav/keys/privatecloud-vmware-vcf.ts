@@ -1,9 +1,6 @@
 import type { CpNavKey } from '../types';
 
-// The node's `routing` is application `hpc-vmware-public-vcf-aas` + hash `#/`, but the shell
-// configuration publishes that application at `publicURL` `#/vmware/public-vcf-aas`, which is
-// what `navigation.getURL` returns and therefore where the sidebar link goes. Composing the
-// route from the application id would send readers to a path that does not exist.
+// Manager nav tree: application 'hpc-vmware-public-vcf-aas', published at '#/vmware/public-vcf-aas'.
 export const privatecloudVmwareVcf: CpNavKey = {
   universe: 'hosted-private-cloud',
   locations: [
