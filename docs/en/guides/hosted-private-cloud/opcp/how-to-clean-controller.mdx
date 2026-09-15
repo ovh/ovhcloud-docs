@@ -1,0 +1,141 @@
+---
+title: "How to clean the controller nodes"
+excerpt: "Learn how to clean the controller nodes"
+lastUpdated: 2026-11-15
+---
+
+# How to clean a controller node
+
+## Introduction
+
+The OPCP control plane is running on the controller node(s). When you want a clean redeploy of OPCP, you might want to clean the controller node(s). This prevents you from a complete reinstall, which is quite time consuming.
+
+## Prerequisites
+
+You have to have SSH access to the controller node as well as `sudo` permissions. Check this by running:
+
+```bash
+ssh <your-node-ip>
+sudo -i
+```
+
+You will need those permissions on all controller nodes.
+
+Furthermore, you will need access to the switches. Check this by accessing them via SSH:
+
+```bash
+ssh admin@<switch ip>
+```
+
+You will find you switch IPs in the OPCP hardware config.
+
+## Instructions
+
+The OPCP control plane is running in k3s with ceph as a storage backend.
+
+### Get ceph information
+
+First step is to get the information about the ceph cluster:
+
+```bash
+ceph device ls
+```
+
+This will give you list of all devices running as a ceph OSD. Store this list, because you will later need it when wiping the disks.
+
+### Stop k3s cluster
+
+After that, stop k3s on every controller node:
+
+```bash
+systemctl stop k3s.service
+```
+
+### Wipe ceph cluster
+
+Next step is to erase all ceph data:
+
+```bash
+rm -rf /var/lib/rook
+```
+
+When this is done, wipe all the signatures (partition table, filesystem, LVM, RAID etc.) for the disks on all controller nodes collected [earlier](#get-ceph-information):
+
+```bash
+wipefs -a -f /dev/nvmeXnX # run this for each disk listed in ceph device ls
+```
+
+You now may securely erase all data (prefer crypto erase, it is faster):
+
+```bash
+nvme format /dev/nvmeXnX --ses=1 # crypto erase
+# or
+nvme format /dev/nvmeXnX --ses=2 # user data erase (overwrite)
+```
+
+### Reset k3s
+
+First you have to reset iptables rules and then uninstall k3s to avoid switch partitioning after reset:
+
+```bash
+iptables -P INPUT ACCEPT
+iptables -P OUTPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -t mangle -F
+iptables -t mangle -X
+/usr/local/bin/k3s-uninstall.sh
+```
+
+### Reset network equipment
+
+To reset the network equipment you have to SSH into the network switches. There are two types of switches: IPMI and TOR.
+
+#### Reset IPMI switches (Cisco)
+
+SSH into the IPMI switch and run the following commands:
+
+```bash
+en
+write erase
+reload
+```
+
+#### Reset the TOR switches (Arista)
+
+On all TOR switches you must clean up the startup config. Make sure to start with TOR-B, otherwise you will no longer be able to reach it.
+
+```bash
+en
+bash
+sudo -i
+rm -rf /mnt/flash/.ragnarok
+rm -rf /mnt/flash/EOS*.swi.sha512sum
+rm -rf /mnt/flash/NogTaskMgr.py
+rm -rf /mnt/flash/ca-bundle.crt
+rm -rf /mnt/flash/network-ovh-pyclient-.tar.gz
+
+rm -rf /mnt/flash/nog.*.cfg
+rm -rf /mnt/flash/nog_diff_startup.py
+rm -rf /mnt/flash/nog_task_exec.py
+rm -rf /mnt/flash/ragnarok
+rm -rf /mnt/flash/ragnctl
+rm -rf /mnt/flash/rc.eos
+rm -rf /mnt/flash/startup-config
+exit
+exit
+reload force
+```
+
+> Do not run `rm -rf /mnt/flash/*`! This will erase the firmware and the switch is not able to boot to ZTP config. You will have to upload a firmware via serial cable then.
+
+### Redeploy controller
+
+On the first controller node, run the following command:
+
+```bash
+opcp-cli deploy --force-reconcile
+```

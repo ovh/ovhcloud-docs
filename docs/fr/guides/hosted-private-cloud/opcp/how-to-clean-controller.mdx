@@ -1,0 +1,141 @@
+---
+title: "Comment nettoyer les nœuds contrôleurs"
+excerpt: "Découvrez comment nettoyer les nœuds contrôleurs"
+lastUpdated: 2026-11-15
+---
+
+# Comment nettoyer un nœud contrôleur
+
+## Introduction
+
+Le plan de contrôle OPCP s'exécute sur le ou les nœud(s) contrôleur(s). Lorsque vous souhaiter un redéploiement propre d'OPCP, vous pourriez vouloir nettoyer le ou les nœud(s) contrôleur(s). Cela vous évite une réinstallation complète, qui est très chronophage.
+
+## Prérequis
+
+Vous devez avoir un accès SSH au nœud contrôleur ainsi que des permissions `sudo`. Vérifiez ceci en exécutant :
+
+```bash
+ssh <your-node-ip>
+sudo -i
+```
+
+Vous aurez besoin de ces permissions sur tous les nœuds contrôleurs.
+
+De plus, vous aurez besoin d'accès aux commutateurs. Vérifiez ceci en y accédant via SSH :
+
+```bash
+ssh admin@<switch ip>
+```
+
+Vous trouverez les adresses IP de votre commutateur dans la configuration matérielle d'OPCP.
+
+## Instructions
+
+Le plan de contrôle OPCP s'exécute dans k3s avec Ceph comme backend de stockage.
+
+### Obtenir les informations Ceph
+
+La première étape est d'obtenir les informations sur le cluster Ceph :
+
+```bash
+ceph device ls
+```
+
+Cela vous donnera une liste de tous les appareils exécutant un OSD Ceph. Conservez cette liste, car vous en aurez besoin plus tard lors du nettoyage des disques.
+
+### Arrêter le cluster k3s
+
+Après cela, arrêtez k3s sur chaque nœud contrôleur :
+
+```bash
+systemctl stop k3s.service
+```
+
+### Nettoyer le cluster Ceph
+
+L'étape suivante consiste à effacer toutes les données Ceph :
+
+```bash
+rm -rf /var/lib/rook
+```
+
+Une fois ceci fait, effacez toutes les signatures (table de partition, système de fichiers, LVM, RAID, etc.) pour les disques sur tous les nœuds contrôleurs rassemblés [précédemment](#get-ceph-information) :
+
+```bash
+wipefs -a -f /dev/nvmeXnX # exécutez cette commande pour chaque disque listé dans ceph device ls
+```
+
+Vous pouvez maintenant effacer de manière sécurisée toutes les données (préférez l'effacement cryptographique, c'est plus rapide) :
+
+```bash
+nvme format /dev/nvmeXnX --ses=1 # effacement cryptographique
+# ou
+nvme format /dev/nvmeXnX --ses=2 # effacement des données utilisateur (écrasement)
+```
+
+### Réinitialiser k3s
+
+D'abord, vous devez réinitialiser les règles iptables, puis désinstaller k3s pour éviter le cloisonnement des commutateurs après la réinitialisation :
+
+```bash
+iptables -P INPUT ACCEPT
+iptables -P OUTPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -t mangle -F
+iptables -t mangle -X
+/usr/local/bin/k3s-uninstall.sh
+```
+
+### Réinitialiser l'équipement réseau
+
+Pour réinitialiser l'équipement réseau, vous devez accéder via SSH aux commutateurs réseau. Il existe deux types de commutateurs : IPMI et TOR.
+
+#### Réinitialiser les commutateurs IPMI (Cisco)
+
+Accédez via SSH au commutateur IPMI et exécutez les commandes suivantes :
+
+```bash
+en
+write erase
+reload
+```
+
+#### Réinitialiser les commutateurs TOR (Arista)
+
+Sur tous les commutateurs TOR, vous devez nettoyer la configuration de démarrage. Assurez-vous de commencer par TOR-B, sinon vous ne pourrez plus y accéder.
+
+```bash
+en
+bash
+sudo -i
+rm -rf /mnt/flash/.ragnarok
+rm -rf /mnt/flash/EOS*.swi.sha512sum
+rm -rf /mnt/flash/NogTaskMgr.py
+rm -rf /mnt/flash/ca-bundle.crt
+rm -rf /mnt/flash/network-ovh-pyclient-.tar.gz
+
+rm -rf /mnt/flash/nog.*.cfg
+rm -rf /mnt/flash/nog_diff_startup.py
+rm -rf /mnt/flash/nog_task_exec.py
+rm -rf /mnt/flash/ragnarok
+rm -rf /mnt/flash/ragnctl
+rm -rf /mnt/flash/rc.eos
+rm -rf /mnt/flash/startup-config
+exit
+exit
+reload force
+```
+
+> N'exécutez pas `rm -rf /mnt/flash/*` ! Cela effacera le firmware et le commutateur ne pourra pas démarrer avec la configuration ZTP. Vous devrez alors télécharger un firmware via câble série.
+
+### Redéployer le contrôleur
+
+Sur le premier nœud contrôleur, exécutez la commande suivante :
+
+```bash
+opcp-cli deploy --force-reconcile
+```
