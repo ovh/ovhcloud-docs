@@ -67,16 +67,26 @@ import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
 import { webCloudDatabases } from './keys/web-cloud-databases';
-import { webHosting } from './keys/web-hosting';
+import { webDnsZones } from './keys/web-dns-zones';
+import { webDomainDnsZone } from './keys/web-domain-dns-zone';
+import { webDomains } from './keys/web-domains';
 import { webEmailPro } from './keys/web-email-pro';
 import { webExchange } from './keys/web-exchange';
+import { webHosting } from './keys/web-hosting';
 import { webMxPlan } from './keys/web-mx-plan';
+import { webOngoingOperations } from './keys/web-ongoing-operations';
+import { webWebsiteView } from './keys/web-website-view';
 import { webZimbra } from './keys/web-zimbra';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Web Cloud, in Manager sidebar order -------------------------------------------
+  'web-ongoing-operations': webOngoingOperations,
+  'web-domains': webDomains,
+  'web-domain-dns-zone': webDomainDnsZone,
+  'web-dns-zones': webDnsZones,
   'web-hosting': webHosting,
+  'web-website-view': webWebsiteView,
   'web-cloud-databases': webCloudDatabases,
   'web-zimbra': webZimbra,
   'web-email-pro': webEmailPro,
