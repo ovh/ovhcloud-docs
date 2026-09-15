@@ -1194,6 +1194,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#7211',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#7211',
   },
+  'public-cloud/prices-network': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#network',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#network',
+    de: 'https://www.ovhcloud.com/de/public-cloud/prices/#network',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/prices/#network',
+    it: 'https://www.ovhcloud.com/it/public-cloud/prices/#network',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#network',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#network',
+  },
   'public-cloud/prices-object-storage': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#439',
     en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#439',
