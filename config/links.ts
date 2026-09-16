@@ -1727,6 +1727,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/logs-data-platform/',
     pt: 'https://www.ovhcloud.com/pt/logs-data-platform/',
   },
+  'manage-operate/logs-data-platform-order': {
+    fr: "https://www.ovh.com/fr/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+    en: "https://www.ovh.com/en/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+    de: "https://www.ovh.com/de/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+    es: "https://www.ovh.com/es/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+    it: "https://www.ovh.com/it/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+    pl: "https://www.ovh.com/pl/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+    pt: "https://www.ovh.com/pt/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
+  },
   'manage-operate/secret-manager': {
     fr: 'https://www.ovhcloud.com/fr/identity-security-operations/secret-manager/',
     en: 'https://www.ovhcloud.com/en-gb/identity-security-operations/secret-manager/',
