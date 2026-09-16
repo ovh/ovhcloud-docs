@@ -35,6 +35,7 @@ import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
@@ -117,6 +118,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // URL: the chain names the product, the link is always the project list.
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-databases': publiccloudDatabases,
+  'publiccloud-analytics': publiccloudAnalytics,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
