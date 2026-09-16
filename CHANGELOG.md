@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.09.16
+
+### Features
+- **mks:** remove Control Panel screenshots, add textual navigation steps (#707)
+- **lb:** update guide about getting source ip (#727)
+
+### Fixes
+- **mks:** convert links, symlink locale files, drop orphaned images
+
+### Documentation
+- 168 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.15
 
 ### Features
