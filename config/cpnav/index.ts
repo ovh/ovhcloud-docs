@@ -74,6 +74,7 @@ import { webDomains } from './keys/web-domains';
 import { webEmailPro } from './keys/web-email-pro';
 import { webExchange } from './keys/web-exchange';
 import { webHosting } from './keys/web-hosting';
+import { webHostingSites } from './keys/web-hosting-sites';
 import { webMicrosoft365 } from './keys/web-microsoft-365';
 import { webMxPlan } from './keys/web-mx-plan';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
@@ -91,6 +92,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-dns-zone-order': webDnsZoneOrder,
   'web-ongoing-operations': webOngoingOperations,
   'web-hosting': webHosting,
+  'web-hosting-sites': webHostingSites,
   'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-video-center': webVideoCenter,
