@@ -192,6 +192,10 @@ export const CPNAV_SETS: string[][] = [
   // `nutanix-on-ovhcloud/vrack-interconnection`: the cluster, the vRack it joins and the
   // load balancer in front of it are three screens in three universes.
   ['privatecloud-nutanix', 'network-vrack', 'network-load-balancer'],
+  // `web-hosting/copy-database` and `web-hosting/diagnosis-database-errors`: a database
+  // lives either on the hosting plan's Start SQL or on a Web Cloud Databases server, and
+  // each guide documents both as parallel branches.
+  ['web-hosting', 'web-cloud-databases'],
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
