@@ -11,7 +11,10 @@
 // keeps the files editor-friendly with a normal trailing newline.
 //
 // Usage in MDX: place [[fragment:<key>]] on its own line, surrounded by blank
-// lines. Expansion happens via config/fragment-rules.ts (Rspress replaceRules)
+// lines. On a page whose prose is untranslated English, write [[fragment:<key>|en]]
+// instead: the body is then pinned to English in every locale build, so an
+// untranslated page never shows a localized block under English prose.
+// Expansion happens via config/fragment-rules.ts (Rspress replaceRules)
 // BEFORE MDX compilation, so fragment bodies are markdown and may contain
 // (/links/key) tokens — they resolve in the same pass. Bodies must expand to
 // pure markdown or import-free JSX (globally registered components such as

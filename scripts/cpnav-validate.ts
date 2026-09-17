@@ -10,6 +10,8 @@
  *   - a token in the guides with an unknown key, an unsupported modifier, an undeclared
  *     combination, or a non-canonical key order (no rule matches, so it would ship to
  *     readers as literal text — the build guard also catches this, later and per-file)
+ *   - an unpinned token in an EN guide that a locale reaches through a symlink: that
+ *     locale is untranslated, so the block would render localized under English prose
  *
  * WARNINGS (exit 0 — visible but non-blocking, mirroring fragment:validate):
  *   - per-locale text gaps, which fall back to en
@@ -200,15 +202,51 @@ function scan(file: string): void {
   }
 }
 
+/**
+ * EN files that at least one locale reaches through a symlink. Such a locale is
+ * untranslated by definition — the reader gets English prose — so a CP-NAV block
+ * rendered in their locale is a language mismatch inside the page. `|en` is the only
+ * place that intent can live, since replaceRules see raw source and never frontmatter.
+ *
+ * Collected as realpaths so the check runs once per target, not once per symlink.
+ */
+const symlinkTargets = new Set<string>();
+
 function walk(dir: string): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(p);
-    else if (entry.name.endsWith('.mdx')) scan(p);
+    else if (entry.name.endsWith('.mdx')) {
+      if (entry.isSymbolicLink()) {
+        try {
+          symlinkTargets.add(fs.realpathSync(p));
+        } catch {
+          // Dangling symlink: not this validator's business — the build reports it.
+        }
+      }
+      scan(p);
+    }
   }
 }
 
 if (fs.existsSync(DOCS_DIR)) walk(DOCS_DIR);
+
+// An untranslated locale must not get a localized CP-NAV block under English prose.
+for (const target of [...symlinkTargets].sort()) {
+  const rel = path.relative(process.cwd(), target).replace(/\\/g, '/');
+  const unpinned = [
+    ...stripCode(fs.readFileSync(target, 'utf-8')).matchAll(TOKEN),
+  ]
+    .map((match) => match[1])
+    .filter((raw) => !raw.split('|').slice(1).includes('en'));
+  if (unpinned.length) {
+    errors.push(
+      `${rel}: symlinked by at least one untranslated locale, so its CP-NAV ` +
+        `token(s) must be pinned to English — write ` +
+        unpinned.map((raw) => `[[cpnav:${raw}|en]]`).join(', '),
+    );
+  }
+}
 
 for (const [key, count] of usage) {
   if (count === 0) warnings.push(`${key}: declared but used in no guide`);
