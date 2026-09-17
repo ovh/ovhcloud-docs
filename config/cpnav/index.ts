@@ -82,7 +82,7 @@ import { webVideoCenter } from './keys/web-video-center';
 import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webZimbra } from './keys/web-zimbra';
-import { discoverKeySets } from './sets';
+import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
@@ -200,9 +200,10 @@ export function tokenFor(keys: readonly string[]): string {
 }
 
 /** Every key set a token may name: each single key, plus each declared combination. */
-export function allKeySets(): string[][] {
+export function allKeySets(locale?: string): string[][] {
   const combos = new Map<string, string[]>();
-  for (const set of discoverKeySets()) {
+  const root = locale ? `${DOCS_DIR}/${locale}` : DOCS_DIR;
+  for (const set of discoverKeySets(root)) {
     if (!set.every((k) => k in CPNAV_KEYS)) continue;
     const canonical = canonicalise(set);
     combos.set(canonical.join('+'), canonical);
