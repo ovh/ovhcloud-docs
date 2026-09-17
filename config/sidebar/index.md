@@ -1948,7 +1948,7 @@
             + [Getting started with the Web Cloud Databases service](web-cloud/databases/db-getting-started)
             + [Getting started with MySQL and MariaDB](web-cloud/databases/db-getting-started-mysql-mariadb)
             + [Getting started with PostgreSQL](web-cloud/databases/db-getting-started-postgresql)
-            + [Getting started with Valkey](web-cloud/databases/db-getting-started-valkey)
+            + [Getting started with Valkey on Web Cloud Databases](web-cloud/databases/db-getting-started-valkey){label=Getting started with Valkey}
         + [Configuration](web-cloud-clouddb-configuration)
             + [Web Cloud Databases - How to authorize an IP address?](web-cloud/databases/db-authorise-ip-mask)
             + [Creating databases and users on your database server](web-cloud/databases/db-create-databases-users)
