@@ -23,12 +23,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  CPNAV_KEYS,
-  CPNAV_SETS,
-  canonicalise,
-  tokenFor,
-} from '../config/cpnav/index';
+import { CPNAV_KEYS, canonicalise, tokenFor } from '../config/cpnav/index';
 import { type Locale, locales } from '../config/shared';
 import { classifyLocaleFile, describe } from './lib/untranslated';
 
@@ -125,25 +120,8 @@ for (const key of keys) {
   });
 }
 
-for (const set of CPNAV_SETS) {
-  const unknown = set.filter((k) => !(k in CPNAV_KEYS));
-  if (unknown.length) {
-    errors.push(
-      `CPNAV_SETS entry [${set.join(', ')}] names unknown key(s): ${unknown.join(', ')}`,
-    );
-  } else if (set.length < 2) {
-    warnings.push(
-      `CPNAV_SETS entry [${set.join(', ')}] has fewer than 2 keys — single keys are implicit`,
-    );
-  }
-}
-
 // ---------------------------------------------------------------- token usage
-const declared = new Set(
-  CPNAV_SETS.filter((s) => s.every((k) => k in CPNAV_KEYS)).map((s) =>
-    canonicalise(s).join('+'),
-  ),
-);
+const combos = new Map<string, number>();
 const usage = new Map<string, number>(keys.map((k) => [k, 0]));
 
 /** Strip fenced and inline code so documenting the syntax in backticks stays legal. */
@@ -179,11 +157,9 @@ function scan(file: string): void {
     for (const k of used) usage.set(k, (usage.get(k) ?? 0) + 1);
 
     const canonical = canonicalise(used);
-    if (used.length > 1 && !declared.has(canonical.join('+'))) {
-      errors.push(
-        `${rel}: combination [${canonical.join(', ')}] is not declared — add it to CPNAV_SETS`,
-      );
-      continue;
+    if (used.length > 1) {
+      const id = canonical.join('+');
+      combos.set(id, (combos.get(id) ?? 0) + 1);
     }
     if (used.join('+') !== canonical.join('+')) {
       const want = tokenFor(used).replace(']]', mods.length ? '|en]]' : ']]');
@@ -284,8 +260,10 @@ for (const [key, count] of usage) {
 // ---------------------------------------------------------------- report
 const used = [...usage.entries()].filter(([, n]) => n > 0);
 console.log(
-  `CP-NAV: ${keys.length} keys, ${CPNAV_SETS.length} declared combination(s)`,
+  `CP-NAV: ${keys.length} keys, ${combos.size} combination(s) in use`,
 );
+for (const [id, n] of [...combos].sort())
+  console.log(`    ${id} — ${n} file(s)`);
 console.log(
   `  tokens found: ${used.reduce((a, [, n]) => a + n, 0)} across ${used.length} key(s)`,
 );

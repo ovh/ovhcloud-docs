@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.09.18
+
+### Fixes
+- **i18n:** align the Italian support links (#811)
+- **pci:** un display the metrics guide (#806)
+- **i18n:** restore the Spanish support-link label mangled by a global replace (#805)
+
+### Documentation
+- 791 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.17
 
 ### Fixes
