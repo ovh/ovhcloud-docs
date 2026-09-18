@@ -1,0 +1,533 @@
+---
+title: "How to deploy Scality RING on OVHcloud On-Prem Cloud Platform"
+description: "Deploy a Scality RING storage cluster on OVHcloud On-Prem Cloud Platform (OPCP) bare metal, from prerequisites and node preparation through Terraform deployment and verification"
+lastUpdated: 2026-09-18
+---
+
+## Objective
+
+[Scality RING](https://documentation.scality.com) is a software-defined storage platform that
+turns a set of servers into a single object (S3) and/or file (NFS/CIFS) storage system, with
+data protection handled either by erasure coding (ARC) or replication (COS) instead of a
+hardware RAID controller.
+
+:::info
+Scality RING is a **Certified OPCP Third Party Solution**. This deployment procedure is
+written and maintained by Scality, not OVHcloud. For support with RING itself, contact
+[Scality support](https://support.scality.com).
+:::
+
+OVHcloud's **On-Prem Cloud Platform (OPCP)** Bare Metal Pool exposes physical servers through
+OpenStack: Nova hands each instance to **Ironic**, which PXE-boots a whole physical machine with
+the image you provide, rather than running a virtual machine on a hypervisor. There is no
+console access and, on the target production platform, no direct SSH path onto the nodes before
+they are deployed.
+
+This guide walks through deploying a RING cluster on OPCP bare metal, end to end:
+
+1. Preparing the bare-metal nodes (network bonding and, optionally, software RAID for the OS
+   disk).
+2. Provisioning the network ports and bare-metal instances with Terraform.
+3. Letting the RING installer run itself, driven by `cloud-init`, since the nodes cannot be
+   reached over SSH before they boot.
+4. Verifying the deployment and reaching the RING supervisor UI.
+
+:::note
+This guide does **not** cover building the Scality RING supervisor and storage disk images, or
+obtaining a RING license. It assumes you already have both. See [Requirements](#requirements)
+below for where to get them.
+:::
+
+## Requirements
+
+- An OVHcloud OPCP project with enough Bare Metal Pool nodes in the Ironic `available` state
+  for your target topology. RING's minimum supported cluster on this platform is **one
+  supervisor node and three storage nodes**, the three storage nodes being either **High
+  Capacity Storage** (write cache not available yet) catalog models or **High Performance
+  Storage** ones.
+- An OpenStack **application credential** for that project, usable by both the OpenStack CLI
+  and Terraform. See the *Creating Application Credentials* step of OVHcloud's
+  [How to use Terraform](/guides/hosted-private-cloud/opcp/use-terraform)
+  guide for OPCP.
+- The following tools installed on the workstation you will run the deployment from:
+  - the [OpenStack CLI](https://docs.openstack.org/python-openstackclient/latest/)
+    (`openstack`), for image upload, the LACP/RAID setup in step 3, and the verification
+    commands in step 9;
+  - [Terraform](https://developer.hashicorp.com/terraform) (or
+    [OpenTofu](https://opentofu.org/)) with the
+    [`terraform-provider-openstack`](https://registry.terraform.io/providers/terraform-provider-openstack/openstack)
+    provider, to provision the network ports and bare-metal instances;
+  - [`jq`](https://jqlang.org/), to parse the JSON output of several `openstack` commands used
+    below;
+  - an SSH client, useful if you need to reach the supervisor directly rather than only through
+    its web UI.
+- A Scality RING **supervisor** qcow2 image and one or more **storage** qcow2 images, based on
+  Rocky Linux or RHEL — the only operating systems RING supports on OPCP — ready to upload to
+  Glance. The supervisor image is expected to already carry the RING installer bundle, since
+  the supervisor has no guaranteed way to fetch it after boot on this platform.
+  :::note
+  These images are not something you build yourself: request the supervisor and storage qcow2
+  images (and the RING installer bundle, if not already embedded in the supervisor image) from
+  Scality, through your account team or [Scality support](https://support.scality.com). Building
+  or customizing RING images is not covered by this guide — see the
+  [Scality documentation portal](https://documentation.scality.com) for that procedure, or
+  OVHcloud's guide on building a
+  [custom CentOS/Rocky image](/guides/hosted-private-cloud/opcp/how-to-create-centos-image)
+  for background on the underlying Ironic/Nova image requirements.
+  :::
+- A valid Scality RING **license**. RING will install and run without one only in a limited,
+  time-boxed evaluation state; request a license through
+  [Scality support](https://support.scality.com) before going into production.
+- A RING sizing-tool export (a `cluster.csv` describing your node roles, disk layout and RING
+  sizing parameters), typically provided by your Scality account team or support contact.
+- The backend private network that the Bare Metal Pool already provisions for your project
+  (used for the RING internal plane); optionally, a second network for client-facing S3/NFS
+  traffic, which Terraform can create for you.
+
+:::note
+This guide assumes familiarity with core RING concepts (rings, connectors, COS/ARC data
+protection, the supervisor role). For background on any of these, see the
+[Scality documentation portal](https://documentation.scality.com).
+:::
+
+## Instructions
+
+### 1. Authenticate to OPCP
+
+Export your application credential so both the OpenStack CLI and Terraform can use it:
+
+```bash
+export OS_AUTH_TYPE=v3applicationcredential
+export OS_AUTH_URL=<opcp-keystone-endpoint>
+export OS_IDENTITY_API_VERSION=3
+export OS_REGION_NAME=<opcp-region>
+export OS_INTERFACE=public
+export OS_APPLICATION_CREDENTIAL_ID="<application-credential-id>"
+export OS_APPLICATION_CREDENTIAL_SECRET="<application-credential-secret>"
+```
+
+Verify it works:
+
+```bash
+openstack token issue -f value -c id
+```
+
+:::tip
+On some OPCP regions, the service catalog advertises endpoints that are not reachable from
+your network. If `openstack` commands fail to connect after a successful token issue, add
+explicit per-service endpoint overrides (`OS_COMPUTE_ENDPOINT_OVERRIDE`,
+`OS_IMAGE_ENDPOINT_OVERRIDE`, `OS_NETWORK_ENDPOINT_OVERRIDE`, `OS_BAREMETAL_ENDPOINT_OVERRIDE`,
+`OS_VOLUME_ENDPOINT_OVERRIDE`) pointing at the addresses your project was given. Terraform's
+OpenStack provider accepts the same overrides in its provider block.
+:::
+
+### 2. Upload the RING images to Glance
+
+Upload the supervisor and storage images provided by Scality, giving each a distinct name:
+
+```bash
+openstack image create --disk-format qcow2 --container-format bare \
+  --file <path-to-supervisor-image>.qcow2 "<supervisor-image-name>"
+
+openstack image create --disk-format qcow2 --container-format bare \
+  --file <path-to-storage-image>.qcow2 "<storage-image-name>"
+```
+
+:::warning
+Image names must be unique in the project. Uploading under a name that already exists in Glance
+will make your Terraform plan fail rather than silently reuse the old image, so pick a new name
+whenever you upload a rebuilt image (e.g. append a version suffix).
+:::
+
+Building or customizing these images is outside the scope of this guide — see the note under
+[Requirements](#requirements) for how to obtain them.
+
+### 3. Prepare the bare-metal nodes
+
+Two node-level settings live outside Terraform, because the standard OpenStack Ironic driver
+has no Terraform resource for them. Configure both **before** the nodes are deployed — they can
+only be changed on nodes that carry no instance, and re-doing them later requires tearing the
+instance down first.
+
+**Network bonding (LACP).** RING expects each node to present its network(s) as a bonded
+interface (`bond0` for the backend plane and, if you use a frontend network, `bond1`), so that
+losing a single NIC or top-of-rack switch does not take the node down. Configure an 802.3ad
+(LACP) port group per plane directly in OpenStack Ironic, following OVHcloud's
+[How to setup LACP on a Node](/guides/hosted-private-cloud/opcp/how-to-setup-lacp-on-node)
+guide. Use the `layer3+4` transmit-hash policy so traffic actually spreads across both members
+of the bond (the kernel default, `layer2`, pins every flow to a single link).
+
+:::warning
+LACP port groups can only be created on nodes with no active instance. If a node already has an
+instance, tear it down first — the OVH guide does not cover reconfiguring bonding on a node in
+production.
+:::
+
+**Software RAID for the OS disk (optional).** If you want the OS disk mirrored rather than
+relying on a hardware RAID controller, configure a RAID-1 `target_raid_config` on each node
+following OVHcloud's
+[How to configure a software RAID on a node](/guides/hosted-private-cloud/opcp/how-to-setup-softraid-on-node)
+guide, before the node's next deploy.
+
+:::warning
+Creating the RAID array erases the disks it is built from. Only enable it on nodes that carry
+no instance and no data you need, and make sure your storage/supervisor image is mdadm-capable
+(the root filesystem itself does not need to be pre-built on an md device, but the image must be
+able to assemble one at boot — mdadm installed, the mdraid module in the initramfs).
+:::
+
+### 4. Define your Terraform configuration
+
+RING does not ship a public Terraform module for OPCP, so this configuration is built directly
+from the OpenStack, `tls` and `random` providers. It needs, in order: a fixed backend IP per
+node, your sizing-tool CSV completed with those addresses, the bare-metal instances themselves,
+a dedicated deployment SSH keypair, and enough `cloud-init` for the supervisor to drive the
+install once every node is up.
+
+**Providers and node addresses**
+
+```hcl
+terraform {
+  required_providers {
+    openstack = {
+      source  = "terraform-provider-openstack/openstack"
+      version = "~> 3.0"
+    }
+    tls    = { source = "hashicorp/tls", version = "~> 4.0" }
+    random = { source = "hashicorp/random", version = "~> 3.0" }
+  }
+}
+
+provider "openstack" {
+  # Reads OS_AUTH_URL, OS_APPLICATION_CREDENTIAL_ID, etc. from step 1's environment.
+}
+
+variable "backend_network_name" { type = string }
+variable "backend_subnet_name"  { type = string }
+variable "store_image_name"      { type = string }
+variable "supervisor_image_name" { type = string }
+
+variable "lacp_enabled" {
+  type    = bool
+  default = true
+}
+
+# Either the floating IP from step 7, or the supervisor's private backend IP if you don't
+# need external access (see step 7 and step 10).
+variable "supervisor_published_address" { type = string }
+
+# One fixed backend IP per node, keyed by minion_id — must match cluster.csv exactly.
+# RING's minimum topology on OPCP is one supervisor and three storage nodes.
+variable "node_ips" {
+  type = map(string)
+  default = {
+    "<supervisor-minion-id>" = "<supervisor-backend-ip>"
+    "<storage-minion-id-1>"  = "<storage-1-backend-ip>"
+    "<storage-minion-id-2>"  = "<storage-2-backend-ip>"
+    "<storage-minion-id-3>"  = "<storage-3-backend-ip>"
+  }
+}
+```
+
+**Complete the sizing-tool CSV**
+
+Your sizing-tool export may bundle more than one section (for example, ring-level parameters
+followed by a servers table). Extract just the servers table — one row per node, with its
+header — into its own file (say, `servers.csv`), keeping `minion_id`, `role` and `enclosure` as
+provided and the address columns (`data_ip`, `data_iface`, `s3_ip`, `s3_iface`) blank. Terraform
+then fills in exactly those four columns:
+
+```hcl
+locals {
+  csv_rows = csvdecode(file("${path.module}/servers.csv"))
+  iface    = var.lacp_enabled ? "bond0" : "eth0"
+
+  completed_rows = [
+    for row in local.csv_rows : merge(row, {
+      data_ip    = var.node_ips[row.minion_id]
+      data_iface = local.iface
+      s3_ip      = row.role == "supervisor" ? "" : var.node_ips[row.minion_id]
+      s3_iface   = local.iface
+    })
+  ]
+
+  completed_csv = csvencode(local.completed_rows)
+  store_ips     = [for r in local.completed_rows : r.data_ip if r.role != "supervisor"]
+  nodes         = { for r in local.completed_rows : r.minion_id => r }
+}
+```
+
+**Network ports**
+
+```hcl
+data "openstack_networking_network_v2" "backend" {
+  name = var.backend_network_name
+}
+
+data "openstack_networking_subnet_v2" "backend" {
+  name = var.backend_subnet_name
+}
+
+resource "openstack_networking_port_v2" "backend" {
+  for_each   = var.node_ips
+  name       = "${each.key}-backend"
+  network_id = data.openstack_networking_network_v2.backend.id
+
+  fixed_ip {
+    subnet_id  = data.openstack_networking_subnet_v2.backend.id
+    ip_address = each.value
+  }
+}
+```
+
+**Deployment keypair and GUI password**
+
+```hcl
+resource "tls_private_key" "deploy" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "random_password" "gui" {
+  length  = 20
+  special = false
+}
+```
+
+**Bare-metal instances and cloud-init**
+
+```hcl
+resource "openstack_compute_instance_v2" "node" {
+  for_each = local.nodes
+
+  name         = each.key
+  image_name   = each.value.role == "supervisor" ? var.supervisor_image_name : var.store_image_name
+  flavor_name  = each.value.enclosure
+  config_drive = true
+
+  network {
+    port = openstack_networking_port_v2.backend[each.key].id
+  }
+
+  user_data = each.value.role == "supervisor" ? templatefile("${path.module}/cloudinit-supervisor.yaml.tftpl", {
+    deploy_private_key = tls_private_key.deploy.private_key_openssh
+    deploy_public_key  = tls_private_key.deploy.public_key_openssh
+    store_ips          = local.store_ips
+    cluster_csv        = local.completed_csv
+    gui_password       = random_password.gui.result
+    published_address  = var.supervisor_published_address
+  }) : templatefile("${path.module}/cloudinit-store.yaml.tftpl", {
+    deploy_public_key = tls_private_key.deploy.public_key_openssh
+  })
+}
+
+output "port_ids" {
+  value = { for k, p in openstack_networking_port_v2.backend : k => p.id }
+}
+
+output "gui_password" {
+  value     = random_password.gui.result
+  sensitive = true
+}
+```
+
+`cloudinit-store.yaml.tftpl` only needs to authorize the deployment key as root, so the
+supervisor can reach the node:
+
+```yaml
+#cloud-config
+users:
+  - name: root
+    ssh_authorized_keys:
+      - ${deploy_public_key}
+```
+
+`cloudinit-supervisor.yaml.tftpl` authorizes the same key, stages the completed CSV and the
+private half of the deployment key, then waits for every storage node to answer over SSH before
+launching the RING installer non-interactively and detached (so it survives the end of
+`cloud-init`):
+
+```yaml
+#cloud-config
+users:
+  - name: root
+    ssh_authorized_keys:
+      - ${deploy_public_key}
+
+write_files:
+  - path: /root/.ssh/id_rsa
+    permissions: '0600'
+    content: |
+      ${indent(6, deploy_private_key)}
+  - path: /var/tmp/scality/cluster.csv
+    content: |
+      ${indent(6, cluster_csv)}
+
+runcmd:
+  - |
+    for ip in ${join(" ", store_ips)}; do
+      timeout 3600 bash -c "until ssh -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa root@$ip true; do sleep 10; done"
+    done
+    RING_GUI_PASSWORD=${gui_password} RING_SUPERVISOR_FQDN=${published_address} \
+      setsid /root/<ring-installer-bundle>.run --yes --conf /var/tmp/scality/conf \
+      > /var/tmp/scality/install.log 2>&1 &
+```
+
+:::tip
+If your deployment also serves S3/NFS clients on a separate network from the RING backend
+plane, repeat the network-ports block for a second, frontend network (with no gateway and no
+DNS, so nodes keep their default route on the backend plane), attach a second `network { port =
+... }` block to each `openstack_compute_instance_v2.node`, and point the CSV's `s3_ip` /
+`s3_iface` at that plane's address and bond (`bond1`) for the storage nodes instead of the
+backend one.
+:::
+
+### 5. Run a preflight check
+
+Before running `terraform plan`, verify the pre-deploy contract read-only:
+
+- The application credential and Terraform provider can both reach the project.
+- Both the supervisor and storage images exist in Glance under the names your configuration
+  references.
+- At least as many nodes are in the `available` Ironic state as your `cluster.csv` requires.
+- If `lacp_enabled` is set, every node you expect Terraform to pick already carries its LACP
+  port groups (step 3) — Nova can select any `available` node, and the installer CSV bakes in
+  bond names at plan time, so a node without bonding will boot mismatched.
+- If you configured software RAID, its state matches what you intend for this deploy.
+
+Fixing any gap here is far cheaper than discovering it after a bare-metal instance has already
+been provisioned.
+
+### 6. Review and apply the Terraform plan
+
+```bash
+terraform init
+terraform plan -out=tfplan
+terraform show tfplan > tfplan.txt
+```
+
+Read `tfplan.txt` carefully before applying:
+
+:::warning
+On bare metal, a Terraform *replace* of an instance is a full Ironic redeploy of the physical
+machine — the node is wiped and reprovisioned from scratch. Look specifically for
+`must be replaced` or `must be destroyed` on any bare-metal instance, network port, or the
+deployment keypair, and stop to double-check intent before applying if you see one you did not
+expect.
+:::
+
+```bash
+terraform apply tfplan
+```
+
+### 7. (Optional) Associate a floating IP for external access
+
+This step is only needed if the RING supervisor UI (and any client-facing endpoint you expose)
+must be reachable from outside the OPCP project — for example, over the public internet. If you
+already reach the backend private network some other way — a VPN, a direct peering, a jump host
+already on that network — you can skip it entirely and use the supervisor's private backend IP
+address everywhere this guide refers to its published address, including
+`supervisor_published_address` in step 4 and the URL in step 10.
+
+Where a floating IP is needed, Terraform provisions the backend network port for the
+supervisor, but the public/floating IP association to that port is handled outside Terraform,
+since the address is shared platform infrastructure:
+
+```bash
+openstack floating ip set --port <supervisor-backend-port-id> <floating-ip>
+```
+
+You can find the supervisor's port ID in your Terraform outputs (e.g. `terraform output -json
+port_ids`).
+
+:::warning
+This association does not survive a redeploy of the supervisor instance (it is tied to the old
+network port, which is destroyed with the instance). Re-run this command after every supervisor
+redeploy, and before relying on the published address again.
+:::
+
+### 8. Let the automated install run
+
+Because the nodes cannot be reached over SSH before they boot, the RING installer is launched
+by `cloud-init` itself rather than by an operator running a script:
+
+- Terraform generates a dedicated deployment keypair. The public half is added to every node's
+  root `authorized_keys`; the private half rides only the supervisor's `cloud-init`, so the
+  supervisor — and only the supervisor — can reach every storage node as root.
+- At first boot, the supervisor writes the completed install CSV and installer configuration to
+  local disk, then polls root SSH to every storage node (boot order across bare-metal nodes is
+  not guaranteed, so this typically runs with a generous timeout, on the order of an hour).
+- Once every node answers, the supervisor launches the RING installer non-interactively and
+  detached, so it survives the end of `cloud-init` and is not affected by a dropped connection
+  to the supervisor.
+
+There is no operator action in this step — it is the point of the cloud-init-driven design.
+
+### 9. Verify the deployment
+
+Before assuming the install is progressing normally, confirm the network layer matches what the
+CSV assumed at plan time:
+
+```bash
+openstack baremetal port group list --node <node> --long -f json | jq '.[] | {name, internal_info}'
+```
+
+Each backend port group should carry the node's port ID from your Terraform `port_ids` output as
+`internal_info.tenant_vif_port_id` (and, if you configured a frontend network, each frontend
+port group should carry the matching `frontend_port_ids` entry). This mapping is not
+contractually guaranteed by Ironic, so it is worth checking after every deploy, not only the
+first.
+
+From the supervisor, confirm in the guest OS that each bond came up with the expected address
+and that the default route points at the backend gateway, then follow the install log:
+
+```bash
+tail -f /var/tmp/scality/install.log
+```
+
+:::note
+Once launched, the installer skips itself if it finds a "done" marker or a still-running
+process, so rebooting a node mid-install will not restart a finished or in-progress install.
+:::
+
+### 10. Access the RING supervisor UI
+
+Retrieve the GUI/admin password Terraform generated for you:
+
+```bash
+terraform output -raw gui_password
+```
+
+Then open `https://<supervisor_published_address>/gui/` in a browser (accept the self-signed
+certificate on first access) and log in as an administrator — using the floating IP from step 7
+if you associated one, or the supervisor's private backend IP address from a host with network
+access to the backend plane if you did not.
+
+:::note
+If you have not yet activated a RING license, do so now through the supervisor UI or as guided
+by [Scality support](https://support.scality.com). RING enforces license limits once the
+evaluation period ends.
+:::
+
+## Conclusion
+
+At this point, Terraform owns the network ports, the bare-metal instances and the generated
+credentials, and `cloud-init` has driven an unattended RING install across every node. You have
+a running Scality RING cluster on OVHcloud OPCP, ready for license activation (if not already
+done) and for configuring S3/IAM and, if applicable, file connectors. For everything past this
+point — sizing, ring topology changes, connector configuration, upgrades — consult the
+[Scality documentation portal](https://documentation.scality.com), and reach out to
+[Scality support](https://support.scality.com) for anything license- or issue-related.
+
+## Go further
+
+- [Scality documentation portal](https://documentation.scality.com) — RING concepts,
+  configuration and operations beyond initial deployment.
+- [Scality support](https://support.scality.com) — licensing and technical support.
+- [OPCP overview](/guides/hosted-private-cloud/opcp/landing-page-opcp)
+- [How to use Terraform on OPCP](/guides/hosted-private-cloud/opcp/use-terraform)
+- [How to setup LACP on a Node](/guides/hosted-private-cloud/opcp/how-to-setup-lacp-on-node)
+- [How to configure a software RAID on a node](/guides/hosted-private-cloud/opcp/how-to-setup-softraid-on-node)
+- [OPCP node lifecycle](/guides/hosted-private-cloud/opcp/node-lifecycle)
+- [OPCP compatibility matrix](/guides/hosted-private-cloud/opcp/opcp-compatibility-matrix)
+- Background on Ironic/Nova image requirements: [custom CentOS/Rocky image](/guides/hosted-private-cloud/opcp/how-to-create-centos-image)
