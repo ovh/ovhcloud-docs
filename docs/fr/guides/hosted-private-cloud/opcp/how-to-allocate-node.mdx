@@ -1,0 +1,231 @@
+---
+title: "Allouer et désallouer un nœud à un projet"
+description: "Découvrez comment réserver un nœud OPCP Core pour un projet OpenStack à l'aide d'une allocation Ironic, et comment le libérer"
+lastUpdated: 2026-09-03
+---
+
+## Objectif
+
+Sur une plateforme **OVHcloud On-Prem Cloud Platform (OPCP)**, les serveurs physiques de votre rack sont enrôlés dans Ironic, le service bare metal d'OpenStack. Déployer un système d'exploitation sur l'un d'eux **ne nécessite aucune réservation** : par défaut, un déploiement puise dans le pool partagé des nœuds `available`, et Ironic choisit indifféremment un nœud correspondant aux caractéristiques demandées.
+
+Une **allocation** répond à un autre besoin : **garantir qu'un nœud ne sera utilisé que par un projet donné**. Créer une allocation consiste à demander à Ironic « trouve-moi un nœud correspondant à ces caractéristiques (classe de ressource, traits) et réserve-le pour ce projet ». Une fois l'allocation à l'état `active`, le nœud sort du pool dans lequel un déploiement peut puiser : aucune autre allocation ne peut s'en emparer, et il n'est plus retenu par le déploiement d'un autre projet. C'est ce qui vous permet de dédier un profil matériel précis à un projet, ou de mettre de la capacité de côté en amont d'un déploiement.
+
+Une allocation est donc une **réservation**, et non un déploiement. Le nœud reste dans l'état de provisionnement `available` et voit simplement ses champs `instance_uuid` et `allocation_uuid` renseignés. L'installation d'un système d'exploitation demeure une opération distincte, réalisée ensuite avec `openstack baremetal node deploy` ou par la création d'une instance, comme décrit dans le guide « [Installer une instance avec le CLI OpenStack](/guides/hosted-private-cloud/opcp/how-to-setup-instance-from-cli) ».
+
+**Ce guide a pour objectif de vous expliquer comment vérifier qu'un nœud peut être alloué, comment le réserver pour un projet, comment vérifier cette réservation et comment la libérer.**
+
+:::warning
+Ce guide s'applique à **OPCP Core**, c'est-à-dire lorsque vous pilotez la plateforme directement via les API OpenStack et le service Ironic.
+
+Si votre service a été déployé via le **[CloudStore](/guides/hosted-private-cloud/opcp/cloudstore-getting-started)**, n'utilisez pas ces commandes : les ressources sont allouées par le service lui-même lors du déploiement de son contrôleur et de ses applications depuis le catalogue de services, et vous sélectionnez les hôtes cibles depuis l'interface CloudStore. Allouer manuellement un nœud avec Ironic sous un service géré par le CloudStore peut entrer en conflit avec cette orchestration.
+:::
+
+:::info
+Dans OpenStack, un nœud correspond à un serveur physique du rack OPCP.
+
+Dans ce guide, le terme **nœud** désigne donc un serveur physique.
+:::
+
+## Prérequis
+
+- Être administrateur de l'infrastructure [OPCP](https://www.ovhcloud.com/fr/hosted-private-cloud/onprem-cloud-platform/).
+- Disposer d'un **[CLI OpenStack configuré](/guides/hosted-private-cloud/opcp/how-to-use-api-and-get-credentials)** avec les permissions nécessaires (`clouds.yaml` ou variables d'environnement).
+- Avoir parcouru le guide « [Cycle de vie d'un nœud OPCP](/guides/hosted-private-cloud/opcp/node-lifecycle) ».
+- Connaître l'**identifiant du projet OpenStack** auquel le nœud doit être réservé.
+
+## En pratique
+
+### 1. Vérifier quels nœuds peuvent être alloués
+
+Un nœud n'est un candidat valide pour une allocation que si **toutes** les conditions ci-dessous sont remplies. Désigner explicitement un nœud avec `--candidate-node` ne permet d'en contourner **aucune**.
+
+| Champ | Valeur attendue |
+|---|---|
+| `resource_class` | Sur OPCP, les nœuds enrôlés par la chaîne de découverte portent la classe de ressource `discovered` |
+| `provision_state` | `available` |
+| `instance_uuid` | Non renseigné |
+| `maintenance` | `False` |
+| `power_state` | Différent de `None` |
+| `owner` | Égal au propriétaire de l'allocation, lorsque ce champ est renseigné — voir l'étape 5 |
+| `traits` | Un sur-ensemble des traits demandés |
+
+Les **traits** sont les attributs qualitatifs d'un nœud (capacités matérielles, profil matériel). Ils sont attribués automatiquement lors de la découverte, comme décrit dans le guide « [Cycle de vie d'un nœud OPCP](/guides/hosted-private-cloud/opcp/node-lifecycle) », et leurs règles de nommage et de correspondance sont documentées dans la [documentation OpenStack Ironic](https://docs.openstack.org/ironic/latest/install/configure-nova-flavors.html).
+
+Pour lister les nœuds réellement allouables à un instant donné :
+
+```bash
+openstack baremetal node list --provision-state available --resource-class discovered \
+  --fields uuid name traits maintenance instance_uuid owner power_state
+```
+
+### 2. Créer une allocation
+
+```bash
+openstack baremetal allocation create \
+  --resource-class discovered \
+  --candidate-node <nom-du-noeud> \
+  --owner <id-du-projet> \
+  --name my-workload-01 \
+  --wait 60
+```
+
+| Option | Description |
+|---|---|
+| `--resource-class` | **Obligatoire**. La classe de ressource du nœud demandé |
+| `--owner` | **Obligatoire**. Le projet auquel le nœud est réservé. Voir l'étape 5 |
+| `--candidate-node` | Répétable et ordonné par préférence. Accepte un nom de nœud ou un UUID. Omettez cette option pour laisser Ironic choisir lui-même un nœud |
+| `--trait` | Répétable, par exemple `--trait CUSTOM_VCF`. Les traits demandés sont combinés par un ET logique |
+| `--name` | Un identifiant utilisable à la place de l'UUID de l'allocation dans toutes les commandes |
+| `--wait [délai]` | Bloque jusqu'à ce que l'allocation atteigne l'état `active` ou `error` |
+
+Une allocation passe de l'état `allocating` à l'un des états suivants :
+
+- `active` : l'allocation a réussi et son champ `node_uuid` est renseigné ;
+- `error` : l'allocation a échoué. Supprimez l'allocation et créez-la de nouveau. Son nom reste réservé jusqu'à sa suppression.
+
+### 3. Lister et afficher les allocations
+
+```bash
+openstack baremetal allocation list --long
+```
+
+```bash
+openstack baremetal allocation show my-workload-01
+```
+
+```bash
+openstack baremetal allocation list --node <nom-du-noeud>
+```
+
+Lorsque l'allocation a réussi, les valeurs suivantes sont retournées :
+
+```bash
+| node_uuid  | cf5dfb7b-3e5f-4189-894b-63b8675cabf1 |
+| state      | active                               |
+| last_error | None                                 |
+```
+
+### 4. Vérifier du côté du nœud
+
+```bash
+openstack baremetal node show <nom-du-noeud> \
+  -f json -c provision_state -c instance_uuid -c allocation_uuid
+```
+
+**Exemple de retour :**
+
+```json
+{
+  "provision_state": "available",
+  "instance_uuid": "f8867871-9c2c-4dae-b0c3-0a50a5359090",
+  "allocation_uuid": "f8867871-9c2c-4dae-b0c3-0a50a5359090"
+}
+```
+
+Les deux UUID sont égaux à l'UUID de l'allocation, et `provision_state` vaut toujours `available`. Il s'agit de l'état attendu après une allocation : le nœud est réservé, mais pas déployé.
+
+Pour obtenir la même information pour tous les nœuds d'une classe de ressource :
+
+```bash
+openstack baremetal node list --resource-class discovered \
+  --fields name provision_state instance_uuid allocation_uuid
+```
+
+### 5. Résolution d'incident : réserver un nœud appartenant à un autre projet
+
+#### 5.1 Ce qu'est le propriétaire d'un nœud
+
+Dans Ironic, chaque nœud porte un champ `owner` qui désigne le projet OpenStack **administrant** le matériel. Ce champ pilote le contrôle d'accès : lorsqu'une requête arrive avec une portée (*scope*) de projet, Ironic ne montre et ne laisse manipuler que les nœuds appartenant à ce projet.
+
+Sur OPCP, les nœuds ne sont **pas** enrôlés à la main. Lorsqu'un serveur est installé et démarré dans le rack, il est découvert et enrôlé automatiquement par le control plane. Cette automatisation s'exécute sous son propre projet OpenStack, et Ironic inscrit l'identifiant du projet demandeur sur le nœud lorsqu'aucun propriétaire n'est fourni explicitement. Par conséquent, un nœud fraîchement découvert appartient au **projet d'administration de la plateforme utilisé par la découverte**, et non au projet dans lequel vous souhaitez exécuter votre charge de travail.
+
+#### 5.2 Pourquoi l'allocation échoue
+
+Une allocation possède également un `owner`. Lorsqu'il est renseigné, Ironic ajoute `owner=<propriétaire de l'allocation>` à la requête qui sélectionne les nœuds candidats. Un nœud appartenant à un autre projet n'est donc jamais candidat, **même lorsqu'il est explicitement désigné avec `--candidate-node`**.
+
+C'est ce qui rend le problème déroutant : avec un token restreint à un projet (*project-scoped*), le champ `owner` de l'allocation est renseigné automatiquement avec l'identifiant de votre projet. Vous demandez donc un nœud que vous voyez bien à l'état `available`, et l'allocation échoue malgré tout, car Ironic recherche des nœuds `available` appartenant à *votre* projet, alors que le nœud appartient encore au projet de découverte.
+
+Quelle que soit la cause réelle, l'allocation échoue toujours avec l'un de ces deux messages, qui ne mentionnent que la classe de ressource :
+
+```bash
+no available nodes match the resource class discovered
+```
+
+```bash
+none of the requested nodes are available and match the resource class discovered
+```
+
+Le premier est retourné lorsqu'aucun nœud candidat n'a été fourni, le second lorsque l'option `--candidate-node` a été utilisée. Les deux signifient la même chose : **la requête de sélection des nœuds candidats n'a rien retourné**.
+
+#### 5.3 Diagnostiquer
+
+Vérifiez chacune des conditions listées à l'étape 1, en commençant par le propriétaire du nœud :
+
+```bash
+openstack baremetal node show <nom-du-noeud> -f value -c owner
+```
+
+Si la valeur retournée n'est pas l'identifiant du projet auquel le nœud est réservé, il s'agit de la cause de l'échec.
+
+#### 5.4 Résoudre
+
+Deux stratégies sont possibles, selon que vous souhaitez ou non affecter **durablement** le nœud à un projet.
+
+**Stratégie 1 — transférer la propriété du nœud au projet cible (recommandé).**
+
+C'est la manière normale de confier un nœud à un projet. En tant qu'administrateur de l'infrastructure, vous transférez la propriété une fois pour toutes, et le projet peut ensuite allouer et déployer sur le nœud de manière autonome :
+
+```bash
+openstack baremetal node set <nom-du-noeud> --owner <id-du-projet>
+```
+
+Créez ensuite l'allocation de nouveau, comme décrit à l'étape 2. Notez que la propriété d'un nœud confère un niveau d'accès élevé à **tous** les membres du projet propriétaire.
+
+**Stratégie 2 — créer l'allocation avec le propriétaire actuel du nœud.**
+
+La propriété du nœud reste inchangée et la réservation est effectuée au nom du projet qui le possède. Cela convient à une réservation administrative ponctuelle, par exemple sur un nœud conservé dans le pool d'administration :
+
+```bash
+openstack baremetal allocation create \
+  --resource-class discovered \
+  --candidate-node <nom-du-noeud> \
+  --owner <id-du-projet-proprietaire-du-noeud> \
+  --name my-workload-01
+```
+
+Cette stratégie nécessite un token vous autorisant à définir un propriétaire arbitraire sur l'allocation. Avec un token restreint à un projet, le champ est forcé à l'identifiant de votre projet et seule la stratégie 1 fonctionne.
+
+### 6. Libérer une allocation
+
+Si le nœud a été déployé, c'est-à-dire si son `provision_state` vaut `active`, commencez par le désinstaller :
+
+```bash
+openstack baremetal node undeploy <nom-du-noeud>
+```
+
+Supprimez ensuite l'allocation afin de libérer la réservation :
+
+```bash
+openstack baremetal allocation delete my-workload-01
+```
+
+Les champs `instance_uuid` et `allocation_uuid` sont vidés et le nœud redevient allouable.
+
+:::warning
+- La suppression d'une allocation ne désinstalle **pas** le nœud. Désinstallez-le toujours au préalable.
+- L'opération est refusée avec une erreur `HTTP 400` ou `HTTP 409` tant que le nœud se trouve dans un état transitoire (`deploying`, `deleting`, `cleaning`). Attendez que la machine à états se stabilise.
+- La désinstallation déclenche le nettoyage automatisé, qui comprend un effacement complet des disques dans la configuration OPCP par défaut. Le retour à l'état `available` prend donc un certain temps.
+:::
+
+## Aller plus loin
+
+- [Cycle de vie d'un nœud OPCP](/guides/hosted-private-cloud/opcp/node-lifecycle)
+- [Consulter l'inventaire des nœuds](/guides/hosted-private-cloud/opcp/how-to-see-node-inventory)
+- [Installer une instance avec le CLI OpenStack](/guides/hosted-private-cloud/opcp/how-to-setup-instance-from-cli)
+- [Documentation OpenStack Ironic - Allocations](https://docs.openstack.org/ironic/latest/user/deploy.html)
+- [Documentation OpenStack Ironic - Multi-tenancy et propriété des nœuds](https://docs.openstack.org/ironic/latest/admin/node-multitenancy.html)
+- [Documentation OpenStack Ironic - Ordonnancement basé sur les traits](https://docs.openstack.org/ironic/latest/install/configure-nova-flavors.html)
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
