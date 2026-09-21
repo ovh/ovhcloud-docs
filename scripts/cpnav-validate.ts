@@ -10,6 +10,9 @@
  *   - a token in the guides with an unknown key, an unsupported modifier, an undeclared
  *     combination, or a non-canonical key order (no rule matches, so it would ship to
  *     readers as literal text — the build guard also catches this, later and per-file)
+ *   - an unpinned token on an UNTRANSLATED page, in either shape: an EN guide a locale
+ *     reaches through a symlink, or a real locale file carrying English content. The
+ *     block would otherwise render in the reader's locale under English prose
  *
  * WARNINGS (exit 0 — visible but non-blocking, mirroring fragment:validate):
  *   - per-locale text gaps, which fall back to en
@@ -20,13 +23,9 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  CPNAV_KEYS,
-  CPNAV_SETS,
-  canonicalise,
-  tokenFor,
-} from '../config/cpnav/index';
+import { CPNAV_KEYS, canonicalise, tokenFor } from '../config/cpnav/index';
 import { type Locale, locales } from '../config/shared';
+import { classifyLocaleFile, describe } from './lib/untranslated';
 
 const DOCS_DIR = path.join(process.cwd(), 'docs');
 const LOCALES = locales.map((l) => l.lang) as Locale[];
@@ -121,25 +120,8 @@ for (const key of keys) {
   });
 }
 
-for (const set of CPNAV_SETS) {
-  const unknown = set.filter((k) => !(k in CPNAV_KEYS));
-  if (unknown.length) {
-    errors.push(
-      `CPNAV_SETS entry [${set.join(', ')}] names unknown key(s): ${unknown.join(', ')}`,
-    );
-  } else if (set.length < 2) {
-    warnings.push(
-      `CPNAV_SETS entry [${set.join(', ')}] has fewer than 2 keys — single keys are implicit`,
-    );
-  }
-}
-
 // ---------------------------------------------------------------- token usage
-const declared = new Set(
-  CPNAV_SETS.filter((s) => s.every((k) => k in CPNAV_KEYS)).map((s) =>
-    canonicalise(s).join('+'),
-  ),
-);
+const combos = new Map<string, number>();
 const usage = new Map<string, number>(keys.map((k) => [k, 0]));
 
 /** Strip fenced and inline code so documenting the syntax in backticks stays legal. */
@@ -175,11 +157,9 @@ function scan(file: string): void {
     for (const k of used) usage.set(k, (usage.get(k) ?? 0) + 1);
 
     const canonical = canonicalise(used);
-    if (used.length > 1 && !declared.has(canonical.join('+'))) {
-      errors.push(
-        `${rel}: combination [${canonical.join(', ')}] is not declared — add it to CPNAV_SETS`,
-      );
-      continue;
+    if (used.length > 1) {
+      const id = canonical.join('+');
+      combos.set(id, (combos.get(id) ?? 0) + 1);
     }
     if (used.join('+') !== canonical.join('+')) {
       const want = tokenFor(used).replace(']]', mods.length ? '|en]]' : ']]');
@@ -200,15 +180,78 @@ function scan(file: string): void {
   }
 }
 
+/**
+ * EN files that at least one locale reaches through a symlink. Such a locale is
+ * untranslated by definition — the reader gets English prose — so a CP-NAV block
+ * rendered in their locale is a language mismatch inside the page. `|en` is the only
+ * place that intent can live, since replaceRules see raw source and never frontmatter.
+ *
+ * Collected as realpaths so the check runs once per target, not once per symlink.
+ */
+const symlinkTargets = new Set<string>();
+
+/** Real (non-symlink) .mdx files, so shape 2 can be judged after the walk. */
+const localeFiles: string[] = [];
+
 function walk(dir: string): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(p);
-    else if (entry.name.endsWith('.mdx')) scan(p);
+    else if (entry.name.endsWith('.mdx')) {
+      if (!entry.isSymbolicLink()) localeFiles.push(p);
+      if (entry.isSymbolicLink()) {
+        try {
+          symlinkTargets.add(fs.realpathSync(p));
+        } catch {
+          // Dangling symlink: not this validator's business — the build reports it.
+        }
+      }
+      scan(p);
+    }
   }
 }
 
 if (fs.existsSync(DOCS_DIR)) walk(DOCS_DIR);
+
+/**
+ * Shape 2 of an untranslated page: a REAL locale file carrying English content. It has
+ * its own tokens, so the pin lives in that file — unlike a symlink, where it lives in
+ * the EN source. See scripts/lib/untranslated.ts for how the verdict is reached.
+ */
+for (const file of localeFiles.sort()) {
+  const verdict = classifyLocaleFile(DOCS_DIR, file);
+  if (!verdict || verdict.reason === 'symlink') continue;
+  const rel = path.relative(process.cwd(), file).replace(/\\/g, '/');
+  const unpinned = [
+    ...stripCode(fs.readFileSync(file, 'utf-8')).matchAll(TOKEN),
+  ]
+    .map((match) => match[1])
+    .filter((raw) => !raw.split('|').slice(1).includes('en'));
+  if (unpinned.length) {
+    errors.push(
+      `${rel}: untranslated — ${describe(verdict)} — so its CP-NAV token(s) must be ` +
+        'pinned to English — write ' +
+        unpinned.map((raw) => `[[cpnav:${raw}|en]]`).join(', '),
+    );
+  }
+}
+
+// An untranslated locale must not get a localized CP-NAV block under English prose.
+for (const target of [...symlinkTargets].sort()) {
+  const rel = path.relative(process.cwd(), target).replace(/\\/g, '/');
+  const unpinned = [
+    ...stripCode(fs.readFileSync(target, 'utf-8')).matchAll(TOKEN),
+  ]
+    .map((match) => match[1])
+    .filter((raw) => !raw.split('|').slice(1).includes('en'));
+  if (unpinned.length) {
+    errors.push(
+      `${rel}: symlinked by at least one untranslated locale, so its CP-NAV ` +
+        `token(s) must be pinned to English — write ` +
+        unpinned.map((raw) => `[[cpnav:${raw}|en]]`).join(', '),
+    );
+  }
+}
 
 for (const [key, count] of usage) {
   if (count === 0) warnings.push(`${key}: declared but used in no guide`);
@@ -217,8 +260,10 @@ for (const [key, count] of usage) {
 // ---------------------------------------------------------------- report
 const used = [...usage.entries()].filter(([, n]) => n > 0);
 console.log(
-  `CP-NAV: ${keys.length} keys, ${CPNAV_SETS.length} declared combination(s)`,
+  `CP-NAV: ${keys.length} keys, ${combos.size} combination(s) in use`,
 );
+for (const [id, n] of [...combos].sort())
+  console.log(`    ${id} — ${n} file(s)`);
 console.log(
   `  tokens found: ${used.reduce((a, [, n]) => a + n, 0)} across ${used.length} key(s)`,
 );

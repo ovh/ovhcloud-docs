@@ -1,7 +1,7 @@
 ---
 title: Using OVHcloud Key Management Service (KMS)
 description: Encrypt or sign your data with the OVHcloud Key Management Service (KMS) regional REST API
-lastUpdated: 2026-08-27
+lastUpdated: 2026-09-16
 ---
 
 import Api from '@components/Api';
@@ -202,13 +202,44 @@ In order to manage encryption keys, several APIs are available:
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/activate|Activates an encryption key|
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/deactivate|Deactivates an encryption key|
 
-Disabling an encryption key means that it will no longer be usable, even though the key remains in the KMS.
+Keys are created or imported directly in the `active` state. Deactivating a key blocks cryptographic use but keeps the key in the KMS. Only a `deactivated` or `compromised` key can be deleted.
 
-Deleting an encryption key is only possible on a key that has been previously disabled.
+For the operations permitted in each state, see [Service key states and allowed operations](#service-key-states-and-allowed-operations).
 
 :::warning
-Deleting an encryption key is permanent. All data encrypted using it will be permanently inaccessible.
+Deleting an encryption key is permanent. All data encrypted with that key becomes permanently inaccessible.
+:::
 
+#### Service key states and allowed operations
+
+The state of a service key determines which operations the KMS accepts, following the [KMIP 2.1](https://docs.oasis-open.org/kmip/kmip-spec/v2.1/os/kmip-spec-v2.1-os.html) and [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final) key lifecycle models:
+
+- An `active` key can be used for every cryptographic operation listed in its `operations` field.
+- A `deactivated` or `compromised` key does not accept cryptographic operations. It can no longer protect data (`encrypt`, `sign`, wrap, generate Data Keys), recover it (`decrypt`, unwrap Data Keys), or verify signatures. Management operations (read, list, patch, activate, deactivate, delete) remain available.
+- After `DELETE`, the key is permanently removed: any subsequent request targeting that key ID returns `404 Not Found`.
+
+State changes take effect immediately, with no propagation delay: every request received after a successful `activate`, `deactivate` or `DELETE` is evaluated against the new state.
+
+| Operation | `active` | `deactivated` | `compromised` | after `DELETE` |
+| --- | --- | --- | --- | --- |
+| `GET /servicekey/{keyId}` | Yes | Yes | Yes | 404 |
+| `GET /servicekey` | Yes | Yes<br />Requires `state=deactivated`<br />or `state=all` | Yes<br />Requires `state=compromised`<br />or `state=all` | Not listed |
+| `PATCH /servicekey/{keyId}` | Yes | Yes | Yes | 404 |
+| `POST /servicekey/{keyId}/activate` | no-op<br />204 | Yes<br />Returns to `active` | Yes<br />Returns to `active` | 404 |
+| `POST /servicekey/{keyId}/deactivate` | Yes | no-op if same reason<br />Otherwise updates reason<br />(and possibly state) | no-op if same reason<br />Otherwise updates reason<br />(and possibly state) | 404 |
+| `DELETE /servicekey/{keyId}` | **No**<br />400 | Yes | Yes | 404 |
+| `POST /servicekey/{keyId}/encrypt` | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `POST /servicekey/{keyId}/decrypt` | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey` | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey/decrypt` | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `POST /servicekey/{keyId}/sign` | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `POST /servicekey/{keyId}/verify` | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Export wrapped key, **Exported** key state | Yes | Yes | Yes | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Export wrapped key, **Wrapping** key state | Yes | **No**<br />400 | **No**<br />400 | 404 |
+| `POST /servicekey` + `wrappedKeys`<br />Import wrapped key, **Wrapping** key state | Yes | **No**<br />400 | **No**<br />400 | 404 |
+
+:::warning
+Deactivation immediately prevents recovery of data protected by the key. When envelope encryption is used, Data Keys wrapped by a deactivated service key cannot be unwrapped until the key is reactivated. Ensure that applications no longer require the key before deactivating it, or retain a recovery path through `POST /servicekey/{keyId}/activate`.
 :::
 
 #### Service key sensitivity attributes

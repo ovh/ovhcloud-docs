@@ -35,6 +35,7 @@ import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
@@ -81,6 +82,7 @@ import { webVideoCenter } from './keys/web-video-center';
 import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webZimbra } from './keys/web-zimbra';
+import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
@@ -117,6 +119,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // URL: the chain names the product, the link is always the project list.
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-databases': publiccloudDatabases,
+  'publiccloud-analytics': publiccloudAnalytics,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
@@ -176,25 +179,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'billing-services': billingServices,
 };
 
-/**
- * Multi-key combinations that occur in the guides. One rule is generated per entry, so a
- * combination must be declared before a token can use it; `pnpm cpnav:validate` reports
- * undeclared ones. They are enumerated rather than computed because a rule per possible
- * subset is combinatorial and `ReplaceRule.replace` is typed as a plain string.
- * Order within an entry does not matter — entries are canonicalised.
- */
-export const CPNAV_SETS: string[][] = [
-  // `nutanix-on-ovhcloud/hardware-gateway-replacement`: the gateway is a dedicated server
-  // reached from Bare Metal Cloud, the cluster from Hosted Private Cloud.
-  ['privatecloud-nutanix', 'baremetal-dedicated-servers'],
-  // `nutanix-on-ovhcloud/vrack-interconnection`: the cluster, the vRack it joins and the
-  // load balancer in front of it are three screens in three universes.
-  ['privatecloud-nutanix', 'network-vrack', 'network-load-balancer'],
-  ['web-email-pro', 'web-exchange'],
-  ['web-email-pro', 'web-mx-plan', 'web-exchange'],
-  ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
-];
-
 const ORDER = Object.keys(CPNAV_KEYS);
 
 /** Sort keys into canonical (declaration) order. Throws on an unknown key. */
@@ -216,6 +200,13 @@ export function tokenFor(keys: readonly string[]): string {
 }
 
 /** Every key set a token may name: each single key, plus each declared combination. */
-export function allKeySets(): string[][] {
-  return [...ORDER.map((k) => [k]), ...CPNAV_SETS.map((s) => canonicalise(s))];
+export function allKeySets(locale?: string): string[][] {
+  const combos = new Map<string, string[]>();
+  const root = locale ? `${DOCS_DIR}/${locale}` : DOCS_DIR;
+  for (const set of discoverKeySets(root)) {
+    if (!set.every((k) => k in CPNAV_KEYS)) continue;
+    const canonical = canonicalise(set);
+    combos.set(canonical.join('+'), canonical);
+  }
+  return [...ORDER.map((k) => [k]), ...combos.values()];
 }

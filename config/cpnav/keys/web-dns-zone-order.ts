@@ -1,28 +1,50 @@
 import type { CpNavKey } from '../types';
 
-// Ordering a DNS zone for a domain that does not have one yet. This is an order flow, not a
-// product screen: it starts from the universe's Order button, so there is no route and no
-// nav node — the two labels are Manager i18n (sidebar_menu_order_actions and
-// server_sidebar_order_item_zone_title). For an existing zone, see `web-domain-dns-zone`
-// (through the domain) or `web-dns-zones` (the DNS zones entry).
+// Ordering a DNS zone: the Order button sits on the DNS zones page, so the block lands there
+// and the button itself is a page control with no nav node - named in `step`, not as a crumb.
+// Manager nav tree: application 'web' + hash '#/zone'.
 export const webDnsZoneOrder: CpNavKey = {
   universe: 'web-cloud',
   locations: [
     {
-      source: {
-        labels: [
-          'sidebar_menu_order_actions',
-          'server_sidebar_order_item_zone_title',
-        ],
-      },
+      route: '/#/web/zone',
+      source: { node: 'dns', labels: ['sidebar_dns'] },
       text: {
-        en: { crumbs: ['Order', 'DNS zone'] },
-        fr: { crumbs: ['Commander', 'Zone DNS'] },
-        de: { crumbs: ['Bestellen', 'DNS-Zone'] },
-        es: { crumbs: ['Contratar', 'Zona DNS'] },
-        it: { crumbs: ['Ordina', 'Zona DNS'] },
-        pl: { crumbs: ['Zamów', 'Strefa DNS'] },
-        pt: { crumbs: ['Encomendar', 'Zona DNS'] },
+        en: {
+          product: 'DNS zones',
+          crumbs: ['DNS zones'],
+          step: 'Click the Order button',
+        },
+        fr: {
+          product: 'Zones DNS',
+          crumbs: ['Zones DNS'],
+          step: 'Cliquez sur le bouton Commander',
+        },
+        de: {
+          product: 'DNS-Zone',
+          crumbs: ['DNS-Zone'],
+          step: 'Klicken Sie auf den Button Bestellen',
+        },
+        es: {
+          product: 'Zonas DNS',
+          crumbs: ['Zonas DNS'],
+          step: 'Haga clic en el botón Contratar',
+        },
+        it: {
+          product: 'Zone DNS',
+          crumbs: ['Zone DNS'],
+          step: 'Clicca sul pulsante Ordina',
+        },
+        pl: {
+          product: 'Strefy DNS',
+          crumbs: ['Strefy DNS'],
+          step: 'Kliknij przycisk Zamów',
+        },
+        pt: {
+          product: 'Zonas DNS',
+          crumbs: ['Zonas DNS'],
+          step: 'Clique no botão Encomendar',
+        },
       },
     },
   ],
