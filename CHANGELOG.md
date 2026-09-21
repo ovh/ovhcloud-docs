@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.09.21
+
+### Features
+- **PCI:** Warn about changes in the order of interfaces after hot-attach and detach (#700)
+
+### Documentation
+- 261 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.18
 
 ### Fixes
