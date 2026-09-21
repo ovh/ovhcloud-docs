@@ -1,0 +1,155 @@
+---
+title: "Observabilité sur OPCP"
+description: "Découvrez la pile d'observabilité d'OPCP : métriques avec Prometheus et Grafana Mimir, logs avec Loki et Grafana Alloy, tableaux de bord, durées de rétention et droits d'accès"
+lastUpdated: 2026-09-21
+---
+
+## Objectif
+
+Votre **OVHcloud On-Prem Cloud Platform (OPCP)** intègre une pile d'observabilité qui collecte, stocke et expose les métriques et les logs de l'ensemble de la plateforme : le plan de contrôle, les services OpenStack, le cluster Ceph, les serveurs bare metal et les hyperviseurs de calcul.
+
+Ce guide décrit cette pile : les composants qui la constituent, les interfaces auxquelles vous pouvez accéder, la durée de conservation de vos données et les comportements que vous pouvez adapter à vos besoins.
+
+## Prérequis
+
+- Un service [On-Prem Cloud Platform](/links/hosted-private-cloud/onprem-cloud-platform) livré et opérationnel
+- Un compte Keycloak disposant au minimum du rôle `dc_operator` (voir [Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management))
+- Le nom de domaine de base (`base_dns_name`) attribué à votre plateforme lors de la livraison
+
+## En pratique
+
+### Architecture de l'observabilité
+
+La pile repose intégralement sur des composants open source issus des projets Grafana Labs et Prometheus. Elle se divise en deux chaînes indépendantes — l'une pour les métriques, l'autre pour les logs — qui convergent vers une interface **Grafana** unique.
+
+#### Chaîne des métriques
+
+| Étape | Composant | Rôle |
+|---|---|---|
+| Collecte | **Prometheus** (plan de contrôle) | Interroge le plan de contrôle, les services OpenStack, Ceph et les serveurs bare metal |
+| Collecte | **Grafana Alloy** (nœuds de calcul) | Interroge les hyperviseurs et leurs charges de travail |
+| Stockage | **Grafana Mimir** | Backend de métriques longue durée, scalable horizontalement, adossé au stockage objet<sup>1</sup> |
+| Consultation | **Grafana** | Tableaux de bord et requêtes ponctuelles |
+
+Les deux collecteurs transmettent leurs séries à Mimir via le protocole `remote_write` de Prometheus, sur le point d'entrée `metrics.<base_dns_name>`. Mimir constitue donc le point unique où les métriques de toute la plateforme — plan de contrôle *et* calcul — sont consolidées.
+
+Les exportateurs qui alimentent cette chaîne comprennent notamment `node-exporter` (hôtes), `kube-state-metrics` (charges de travail du plan de contrôle), `openstack-exporter` (services OpenStack), les exportateurs Ceph, `blackbox-exporter` (sondage de points d'entrée) et `x509-certificate-exporter` (expiration des certificats).
+
+#### Chaîne des logs
+
+| Étape | Composant | Rôle |
+|---|---|---|
+| Collecte | **Grafana Alloy** | Agent présent sur chaque nœud : collecte le journal `systemd` et les logs des conteneurs |
+| Stockage | **Loki** | Backend d'agrégation de logs |
+| Consultation | **Grafana** | Exploration des logs et corrélation avec les métriques |
+
+Alloy transmet ses flux à Loki sur le point d'entrée `loki.<base_dns_name>`.
+
+#### Alerting
+
+Des règles d'alerte sont livrées avec la plateforme et couvrent le plan de contrôle, les services OpenStack, Ceph, les contrôleurs bare metal (BMC), le moteur GitOps et les certificats. Elles sont évaluées de manière centralisée par le **ruler Mimir**, qui les lit depuis la plateforme et les évalue sur les métriques consolidées.
+
+Les alertes actives sont transmises à **Alertmanager**, qui prend en charge la déduplication, les mises en silence et le routage des notifications vers votre système d'astreinte. Alertmanager est un composant optionnel qui n'est pas déployé par défaut : lorsqu'il est activé sur votre plateforme, son interface est publiée sur `alertmanager.<base_dns_name>`. Dans le cas contraire, les règles sont bien évaluées mais aucune notification n'est émise.
+
+### Accéder aux interfaces
+
+Toutes les interfaces ci-dessous sont publiées sous le nom de domaine de base de votre plateforme et sont protégées par une authentification **Keycloak**.
+
+| Interface | Adresse | Usage |
+|---|---|---|
+| **Grafana** | `https://grafana.<base_dns_name>` | Tableaux de bord, exploration des métriques et des logs. L'interface que vous utiliserez au quotidien |
+| **Prometheus** | `https://prometheus.<base_dns_name>` | Vue brute du collecteur du plan de contrôle : cibles, état de collecte, requêtes court terme |
+| **Alertmanager** | `https://alertmanager.<base_dns_name>` | Alertes actives et mises en silence. Publiée uniquement si les notifications d'alerte sont activées sur votre plateforme |
+
+Deux points d'entrée supplémentaires existent uniquement pour l'ingestion : ils acceptent les écritures des agents de la plateforme et ne sont pas des interfaces consultables.
+
+- `https://metrics.<base_dns_name>` — ingestion des métriques dans Mimir
+- `https://loki.<base_dns_name>` — ingestion des logs dans Loki
+
+:::warning
+Ne dirigez pas d'agents tiers vers les points d'entrée d'ingestion sans en avoir convenu au préalable avec OVHcloud. Le volume de métriques est plafonné à l'échelle de la plateforme, et une source non prévue peut épuiser le budget d'ingestion des services dont dépend votre plateforme.
+:::
+
+### Droits d'accès
+
+L'accès à Grafana est déterminé par le rôle que détient votre compte dans Keycloak. La correspondance est réévaluée à chaque connexion, et un compte ne disposant d'aucun rôle d'observabilité se voit refuser l'accès.
+
+| Rôle Keycloak | Permission Grafana | Actions possibles |
+|---|---|---|
+| `dc_operator` | Viewer | Consulter les tableaux de bord existants et exécuter des requêtes |
+| `it_admin` | Editor | Idem, plus la création et la modification de tableaux de bord |
+| `master_admin` | Administrateur Grafana | Idem, plus l'administration de l'instance Grafana |
+
+Le rôle `reader` dispose d'un accès en lecture à Prometheus mais pas à Grafana. La matrice complète, pour l'ensemble des applications de la plateforme, est documentée dans [Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management).
+
+### Explorer vos données dans Grafana
+
+#### Sources de données
+
+Trois sources de données sont provisionnées dans Grafana :
+
+| Source de données | Contenu | Quand l'utiliser |
+|---|---|---|
+| **Mimir** *(par défaut)* | Toutes les métriques de la plateforme, plan de contrôle et calcul | Presque toujours : analyse de tendance, dimensionnement, investigation historique |
+| **Prometheus** | Le tampon court terme du collecteur du plan de contrôle | Débogage en direct, vérification qu'une cible est bien collectée |
+| **Loki** | Logs des nœuds et des conteneurs | Lecture des logs, corrélation d'un incident avec ses métriques |
+
+Mimir étant la source de données par défaut, un nouveau panneau interroge le stockage consolidé et à longue rétention tant que vous ne changez pas ce réglage. Mimir et Prometheus utilisent tous deux PromQL : une requête écrite pour l'un s'exécute telle quelle sur l'autre.
+
+#### Dossiers de tableaux de bord
+
+Les tableaux de bord livrés avec la plateforme sont organisés en dossiers :
+
+| Dossier | Contenu |
+|---|---|
+| **Openstack** | Services OpenStack, dont les répartiteurs de charge Octavia |
+| **Ceph** | Cluster Ceph, pools, OSD, hôtes et passerelle de stockage objet |
+| **Kubernetes** | Charges de travail du plan de contrôle, consommation de ressources par namespace et par charge de travail |
+| **Node exporter** | Vue système des hôtes : processeur, mémoire, disques, réseau |
+| **Control plane components** | Composants internes du plan de contrôle |
+| **Observability** | Santé de la pile d'observabilité elle-même, dont la cardinalité des métriques |
+
+Vous pouvez créer vos propres tableaux de bord avec un compte `it_admin` ou supérieur. Rangez-les dans un dossier qui vous est propre : les dossiers listés ci-dessus sont réconciliés avec la plateforme et toute modification manuelle y est annulée.
+
+### Rétention des données
+
+Chaque étage de la chaîne conserve les données pendant une durée différente. La valeur qui compte pour l'analyse historique est celle de Mimir.
+
+| Données | Emplacement | Rétention par défaut |
+|---|---|---|
+| Métriques — longue durée | Mimir | **60 jours** |
+| Métriques — tampon du collecteur | Prometheus | 7 jours |
+| Logs | Loki | 7 jours |
+
+:::info
+Prometheus ne conserve qu'un tampon local court, car chaque série qu'il collecte est immédiatement transmise à Mimir. Les requêtes portant sur plus de quelques jours doivent cibler la source de données Mimir.
+:::
+
+### Adapter la pile à vos besoins
+
+Les comportements suivants peuvent être adaptés sur votre plateforme. Sur une plateforme infogérée par OVHcloud, demandez la modification via votre canal de support habituel ; sur une plateforme que vous administrez vous-même, appliquez-la dans la configuration de votre plateforme.
+
+- **Rétention des logs** — la durée pendant laquelle Loki conserve vos logs, soit sept jours par défaut.
+- **Export des logs** — la plateforme peut transmettre ses logs à un collecteur externe, vers vos propres serveurs syslog ou vers le service OVHcloud [Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start).
+- **Règles d'alerte personnalisées** — en complément des règles livrées avec la plateforme, des règles d'alerte et d'enregistrement peuvent provenir d'un dépôt Git qui vous appartient, afin que vos propres règles suivent votre propre processus de validation.
+- **Capacité d'ingestion** — la chaîne d'ingestion des métriques est dimensionnée à la livraison pour la taille de votre plateforme. L'ajout d'un nombre important de nœuds, ou l'envoi de métriques depuis vos propres charges de travail, peut nécessiter son redimensionnement.
+
+### Limitations connues
+
+- **Locataire unique.** Mimir est exploité comme un locataire logique unique : le plan de contrôle et chaque nœud de calcul partagent le même espace de métriques et le même quota d'ingestion. Il n'existe pas d'isolation des métriques par équipe ou par projet.
+- **Pas de redondance des métriques par défaut.** La chaîne d'ingestion Mimir est déployée sans réplication par défaut. Une plateforme exigeant que la perte d'un composant d'ingestion soit transparente doit être dimensionnée en conséquence lors de la livraison.
+- **Alertmanager optionnel.** Sauf si les notifications d'alerte ont été activées sur votre plateforme, Alertmanager n'est pas déployé : les règles sont évaluées mais aucune notification n'est émise et aucune interface Alertmanager n'est publiée.
+
+## Aller plus loin
+
+[Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management)
+
+[Mise en route de votre OPCP](/guides/hosted-private-cloud/opcp/getting-started)
+
+[Comment mettre à jour OPCP](/guides/hosted-private-cloud/opcp/how-to-upgrade-opcp)
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.
