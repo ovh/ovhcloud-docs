@@ -630,6 +630,8 @@
             + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
             + [How to restore OPCP from a backup](hosted-private-cloud/opcp/how-to-restore-backup)
             + [How to diagnose the OPCP control plane with opcp-diag](hosted-private-cloud/opcp/how-to-diagnose-control-plane)
+            + [Observability on OPCP](hosted-private-cloud/opcp/observability-overview)
+            + [How to store the OPCP metrics in an external S3 bucket](hosted-private-cloud/opcp/how-to-store-metrics-in-external-s3-bucket)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)

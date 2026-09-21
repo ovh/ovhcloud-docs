@@ -1,0 +1,141 @@
+---
+title: "Comment stocker les métriques OPCP dans un bucket S3 externe"
+description: "Découvrez comment configurer Grafana Mimir pour conserver les métriques long terme de votre plateforme OPCP dans un bucket de stockage objet externe compatible S3"
+lastUpdated: 2026-11-06
+---
+
+## Objectif
+
+Les métriques long terme de votre **OVHcloud On-Prem Cloud Platform (OPCP)** sont stockées par **Grafana Mimir** dans un bucket de **stockage objet compatible S3<sup>1</sup>**. Par défaut, ce bucket est créé sur le stockage objet de la plateforme elle-même, à l'adresse `s3.<base_dns_name>`.
+
+Vous pouvez stocker ces métriques dans un bucket externe compatible S3 à la place, par exemple pour les conserver en dehors de la plateforme ou pour libérer la capacité de stockage de celle-ci.
+
+**Ce guide vous explique comment faire pointer Mimir vers un bucket S3 externe.** Nous utiliserons le service OVHcloud [Object Storage Public Cloud](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) comme exemple : avec un autre fournisseur compatible S3, adaptez la création du bucket et de ses identifiants, ainsi que les valeurs du point d'entrée et de la région.
+
+:::warning
+Les métriques déjà stockées dans le bucket précédent ne sont **pas** migrées. Après le changement, Grafana n'affiche que les métriques écrites dans le nouveau bucket, et l'historique se reconstitue sur la durée de rétention (60 jours par défaut). Si vous devez le conserver, copiez au préalable le contenu du bucket précédent par vos propres moyens, et effectuez cette opération pendant une fenêtre de maintenance.
+:::
+
+## Prérequis
+
+- Disposer d'une infrastructure [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) opérationnelle, gérée par vos soins. Sur une plateforme gérée par OVHcloud, demandez le changement via votre canal de support habituel.
+- Disposer d'un accès administrateur au contrôleur OPCP avec les outils `opcp-cli`, `kubectl` et `flux`.
+- Disposer d'un [projet Public Cloud](/guides/public-cloud/cross-functional/create-a-public-cloud-project) dans votre compte OVHcloud.
+- Disposer d'un accès sortant HTTPS (TCP 443) depuis le plan de contrôle OPCP vers le point d'entrée Object Storage, par exemple `s3.gra.io.cloud.ovh.net`. Ce guide ne s'applique pas aux plateformes isolées (air-gapped).
+
+## En pratique
+
+### 1. Préparer le bucket et ses identifiants
+
+Dans votre projet Public Cloud :
+
+1\. Créez un [utilisateur Object Storage](/guides/storage-and-backup/object-storage/s3-identity-and-access-management) dédié aux métriques, et conservez sa **clé d'accès** (access key) et sa **clé secrète** (secret key).
+
+2\. Créez un bucket Object Storage **Standard** dans la région de votre choix, et associez-le à cet utilisateur. Utilisez un bucket dédié : Mimir écrit dans l'ensemble du bucket et en gère lui-même le contenu.
+
+3\. Notez la **région** (par exemple `gra`) et le **point d'entrée** du bucket (par exemple `s3.gra.io.cloud.ovh.net`). Ils sont tous deux affichés dans les détails du bucket.
+
+:::info
+Si le bucket n'existe pas au démarrage de Mimir, celui-ci tente de le créer avec les identifiants configurés. Le créer au préalable vous permet de choisir ses paramètres et de vérifier les identifiants avant le changement.
+:::
+
+N'activez pas de règle de cycle de vie d'expiration sur ce bucket : la rétention des métriques est gérée par Mimir, qui supprime lui-même les blocs expirés.
+
+### 2. Enregistrer les identifiants
+
+Ouvrez les secrets de la plateforme :
+
+```bash
+sudo opcp-cli secrets passwords --edit
+```
+
+Sous `stringData`, remplacez les valeurs des clés suivantes par les identifiants de votre utilisateur Object Storage :
+
+```yaml
+stringData:
+  ...
+  mimir_access_key_id: "<access key>"
+  mimir_secret_access_key: "<secret key>"
+  ...
+```
+
+Enregistrez et fermez l'éditeur.
+
+### 3. Mettre à jour la configuration de stockage de Mimir
+
+Ouvrez la configuration OPCP :
+
+```bash
+sudo opcp-cli config edit
+```
+
+Mettez à jour la section `monitoring.mimir.storage` avec le point d'entrée, la région et le nom du bucket de l'étape 1 :
+
+```yaml
+monitoring:
+  mimir:
+    storage:
+      endpoint:
+        url: "s3.gra.io.cloud.ovh.net"   # sans https://
+        region: gra
+      bucket: "opcp01-metrics"
+```
+
+| Champ | Valeur |
+|---|---|
+| `endpoint.url` | Nom d'hôte du point d'entrée Object Storage, **sans** le schéma `https://` |
+| `endpoint.region` | Région du bucket, en minuscules |
+| `bucket` | Nom du bucket créé à l'étape 1 |
+
+Lorsque le point d'entrée n'est pas le stockage objet de la plateforme, celle-ci autorise automatiquement Mimir à le joindre en HTTPS : aucun paramètre réseau n'est à modifier.
+
+Enregistrez et fermez l'éditeur, puis appliquez la configuration :
+
+```bash
+sudo opcp-cli deploy
+```
+
+### 4. Vérifier la réconciliation
+
+Attendez que Flux ait réconcilié le changement. Les commandes suivantes ne doivent renvoyer aucune ressource :
+
+```bash
+flux get all -A --status-selector ready=false
+flux get all -A --status-selector ready=unknown
+```
+
+Vérifiez que les pods Mimir ont redémarré et sont à l'état `Running` :
+
+```bash
+kubectl -n monitoring get pods -l app.kubernetes.io/name=mimir
+```
+
+Si un ingester reste à l'état `Init`, affichez les logs de son étape de création du bucket :
+
+```bash
+kubectl -n monitoring logs <mimir-ingester-pod> -c create-bucket-for-metrics
+```
+
+Une erreur `AccessDenied` ou `InvalidAccessKeyId` désigne les identifiants de l'étape 2, un délai de connexion dépassé l'accès sortant vers le point d'entrée.
+
+### 5. Vérifier que les métriques sont écrites dans le bucket
+
+Mimir envoie les métriques ingérées dans le bucket par blocs, environ toutes les deux heures. Passé ce délai, parcourez le bucket depuis l'espace client OVHcloud ou avec votre client S3 habituel : il doit contenir des objets récents dans un répertoire nommé `anonymous`, qui contient les blocs de métriques, et sous le préfixe `ruler`, qui contient les règles d'alerte.
+
+En attendant, vous pouvez vérifier que les métriques sont toujours ingérées : dans Grafana, ouvrez **Explore**, sélectionnez la source de données **Mimir** et exécutez la requête `up`. Elle doit renvoyer des valeurs récentes.
+
+Les métriques de votre plateforme OPCP sont désormais stockées dans votre bucket S3 externe.
+
+## Aller plus loin
+
+[Observabilité sur OPCP](/guides/hosted-private-cloud/opcp/observability-overview)
+
+[Object Storage - Premiers pas](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage)
+
+[Comment mettre à jour les buckets S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d’utilisateurs](/links/community).
+
+[[fragment:s3-trademark]]
