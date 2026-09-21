@@ -1,0 +1,401 @@
+---
+title: Observability on OPCP
+description: Discover the OPCP observability stack - metrics with Prometheus and Grafana Mimir, logs with Loki and Grafana Alloy, dashboards, retention periods and access rights
+lastUpdated: 2026-10-27
+---
+
+## Objective
+
+Your **OVHcloud On-Prem Cloud Platform (OPCP)** ships with a built-in observability stack that collects, stores and exposes the metrics and logs of the whole platform: the control plane, the OpenStack services, the Ceph cluster, the bare metal nodes and the compute hypervisors.
+
+This guide describes that stack: which components it is made of, which interfaces you can reach, how long your data is kept, and which behaviours can be adapted to your needs.
+
+## Requirements
+
+- A delivered and operational [On-Prem Cloud Platform](/links/hosted-private-cloud/onprem-cloud-platform) service
+- A Keycloak account holding at least the `dc_operator` role (see [IAM rights management](/guides/hosted-private-cloud/opcp/iam-rights-management))
+- The base domain name (`base_dns_name`) assigned to your platform at delivery
+
+## Instructions
+
+### Observability architecture
+
+The stack is built entirely on open-source Grafana Labs and Prometheus components. It is split into two independent pipelines — one for metrics, one for logs — that converge in a single **Grafana** interface.
+
+#### Metrics pipeline
+
+| Stage | Component | Role |
+|---|---|---|
+| Collection | **Prometheus** (control plane) | Scrapes the control plane, the OpenStack services, Ceph and the bare metal nodes |
+| Collection | **Grafana Alloy** (compute nodes) | Scrapes the hypervisors and their workloads |
+| Storage | **Grafana Mimir** | Long-term, horizontally scalable metrics backend, backed by Object Storage<sup>1</sup> |
+| Query | **Grafana** | Dashboards and ad-hoc queries |
+
+Both collectors push their series to Mimir through the Prometheus `remote_write` protocol, over the `metrics.<base_dns_name>` endpoint. Mimir is therefore the single place where the metrics of the entire platform — control plane *and* compute — are consolidated.
+
+The exporters feeding this pipeline include `node-exporter` (hosts), `kube-state-metrics` (control plane workloads), `openstack-exporter` (OpenStack services), the Ceph exporters, `blackbox-exporter` (endpoint probing) and `x509-certificate-exporter` (certificate expiry).
+
+#### Logs pipeline
+
+| Stage | Component | Role |
+|---|---|---|
+| Collection | **Grafana Alloy** | Agent running on every control plane node: collects the `systemd` journal and the container logs |
+| Storage | **Loki** | Log aggregation backend |
+| Query | **Grafana** | Log exploration and correlation with metrics |
+
+Alloy ships its streams to Loki over the `loki.<base_dns_name>` endpoint. The logs of the compute nodes are not sent to Loki by default: see [Centralising the compute node logs in Loki](#compute-logs-loki).
+
+#### Alerting
+
+Alerting rules are shipped with the platform and cover the control plane, the OpenStack services, Ceph, the bare metal controllers (BMC), the GitOps engine and the certificates. They are evaluated centrally by the **Mimir ruler**, which reads them from the platform and evaluates them against the consolidated metrics.
+
+Firing alerts are handed over to **Alertmanager**, which takes care of deduplication, silences and notification routing towards your on-call system. Alertmanager is an optional component that is not deployed by default: when it is enabled on your platform, its interface is published at `alertmanager.<base_dns_name>`. When it is not, the rules are still evaluated but no notification is emitted. To send the notifications to your own tools, see [Sending alert notifications](#alert-notifications).
+
+### Accessing the interfaces
+
+All the interfaces below are published under the base domain name of your platform and are protected by **Keycloak** authentication.
+
+| Interface | Address | Purpose |
+|---|---|---|
+| **Grafana** | `https://grafana.<base_dns_name>` | Dashboards, metric and log exploration. The interface you will use day to day |
+| **Prometheus** | `https://prometheus.<base_dns_name>` | Raw view of the control plane collector: targets, scrape status, short-term queries |
+| **Alertmanager** | `https://alertmanager.<base_dns_name>` | Firing alerts and notification silences. Only published when alert notifications are enabled on your platform |
+
+Two additional endpoints are used for ingestion — they accept writes from the platform's own agents and are not browsable interfaces:
+
+- `https://metrics.<base_dns_name>` — metrics ingestion into Mimir. When the [read-only query API](#external-grafana) is enabled, it also serves PromQL queries under `/prometheus`
+- `https://loki.<base_dns_name>` — log ingestion into Loki
+
+:::warning
+Do not point third-party agents at the ingestion endpoints without agreeing it with OVHcloud first. Metrics volume is capped platform-wide, and an unplanned source can exhaust the ingestion budget of the services your platform depends on.
+:::
+
+### Access rights
+
+Grafana access is driven by the role held by your account in Keycloak. The mapping is re-evaluated at every login, and an account with no observability role is denied access entirely.
+
+| Keycloak role | Grafana permission | What you can do |
+|---|---|---|
+| `dc_operator` | Viewer | Browse the existing dashboards and run queries |
+| `it_admin` | Editor | The above, plus create and modify dashboards |
+| `master_admin` | Grafana admin | The above, plus administer the Grafana instance |
+
+The `reader` role has read access to Prometheus but not to Grafana. The full matrix across every application of the platform is documented in [IAM rights management](/guides/hosted-private-cloud/opcp/iam-rights-management).
+
+### Exploring your data in Grafana
+
+#### Data sources
+
+Three data sources are provisioned in Grafana:
+
+| Data source | Contents | When to use it |
+|---|---|---|
+| **Mimir** *(default)* | All the metrics of the platform, control plane and compute | Almost always: trend analysis, capacity planning, historical investigation |
+| **Prometheus** | The control plane collector's own short-term buffer | Live debugging, checking that a target is actually being scraped |
+| **Loki** | Node and container logs | Reading logs, correlating an incident with its metrics |
+
+Mimir is the default data source, so a new panel queries the consolidated, long-retention store unless you change it explicitly. Both Mimir and Prometheus speak PromQL, so a query written against one runs unchanged against the other.
+
+#### Dashboard folders
+
+The dashboards shipped with the platform are organised into folders:
+
+| Folder | Contents |
+|---|---|
+| **Openstack** | OpenStack services, including the Octavia load balancers |
+| **Ceph** | Ceph cluster, pools, OSDs, hosts and the Object Storage gateway |
+| **Kubernetes** | Control plane workloads, resource usage per namespace and per workload |
+| **Node exporter** | System-level view of the hosts: CPU, memory, disks, network |
+| **Control plane components** | Internal components of the control plane |
+| **Observability** | Health of the observability stack itself, including metrics cardinality |
+
+You can create your own dashboards with an `it_admin` account or higher. Store them in a folder of your own: the folders listed above are reconciled with the platform and any manual change to them is reverted.
+
+### Data retention
+
+Each stage of the pipeline keeps data for a different period. The value that matters for historical analysis is the Mimir one.
+
+| Data | Where | Default retention |
+|---|---|---|
+| Metrics — long term | Mimir | **60 days** |
+| Metrics — collector buffer | Prometheus | 7 days |
+| Logs | Loki | 7 days |
+
+:::info
+Prometheus only keeps a short local buffer because every series it scrapes is immediately forwarded to Mimir. Queries covering more than a few days should target the Mimir data source.
+:::
+
+### Adapting the stack to your needs
+
+The following behaviours can be adapted on your platform. On an OVHcloud-managed platform, request the change through your usual support channel; on a self-managed platform, apply it in your platform configuration.
+
+- **Log retention** — the period during which Loki keeps your logs, seven days by default.
+- **Log forwarding** — the platform can forward its logs to an external collector, either to your own syslog servers or to the OVHcloud [Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start) service, see [Forwarding logs to an external collector](#log-forwarding).
+- **Custom alerting rules** — in addition to the rules shipped with the platform, alerting and recording rules can be sourced from a Git repository you own, so your own rules follow your own review process.
+- **Ingestion capacity** — the metrics ingestion path is sized at delivery for the size of your platform. Adding a significant number of nodes, or pushing metrics from your own workloads, may require it to be resized.
+- **External Grafana** — the consolidated metrics can be queried from a Grafana instance of your own, see [Querying the metrics from an external Grafana](#external-grafana).
+- **Metrics forwarding** — a copy of the control plane metrics can be sent to an external Prometheus-compatible endpoint, see [Forwarding metrics to an external endpoint](#external-remote-write).
+- **Compute node logs** — the logs of the compute nodes can be centralised in the platform Loki, see [Centralising the compute node logs in Loki](#compute-logs-loki).
+- **Alert notifications** — the alerts can be sent to your own e-mail, chat or incident management tools, see [Sending alert notifications](#alert-notifications).
+
+### Optional integrations
+
+The integrations below are disabled by default. On a self-managed platform, you enable them from the OPCP controller with `opcp-cli`:
+
+- the settings are changed with `opcp-cli config edit`, then applied with `opcp-cli deploy`;
+- the credentials are stored in the platform secrets, which you read and update with `opcp-cli secrets passwords --edit` (keys under `stringData`).
+
+On an OVHcloud-managed platform, request the change through your usual support channel.
+
+:::info
+The secrets keys mentioned below are created by `opcp-cli secrets passwords --generate`. If a key is missing on your platform, run this command once with an up-to-date `opcp-cli`: existing secrets are kept, only the missing keys are added.
+:::
+
+<a id="external-grafana"></a>
+
+#### Querying the metrics from an external Grafana
+
+Mimir can expose a **read-only** Prometheus query API on the metrics endpoint, so that a Grafana instance of your own can query the consolidated metrics of the platform. Only the query paths (`/prometheus/api/v1/...`) are published: the Mimir rules configuration API stays unreachable, and the API is protected by credentials distinct from the ingestion ones and by a per-source-IP rate limit.
+
+1\. Enable the API with `opcp-cli config edit`:
+
+```yaml
+monitoring:
+  mimir:
+    read_api:
+      enabled: true
+      username: grafana       # default value
+      rate_limit:             # per source IP, requests per second
+        average: 50
+        burst: 100
+```
+
+Then apply it with `opcp-cli deploy`.
+
+2\. Retrieve the password with `opcp-cli secrets passwords --edit`: it is stored under the `metrics_read_password` key. To change it, update the value in the same editor and save.
+
+3\. In your Grafana, add a **Prometheus** data source:
+
+| Field | Value |
+|---|---|
+| URL | `https://metrics.<base_dns_name>/prometheus` |
+| Authentication | Basic authentication, with the user configured in `read_api.username` and the `metrics_read_password` password |
+| TLS | If your platform uses a private certificate authority, add it as a trusted CA certificate |
+
+:::warning
+The URL must end with `/prometheus`, without a trailing slash. Any other path, such as `https://metrics.<base_dns_name>` alone, returns a `404 Not Found` error when testing the data source.
+:::
+
+You can check the access from any host with `curl`:
+
+```bash
+curl -u grafana:<metrics_read_password> 'https://metrics.<base_dns_name>/prometheus/api/v1/query?query=up'
+```
+
+<a id="external-remote-write"></a>
+
+#### Forwarding metrics to an external endpoint
+
+The control plane Prometheus can send a copy of its series to an external Prometheus-compatible endpoint (a central Mimir, Prometheus, Thanos, etc.) through the `remote_write` protocol, in addition to the platform Mimir. The copy uses its own queue: an outage of the external endpoint does not delay the ingestion into the platform Mimir. The same cardinality filter as for the platform Mimir is applied.
+
+1\. Configure the endpoint with `opcp-cli config edit`:
+
+```yaml
+monitoring:
+  external_remote_write:
+    controller:
+      enabled: true
+      url: https://mimir.example.com/api/v1/push
+      tenant: anonymous       # sent as the X-Scope-OrgID header; leave empty to omit it
+```
+
+2\. Set the basic-auth credentials of the external endpoint with `opcp-cli secrets passwords --edit`, under the `metrics_external_remote_write_username` and `metrics_external_remote_write_password` keys. These keys are generated with random placeholder values: replace them with the credentials provided by the owner of the endpoint. The same command lets you read or change them later.
+
+3\. Apply the configuration with `opcp-cli deploy`.
+
+The external endpoint must:
+
+- be reachable from the control plane over HTTPS, through a host name (an IP address is not accepted);
+- present a certificate trusted by the platform: issued by a public certificate authority, or by a CA you added to the platform trust store.
+
+To check the forwarding, query the `up` series on the external endpoint, or look at the `prometheus_remote_storage_samples_failed_total` metric of the control plane Prometheus.
+
+<a id="log-forwarding"></a>
+
+#### Forwarding logs to an external collector
+
+The log forwarder is an agent deployed on every control plane node and every compute node. It collects the `systemd` journal and the container logs of the node, and sends them to your own syslog servers, to the OVHcloud [Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start) service, or to both. It is independent from the Loki pipeline: the control plane logs stay available in Grafana whatever the forwarding destinations.
+
+The logs are buffered on the node (up to 4 GB per destination) and retried when a destination is temporarily unreachable.
+
+##### Forwarding to syslog servers
+
+1\. Declare your syslog servers with `opcp-cli config edit`:
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true
+      syslog:
+        enabled: true
+        endpoints:
+          - host: syslog.example.com   # host name or IPv4 address
+            port: 6514
+            mode: tls
+          - host: 192.0.2.10
+            port: 514
+            mode: tcp
+```
+
+| Parameter | Description |
+|---|---|
+| `host` | Host name or IPv4 address of the syslog server |
+| `port` | TCP port of the syslog server |
+| `mode` | `tcp` (default) or `tls`. UDP is not supported |
+| `tls_verify` | `tls` mode only: `on` (default) to check the server certificate, `off` to skip the check |
+| `tls_vhost` | `tls` mode only: host name sent as SNI and checked against the certificate, when it differs from `host` |
+
+2\. Apply the configuration with `opcp-cli deploy`.
+
+The messages are sent in the RFC 5424 format. No secret is involved: the syslog servers must accept the connections coming from the platform without authentication. In `tls` mode, the server certificate must be issued by a public certificate authority, unless `tls_verify` is set to `off`.
+
+##### Forwarding to Logs Data Platform
+
+1\. In your Logs Data Platform account, create a stream and retrieve its **write token** and the address of your cluster.
+
+2\. Store the token in the platform secrets with `opcp-cli secrets passwords --edit`, under the `ldp_token` key (add the key under `stringData` if it does not exist yet). The same command lets you read or rotate the token later.
+
+3\. Enable the destination with `opcp-cli config edit`:
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true
+      ldp:
+        enabled: true
+        endpoint:
+          fqdn: <your-cluster>.logs.ovh.com
+          port: 12202           # GELF over TLS
+```
+
+4\. Apply the configuration with `opcp-cli deploy`.
+
+Every log record carries a `LOG_SOURCE` field set to the region name of the platform, which lets you tell several platforms apart in the same stream.
+
+:::info
+When Octavia is enabled, the logs of the load balancer instances (amphorae) are forwarded to the same destinations.
+:::
+
+To check the forwarding, open the **Fluent Bit** dashboard in the **Control plane components** folder of Grafana, which shows the throughput, errors and retries of each output. The `LogForwarder-NoOutputBytesProcessed` alert fires when an output stops sending logs.
+
+<a id="compute-logs-loki"></a>
+
+#### Centralising the compute node logs in Loki
+
+By default, the logs of the compute nodes are only sent to the [destinations of the log forwarder](#log-forwarding) (syslog or Logs Data Platform). They can also be pushed to the platform Loki, so that they can be explored in Grafana next to the control plane logs.
+
+Enable it with `opcp-cli config edit`, then apply it with `opcp-cli deploy`:
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true           # the log forwarder must be enabled
+      loki:
+        enabled: true
+```
+
+No secret has to be set for this integration: the compute nodes authenticate on Loki with the platform's internal ingestion credentials, which are managed automatically. There is therefore nothing to retrieve or update with `opcp-cli secrets passwords`.
+
+In Grafana, the compute logs are found in the **Loki** data source with the `opcp_context="compute"` label, and each compute node is identified by the `cluster` label. The `host`, `unit`, `level`, `namespace` and `container` labels follow the same naming as for the control plane logs.
+
+:::warning
+The compute logs share the Loki storage and retention of the control plane logs. On a large platform, the extra volume may require the Loki storage or retention to be adapted.
+:::
+
+<a id="alert-notifications"></a>
+
+#### Sending alert notifications
+
+Alertmanager can notify your own tools of the alerts raised by the platform: e-mail, chat (Slack, Microsoft Teams through a webhook...), incident management (PagerDuty, OpsGenie...) or any HTTP webhook. Enabling it also publishes the Alertmanager interface at `alertmanager.<base_dns_name>`, from which you can follow the firing alerts and create silences.
+
+The receivers and routes are written in the [Alertmanager configuration syntax](https://prometheus.io/docs/alerting/latest/configuration/#receiver). The alerts are grouped by `alertname`, `namespace`, `severity` and `opcp_context`, among others, and these labels can be used in the routes.
+
+1\. Store the credentials of your receivers in the platform secrets with `opcp-cli secrets passwords --edit`: add one key per credential under `stringData`, for instance `alertmanager_smtp_password`. Use a name of your choice, made of lowercase letters, digits and underscores. The same command lets you read or rotate them later. The keys you add are kept when `opcp-cli secrets passwords --generate` runs again, unless you use its `--clean` option.
+
+2\. Describe the receivers with `opcp-cli config edit`, and reference each credential as `${<key>}`:
+
+```yaml
+monitoring:
+  alertmanager:
+    enabled: true
+    default_receiver: ops-email          # receives every alert no route matches
+    receivers:
+      - name: ops-email
+        email_configs:
+          - to: ops@example.com
+            from: alertmanager@example.com
+            smarthost: smtp.example.com:587
+            auth_username: alertmanager@example.com
+            auth_password: "${alertmanager_smtp_password}"
+      - name: oncall-webhook
+        webhook_configs:
+          - url: https://hooks.example.com/alertmanager
+            http_config:
+              authorization:
+                credentials: "${alertmanager_webhook_token}"
+    routes:                              # optional
+      - receiver: oncall-webhook
+        matchers:
+          - severity = "critical"
+    egress:                              # every server your receivers connect to
+      - host: smtp.example.com
+        port: 587
+      - host: hooks.example.com
+        port: 443
+```
+
+| Parameter | Description |
+|---|---|
+| `enabled` | Deploys Alertmanager with your receivers |
+| `default_receiver` | Receiver of the alerts that match none of your routes. `null` (default) drops them |
+| `receivers` | Your receivers, in the Alertmanager syntax. The `null` and `heartbeat` names are reserved |
+| `routes` | Optional routes sending part of the alerts to a given receiver. The alerts matching a route are not sent to `default_receiver` |
+| `egress` | Host name or IPv4 address and TCP port of each server reached by your receivers: the outbound traffic of Alertmanager is blocked by default |
+
+3\. Apply the configuration with `opcp-cli deploy`.
+
+:::warning
+The receiver settings go through the variable substitution of the platform: any `$` followed by a name is replaced by the secret of the same name, or by an empty string. Do not use `$` variables in your notification templates.
+:::
+
+:::info
+On an OVHcloud-managed platform, the alerts keep being sent to the OVHcloud on-call team: your routes are evaluated in addition to it, never instead of it.
+:::
+
+To check the configuration, open `https://alertmanager.<base_dns_name>`: the **Status** page shows the configuration loaded by Alertmanager. The always-firing `Watchdog` alert is used internally to check the alerting pipeline and is never sent to your receivers.
+
+### Known limitations
+
+- **Single tenant.** Mimir is operated as a single logical tenant: the control plane and every compute node share the same metrics space and the same ingestion quota. There is no per-team or per-project isolation of metrics.
+- **No metrics redundancy by default.** The Mimir ingestion path is deployed without replication by default. A platform requiring the loss of an ingestion component to be transparent must be sized for it at delivery.
+- **External query API.** The read-only query API is rate-limited per source IP to protect the platform Mimir: heavy dashboards or wide queries from an external Grafana may receive `429 Too Many Requests` responses.
+- **Alertmanager is optional.** Unless alert notifications were enabled on your platform (see [Sending alert notifications](#alert-notifications)), Alertmanager is not deployed: the rules are evaluated but no alert notification is emitted and no Alertmanager interface is published.
+
+## Go further
+
+[IAM rights management](/guides/hosted-private-cloud/opcp/iam-rights-management)
+
+[How to update the backup S3 buckets](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets) (example of a configuration change with `opcp-cli`)
+
+[Getting started with your OPCP](/guides/hosted-private-cloud/opcp/getting-started)
+
+[How to upgrade OPCP](/guides/hosted-private-cloud/opcp/how-to-upgrade-opcp)
+
+If you need training or technical assistance implementing our solutions, contact your sales representative or visit our [Professional Services](/links/professional-services) page to request a quote and have your project analyzed by our experts.
+
+Join our [community of users](/links/community).
+
+<sup>1</sup>: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.
