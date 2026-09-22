@@ -1,0 +1,155 @@
+---
+title: Gestion des IP publiques sur SNC Cloud Platform
+description: Comment gérer des adresses IP publiques sur SNC Cloud Platform via des ports Neutron indépendants
+lastUpdated: 2026-09-22
+---
+
+Guide pratique pour attribuer, déplacer et libérer des adresses IP publiques sur cette plateforme via des ports Neutron indépendants. La fonctionnalité d'IP additionnelle arrivera avec la major release #2 ; en attendant, conserver une même adresse publique d'une instance à l'autre demande une gestion dédiée, détaillée ici. Public cible : toute personne provisionnant des instances sur cette plateforme.
+
+## Objectif
+
+Ce guide décrit comment gérer des adresses IP publiques sur cette plateforme de façon à pouvoir les **détacher d'une instance et les réattacher à une autre**, sans les perdre — un besoin classique (recréation d'instance, migration, bascule d'un environnement de test vers un autre) qui, sans précaution, provoque la perte pure et simple de l'IP.
+
+## Contexte : pourquoi ce guide
+
+La fonctionnalité d'IP additionnelle sera disponible à partir de la major release #2 de la plateforme. En attendant, une IP publique s'obtient en attachant une **deuxième interface réseau directement sur le réseau externe partagé `Ext-Net`** — ce qui implique une gestion particulière pour conserver une même adresse d'une instance à l'autre.
+
+La méthode à privilégier consiste à créer le port Neutron **indépendamment** de toute instance, avec l'IP souhaitée, puis à l'attacher à l'instance A. Il devient alors possible de détacher ce port indépendant de l'instance A et de l'attacher à une instance B, sans perdre l'adresse.
+
+Ce guide détaille la mise en œuvre concrète de cette méthode, y compris un point à connaître en pratique (voir l'encadré à l'[étape 1](#étape-1--créer-un-port-indépendant-sur-ext-net)).
+
+## Prérequis
+
+- Le CLI `openstack` configuré (voir [le guide Terraform de cette plateforme](/guides/hosted-private-cloud/cloud-platform/terraform) pour l'authentification via `clouds.yaml`).
+- L'ID du réseau externe `Ext-Net` et de son subnet :
+
+```bash
+openstack network show Ext-Net -f value -c id
+openstack subnet list --network Ext-Net -f value -c ID
+```
+
+## Port indépendant vs port implicite
+
+Le comportement d'un port Neutron vis-à-vis du cycle de vie d'une instance dépend **entièrement de la façon dont il a été créé**, pas de son état d'attachement à un instant T :
+
+| | Port **implicite** | Port **indépendant** |
+|---|---|---|
+| Création | `openstack server create --nic net-id=<réseau>` — Nova crée le port lui-même | `openstack port create --network <réseau>` — créé séparément, **avant** toute instance |
+| Attachement | `--nic net-id=` à la création de l'instance | `--nic port-id=<port>` à la création, ou `openstack server add port` après coup |
+| Suppression de l'instance | Le port est **supprimé automatiquement** avec l'instance — l'IP repart dans le pool | Le port **survit** à la suppression de l'instance |
+| Détachement à chaud (`server remove port`) | Le port est **supprimé immédiatement**, pas juste détaché (comportement vérifié empiriquement, voir [pièges connus](#pièges-connus-troubleshooting)) | Le port reste détaché, réattachable à volonté |
+
+**Conséquence pratique : toujours créer le port séparément, avant l'instance, dès qu'on veut conserver la possibilité de réutiliser l'IP.** Il n'existe pas de moyen de "convertir" un port implicite déjà attaché en port indépendant après coup — le tenter (détacher puis réattacher) détruit le port et libère l'IP dans le pool, comme n'importe quelle suppression.
+
+## Étape 1 — Créer un port indépendant sur Ext-Net
+
+```bash
+EXTNET_ID=$(openstack network show Ext-Net -f value -c id)
+
+openstack port create --network $EXTNET_ID --security-group <secgroup> mon-port-public
+```
+
+Neutron attribue automatiquement une IP libre du pool `Ext-Net`. Récupérer l'adresse :
+
+```bash
+openstack port show mon-port-public -f value -c fixed_ips
+```
+
+:::info
+**Bon à savoir** : sur `Ext-Net`, l'adresse est toujours attribuée automatiquement depuis le pool — il n'est pas possible de choisir une IP spécifique à l'avance :
+
+```bash
+openstack port create --network $EXTNET_ID \
+  --fixed-ip subnet=<subnet-id>,ip-address=51.255.11.233 mon-port-public
+# ForbiddenException: 403 ... rule:create_port:fixed_ips:ip_address ... disallowed by policy
+```
+
+Le bénéfice du port indépendant reste entier (portabilité entre instances), seule la capacité à **choisir** l'adresse à l'avance manque. Sur un réseau privé (ex. un réseau interne créé par vos soins), le choix d'IP fonctionne normalement.
+
+:::
+
+## Étape 2 — Attacher le port à une nouvelle instance
+
+```bash
+openstack server create \
+  --flavor <flavor> \
+  --nic net-id=<réseau-privé>          `# interface privée, implicite : OK, pas d'IP publique a perdre` \
+  --nic port-id=mon-port-public        `# interface publique, TOUJOURS via port-id` \
+  --image <image> \
+  mon-instance
+```
+
+## Étape 3 — Attacher le port à une instance déjà existante
+
+Si le port a été créé après coup, ou si l'instance existe déjà sans interface publique :
+
+```bash
+openstack server add port mon-instance mon-port-public
+```
+
+Vérifier :
+
+```bash
+openstack server show mon-instance -f value -c addresses
+```
+
+## Étape 4 — Déplacer l'IP vers une autre instance
+
+C'est le scénario cible de ce guide : réutiliser la même IP publique après avoir recréé ou remplacé une instance.
+
+```bash
+# detacher de l'instance A
+openstack server remove port instance-a mon-port-public
+
+# rattacher a l'instance B
+openstack server add port instance-b mon-port-public
+```
+
+Le port — et donc l'IP — n'est à aucun moment rendu au pool : il passe directement d'une instance à l'autre. Quelques secondes de coupure réseau sont à prévoir le temps du detach/attach.
+
+:::warning
+Cette opération n'est sûre **que sur un port créé indépendamment** ([étape 1](#étape-1--créer-un-port-indépendant-sur-ext-net)). Sur un port implicite, `server remove port` le détruit immédiatement au lieu de le détacher — voir [pièges connus](#pièges-connus-troubleshooting).
+
+:::
+
+## Étape 5 — Retrouver quelle IP est attachée à quelle instance
+
+```bash
+# toutes les IP de toutes les instances
+openstack server list -f table -c Name -c Networks
+
+# le detail cote port (IP, IP fixe, instance proprietaire)
+openstack port list -f table -c ID -c "Fixed IP Addresses" -c "Device ID"
+
+# retrouver le port d'une IP precise
+openstack port list -f value -c ID -c "Fixed IP Addresses" | grep 51.255.11.233
+```
+
+Un port dont la colonne `Device ID` est vide est **détaché** (indépendant et actuellement libre, prêt à être attaché à une instance).
+
+## Étape 6 — Libérer un port
+
+Si l'IP n'est plus nécessaire, supprimer le port la rend au pool `Ext-Net` :
+
+```bash
+# detacher d'abord si encore attache
+openstack server remove port <instance> <port-id>
+
+openstack port delete <port-id>
+```
+
+## Pièges connus (troubleshooting)
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| L'IP publique change après suppression/recréation d'une instance | Le port qui portait l'IP était **implicite** (`--nic net-id=` à la création), donc supprimé automatiquement avec l'instance | Toujours créer le port séparément en amont ([étape 1](#étape-1--créer-un-port-indépendant-sur-ext-net)) avant de recréer une instance amenée à changer |
+| `openstack server remove port` fait disparaître le port au lieu de le détacher (`openstack port show` renvoie `No Port found`) | Tentative de détacher un port **implicite** — Nova le supprime immédiatement plutôt que de le libérer, que ce soit via suppression d'instance ou détachement manuel | Recréer un port indépendant ([étape 1](#étape-1--créer-un-port-indépendant-sur-ext-net)) et le rattacher — l'ancienne IP est perdue, une nouvelle est attribuée depuis le pool |
+| `403 Forbidden` sur `openstack port create --fixed-ip ip-address=...` sur `Ext-Net` | Choix d'une IP publique spécifique non disponible sur cette plateforme | Accepter l'IP auto-attribuée par le pool ; le bénéfice de portabilité du port indépendant reste entier malgré cette limite |
+| L'instance ne reçoit aucune IP publique après `server add port` | Security group du port trop restrictif, ou port sur le mauvais réseau (vérifier avec `openstack port show <port> -c network_id`) | Vérifier le security group attaché au port (`openstack port show <port> -c security_group_ids`) et le réseau cible |
+| Config IP à refaire dans l'OS après un changement d'IP publique | Sur une VM Windows (pas de cloud-init), l'IP doit être reconfigurée manuellement dans l'OS après tout changement de port — voir [le guide de création de VM Windows](/guides/hosted-private-cloud/cloud-platform/create-windows-server-vm) | Sur une VM Linux avec cloud-init, ce n'est généralement pas nécessaire : l'IP est relue depuis les métadonnées à chaque boot |
+
+## Aller plus loin
+
+- Pattern d'attachement réseau (2e interface sur `Ext-Net`) documenté dans [le guide Terraform de cette plateforme](/guides/hosted-private-cloud/cloud-platform/terraform), section « Pas de floating IP / routeur Neutron ».
+- Configuration IP manuelle post-changement sur une VM Windows : voir [le guide de création de VM Windows](/guides/hosted-private-cloud/cloud-platform/create-windows-server-vm).
+- Documentation OpenStack sur les ports Neutron : [docs.openstack.org — Neutron ports](https://docs.openstack.org/python-openstackclient/latest/cli/command-objects/port.html)

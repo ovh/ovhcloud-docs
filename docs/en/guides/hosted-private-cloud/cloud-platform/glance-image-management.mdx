@@ -1,0 +1,149 @@
+---
+title: Managing Glance images on SNC Cloud Platform
+description: How to import, verify and manage images in Glance on SNC Cloud Platform
+lastUpdated: 2026-09-22
+---
+
+Practical guide to importing, verifying, and managing images in Glance (OpenStack's image catalog service) on this platform. Target audience: anyone who needs an image not in the default catalog.
+
+## Goal
+
+This guide covers an image's full lifecycle in Glance on this platform: import, verification, use for creating a volume or instance, visibility management, deletion — with the specifics of this platform, which complement generic OpenStack documentation.
+
+## Prerequisites
+
+- The `openstack` CLI configured (`clouds.yaml`, see [this platform's Terraform guide](/guides/hosted-private-cloud/cloud-platform/terraform) for authentication).
+- `member` role.
+- A local machine with enough free disk space to stage the image being imported — the upload happens **from the local machine**, not server-side (see [step 2](#step-2--import-an-image)).
+
+## Available import methods
+
+Glance offers several import methods. On this platform, the recommended and fully supported method is direct upload from the local machine (`glance-direct`):
+
+| Method | How it works | On this platform |
+|---|---|---|
+| `glance-direct` (client upload, CLI) | The file is streamed **from the local machine** to Glance over HTTP | ✅ Recommended method, used in this guide. A ~7-8 GB file typically imports in 1 to 3 minutes depending on the local machine's upload bandwidth. |
+| `web_download` | Glance downloads the image **server-side**, from a supplied URL | Not functional on this platform, due to the network segmentation requirements tied to the ongoing SecNumCloud qualification (internal services have no outbound internet access) — prefer the direct upload above. |
+| Manual upload via the Horizon UI | Uploading a local file through the "Create Image" web form | Limited as part of the platform's release #1; will evolve quickly. In the meantime, use the CLI (`glance-direct`), which is fully supported. |
+| `copy-image` | Duplicates an image already present in Glance to another store | ✅ Works (tested: `openstack image import <image> --method copy-image --store <store>`). Mainly useful in a multi-store context; this platform currently exposes a single store (`defaultstore`). |
+
+## Step 1 — List existing images
+
+Before importing anything, check whether an equivalent image already exists:
+
+```bash
+openstack image list -f table -c Name -c Status -c Visibility
+```
+
+Base catalog generally available on this platform (varies by project): common Linux distributions (Debian, AlmaLinux, CentOS) as ready-to-use "OVH" images (cloud-init included). Any image outside this catalog (Windows, an unlisted distribution, a specific appliance) needs to be imported manually.
+
+## Step 2 — Import an image
+
+```bash
+openstack image create \
+  --disk-format <format> \
+  --container-format bare \
+  --private \
+  --progress \
+  --file /local/path/to/image \
+  image-name
+```
+
+### Picking the right `--disk-format`
+
+| File type | `--disk-format` | Typical use |
+|---|---|---|
+| Install ISO (Windows, a Linux distribution's installer) | `iso` | Boot from a virtual CD-ROM to launch an interactive or automated installer |
+| QCOW2 disk image (QEMU native format, often with cloud-init) | `qcow2` | Ready-to-use image, boots directly |
+| RAW disk image | `raw` | Ready-to-use image, no compression |
+
+`--container-format bare` fits nearly every case (no extra container metadata needed).
+
+`--private` restricts the image's visibility to your project (see [step 5](#step-5--manage-an-images-visibility)).
+
+### Importing a large image
+
+`--progress` shows a progress bar during upload — useful for multi-GB files, where the lack of visible feedback for several minutes might otherwise look like it's stuck.
+
+## Step 3 — Verify an imported image
+
+```bash
+openstack image show image-name -f value -c status -c size -c checksum -c disk_format
+```
+
+`status` should read `active`. Any other value persisting (`queued`, `saving`) signals an import that isn't progressing — see [good to know (troubleshooting)](#good-to-know-troubleshooting).
+
+## Step 4 — Create a volume from an image
+
+Two different use cases, with different behavior observed in practice:
+
+### Standalone volume (recommended)
+
+```bash
+openstack volume create --image image-name --size <size-GB> volume-name
+```
+
+Works reliably and quickly (tens of seconds for several GB). This is the method to prefer for verifying that an image converts to a volume correctly before using it in an instance creation.
+
+:::warning
+`<size-GB>` must be strictly greater than the image's **virtual size** (Glance's `virtual_size`), not its compressed size on disk. An image weighing a few hundred MB can have a virtual size of 15-20 GB once decompressed.
+:::
+
+### Volume created alongside an instance (`server create --block-device`)
+
+```bash
+openstack server create \
+  --block-device uuid=<image-id>,source_type=image,destination_type=volume,volume_size=<N> \
+  ...
+```
+
+:::warning
+**Recommended practice**: creating **multiple** `source_type=image` block devices at once in a single `server create` call can leave the instance in `task_state=scheduling`/`spawning` longer than expected, without reaching `ACTIVE`. The recommended approach on this platform is to **pre-create each volume separately** (fast and reliable, method above), then reference them in `server create` with `source_type=volume` (not `image`):
+:::
+
+```bash
+openstack server create \
+  --block-device uuid=<volume-id>,source_type=volume,destination_type=volume,boot_index=0 \
+  ...
+```
+
+## Step 5 — Manage an image's visibility
+
+```bash
+openstack image set --private image-name   # visible only to the current project
+openstack image set --shared image-name    # explicit sharing with specific projects
+
+# once shared, grant a specific project access to it:
+openstack image add project image-name <target-project-id>
+```
+
+`--private` is the recommended default for an image imported for a one-off use (test, Windows VM). `--shared` works normally on this platform to share an image with specific projects. `public` visibility (accessible to every project on the platform) isn't available on this platform.
+
+## Step 6 — Delete an image
+
+```bash
+openstack image delete image-name
+```
+
+An image can't be deleted while a volume or instance still directly depends on it (varies by attachment method — a volume already created from the image, once created, no longer holds an active dependency on the source image). Check for active usage before deleting:
+
+```bash
+openstack volume list --property image_id=<image-id> -f table
+```
+
+## Good to know (troubleshooting)
+
+| Symptom | Explanation | Recommendation |
+|---|---|---|
+| Import stuck in `queued` status, no progress | `web_download` attempted from an external URL — not a supported method on this platform (see [available import methods](#available-import-methods)) | Use direct upload from the local machine instead (`openstack image create --file`, [step 2](#step-2--import-an-image)) |
+| Horizon's "Create Image" form isn't available | Not yet offered on this platform | Use the CLI (`glance-direct`) |
+| An import error's detail (`/v2/tasks/<id>`) isn't directly viewable | The `/tasks` API isn't exposed on this platform | Check the high-level status via `openstack image show`; for finer diagnostics, contact support |
+| `Block Device <id> is not bootable` when creating an instance on a volume created from an image | Rare with a standard image (the `bootable` flag is normally set automatically by Cinder during an image→volume conversion) — mostly concerns **blank** volumes (`source_type=blank`), which is outside Glance's scope per se | See [the Windows VM creation guide](/guides/hosted-private-cloud/cloud-platform/create-windows-server-vm) for the blank-volume case |
+| Instance taking a while to reach `ACTIVE` with several `source_type=image` block devices in the same `server create` call | Converting several images to volumes simultaneously at boot time isn't the recommended approach on this platform | Pre-create each volume separately via `openstack volume create --image`, then reference the volumes (`source_type=volume`) in `server create` — see [step 4](#step-4--create-a-volume-from-an-image) |
+| `Image virtual size is XGB and doesn't fit in a volume of size YGB` | `--size`/`volume_size` smaller than the image's actual virtual size | Increase the size with a comfortable margin above the `virtual_size` reported by Glance |
+
+## Going further
+
+- [Windows VM creation guide](/guides/hosted-private-cloud/cloud-platform/create-windows-server-vm) (importing an ISO, full use case including blank volumes) — same platform, same import limitations.
+- [This platform's Terraform guide](/guides/hosted-private-cloud/cloud-platform/terraform) — the `data "openstack_images_image_v2"` pattern for reusing an existing image without recreating it.
+- Official OpenStack Image (Glance) CLI documentation: [docs.openstack.org — Image v2](https://docs.openstack.org/python-openstackclient/latest/cli/command-objects/image.html)

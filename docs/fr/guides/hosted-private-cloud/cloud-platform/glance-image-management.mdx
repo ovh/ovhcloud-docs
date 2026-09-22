@@ -1,0 +1,149 @@
+---
+title: Gestion des images Glance sur SNC Cloud Platform
+description: Comment importer, vérifier et gérer des images dans Glance sur SNC Cloud Platform
+lastUpdated: 2026-09-22
+---
+
+Guide pratique pour importer, vérifier et gérer des images dans Glance (service catalogue d'images OpenStack) sur cette plateforme. Public cible : toute personne ayant besoin d'une image absente du catalogue par défaut.
+
+## Objectif
+
+Ce guide couvre le cycle de vie complet d'une image dans Glance sur cette plateforme : import, vérification, utilisation pour créer un volume ou une instance, gestion de la visibilité, suppression — avec les spécificités propres à cette plateforme, qui viennent compléter la documentation générique OpenStack.
+
+## Prérequis
+
+- Le CLI `openstack` configuré (`clouds.yaml`, voir [le guide Terraform de cette plateforme](/guides/hosted-private-cloud/cloud-platform/terraform) pour l'authentification).
+- Rôle `member`.
+- Un poste avec assez d'espace disque libre pour stager localement l'image à importer — l'upload se fait **depuis le poste local**, pas côté serveur (voir [étape 2](#étape-2--importer-une-image)).
+
+## Méthodes d'import disponibles
+
+Glance propose plusieurs méthodes d'import. Sur cette plateforme, la méthode recommandée et pleinement supportée est l'upload direct depuis le poste local (`glance-direct`) :
+
+| Méthode | Fonctionnement | Sur cette plateforme |
+|---|---|---|
+| `glance-direct` (upload client, CLI) | Le fichier est envoyé **depuis le poste local** vers Glance en HTTP | ✅ Méthode recommandée, utilisée dans ce guide. Un fichier de ~7-8 Go s'importe typiquement en 1 à 3 minutes selon la bande passante montante du poste local. |
+| `web_download` | Glance télécharge l'image **depuis le serveur**, à partir d'une URL fournie | Non fonctionnel sur cette plateforme, du fait des exigences de cloisonnement réseau liées à la qualification SecNumCloud en cours (les services internes n'ont pas d'accès sortant vers Internet) — privilégier l'upload direct ci-dessus. |
+| Upload manuel via l'interface Horizon | Import d'un fichier local via le formulaire web "Créer une image" | Fonctionnalité limitée dans le cadre de la release #1 de la plateforme ; évoluera rapidement. En attendant, utiliser le CLI (`glance-direct`), pleinement supporté. |
+| `copy-image` | Duplique une image déjà présente dans Glance vers un autre store | ✅ Fonctionne (testé : `openstack image import <image> --method copy-image --store <store>`). Utile principalement dans un contexte multi-store ; cette plateforme n'expose aujourd'hui qu'un seul store (`defaultstore`). |
+
+## Étape 1 — Lister les images existantes
+
+Avant d'importer quoi que ce soit, vérifier qu'une image équivalente n'existe pas déjà :
+
+```bash
+openstack image list -f table -c Name -c Status -c Visibility
+```
+
+Catalogue de base généralement disponible sur cette plateforme (variable selon le projet) : distributions Linux courantes (Debian, AlmaLinux, CentOS) en images "OVH" prêtes à l'emploi (cloud-init inclus). Toute image hors de ce catalogue (Windows, distribution non listée, appliance spécifique) doit être importée manuellement.
+
+## Étape 2 — Importer une image
+
+```bash
+openstack image create \
+  --disk-format <format> \
+  --container-format bare \
+  --private \
+  --progress \
+  --file /chemin/local/vers/image \
+  nom-de-l-image
+```
+
+### Choisir le bon `--disk-format`
+
+| Type de fichier | `--disk-format` | Usage typique |
+|---|---|---|
+| ISO d'installation (Windows, distribution Linux via installeur) | `iso` | Boot depuis CD-ROM virtuel pour lancer un installeur interactif ou automatisé |
+| Image disque QCOW2 (format QEMU natif, souvent avec cloud-init) | `qcow2` | Image prête à l'emploi, boot direct |
+| Image disque RAW | `raw` | Image prête à l'emploi, pas de compression |
+
+`--container-format bare` convient dans la quasi-totalité des cas (pas de métadonnées de conteneur supplémentaires).
+
+`--private` restreint la visibilité de l'image à votre projet (voir [étape 5](#étape-5--gérer-la-visibilité-dune-image)).
+
+### Import d'une image volumineuse
+
+`--progress` affiche une barre de progression pendant l'upload — utile pour les fichiers de plusieurs Go, où l'absence de retour visuel pendant plusieurs minutes peut autrement laisser croire à un blocage.
+
+## Étape 3 — Vérifier une image importée
+
+```bash
+openstack image show nom-de-l-image -f value -c status -c size -c checksum -c disk_format
+```
+
+`status` doit valoir `active`. Toute autre valeur prolongée (`queued`, `saving`) signale un import qui ne progresse pas — voir [bon à savoir (troubleshooting)](#bon-à-savoir-troubleshooting).
+
+## Étape 4 — Créer un volume à partir d'une image
+
+Deux usages différents, avec un comportement différent constaté en pratique :
+
+### Volume standalone (recommandé)
+
+```bash
+openstack volume create --image nom-de-l-image --size <taille-Go> nom-du-volume
+```
+
+Fonctionne de façon fiable et rapide (quelques dizaines de secondes pour plusieurs Go). C'est la méthode à privilégier pour vérifier qu'une image se convertit correctement en volume avant de l'utiliser dans une création d'instance.
+
+:::warning
+`<taille-Go>` doit être strictement supérieure à la **taille virtuelle** de l'image (`virtual_size` côté Glance), pas à son poids compressé sur disque. Une image de quelques centaines de Mo peut avoir une taille virtuelle de 15-20 Go une fois décompressée.
+:::
+
+### Volume créé en même temps qu'une instance (`server create --block-device`)
+
+```bash
+openstack server create \
+  --block-device uuid=<image-id>,source_type=image,destination_type=volume,volume_size=<N> \
+  ...
+```
+
+:::warning
+**Bonne pratique recommandée** : créer **plusieurs** block devices `source_type=image` simultanément dans une seule commande `server create` peut faire rester l'instance en `task_state=scheduling`/`spawning` plus longtemps que prévu, sans jamais atteindre `ACTIVE`. La méthode recommandée sur cette plateforme consiste à **précréer chaque volume séparément** (méthode ci-dessus, rapide et fiable), puis à les référencer dans `server create` avec `source_type=volume` (pas `image`) :
+:::
+
+```bash
+openstack server create \
+  --block-device uuid=<volume-id>,source_type=volume,destination_type=volume,boot_index=0 \
+  ...
+```
+
+## Étape 5 — Gérer la visibilité d'une image
+
+```bash
+openstack image set --private nom-de-l-image   # visible uniquement par le projet courant
+openstack image set --shared nom-de-l-image    # partage explicite avec des projets specifiques
+
+# une fois en visibilite shared, autoriser un projet precis a y acceder :
+openstack image add project nom-de-l-image <id-du-projet-cible>
+```
+
+`--private` est le choix par défaut recommandé pour une image importée pour un usage ponctuel (test, VM Windows). `--shared` fonctionne normalement sur cette plateforme pour partager une image avec des projets spécifiques. La visibilité `public` (accessible à l'ensemble des projets de la plateforme) n'est pas disponible sur cette plateforme.
+
+## Étape 6 — Supprimer une image
+
+```bash
+openstack image delete nom-de-l-image
+```
+
+Une image ne peut pas être supprimée tant qu'un volume ou une instance en dépend encore directement (variable selon la méthode d'attachement — un volume déjà créé à partir de l'image, une fois créé, n'a plus de dépendance active envers l'image source). Vérifier l'absence d'usage actif avant suppression :
+
+```bash
+openstack volume list --property image_id=<image-id> -f table
+```
+
+## Bon à savoir (troubleshooting)
+
+| Symptôme | Explication | Recommandation |
+|---|---|---|
+| Import bloqué en statut `queued`, aucune progression | `web_download` tenté depuis une URL externe — méthode non supportée sur cette plateforme (voir [méthodes d'import](#méthodes-dimport-disponibles)) | Utiliser l'upload direct depuis le poste local (`openstack image create --file`, [étape 2](#étape-2--importer-une-image)) |
+| Le formulaire Horizon "Créer une image" n'est pas disponible | Fonctionnalité pas encore proposée sur cette plateforme | Utiliser le CLI (`glance-direct`) |
+| Détail d'une erreur d'import (`/v2/tasks/<id>`) non consultable directement | L'API `/tasks` n'est pas exposée sur cette plateforme | Vérifier le statut de haut niveau via `openstack image show` ; pour un diagnostic plus fin, contacter le support |
+| `Block Device <id> is not bootable` lors de la création d'une instance sur un volume créé depuis une image | Rare avec une image standard (le flag `bootable` est normalement positionné automatiquement par Cinder lors d'une conversion image→volume) — concerne surtout les volumes **vierges** (`source_type=blank`), hors sujet Glance à proprement parler | Voir [le guide de création de VM Windows](/guides/hosted-private-cloud/cloud-platform/create-windows-server-vm) pour le cas des volumes vierges |
+| Instance qui met du temps à atteindre `ACTIVE` avec plusieurs `block_device` `source_type=image` dans la même commande `server create` | La conversion simultanée de plusieurs images en volumes au moment du boot n'est pas la méthode recommandée sur cette plateforme | Précréer chaque volume séparément via `openstack volume create --image`, puis référencer les volumes (`source_type=volume`) dans `server create` — voir [étape 4](#étape-4--créer-un-volume-à-partir-dune-image) |
+| `Image virtual size is XGB and doesn't fit in a volume of size YGB` | `--size`/`volume_size` inférieur à la taille virtuelle réelle de l'image | Augmenter la taille avec une marge confortable au-dessus de la `virtual_size` annoncée par Glance |
+
+## Aller plus loin
+
+- [Guide de création de VM Windows](/guides/hosted-private-cloud/cloud-platform/create-windows-server-vm) (import d'une ISO, cas d'usage complet incluant volumes vierges) — même plateforme, mêmes limitations d'import.
+- [Guide Terraform de cette plateforme](/guides/hosted-private-cloud/cloud-platform/terraform) — pattern `data "openstack_images_image_v2"` pour réutiliser une image déjà présente sans la recréer.
+- Documentation officielle du CLI OpenStack Image (Glance) : [docs.openstack.org — Image v2](https://docs.openstack.org/python-openstackclient/latest/cli/command-objects/image.html)
