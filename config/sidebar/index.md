@@ -348,6 +348,7 @@
             + [How to install Nextcloud on an OVHcloud VPS with Docker](bare-metal-cloud/virtual-private-servers/install-nextcloud-on-vps-beginner)
             + [How to install Nextcloud on an OVHcloud VPS with Docker and Traefik](bare-metal-cloud/virtual-private-servers/install-nextcloud-on-vps-advanced)
             + [How to install an OpenClaw agent on a VPS](bare-metal-cloud/virtual-private-servers/install-openclaw)
+            + [How to install Hermes Agent on a VPS](bare-metal-cloud/virtual-private-servers/install-hermes-agent)
             + [Automated backup with plakar](storage-and-backup/backup-and-disaster-recovery-solutions/third-party-software/automated-plakar)
         + [Security](bare-metal-cloud-virtual-private-servers-security)
             + [How to secure a VPS](bare-metal-cloud/virtual-private-servers/secure-your-vps)
@@ -1677,6 +1678,7 @@
                     + [AI Endpoints - Integration with Apache Airflow](public-cloud/ai-machine-learning/ai-endpoints-apache-airflow-integration)
                     + [AI Endpoints - Integration with Hugging Face Inference Providers](public-cloud/ai-machine-learning/ai-endpoints-huggingface-integration)
                     + [AI Endpoints - Integration with Pydantic AI](public-cloud/ai-machine-learning/ai-endpoints-pydantic-ai-integration)
+                    + [AI Endpoints - Install Hermes Agent on a VPS](bare-metal-cloud/virtual-private-servers/install-hermes-agent){label=AI Endpoints - Install Hermes Agent on a VPS}
             + [Troubleshooting](public-cloud-ai-and-machine-learning-ai-endpoints-troubleshooting)
                 + [AI Endpoints - Troubleshooting](public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-endpoints-additional-resources)

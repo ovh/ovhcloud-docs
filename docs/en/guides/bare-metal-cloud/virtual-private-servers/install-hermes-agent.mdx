@@ -1,0 +1,283 @@
+---
+title: How to install Hermes Agent on a VPS
+description: "Deploy Hermes Agent in production on a VPS, connected to OVHcloud AI Endpoints, with a Telegram gateway and scheduled tasks"
+lastUpdated: 2026-09-22
+---
+
+## Objective
+
+**Hermes Agent** is an open-source autonomous AI agent (MIT license) built by Nous Research. Unlike a simple chatbot, it keeps persistent memory across sessions, creates its own skills from experience, and runs scheduled tasks 24/7 through its built-in cron scheduler.
+
+This guide uses **OVHcloud AI Endpoints** as the inference provider: the agent runs on your VPS while the language model is served from OVHcloud's French datacenters through an OpenAI-compatible API. Your requests never transit through a non-European provider.
+
+This method provides:
+
+- An always-on agent reachable from Telegram (or Discord, Slack, WhatsApp, Signal)
+- Sovereign, GDPR-compliant inference via AI Endpoints (no data is used to train the models)
+- Recurring tasks (monitoring, reports, reminders) executed automatically through the built-in cron
+- A systemd service that survives VPS reboots
+
+The target architecture:
+
+```text
+Telegram / CLI
+     ↓
+Hermes Gateway (systemd service on the VPS)
+     ↓
+OVHcloud AI Endpoints (gpt-oss-120b)
+```
+
+**This guide explains how to deploy Hermes Agent in production on a VPS with OVHcloud AI Endpoints.**
+
+## Requirements
+
+- An [OVHcloud VPS](/links/bare-metal/vps) (Debian 12 or Ubuntu 22.04+). Refer to our guide "[Getting started with a VPS](/guides/bare-metal-cloud/virtual-private-servers/starting-with-a-vps)".
+  - Minimum configuration: 2 GB RAM, 1 vCPU, 10 GB disk (chat-only usage).
+  - Recommended configuration: **4 GB RAM, 2 vCPU, 20 GB disk** if you enable browser automation (the `browser` tool), which raises peak memory usage to 1.2–1.8 GB.
+- SSH access to your VPS.
+- An OVHcloud AI Endpoints API key. Refer to our guide "[AI Endpoints - Getting started](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)" to generate one.
+- (Optional) A Telegram bot token obtained from [@BotFather](https://t.me/BotFather), if you want to talk to the agent from Telegram.
+
+## Table of Contents
+
+- [Step 1 - Preparing the VPS](#preparation)
+- [Step 2 - Installing Hermes Agent](#installation)
+- [Step 3 - Configuring the OVHcloud AI Endpoints provider](#ovh)
+- [Step 4 - Verifying the model connection](#verification)
+- [Step 5 - Connecting the Telegram gateway](#telegram)
+- [Step 6 - Running Hermes as a systemd service](#systemd)
+- [Step 7 - Scheduling a recurring task](#cron)
+
+## Instructions
+
+### Step 1 - Preparing the VPS <a name="preparation"></a>
+
+Connect to your VPS over SSH (replace `VPS_IP` with the real address):
+
+```bash
+ssh ubuntu@VPS_IP
+```
+
+Update the system and install Git, the installer's only software prerequisite (Python 3.11+, Node.js, ripgrep and ffmpeg are fetched automatically):
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl
+```
+
+As a security measure, create a dedicated non-sudo user that will run the agent:
+
+```bash
+sudo adduser --disabled-password --gecos "" hermes
+sudo su - hermes
+```
+
+:::info
+An autonomous agent executes shell commands. Running it under a dedicated, unprivileged user limits the impact of unexpected behaviour or prompt injection. To go further, refer to the guide "[How to secure a VPS](/guides/bare-metal-cloud/virtual-private-servers/secure-your-vps)".
+:::
+
+### Step 2 - Installing Hermes Agent <a name="installation"></a>
+
+As the `hermes` user, run the official installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+```
+
+Reload your shell then verify the installation:
+
+```bash
+source ~/.bashrc
+hermes doctor
+```
+
+The `hermes doctor` command checks dependencies and configuration. At this stage it is normal that no LLM provider is configured yet: this is the purpose of the next step.
+
+:::warning
+If the installer offers to configure a provider (OpenRouter, Nous Portal, etc.), you can skip that step. This guide configures OVHcloud AI Endpoints in Step 3, through the `hermes setup` wizard.
+:::
+
+### Step 3 - Configuring the OVHcloud AI Endpoints provider <a name="ovh"></a>
+
+Hermes Agent works with any OpenAI-compatible endpoint. The most reliable approach is to let the setup wizard generate the files rather than editing them by hand: the syntax evolves between versions, the wizard always writes the one matching your version, and it verifies the endpoint along the way.
+
+Launch the full wizard:
+
+```bash
+hermes setup
+```
+
+Choose **`Full setup`** (manual provider configuration), then, in the provider list, **`custom (direct API)`**. Then enter:
+
+- **API base URL**: `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1`
+- **API key**: your AI Endpoints API key. The wizard immediately verifies the endpoint and should print a `Verified endpoint via .../v1/models` confirmation line. If that line does not appear, the key is invalid: do not continue, regenerate it (see the troubleshooting in Step 4).
+- **API compatibility mode**: `2` (`Chat Completions`)
+- **Model**: select `gpt-oss-120b` from the displayed catalog list
+- **Context length**: type `131000` rather than leaving auto-detection. Hermes requires at least 64,000 tokens of context for agent use, and a wrong auto-detection silently degrades the agent.
+- **Display name**: `ovhcloud`
+- **Terminal backend**: `Local` (default), or `Docker/Podman` to run the agent's commands in an isolated container — recommended if Docker is installed on the VPS.
+
+The wizard saves the configuration to `~/.hermes/config.yaml` as a `custom_providers` entry. Verify the result:
+
+```bash
+cat ~/.hermes/config.yaml
+```
+
+You should get a block of this shape (the provider name and the environment variable name are derived from the endpoint URL):
+
+```yaml
+custom_providers:
+  - name: ovhcloud
+    base_url: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
+    key_env: HERMES_CUSTOM_OAI_ENDPOINTS_KEPLER_AI_CLOUD_OVH_NET_API_KEY
+    model: gpt-oss-120b
+    api_mode: chat_completions
+    models:
+      gpt-oss-120b:
+        context_length: 131000
+```
+
+If the `context_length: 131000` line is missing, add it as shown: Hermes requires at least 64,000 tokens of context for agent use, and the `gpt-oss-120b` model served by AI Endpoints offers 131,000; declaring the value explicitly avoids an incorrect auto-detection.
+
+Finally, check where the wizard stored your API key:
+
+```bash
+grep -l "API_KEY" ~/.hermes/.env ~/.hermes/config.yaml 2>/dev/null
+chmod 600 ~/.hermes/.env
+```
+
+:::warning
+The key must live in `~/.hermes/.env` (under the name given by `key_env`) or in the Hermes credential pool — not in a shell-exported variable, and not in plain text in `config.yaml`. The agent's background tasks (memory review, title generation) run outside your interactive session and would not see a manually exported variable. If the wizard wrote the key in plain text in `config.yaml` (an `api_key` field), move it to `~/.hermes/.env` and replace the field with `key_env` as shown above.
+:::
+
+:::warning
+**One key, one location.** If you made earlier configuration attempts, remove any leftover key: `grep -n "api_key" ~/.hermes/config.yaml` must not return any field containing a key or a `${...}` placeholder (the `key_env` field is enough), the `.env` file must contain a single variable for this endpoint, and `hermes auth list` must not list a stale entry. A leftover key silently takes precedence over the right one and causes 401/403 errors that are hard to diagnose.
+:::
+
+:::info
+The `gpt-oss-120b` model supports tool use (function calling), which is essential for an agent. You can browse the [AI Endpoints catalog](https://endpoints.ai.cloud.ovh.net/catalog) to pick another compatible model; if so, check its context window (64k minimum) and its function calling support.
+:::
+
+### Step 4 - Verifying the model connection <a name="verification"></a>
+
+Start a test session:
+
+```bash
+hermes chat
+```
+
+Ask a simple question, then one that triggers a tool call, for example:
+
+```text
+What time is it on this server? Use the terminal to check.
+```
+
+The agent should run a command (for example `date`) and answer with the result. This confirms that function calling works through AI Endpoints.
+
+Also verify in the logs that requests are sent to the OVHcloud endpoint and not to a fallback provider:
+
+```bash
+grep -r "oai.endpoints.kepler" ~/.hermes/logs/ | tail -n 5
+```
+
+If requests do not reach the expected endpoint, run `hermes model` and check that the `Active provider` is your `custom_providers` entry, not a fallback provider such as OpenRouter.
+
+On a `401` or `403` error, test the key outside Hermes to isolate the cause:
+
+```bash
+source ~/.hermes/.env
+curl -s -o /dev/null -w "HTTP %{http_code}\n" \
+  https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $HERMES_CUSTOM_OAI_ENDPOINTS_KEPLER_AI_CLOUD_OVH_NET_API_KEY" \
+  -d '{"model":"gpt-oss-120b","messages":[{"role":"user","content":"ping"}],"max_tokens":5}'
+```
+
+- **HTTP 200**: the key is valid; the problem is on the Hermes side — look for a leftover key (see the "one key" warning in Step 3).
+- **HTTP 401/403**: the key is invalid on the OVHcloud side — regenerate it from the AI Endpoints section of your Public Cloud project.
+
+### Step 5 - Connecting the Telegram gateway <a name="telegram"></a>
+
+#### Creating the Telegram bot
+
+The token is obtained from [@BotFather](https://t.me/BotFather), Telegram's official service for creating bots — an account operated by Telegram itself, and the only channel that issues bot tokens:
+
+1. In Telegram, open a chat with `@BotFather` (check the verification badge: impersonator accounts exist).
+2. Send the `/newbot` command.
+3. Give a display name (for example `My Hermes agent`), then a unique username ending in `bot` (for example `myagent_hermes_bot`).
+4. BotFather replies with the bot token, of the form `123456789:AAE...`. This is what the wizard in the next section will ask for.
+
+:::info
+If the token is ever compromised, the `/revoke` command in BotFather regenerates it (the old one stops working).
+:::
+
+#### Configuring the gateway
+
+Launch the messaging platform setup wizard:
+
+```bash
+hermes gateway setup
+```
+
+Select `Telegram` and enter the token provided by @BotFather. The wizard then offers the other platforms (WhatsApp, Discord, Slack...): answer `n` to those you do not use — a platform that is enabled but misconfigured can prevent the whole gateway from starting. The configuration is saved in `~/.hermes/config.yaml` and `~/.hermes/.env`.
+
+Start the gateway manually for a first test:
+
+```bash
+hermes gateway run
+```
+
+Check in the first displayed lines that Telegram connects, then send a message to your bot from Telegram (search for its `@myagent_hermes_bot` username and open the chat). Received messages appear in the gateway terminal — keep it visible during the test. On first contact, if you have not set an allowlist, Hermes replies with a pairing code: authorise your account by running, in a second terminal, the command shown in the logs (of the form `hermes pairing approve telegram <CODE>`). Once the exchange works, stop the gateway (`Ctrl+C`) and move on to the next step to make it permanent.
+
+### Step 6 - Running Hermes as a systemd service <a name="systemd"></a>
+
+Hermes installs its own systemd service, in user mode. Still as the `hermes` user:
+
+```bash
+hermes gateway install
+```
+
+Answer `Y` to both questions (start now, and start automatically on boot). The command installs the service at `~/.config/systemd/user/hermes-gateway.service` and enables systemd *lingering* (`✓ Linger enabled`), which keeps the service running after you log out of SSH and restarts it automatically when the VPS reboots.
+
+Check the service's status and logs:
+
+```bash
+systemctl --user status hermes-gateway
+journalctl --user -u hermes-gateway -f
+```
+
+The agent is now permanently reachable from Telegram and will survive VPS reboots.
+
+### Step 7 - Scheduling a recurring task <a name="cron"></a>
+
+Hermes ships its own scheduler, **separate from the system crontab**: jobs are stored in `~/.hermes/cron/jobs.json`, and the gateway ticks them every 60 seconds — so they only run while the Step 6 service is up.
+
+The most direct way is the dedicated command family:
+
+```bash
+hermes cron create "every 2h" "Check [your topic] and send me a summary on Telegram"
+hermes cron list
+hermes cron remove <job_id>
+```
+
+You can also phrase the request in natural language from Telegram ("Every Monday at 8am, search this week's news about [your topic] and send me a 10-line summary"): the agent then creates the job through its internal `cronjob_manage` tool.
+
+:::warning
+If, on a natural-language request, the agent tries to edit the system crontab (`crontab -e`) and fails for lack of permissions, it picked the wrong tool: rephrase with "using your internal scheduler, not the system crontab", or use `hermes cron create` / `/cron add` directly. Then confirm with `hermes cron list`.
+:::
+
+:::info
+Each run consumes AI Endpoints tokens (pay-as-you-go billing). A weekly summary task typically represents a few hundred thousand tokens per month, i.e. a few cents with `gpt-oss-120b`. Monitor your usage from the <ManagerLink to="/">OVHcloud Control Panel</ManagerLink>.
+:::
+
+## Go further
+
+[How to secure a VPS](/guides/bare-metal-cloud/virtual-private-servers/secure-your-vps)
+
+[AI Endpoints - Getting started](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)
+
+[Official Hermes Agent documentation](https://hermes-agent.nousresearch.com/docs/)
+
+[How to install OpenClaw on a VPS](/guides/bare-metal-cloud/virtual-private-servers/install-openclaw)
+
+Join our [community of users](/links/community).
