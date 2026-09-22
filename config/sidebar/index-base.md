@@ -292,7 +292,6 @@
             + [Repartitioning a VPS after an upgrade](bare-metal-cloud/virtual-private-servers/upsize-vps-partition)
             + [First steps with pre-installed applications](bare-metal-cloud/virtual-private-servers/apps-first-steps)
             + [How to use the KVM console to access a VPS](bare-metal-cloud/virtual-private-servers/using-kvm-for-vps)
-            + [Managing a legacy VPS](bare-metal-cloud/virtual-private-servers/vps-legacy-control-panel)
         + [Configuration](products/bare-metal-cloud-virtual-private-servers-configuration)
             + [Backup options](bare-metal-cloud-virtual-private-configuration-servers-backups)
                 + [How to use snapshots on a VPS](bare-metal-cloud/virtual-private-servers/using-snapshots-on-a-vps)
