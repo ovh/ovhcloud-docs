@@ -501,7 +501,7 @@
             + [Finalize a maintenance intervention on your dedicated server](bare-metal-cloud/dedicated-servers/intervention-support)
             + [FAQ - Interventions and hardware replacement](bare-metal-cloud/dedicated-servers/faq-interventions-hardware-replacement)
             + [Canceling a dedicated server](bare-metal-cloud/dedicated-servers/canceling-dedicated-server)
-    + [Virtual Private Servers](products/bare-metal-cloud-vps)
+    + [Virtual Private Servers](products/bare-metal-cloud-vps){landing=bare-metal-cloud/vps/landing-page-vps}
         + [Getting started](bare-metal-cloud-vps-getting-started)
             + [How to order a VPS](bare-metal-cloud/vps/order-vps)
             + [Getting started with a VPS](bare-metal-cloud/vps/starting-with-a-vps)
