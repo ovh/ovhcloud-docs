@@ -1,16 +1,17 @@
 /**
  * Product cards rendered in guides by <ProductCard plan="…" />.
  *
- * Prices are NOT here. scripts/build-product-prices.ts reads them from the
- * public OVHcloud order catalog (no authentication) before every build and
- * writes theme/data/product-cards.ts, so a price change on ovhcloud.com
- * reaches the docs at the next build without anyone editing a guide.
+ * Prices are NOT here, and never baked into the site: the card reads them from
+ * the public OVHcloud order catalog (no authentication) in the reader's
+ * browser, at every page view (components/ProductCard/livePrices.ts). A price
+ * that changes on the catalog is the price the next reader sees.
  *
- * What lives here is what the catalog does not carry: which subsidiary each
- * docs locale reads, the card copy, and the spec lines the catalog has no
- * field for. Everything replicates the matching ovhcloud.com page (fr/,
- * en-ie/, de/, es-es/, it/, pl/, pt/ — /vps/uc-vps-game/) verbatim, including
- * which prices it shows: copy a string from there, do not write one.
+ * What lives here is everything static: which subsidiary each docs locale
+ * reads, the card copy, and each plan's name and specs. Everything replicates
+ * the matching ovhcloud.com page (fr/, en-ie/, de/, es-es/, it/, pl/, pt/ —
+ * /vps/uc-vps-game/) verbatim, including which prices it shows: copy a string
+ * from there, do not write one. A new plan means a new plan code, so a spec
+ * change arrives as a new entry below, not as an edit.
  */
 
 export const CARD_LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
@@ -191,7 +192,15 @@ export interface ProductCardDef {
    * commitment price, billed monthly.
    */
   pricingMode: 'upfront12';
-  /** Public bandwidth: the catalog has no field for it. */
+  /** Card title, e.g. "VPS-3". */
+  name: string;
+  /** Range badge, e.g. "2027". */
+  range: string;
+  /** `brick` of the ovhcloud.com configurator link. */
+  brick: string;
+  vcores: number;
+  ramGb: number;
+  diskGb: number;
   bandwidthGbps: number;
   /**
    * The (?) tooltip on the traffic line, verbatim from each page — the two
@@ -206,6 +215,12 @@ export const PRODUCT_CARDS: Record<string, ProductCardDef> = {
   'vps-2027-model3': {
     catalog: 'vps',
     pricingMode: 'upfront12',
+    name: 'VPS-3',
+    range: '2027',
+    brick: 'VPS Model 3',
+    vcores: 6,
+    ramGb: 12,
+    diskGb: 100,
     bandwidthGbps: 2,
     trafficNote: {
       fr: 'Les VPS en Asie-Pacifique ont un quota mensuel de trafic : 1 To. Au-delà, la bande passante est limitée à 10 Mbit/s.',
@@ -220,6 +235,12 @@ export const PRODUCT_CARDS: Record<string, ProductCardDef> = {
   'vps-2027-model4': {
     catalog: 'vps',
     pricingMode: 'upfront12',
+    name: 'VPS-4',
+    range: '2027',
+    brick: 'VPS Model 4',
+    vcores: 8,
+    ramGb: 24,
+    diskGb: 200,
     bandwidthGbps: 3,
     trafficNote: {
       fr: 'Les VPS en Asie-Pacifique ont un quota mensuel de trafic : 3 To. Au-delà, la bande passante est limitée à 10 Mbit/s.',
@@ -232,30 +253,3 @@ export const PRODUCT_CARDS: Record<string, ProductCardDef> = {
     },
   },
 };
-
-/** One card, fully resolved for one locale: the component only lays it out. */
-export interface ResolvedCard {
-  name: string;
-  badge: string;
-  from: string;
-  /** Main price: excl. VAT, or incl. VAT when the page shows only that. */
-  price: string;
-  priceSuffix: string;
-  /** Second line ("soit 12,48 € TTC/mois"), when the page shows both. */
-  inclVatLine: { or: string; price: string; suffix: string } | null;
-  setupFee: string;
-  setupFeeValue: string;
-  configure: string;
-  orderUrl: string;
-  specs: { text: string; note?: string }[];
-}
-
-/**
- * Shape of the generated theme/data/product-cards.ts. A null entry means the
- * catalog could not be read for that locale at build time: the card is left
- * out rather than shown with a stale or invented price.
- */
-export type ProductCardData = Record<
-  string,
-  Record<CardLocale, ResolvedCard | null>
->;
