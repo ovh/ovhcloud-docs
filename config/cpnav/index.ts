@@ -39,6 +39,7 @@ import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
+import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
@@ -60,6 +61,7 @@ import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
+import { securitySecretManager } from './keys/security-secret-manager';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -132,6 +134,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
   'publiccloud-file-storage': publiccloudFileStorage,
+  'publiccloud-cold-archive': publiccloudColdArchive,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
   'publiccloud-public-ips': publiccloudPublicIps,
@@ -164,6 +167,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-service-accounts': iamServiceAccounts,
   'iam-policies': iamPolicies,
   'security-kms': securityKms,
+  'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to

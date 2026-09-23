@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.09.22
+
+### Documentation
+- 4700 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.21
 
 ### Features
