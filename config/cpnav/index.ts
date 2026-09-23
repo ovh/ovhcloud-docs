@@ -183,6 +183,20 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'billing-services': billingServices,
 };
 
+/**
+ * Multi-key combinations that occur in the guides. One rule is generated per entry, so a
+ * combination must be declared before a token can use it; `pnpm cpnav:validate` reports
+ * undeclared ones. They are enumerated rather than computed because a rule per possible
+ * subset is combinatorial and `ReplaceRule.replace` is typed as a plain string.
+ * Order within an entry does not matter — entries are canonicalised.
+ */
+export const CPNAV_SETS: string[][] = [
+  ['iam-policies', 'security-kms'],
+  ['web-email-pro', 'web-exchange'],
+  ['web-email-pro', 'web-mx-plan', 'web-exchange'],
+  ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
+];
+
 const ORDER = Object.keys(CPNAV_KEYS);
 
 /** Sort keys into canonical (declaration) order. Throws on an unknown key. */
