@@ -1,7 +1,7 @@
 ---
 title: Schlüssel auf OVHcloud KMS mit BYOK importieren und exportieren
 description: Erfahren Sie, wie Sie verschlüsseltes Schlüsselmaterial sicher mit OVHcloud KMS mittels asymmetrischer RSA-Umschließung (BYOK) importieren und exportieren
-lastUpdated: 2026-08-12
+lastUpdated: 2026-09-23
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -227,7 +227,7 @@ Unterstützte Algorithmen für die Umschließung ([RFC 7518](https://datatracker
 | `PKCS1` | RSA-Schlüsselmaterial in PKCS#1-Kodierung |
 | `PKCS8` | Privates Schlüsselmaterial in PKCS#8-Kodierung |
 
-Nach dem Umschließen mit dem öffentlichen Zielschlüssel senden Sie den entstandenen JWE-Compact-Serialization-`ciphertext` in der Importanfrage.
+Nach dem Umschließen mit dem öffentlichen Zielschlüssel senden Sie den entstandenen JWE-Compact-Serialization-`ciphertext` in der Importanfrage. Ein Beispiel in Go finden Sie unter [Vollständiges Beispiel in Go](#vollständiges-beispiel-in-go).
 
 ### Den umschlossenen Schlüssel importieren
 
@@ -603,6 +603,144 @@ Unterstützte Algorithmen für die Umschließung: `types.RSAOAEP`, `types.RSAOAE
 
 - Ist das Ziel eine andere OKMS-Domain, importieren Sie das umschlossene Material dort mit `wrappedKeys` wie unter [Den umschlossenen Schlüssel importieren](#den-umschlossenen-schlüssel-importieren), und verwenden Sie die ID des Transportschlüssels dieser Domain als `wrappingKeyId`.
 - Ist das Ziel ein externes System, nutzen Sie dessen native API zum Aufheben der Umschließung bzw. zum Import mit dem privaten Transportschlüssel, demselben `keyFormatType` und demselben Algorithmus für die Umschließung wie beim Export.
+
+### Vollständiges Beispiel in Go
+
+Die folgenden Beispiele führen beide Zeremonien mit einem RSA-Schlüssel durch. Sie verwenden das [Go SDK](https://pkg.go.dev/github.com/ovh/okms-sdk-go) für die Aufrufe an OVHcloud KMS und [go-jose](https://pkg.go.dev/github.com/go-jose/go-jose/v4) für die JWE-Operationen auf der anderen Seite. Beide Beispiele kodieren das Schlüsselmaterial in PKCS#8 (DER), was dem `keyFormatType` `PKCS8` entspricht.
+
+#### Einen lokal erzeugten Schlüssel importieren
+
+Die Go-Standardbibliothek erzeugt den Schlüssel, den das Programm lokal mit dem öffentlichen Transportschlüssel umschließt und anschließend importiert. Sein Klartext erreicht OVHcloud KMS nie.
+
+```go
+// 1. Erzeugen Sie den Transportschlüssel auf OVHcloud KMS und rufen Sie seinen öffentlichen Teil ab.
+transportKey, err := okmsClient.GenerateRSAKeyPair(
+  ctx,
+  okmsId,
+  types.N4096,
+  "byok-transport-rsa",
+  types.SOFTWARE,
+  "",
+  []types.CryptographicUsages{types.WrapKey, types.UnwrapKey},
+)
+if err != nil {
+  return err
+}
+transportPub, err := okmsClient.ExportPublicKey(ctx, okmsId, transportKey.Id)
+if err != nil {
+  return err
+}
+
+// 2. Erzeugen Sie den zu importierenden Schlüssel und kodieren Sie ihn in PKCS#8 (DER).
+srcKey, err := rsa.GenerateKey(rand.Reader, 2048)
+if err != nil {
+  return err
+}
+plaintext, err := x509.MarshalPKCS8PrivateKey(srcKey)
+if err != nil {
+  return err
+}
+
+// 3. Umschließen Sie das Schlüsselmaterial als JWE: Schlüsselumschließung mit RSA-OAEP-256, Inhaltsverschlüsselung mit A256GCM.
+encrypter, err := jose.NewEncrypter(
+  jose.A256GCM,
+  jose.Recipient{Algorithm: jose.RSA_OAEP_256, Key: transportPub},
+  nil,
+)
+if err != nil {
+  return err
+}
+jwe, err := encrypter.Encrypt(plaintext)
+if err != nil {
+  return err
+}
+ciphertext, err := jwe.CompactSerialize()
+if err != nil {
+  return err
+}
+
+// 4. Importieren Sie den umschlossenen Schlüssel. Das KMS hebt die Umschließung auf und leitet Typ und Größe aus dem Material ab.
+imported, err := okmsClient.ImportWrappedServiceKey(
+  ctx,
+  okmsId,
+  transportKey.Id,
+  ciphertext,
+  types.PKCS8,
+  "imported-rsa-byok",
+  "",
+  []types.CryptographicUsages{types.Sign, types.Verify},
+)
+if err != nil {
+  return err
+}
+keyID := imported.Id
+```
+
+Die JWE-Inhaltsverschlüsselung (`enc`) muss `A256GCM` sein.
+
+#### Einen Schlüssel exportieren und das JWE entschlüsseln
+
+Das Ziel (hier das lokale Programm) erzeugt das Transportschlüsselpaar und importiert nur dessen öffentlichen Teil in OVHcloud KMS. Anschließend entschlüsselt das Ziel das exportierte JWE mit dem privaten Teil.
+
+```go
+// 1. Erzeugen Sie das Transportschlüsselpaar am Ziel.
+destKey, err := rsa.GenerateKey(rand.Reader, 4096)
+if err != nil {
+  return err
+}
+
+// 2. Importieren Sie nur seinen öffentlichen Teil in OVHcloud KMS, mit der Verwendung wrapKey.
+wrappingKey, err := okmsClient.ImportKey(
+  ctx,
+  okmsId,
+  &destKey.PublicKey,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+
+// 3. Machen Sie den Schlüssel extrahierbar und exportieren Sie ihn anschließend umschlossen durch den öffentlichen Zielschlüssel.
+extractable := true
+if _, err := okmsClient.UpdateServiceKey(ctx, okmsId, keyID, types.PatchServiceKeyRequest{Extractable: &extractable}); err != nil {
+  return err
+}
+defer func() {
+  extractable := false
+  _, _ = okmsClient.UpdateServiceKey(ctx, okmsId, keyID, types.PatchServiceKeyRequest{Extractable: &extractable})
+}()
+wrapped, err := okmsClient.GetWrappedServiceKey(
+  ctx,
+  okmsId,
+  keyID,
+  wrappingKey.Id,
+  types.PKCS8,
+  types.RSAOAEP256,
+)
+if err != nil {
+  return err
+}
+
+// 4. Entschlüsseln Sie das JWE mit dem privaten Zielschlüssel und parsen Sie das PKCS#8-Material.
+jwe, err := jose.ParseEncrypted(
+  wrapped[0].Ciphertext,
+  []jose.KeyAlgorithm{jose.RSA_OAEP_256},
+  []jose.ContentEncryption{jose.A256GCM},
+)
+if err != nil {
+  return err
+}
+plaintext, err := jwe.Decrypt(destKey)
+if err != nil {
+  return err
+}
+exportedKey, err := x509.ParsePKCS8PrivateKey(plaintext)
+if err != nil {
+  return err
+}
+```
 
 ## Weiterführende Informationen
 
