@@ -1,0 +1,141 @@
+---
+title: Extraire des objets Salesforce avec le connecteur Data Platform
+description: "Le connecteur Salesforce extrait les données de votre org Salesforce : sObjects standard et personnalisés (Account, Contact, Opportunity, Lead, Case"
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Le connecteur Salesforce extrait les données de votre org Salesforce : sObjects standard et personnalisés (Account, Contact, Opportunity, Lead, Case, objets personnalisés `*__c`), requêtes SOQL, recherches SOSL, métadonnées de sObject, limites d'API de l'org, et listes de rapports.
+
+**7 types d'endpoints** couvrant la surface de l'API REST Salesforce la plus utile pour l'analytique.
+
+Le connecteur renvoie du **JSON brut** depuis l'API Salesforce. La Data Platform OVHcloud aplatit automatiquement les objets imbriqués en colonnes et stocke le résultat dans le lakehouse. Aucune définition de schéma manuelle n'est nécessaire.
+
+## 1. Créer une External Client App pour l'accès à l'API
+
+Le connecteur s'authentifie via **OAuth 2.0 Client Credentials Flow**, ce qui nécessite une External Client App (ou une Connected App héritée) configurée dans votre org Salesforce.
+
+### Étapes
+
+1. Dans Salesforce, ouvrez **Setup** (icône d'engrenage, en haut à droite).
+2. Recherchez **App Manager** dans la zone Quick Find.
+3. Cliquez sur **New External Client App** (en haut à droite). Si vous voyez un org hérité avec seulement « New Connected App », cela fonctionne aussi : choisissez Connected App et activez « Client Credentials Flow » sous OAuth Settings.
+4. Renseignez :
+   - **App name** : un nom descriptif quelconque (par ex. `DPE Data Platform`)
+   - **Contact email** : votre e-mail
+5. Dans la section OAuth :
+   - ☑️ **Enable OAuth**
+   - **Callback URL** : `https://login.salesforce.com/services/oauth2/success` (requis même s'il n'est pas utilisé pour Client Credentials)
+   - **OAuth scopes** : ajoutez au minimum `Manage user data via APIs (api)`
+6. **Save** l'application.
+7. Ouvrez l'application nouvellement créée → onglet **Policies** → **Edit**.
+8. Activez **Client Credentials Flow** et sélectionnez un utilisateur **Run As** (généralement votre utilisateur admin sur un org Developer).
+9. **Save**.
+
+### Récupérer les identifiants
+
+1. De retour sur la page de l'application, ouvrez l'onglet **Settings** → **OAuth Settings**.
+2. Cliquez sur **Consumer Key and Secret**. Salesforce demandera une vérification par e-mail.
+3. Copiez la **Consumer Key** (votre `client_id`) et le **Consumer Secret** (votre `client_secret`).
+
+### Trouver l'URL de votre instance
+
+- Le menu de profil en haut à droite dans Salesforce affiche votre URL My Domain.
+- Ou : **Setup → Quick Find → My Domain** → la valeur sous « Current My Domain URL ».
+
+Format : `https://<something>.my.salesforce.com` (par ex. `https://orgfarm-XXXXXX-dev-ed.develop.my.salesforce.com` sur une Developer Edition).
+
+## 2. Configurer le connecteur sur la platform
+
+Dans l'interface Data Platform OVHcloud, connectez une nouvelle source Salesforce et renseignez :
+
+| Champ | Valeur |
+|---|---|
+| **Instance URL** | Votre URL My Domain de l'étape 1 |
+| **Consumer Key** | Depuis votre External Client App |
+| **Consumer Secret** | Depuis votre External Client App |
+
+Sauvegardez : le connecteur échangera automatiquement ces informations contre un token d'accès à chaque exécution. Les tokens ne sont pas stockés ; l'échange a lieu à chaque extraction de données.
+
+## 3. Endpoints disponibles
+
+Ajoutez une table par type d'endpoint que vous souhaitez extraire. Vous pouvez ajouter plusieurs fois le même type d'endpoint (par ex. un `sobject_records` par sObject).
+
+### Extraction de données
+
+| Endpoint | Description | Paramètres clés |
+|---|---|---|
+| **sobject_records** | Extrait les enregistrements de n'importe quel sObject standard ou personnalisé (Account, Contact, `MyObject__c`…) | `sobject_name` (requis), `fields_filter`, `where_clause`, `max_items` |
+| **soql_query** | Exécute une requête SOQL libre pour des jointures, agrégations ou sous-requêtes complexes | `soql` (requis), `max_items` |
+| **sosl_search** | Recherche plein texte sur plusieurs sObjects à la fois | `sosl` (requis), `max_items` |
+
+### Métadonnées
+
+| Endpoint | Description | Paramètres clés |
+|---|---|---|
+| **sobjects_list** | Liste tous les sObjects disponibles dans votre org (standard + personnalisés) | `max_items` |
+| **sobject_describe** | Schéma complet (champs, types, relations) pour un sObject | `sobject_name` (requis) |
+| **reports_list** | Liste les rapports configurés dans votre org | `max_items` |
+| **limits** | Limites de requêtes API de l'org et utilisation actuelle | |
+
+## 4. Exemple rapide : extraire des Accounts
+
+1. **Type d'endpoint** : `sobject_records`
+2. **Nom du sObject** : `Account`
+3. **Filtre de champs** (optionnel) : `Id, Name, Industry, AnnualRevenue, CreatedDate`
+4. **Max items** : `100` (ou laissez vide pour tout extraire)
+
+Le connecteur renvoie du JSON brut depuis Salesforce. La platform aplatit les champs imbriqués (les réponses Salesforce incluent un objet `attributes` avec `type` et `url`, qui devient les colonnes `attributes.type` / `attributes.url`) et charge le résultat dans votre lakehouse.
+
+## 5. Bonnes pratiques
+
+### Utiliser `fields_filter` pour les sObjects volumineux
+
+Lorsque `fields_filter` est vide, le connecteur introspecte le sObject et sélectionne tous les champs interrogeables. Certains sObjects standard ont 50 à 100+ champs, ce qui ralentit l'extraction et rend la table résultante très large. Pour l'analytique, listez les 5 à 20 champs dont vous avez réellement besoin.
+
+### Utiliser `where_clause` pour l'extraction incrémentale
+
+Ajoutez un filtre comme `LastModifiedDate > LAST_N_DAYS:1` pour ne récupérer que les enregistrements récemment modifiés. Les littéraux de date SOQL de Salesforce comme `LAST_N_DAYS:N`, `TODAY`, `YESTERDAY`, `THIS_WEEK` sont particulièrement pratiques ici.
+
+Vous pouvez saisir le filtre avec ou sans le mot-clé `WHERE` en tête. Les deux fonctionnent.
+
+### Préférer `sobject_records` à `soql_query` quand c'est possible
+
+`sobject_records` est plus simple (remplir les champs + WHERE optionnel) et fonctionne de manière identique en interne. Réservez `soql_query` pour :
+
+- Les sous-requêtes (par ex. `SELECT Id, (SELECT Id FROM Contacts) FROM Account`)
+- Les agrégations (`SELECT COUNT(Id) FROM Case GROUP BY Status`)
+- Les jointures entre objets
+
+### Découvrir les sObjects disponibles avec `sobjects_list`
+
+Exécutez `sobjects_list` une fois : il renvoie le catalogue complet des sObjects de votre org, y compris chaque objet personnalisé se terminant par `__c`. Utilisez-le pour déterminer le nom exact de l'API à indiquer dans `sobject_name`.
+
+### Commencer avec un `max_items` faible
+
+Utilisez `max_items: 10` lors de la configuration d'une nouvelle table, puis augmentez ou effacez la valeur une fois que le résultat semble correct.
+
+## 6. Limitations
+
+- **Lecture seule.** Le connecteur ne crée, ne met à jour ni ne supprime aucun enregistrement. Il ne fait qu'extraire.
+- **REST API v60.0** : suffisamment moderne pour couvrir tous les sObjects et requêtes documentés. Les fonctionnalités plus récentes de Salesforce Spring '26 sont accessibles via les endpoints REST généraux mais peuvent ne pas être exposées via les endpoints spécialisés du connecteur.
+- **Pas de Bulk API 2.0** : pour les extractions à requête unique portant sur plusieurs millions de lignes, Bulk serait plus efficace. Non pris en charge dans cette version.
+- **Pas de streaming / Platform Events / Pub/Sub** : ceci est un connecteur d'extraction par lot, pas un écouteur d'événements en temps réel.
+- **Les rapports sont listés, pas exécutés.** L'endpoint `reports_list` renvoie le catalogue des rapports, pas leurs résultats. Pour récupérer les données d'un rapport, reproduisez la requête SOQL équivalente via `soql_query`.
+- **Les quotas d'API au niveau de l'org s'appliquent.** Salesforce impose une limite quotidienne de requêtes API par org (différente selon l'édition). Les extractions sont comptabilisées dans cette limite, consultez l'endpoint `limits` pour l'utilisation actuelle.
+- **Les erreurs ne sont pas passées sous silence.** Si votre requête comporte une erreur de syntaxe SOQL, référence un champ que l'utilisateur Run As ne peut pas voir, ou rencontre un problème de permission, l'extraction échoue avec le message d'erreur de Salesforce.
+
+:::info
+Pour les détails techniques (pagination, limites de débit, flux d'authentification, référence complète des endpoints, format de sortie, limitations), consultez [Référence technique Salesforce](/guides/public-cloud/data-platform/connectors-sources-salesforce-technical-reference).
+:::
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

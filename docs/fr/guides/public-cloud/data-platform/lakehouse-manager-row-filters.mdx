@@ -1,0 +1,143 @@
+---
+title: Restreindre les lignes qu'un utilisateur peut voir avec les filtres de lignes
+description: Les filtres de lignes restreignent les lignes d'une table qu'un utilisateur ou un groupe peut voir lorsqu'il l'interroge, sans dupliquer la table
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Les **filtres de lignes** décident quelles lignes d'une [table](/guides/public-cloud/data-platform/lakehouse-manager-tables) un utilisateur ou un groupe donné peut voir. La table reste une seule table : même nom, mêmes colonnes, une seule copie des données. Deux personnes qui l'interrogent peuvent obtenir des résultats différents, car chacune porte ses propres filtres.
+
+Un filtre disant *« Marie ne voit que les lignes où `country = 'France'` »* signifie que lorsque Marie interroge cette table, les lignes concernant la France reviennent et tout le reste est simplement absent. Elle ne reçoit aucune erreur, aucun avertissement, et aucune notification que des lignes ont été masquées : la table lui apparaît comme une table plus petite. Les comptages, agrégats et jointures qu'elle exécute sont calculés uniquement sur ses lignes visibles. La vue de personne d'autre ne change : un collègue sans filtre sur cette table voit toujours tout.
+
+Un filtre couvre une table et s'applique aux utilisateurs et groupes que vous lui assignez. Vous les trouverez dans le Lakehouse Manager, dans la section **Row filters**, qui liste tous les filtres du projet.
+
+<img className="thumbnail" alt="The Row filters section listing every filter in the project" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-overview.png" loading="lazy" />
+
+:::warning
+Les filtres de lignes sont appliqués sur le **chemin de requête Trino**, qui est celui utilisé par l'[Analytics Manager](/guides/public-cloud/data-platform/analytics-manager-queries), les requêtes, les tableaux de bord et les [consommateurs Trino](/guides/public-cloud/data-platform/connectors-consumers-trino). Quelqu'un lisant la même table d'une autre manière n'est **pas filtré et voit toutes les lignes** : un [notebook](/guides/public-cloud/data-platform/dpe-notebooks) utilisant PySpark ou PyIceberg, ou un accès direct au catalogue et au stockage objet.
+
+Les filtres de lignes constituent donc un contrôle sur la manière dont les données sont consommées via SQL, et non un substitut au retrait de l'accès au stockage sous-jacent. Toute personne dont l'accès doit être réellement limité ne doit pas détenir d'identifiants de stockage directs pour cette table. Informez les équipes exécutant des notebooks ou de l'ETL sur une table avant de la filtrer, afin que personne ne suppose une protection qui n'existe pas sur leur chemin.
+:::
+
+## Instructions
+
+### Créer un filtre de lignes
+
+Rendez-vous dans la section *Row filters* du Lakehouse Manager et cliquez sur **+ New filter**. La fenêtre modale comporte deux étapes : le filtre lui-même, puis les personnes auxquelles il s'applique.
+
+L'étape 1 demande trois choses :
+
+- un **Filter name**, pour que la liste se lise comme une intention plutôt que comme une liste d'expressions,
+- la **target table**, choisie via un [dataset](/guides/public-cloud/data-platform/lakehouse-manager-datasets) puis une table dans celui-ci,
+- la **filter condition** : les lignes ne la respectant pas ne seront pas visibles pour les utilisateurs et groupes assignés.
+
+<img className="thumbnail" alt="Create a row filter, step 1 of the New row filter modal" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-create.png" loading="lazy" />
+
+Vous disposez de deux façons d'écrire la condition : le **mode builder**, qui est le mode par défaut, et le **mode SQL**.
+
+### Construire une condition en mode builder
+
+Le mode builder est le mode simple, celui à utiliser à moins d'avoir besoin de quelque chose qu'il ne peut pas exprimer. Choisissez une colonne dans le menu déroulant (son type est affiché à côté de son nom), choisissez un opérateur, et saisissez la valeur. Le **SQL généré** apparaît sous la condition dès que la valeur est saisie, afin que vous voyiez toujours la condition que vous êtes réellement en train d'enregistrer.
+
+Cliquez sur **+ Add condition** pour une deuxième ligne. À partir de deux conditions, vous choisissez comment elles se combinent : **Match ALL conditions (AND)** ou **Match ANY condition (OR)**. Ce choix s'applique à toutes les conditions du filtre, donc le mode builder vous offre un seul groupe AND ou un seul groupe OR, jamais un mélange des deux. Une condition nécessitant les deux, ou toute autre imbrication, relève du mode SQL.
+
+<img className="thumbnail" alt="Two conditions combined with Match ALL conditions (AND), with the generated SQL below" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-conditions.png" loading="lazy" />
+
+Les opérateurs que vous pouvez choisir dépendent du type de la colonne :
+
+| Type de colonne | Opérateurs disponibles |
+|---|---|
+| **Text** | equals, not equals, like, is one of, is not one of, is empty, is not empty |
+| **Number** | equals, not equals, `<`, `≤`, `>`, `≥`, is one of, is not one of, is empty, is not empty |
+| **Date and time** | identique à number : ordonner une date a autant de sens qu'ordonner un nombre |
+| **Boolean** | equals, is empty, is not empty |
+
+**Les valeurs vides** ont leurs propres opérateurs. Vous ne pouvez pas trouver de lignes vides en comparant une colonne à une valeur vide, et la platform vous le signale plutôt que d'enregistrer un filtre qui, silencieusement, ne correspond à rien. *Is empty* et *is not empty* séparent une table exactement : leurs comptages de lignes s'additionnent toujours au total.
+
+**Les valeurs sont vérifiées par rapport à la colonne au moment où vous les écrivez.** Comparez une colonne de type date à `01/02/2024` et on vous indique immédiatement le format attendu par cette colonne, plutôt que d'enregistrer un filtre qui semble correct puis casse toutes les requêtes de la personne restreinte. Les dates attendent `2024-01-01`, les timestamps attendent `2024-01-01 10:30:00`, les heures attendent `09:30:00`, et une valeur portant un fuseau horaire est refusée plutôt que silencieusement décalée : envoyez la valeur d'horloge locale que la colonne contient réellement.
+
+Une condition dispose d'une marge pour :
+
+| Limite | Valeur |
+|---|---|
+| Comparaisons dans une condition | 200 |
+| Valeurs dans un seul *is one of* | 100 |
+| Caractères dans une valeur texte | 500 |
+
+### Écrire une condition en mode SQL
+
+Pour les conditions que le builder ne peut pas exprimer, cliquez sur **Switch to SQL mode** et écrivez la condition directement sous forme d'expression SQL, par exemple `country = 'France' AND lower(dept) = 'sales'`. Ce que vous avez construit dans le builder est repris, donc le chemin habituel est de commencer dans le builder et de basculer lorsque vous atteignez ses limites.
+
+Il s'agit d'une simple condition : pas de `WHERE`, pas de point-virgule, pas d'instruction. Elle est vérifiée avant d'être enregistrée, et elle est refusée si elle référence une autre table, utilise une sous-requête, contient un commentaire ou un séparateur d'instructions, ou appelle une fonction en dehors de la liste autorisée. Les fonctions autorisées sont les fonctions par ligne peu coûteuses : traitement de texte, `coalesce`, `cast`, troncature de date et similaires. Les agrégats, les expressions régulières et les fonctions JSON ne sont pas disponibles, car un filtre de lignes s'exécute sur chaque ligne de chaque requête contre cette table et doit rester peu coûteux.
+
+Les noms de colonnes se comportent comme en SQL : les noms non entre guillemets ne sont pas sensibles à la casse, et vous mettez un nom entre guillemets pour atteindre une colonne dont la casse compte réellement.
+
+:::warning
+**Revenir du mode SQL au mode builder efface votre SQL.** Le builder ne peut pas représenter toutes les conditions que le SQL peut exprimer, il repart donc d'une condition vide plutôt que d'une approximation de la vôtre. La platform vous en avertit avant que cela ne se produise.
+:::
+
+### Assigner le filtre et vérifier son impact
+
+Cliquez sur **Next** pour l'étape 2. Elle s'ouvre avec un **filter summary** : le nom, le dataset, la table et la condition, exactement tels qu'ils seront enregistrés.
+
+En dessous, **Impact** indique ce que la condition fait à cette table à l'instant présent, par exemple *« 227 712 des 528 363 lignes seraient visibles avec ce filtre, 300 651 lignes seraient masquées »*. Ce ne sont que des comptages, jamais les données des lignes, il est donc sûr de le consulter sur une table dont vous ne devriez pas lire le contenu. Consultez-le avant d'assigner qui que ce soit : c'est le moyen le moins coûteux de repérer une condition qui ne garde rien, ou qui garde tout.
+
+Puis choisissez les **principals**, les utilisateurs et groupes auxquels ce filtre s'applique. Un filtre peut nommer plusieurs de chacun. L'appartenance aux groupes est résolue à chaque publication des filtres, et non au moment où vous écrivez le filtre, donc quelqu'un ajouté à un groupe restreint le mois prochain est filtré à partir de ce moment sans avoir besoin de toucher au filtre.
+
+<img className="thumbnail" alt="Step 2 of the New row filter modal: filter summary, impact, and principals" src="/images/public-cloud/data-platform/product/lakehouse-manager/row-filters/picts/row-filters-principals.png" loading="lazy" />
+
+Terminez avec **Save and activate**, ou avec **Save as inactive** pour mettre le filtre de côté jusqu'à ce que vous vouliez qu'il s'applique.
+
+### Comment plusieurs filtres se combinent
+
+Si plusieurs filtres s'appliquent à la même personne sur la même table, **ils s'appliquent tous en même temps, et chacun d'entre eux doit être satisfait** pour qu'une ligne soit visible. Les filtres n'élargissent jamais ce que quelqu'un voit : en ajouter un second ne peut que retirer davantage de lignes.
+
+C'est la source de surprise la plus fréquente. Deux filtres qui semblent chacun raisonnables, *« EMEA only »* et *« North America only »*, s'intersectent en un ensemble vide et la personne voit une table vide. Être ciblé deux fois par la même condition, directement nommé et via un groupe auquel vous appartenez, est sans conséquence : la même condition appliquée deux fois masque les mêmes lignes.
+
+### Gérer les filtres au quotidien
+
+La liste *Row filters* couvre l'ensemble du projet et affiche, pour chaque filtre, son bouton d'activation, son nom, ses principals, son dataset, sa table et sa condition, avec les actions **edit**, **duplicate** et **delete**.
+
+- **Désactiver** un filtre avec le bouton bascule arrête d'appliquer la restriction et garde le filtre dans la liste, prêt à être réactivé.
+- **Éditer** un filtre change sa condition ou ses principals.
+- **Un filtre couvre une table.** Pour appliquer la même condition à une autre table, dupliquez le filtre et changez la table cible sur la copie.
+
+Les filtres de lignes font partie de la configuration du projet, ils voyagent donc avec un [export de configuration](/guides/public-cloud/data-platform/tutorials-export-import-config) et peuvent être importés dans un autre projet aux côtés des datasets qu'ils protègent.
+
+### Permissions
+
+Deux choses sont contrôlées séparément, et l'une n'implique pas l'autre : gérer les filtres relève de la politique, tandis que le comptage d'impact relève des données.
+
+| Pour faire ceci | Vous avez besoin de |
+|---|---|
+| Voir, créer, éditer, dupliquer et supprimer des filtres de lignes | Les permissions *Row filter* (read, write, bind, delete) dans l'[Identity Access Manager](/guides/public-cloud/data-platform/iam-roles-conditions), listées sous *Data Manager* |
+| Lire le comptage d'impact sur une table | Un accès en lecture au dataset |
+
+### Bon à savoir
+
+- **L'enregistrement n'est pas instantané.** Les filtres sont publiés vers le moteur de requêtes, qui les récupère selon son propre cycle, donc un filtre nouveau, modifié, désactivé ou supprimé prend quelques secondes avant que les requêtes ne le reflètent. Si vous enregistrez un filtre et interrogez immédiatement en tant que personne restreinte, vous pouvez encore voir des lignes non filtrées : réessayez plutôt que de conclure que le filtre n'a pas fonctionné.
+- **Un filtre qui ne peut pas être publié ne restreint personne.** Si un filtre cible un groupe qui ne peut plus être résolu, la platform ne peut pas publier de restriction pour lui et les personnes ciblées voient toutes les lignes. Le filtre continue d'apparaître dans la liste et se lit toujours comme actif. Lorsqu'une restriction compte réellement, confirmez-la en interrogeant en tant que l'une des personnes restreintes plutôt qu'en lisant la liste.
+- **Une colonne supprimée après l'enregistrement du filtre n'est pas couverte.** Lors de l'enregistrement, les colonnes qu'une condition nomme sont vérifiées par rapport à la table telle qu'elle existe physiquement, donc une colonne que le catalogue connaît mais que la table ne possède pas est refusée, et la resynchronisation de la table est la solution. Une colonne supprimée ultérieurement n'est pas revérifiée d'elle-même : ouvrir le filtre recalcule son impact, ce qui fait apparaître le problème.
+
+### Dépannage
+
+| Symptôme | Où chercher |
+|---|---|
+| « Je ne vois aucune ligne du tout » | Vérifiez chaque filtre atteignant cette personne sur cette table. Plusieurs filtres se combinent étroitement, et deux filtres sensés peuvent s'intersecter en un ensemble vide. |
+| « Je ne vois aucune ligne, et un seul filtre s'applique » | La condition est appliquée correctement et aucune ligne ne la satisfait. C'est une question de données, pas une question de filtre. |
+| « Le filtre ne s'est pas appliqué » | Attendez quelques secondes et réessayez : la publication n'est pas instantanée. |
+| « Le filtre ne s'applique toujours pas » | Confirmez que la personne lit via Trino. Un notebook utilisant PySpark ou PyIceberg, ou un accès direct au stockage, n'est pas filtré. |
+| « Le filtre est actif mais personne n'est restreint » | Ses principals ne se résolvent peut-être plus. Vérifiez en interrogeant en tant que l'une des personnes restreintes. |
+| « Cela a été enregistré, puis leurs requêtes ont commencé à échouer » | La condition nomme peut-être une colonne qui a depuis été supprimée. Ouvrez le filtre pour le revérifier. |
+| « Quelqu'un de non restreint voit moins de lignes que prévu » | Les filtres de lignes ne s'appliquent qu'aux personnes qu'un filtre nomme. Regardez plutôt leurs permissions sur le dataset. |
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

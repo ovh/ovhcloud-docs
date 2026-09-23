@@ -23,6 +23,8 @@ export type UniverseId =
   | 'hosted-private-cloud'
   | 'bare-metal-cloud'
   | 'public-cloud'
+  | 'network'
+  | 'telecom'
   | 'identity-security-operations'
   | 'account-menu';
 
@@ -69,8 +71,11 @@ export interface CpNavLocationText {
 export interface CpNavLocation {
   /**
    * Locale-free Manager route. `<ManagerLink>` appends it to the manager host and owns the
-   * EU/CA picker, so nothing here is zone-aware. Composed from the Manager's nav tree as
-   * `/#/<application>/<hash minus "#/">`.
+   * EU/CA picker, so nothing here is zone-aware.
+   *
+   * The path is the nav node's application resolved to its `publicURL`, plus the node's
+   * hash — not `/#/<application>/<hash>`, which differs for most applications.
+   * `tempscripts/mgr_node.py` composes it; `cpnav_drift.py` checks it.
    */
   route?: string;
   /**

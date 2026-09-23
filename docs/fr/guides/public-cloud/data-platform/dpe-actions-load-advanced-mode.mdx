@@ -1,0 +1,430 @@
+---
+title: Mode avancé pour l'action Load
+description: Personnalisez une action Load directement dans sa configuration JSON, et les options qui diffèrent d'Aggregate
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Notez que le schéma global est très proche de celui de l'action Aggregate, bien qu'avec certaines limitations sur certaines options. Gardez à l'esprit que les actions Load sont conçues pour simplement charger les données depuis des sources brutes vers la Data Platform, tandis que les actions Aggregate sont conçues pour exécuter des opérations sur des tables contenues au sein de l'entrepôt de données de la Data Platform.
+
+En termes généraux, l'action Load est une version simplifiée de l'action Aggregate, visant à fournir un moyen simple de charger vos données. Pour la documentation complète de l'action Aggregate, veuillez vous référer à la [documentation avancée de l'action Aggregate](/guides/public-cloud/data-platform/dpe-actions-aggregate-advanced-mode).
+
+Le fichier de configuration JSON d'une action Load est composé d'objets de plus haut niveau qui sont obligatoires. Cela inclut :
+
+- [**Sources**](#source) : définit les tables sources utilisées pour charger les données.
+- [**Schema**](#schema) : définit la correspondance individuelle entre la table de destination et les tables sources.
+- [**Destination**](#destination) : définit dans quelle table les données de sortie de l'action Load seront chargées.
+
+D'autres paramètres optionnels peuvent également être ajoutés, nous les aborderons dans la section spécifique [**Other optional parameters**](#other-optional-parameters) qui inclut par exemple la segmentation, le périmètre ou les règles de transformation.
+
+## Source
+
+**Format** : le JSON contient une valeur de chaîne qui pointe vers la source et des paramètres additionnels optionnels. Le chemin de la source ressemble à ceci : `dwh/database_name/table_name`, où `database_name` est le nom de l'emplacement de la source (source ou provenant du Lakehouse Manager) et `table_name` le nom de l'objet source ou de l'objet dans le schéma du Lakehouse Manager.
+
+**Clé JSON** : `params.load_from[0].source` ou `params.load_from.source`
+
+Exemple :
+```json
+"load_from" : [
+    {
+        "source" : "dwh/default_dataset/prim_calendar",
+        "force_utf8" : true
+    }
+]
+
+load_from" : {
+        "source" : "dwh/default_dataset/prim_calendar",
+        "force_utf8" : true
+}
+```
+ 
+:::tip
+Pour les sources de type SQL : vous pouvez créer un alias de table en ajoutant un espace après le table_name, puis le ou les caractères pour l'alias de la table. Par exemple : "source": "dwh/mysql_source/lifetime_insights fb_i". Cela créera un alias `fb_i` pour la table `lifetime_insights`. Vous pouvez ainsi réutiliser cet alias dans les jointures et le schema.
+:::
+
+## Schema
+
+Le schema détermine le renommage entre le nom des champs tel qu'il est présent dans la source, et le nom que ces champs doivent avoir dans la destination.
+
+**Format** : l'objet schema contient une série d'objets JSON, dans lesquels chaque clé est le nom d'un attribut de la destination, et la valeur contient les paramètres associés à l'attribut.
+
+**Clé JSON** : `params.schema`
+
+Exemple :
+```json
+{
+"schema": {
+    "month": {
+      "table": "ref_month",
+      "operation": "SELECT",
+      "type": "default",
+      "attribute": "month"
+    },
+    "vegetables": {
+      "type": "sql",
+      "sql": "CONCAT(\"HELLO : \", prim_calendar.vegetables)"
+    },
+    "season": {
+      "type": "replace",
+      "value": "summer"
+    }
+}
+```
+
+- `schema.keys()` les attributs de destination
+- `type` le mode de correspondance de chaque attribut
+
+Il existe 3 types de correspondance différents :
+
+- type:`default` : pour faire correspondre un attribut à un autre sans aucune transformation
+- * `table` l'objet source d'origine de l'attribut
+- * `attribute`  attribut source à partir duquel effectuer la correspondance
+- * `operation`  représente les types d'opération SQL mentionnés dans la section des opérations SQL. (uniquement pour les sources de type SQL).
+- type:`replace` : placera une valeur codée en dur dans toutes les lignes de destination.
+- * `value`: cet attribut sera rempli avec la valeur pour toutes les lignes de destination en cours d'insertion/de mise à jour
+- `type`:"sql" : la formule SQL suivante sera appliquée (uniquement pour les sources de type SQL).
+- * `sql`  la valeur est une instruction SQL.
+
+## Destination
+
+Destination représente l'emplacement où les données de l'action seront injectées.
+
+**Format** : son chemin ressemble à ceci : `dwh/database_name/table_name`. Où database_name est le nom de la base de données de destination (généralement `default_dataset`) et table_name le nom de la table de destination dans le schema du Lakehouse Manager.
+
+**Clé JSON** : `params.load_to[source]`
+
+Exemple :
+
+```json
+"load_to": {
+    "source": "dwh/default_dataset/tmp_calendar",
+    "force_utf8": true
+  }
+```
+
+Notez que vous pouvez renseigner plusieurs destinations à la fois :
+
+```json
+"load_to": [
+    {"source": "dwh/default_dataset/prim_facebook"},
+    {"source": "dwh/default_dataset/tmp_facebook"},
+  ]
+```
+
+## Other optional parameters
+
+### Extract_chunk_size
+
+`extract_chunk_size` est une valeur entière qui représente la taille maximale autorisée à la fois pour l'extraction des données.
+
+**Clé JSON** : `params.load_from[0].extract_chunk_size`
+
+Exemple :
+
+```json
+{
+  "params": {
+    "load_from": [ { "extract_chunk_size": 5000 , ... } ]
+  }
+}
+```
+
+Cela permettra au worker d'extraire les données par lots de 5000 lignes.
+
+### Load_batch_size
+
+`load_batch_size` est une valeur entière représentant la taille maximale autorisée à la fois pour le chargement des données dans la base de données
+
+**Clé JSON** : `params.load_batch_size`
+
+Exemple :
+
+```json
+"load_batch_size": 5000
+```
+
+Cela permettra au worker de charger les données par lots de 5000 lignes
+
+### Source_rules
+
+`source_rules` représente la règle pour une préparation de données simple. Ce paramètre remplacera les règles existantes synchronisées depuis le DWH. Elles seront appliquées aux attributs de la source. Par exemple, supposons que nous souhaitions appliquer des règles de transformation à l'attribut `date_source`.
+
+**Format** : une liste contient des objets JSON, où chacun représente une règle appliquée à un attribut.
+
+**Clé JSON** : `load_from.source_rules`
+
+Exemple :
+```json
+  "source_rules": [
+  {
+    "action": "date_replace",
+    "action_values": [
+    "%d/%m/%Y %H:%i:%s",
+    "%Y-%m-%d %H:%M:%S"
+    ],
+    "attribute_name": "date_source",
+    "name": "correct date format"
+  }
+]
+```
+
+Pour une documentation de configuration détaillée, veuillez vous référer à l'article sur les [règles de blueprint](/guides/public-cloud/data-platform/connectors-analyzer-blueprint-rules)
+
+### Rules
+
+Les rules sont similaires aux source_rules, à la différence qu'elles seront appliquées à l'attribut de destination plutôt qu'à l'attribut d'extraction. Cela vous permet de faire correspondre différents attributs de destination au même attribut source tout en leur assignant des règles différentes.
+
+**Format** : une liste contient des objets JSON, où chacun représente une règle appliquée à un attribut.
+
+**Clé JSON** : `rules`
+
+Exemple :
+```json
+"rules": [
+  {
+    "action": "date_replace",
+    "action_values": [
+    "%d/%m/%Y %H:%i:%s",
+    "%Y-%m-%d %H:%M:%S"
+    ],
+    "attribute_name": "date_dest",
+    "name": "correct date format"
+  }
+]
+```
+
+### Handling JSON/XML semi structured mapping
+
+afin de gérer la correspondance des données semi-structurées, 
+vous devez indiquer quel est le nœud sur lequel boucler afin de structurer les données de manière normalisée.
+
+par exemple, si votre source ressemble à ceci :
+```json
+{
+	"data": [
+	  { "id":1,"name":"marco" },
+	  { "id":2,"name":"polo" },
+	]
+}
+```
+vous devez ajouter dans votre configuration de chargement, dans la section "params" :
+```json
+{
+  "params":{
+     "dataXPATH":"data",
+     ...
+  }
+}
+```
+
+### More options on structured CSV/XLSX files
+
+Il arrive que les fichiers excel et csv ne commencent pas à la toute première ligne. 
+il existe des paramètres à définir afin de
+
+#### encoding
+
+spécifier l'encodage des caractères du fichier CSV (par défaut : détection automatique).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "encoding":"utf-8",
+      ...
+    }]
+  }
+}
+```
+
+#### header
+
+indique si le fichier a un en-tête en première ligne (par défaut : true).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "header":true,
+      ...
+    }]
+  }
+}
+```
+
+#### header_offset
+
+indique combien de lignes dans votre fichier source le DPE doit ignorer avant que le fichier ne commence (par défaut 0).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "header_offset":1,
+      ...
+    }]
+  }
+}
+```
+
+#### offset
+
+indique combien de lignes sont vides entre votre en-tête et les lignes de données dans votre fichier source (par défaut 0).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "offset":1,
+      ...
+    }]
+  }
+}
+```
+
+#### limit
+
+définit le nombre maximum de lignes à lire depuis le fichier (par défaut None).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "limit":10,
+      ...
+    }]
+  }
+}
+```
+
+#### separator
+
+définit le caractère utilisé pour séparer les champs dans le fichier CSV (par défaut : détection automatique).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "separator":",",
+      ...
+    }]
+  }
+}
+```
+
+#### quotechar
+
+définit le caractère utilisé pour mettre entre guillemets les champs contenant des caractères spéciaux (par défaut '"').
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "quotechar":"\"",
+      ...
+    }]
+  }
+}
+```
+
+#### escapechar
+
+spécifie le caractère utilisé pour échapper le caractère de guillemet au sein des champs (par défaut '\').
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "escapechar":"\\",
+      ...
+    }]
+  }
+}
+```
+
+#### lineterminator
+
+détermine la séquence de caractères qui indique la fin d'une ligne (par défaut "\n").
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "lineterminator":"\n",
+      ...
+    }]
+  }
+}
+```
+
+#### skipinitialspace
+
+ignore les espaces suivant immédiatement le séparateur (par défaut false).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "skipinitialspace":true,
+      ...
+    }]
+  }
+}
+```
+
+#### doublequote
+
+contrôle si deux caractères de guillemet consécutifs sont interprétés comme un seul (par défaut true).
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "doublequote":true,
+      ...
+    }]
+  }
+}
+```
+
+#### worksheet
+
+:::info
+uniquement pour les fichiers sources .xls et .xlsx
+:::
+
+Indique quelle feuille de calcul doit être chargée.
+
+vous devez ajouter dans votre configuration de chargement, dans la section "params.load_from[0]" :
+```json
+{
+  "params":{ 
+    "load_from":[{
+      "worksheet":"your_worksheet_name",
+      ...
+    }]
+  }
+}
+```
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

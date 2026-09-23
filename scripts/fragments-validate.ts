@@ -12,6 +12,11 @@
  *   - a <locale>.md that exists but is empty
  *   - a body containing an unresolved [[fragment:…]] token (no nesting)
  *   - a `[[fragment:key]]` used in docs/ whose key does not exist
+ *   - a token carrying a modifier other than `|en`
+ *   - an unpinned token on an UNTRANSLATED page, in either shape: an EN guide a locale
+ *     reaches through a symlink, or a real locale file carrying English content. The
+ *     body would otherwise render in the reader's locale under English prose
+ *   - a page mixing pinned and unpinned tokens (one language decision per page)
  *   - a stray file in a key directory that is not <locale>.md
  *
  * WARNINGS (exit 0 — visible but non-blocking, mirroring glossary:validate):
@@ -24,6 +29,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { FRAGMENTS_DIR, textFragments } from '../config/fragments';
 import { type Locale, locales } from '../config/shared';
+import { classifyLocaleFile, describe } from './lib/untranslated';
 
 const DOCS_DIR = path.join(process.cwd(), 'docs');
 const LOCALES = locales.map((l) => l.lang) as Locale[];
@@ -121,13 +127,38 @@ function stripCode(raw: string): string {
   return out.join('\n');
 }
 
+/**
+ * EN files that at least one locale reaches through a symlink. Such a locale is
+ * untranslated by definition — the reader gets English prose — so a fragment body
+ * rendered in their locale is a language mismatch inside the page. `|en` is the only
+ * place that intent can live, since replaceRules see raw source and never frontmatter.
+ *
+ * Collected as realpaths so the check runs once per target, not once per symlink.
+ */
+const symlinkTargets = new Set<string>();
+
+/** Real (non-symlink) .mdx files, so shape 2 can be judged after the walk. */
+const localeFiles: string[] = [];
+
 function walk(dir: string): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     // Do not follow locale symlinks: the EN target is counted on its own.
-    if (entry.isSymbolicLink()) continue;
+    if (entry.isSymbolicLink()) {
+      if (entry.name.endsWith('.mdx')) {
+        try {
+          symlinkTargets.add(fs.realpathSync(full));
+        } catch {
+          // Dangling symlink: not this validator's business — the build reports it.
+        }
+      }
+      continue;
+    }
     if (entry.isDirectory()) walk(full);
-    else if (entry.isFile() && entry.name.endsWith('.mdx')) scan(full);
+    else if (entry.isFile() && entry.name.endsWith('.mdx')) {
+      localeFiles.push(full);
+      scan(full);
+    }
   }
 }
 
@@ -139,8 +170,17 @@ function scan(file: string): void {
 
   const rel = path.relative(DOCS_DIR, file).replace(/\\/g, '/');
   const universe = rel.split('/')[2] ?? '(root)'; // <locale>/guides/<universe>/…
+  const modifiers = new Set<string>();
   for (const m of text.matchAll(TOKEN)) {
-    const key = m[1];
+    const [key, ...mods] = m[1].split('|');
+    modifiers.add(mods.join('|'));
+    const bad = mods.filter((mod) => mod !== 'en');
+    if (bad.length) {
+      unknown.push(
+        `${rel}: unsupported modifier(s) ${bad.join(', ')} in [[fragment:${m[1]}]]`,
+      );
+      continue;
+    }
     const u = usage.get(key);
     if (!u) {
       unknown.push(`${rel}: unknown key "${key}"`);
@@ -149,9 +189,60 @@ function scan(file: string): void {
     u.total += 1;
     u.universes[universe] = (u.universes[universe] ?? 0) + 1;
   }
+
+  // A page must not mix pinned and unpinned tokens: the language decision belongs to the
+  // PAGE, not the token, so two tokens disagreeing is an authoring slip. Deterministic —
+  // no language detection involved. Mirrors the same rule in cpnav-validate.
+  if (modifiers.size > 1) {
+    unknown.push(
+      `${rel}: mixes pinned and unpinned fragment tokens — all tokens on a page share ` +
+        'one language decision (either every token has |en or none does)',
+    );
+  }
 }
 
 if (fs.existsSync(DOCS_DIR)) walk(DOCS_DIR);
+
+/**
+ * Shape 2 of an untranslated page: a REAL locale file carrying English content. It has
+ * its own tokens, so the pin lives in that file — unlike a symlink, where it lives in
+ * the EN source. See scripts/lib/untranslated.ts for how the verdict is reached.
+ */
+for (const file of localeFiles.sort()) {
+  const raw = fs.readFileSync(file, 'utf-8');
+  if (!raw.includes('[[fragment:')) continue;
+  const verdict = classifyLocaleFile(DOCS_DIR, file);
+  if (!verdict || verdict.reason === 'symlink') continue;
+  const rel = path.relative(process.cwd(), file).replace(/\\/g, '/');
+  const unpinned = [...stripCode(raw).matchAll(TOKEN)]
+    .map((m) => m[1])
+    .filter((token) => !token.split('|').slice(1).includes('en'));
+  if (unpinned.length) {
+    unknown.push(
+      `${rel}: untranslated — ${describe(verdict)} — so its fragment token(s) must be ` +
+        'pinned to English — write ' +
+        unpinned.map((token) => `[[fragment:${token}|en]]`).join(', '),
+    );
+  }
+}
+
+// An untranslated locale must not get a localized fragment body under English prose.
+for (const target of [...symlinkTargets].sort()) {
+  const raw = fs.readFileSync(target, 'utf-8');
+  if (!raw.includes('[[fragment:')) continue;
+  const rel = path.relative(process.cwd(), target).replace(/\\/g, '/');
+  const unpinned = [...stripCode(raw).matchAll(TOKEN)]
+    .map((m) => m[1])
+    .filter((token) => !token.split('|').slice(1).includes('en'));
+  if (unpinned.length) {
+    unknown.push(
+      `${rel}: symlinked by at least one untranslated locale, so its fragment ` +
+        `token(s) must be pinned to English — write ` +
+        unpinned.map((token) => `[[fragment:${token}|en]]`).join(', '),
+    );
+  }
+}
+
 errors.push(...unknown);
 
 for (const [key, u] of usage) {

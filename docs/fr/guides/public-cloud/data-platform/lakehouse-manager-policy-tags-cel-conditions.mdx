@@ -1,0 +1,213 @@
+---
+title: "Conditions CEL et modèles d'accès"
+description: Cette page explique comment accorder aux utilisateurs l'accès aux données taguées par policy tags à l'aide de conditions CEL (Common Expression Language)
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Cette page explique comment accorder aux utilisateurs l'accès aux données taguées par policy tags à l'aide de conditions CEL (Common Expression Language). Pour une vue d'ensemble des policy tags, de la chaîne de contrôles, et de la façon d'associer des tags aux données, consultez [Vue d'ensemble des Policy Tags](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags).
+
+## Sommaire
+
+1. [Accorder l'accès avec des conditions CEL](#accorder-laccès-avec-des-conditions-cel)
+2. [Bonnes pratiques](#bonnes-pratiques)
+
+## Accorder l'accès avec des conditions CEL
+
+Accorder à un utilisateur l'accès aux données taguées par policy tags est un processus en deux parties :
+
+1.  **Assigner la valeur du policy tag à l'utilisateur** via l'UI Grant Access dans le Lakehouse Manager
+2.  **Vérifier ou éditer la condition CEL** sur l'association de rôle de l'utilisateur dans l'Identity Access Manager
+
+### Utiliser l'UI Grant Access
+
+L'UI Grant Access offre un moyen rapide d'assigner des valeurs de policy tag aux utilisateurs :
+
+1. Ouvrez le menu **Grant Access**.
+    <img className="thumbnail" alt="Using the Grant Access UI — Grantaccess" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-1.png" loading="lazy" />
+
+2. Sélectionnez le policy tag que vous souhaitez assigner et précisez le type d'accès : **Read** pour un accès en lecture seule, ou **Read and Write** pour les deux.
+    <img className="thumbnail" alt="Using the Grant Access UI — Grantaccess (2)" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-2.png" loading="lazy" />
+
+3. Assignez les valeurs du policy tag (par exemple, `access_level: level 1`) à l'utilisateur ou au groupe.
+    <img className="thumbnail" alt="Using the Grant Access UI — Grantaccess (3)" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-3.png" loading="lazy" />
+    <img className="thumbnail" alt="Using the Grant Access UI — Grantaccess (4)" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-4.png" loading="lazy" />
+
+4. Confirmez et enregistrez les paramètres d'accès.
+
+<img className="thumbnail" alt="Using the Grant Access UI — Grantaccess (5)" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/grantaccess-5.png" loading="lazy" />
+
+:::warning
+**Limitation importante** : l'UI Grant Access génère une condition CEL sans portée au niveau Resource. Cela signifie que la condition est évaluée à **chaque niveau** de la chaîne de contrôles (dataset, table, attribute). Si le policy tag n'est appliqué qu'au niveau table, la vérification au niveau dataset échouera et l'accès sera refusé à l'utilisateur. **Vous devez éditer manuellement la condition CEL** dans l'IAM pour ajouter une portée Resource. Consultez [Écrire des conditions CEL manuellement](#écrire-des-conditions-cel-manuellement) ci-dessous.
+:::
+
+:::info
+**Remarque** : les utilisateurs sans permissions **Advanced Data Access Control** ne peuvent par défaut ni lire ni écrire sur aucun dataset, table ou attribute. Cela peut être vérifié dans les [paramètres IAM](/guides/public-cloud/data-platform/landing-page-iam) de l'utilisateur.
+:::
+
+### Écrire des conditions CEL manuellement
+
+Pour définir correctement la portée de l'accès au policy tag, vous devez éditer la condition CEL sur l'association de rôle de l'utilisateur dans l'[Identity Access Manager](/guides/public-cloud/data-platform/iam-roles-conditions#nouvelles-conditions-cel).
+
+L'UI Grant Access génère une condition CEL comme celle-ci :
+
+```text
+Service == "adac" && (PolicyTags.sensitivity == "high")
+```
+
+Cette condition vérifie `PolicyTags.sensitivity == "high"` à **chaque** niveau de ressource. Si le dataset n'a pas `sensitivity: high` (seule la table l'a), la vérification du dataset échoue et l'accès est refusé à l'utilisateur.
+
+Pour corriger cela, éditez la condition CEL afin de restreindre la portée de la vérification du policy tag à des niveaux de ressource spécifiques à l'aide de `Resource` :
+
+```text
+Service == "adac" && (
+  Resource == "dataset"
+  || (PolicyTags.sensitivity == "high" && Resource == "table")
+  || Resource == "attribute"
+)
+```
+
+Cette condition signifie :
+
+- Au niveau **dataset** : toujours valide (aucune vérification de tag nécessaire)
+- Au niveau **table** : exige `sensitivity: high`
+- Au niveau **attribute** : toujours valide (aucune vérification de tag nécessaire)
+
+Pour éditer la condition CEL :
+
+1.  Ouvrez l'[Identity Access Manager](/guides/public-cloud/data-platform/iam-roles-conditions#nouvelles-conditions-cel) et accédez à l'utilisateur ou au groupe.
+2.  Trouvez l'association de rôle ADAC (celle avec le Service `adac`).
+3.  Cliquez sur **Edit** sur la condition.
+4.  Basculez vers l'**éditeur CEL** et remplacez la condition générée par la version restreinte par Resource.
+5.  Enregistrez.
+
+<img className="thumbnail" alt="CEL editor" src="/images/public-cloud/data-platform/product/lakehouse-manager/policy-tags/picts/cel-editor.png" loading="lazy" />
+
+:::info
+Notez le commentaire `// Permissions are managed in Lakehouse Manager. Do not update here!` à la ligne 1. Celui-ci est généré automatiquement par l'UI Grant Access. Vous pouvez remplacer sans risque le contenu CEL en dessous par votre condition restreinte par Resource.
+:::
+
+### Modèles CEL courants
+
+Voici des modèles CEL prêts à l'emploi pour des scénarios courants. Dans chaque modèle, remplacez les clés et valeurs de tag par les vôtres.
+
+:::warning
+**Important :** tout niveau de ressource avec un passage direct (par exemple, `|| Resource == "dataset"`) n'a **aucune application de tag** à ce niveau. N'utilisez les passages directs que pour les niveaux où vous souhaitez intentionnellement ignorer les vérifications de tag. Tous les modèles ci-dessous listent les conditions dans l'ordre de la chaîne de contrôles : dataset → table → attribute.
+:::
+
+**1. Appliquer les tags à TOUS les niveaux (dataset, table et attribute), recommandé pour un contrôle d'accès complet :**
+
+```text
+Service == "adac" && (
+  (PolicyTags.access_level == "level 1" && Resource == "dataset")
+  || (PolicyTags.access_level in ["level 1", "level 2"] && Resource == "table")
+  || (PolicyTags.access_level in ["level 1", "level 2"] && Resource == "attribute")
+)
+```
+
+Ceci vérifie les tags à chaque niveau. Un utilisateur avec `level 1` + `level 2` peut accéder au dataset, aux tables taguées jusqu'à `level 2`, et aux attributes tagués jusqu'à `level 2`. Les attributes tagués `level 3` seront refusés.
+
+**2. Appliquer les tags uniquement au niveau table (passage direct pour dataset et attribute) :**
+
+```text
+Service == "adac" && (
+  Resource == "dataset"
+  || (PolicyTags.sensitivity == "high" && Resource == "table")
+  || Resource == "attribute"
+)
+```
+
+:::info
+Utilisez ceci lorsque vous ne taguez que des tables et n'avez pas besoin de restrictions au niveau dataset ou attribute. Remarque : les tags au niveau attribute ne sont **pas appliqués** avec ce modèle.
+:::
+
+**3. Accorder l'accès aux tables qui n'ont PAS un tag spécifique :**
+
+```text
+Service == "adac" && (
+  Resource == "dataset"
+  || (!has(PolicyTags.sensitivity) && Resource == "table")
+  || Resource == "attribute"
+)
+```
+
+**4. Appliquer uniquement au niveau dataset (toutes les tables et attributes passent directement) :**
+
+```text
+Service == "adac" && (
+  (PolicyTags.sensitivity == "high" && Resource == "dataset")
+  || Resource == "table"
+  || Resource == "attribute"
+)
+```
+
+:::info
+Utilisez ceci lorsque vous avez seulement besoin de contrôler l'accès au niveau dataset. Toutes les tables et attributes au sein du dataset sont accessibles si le contrôle du dataset passe.
+:::
+
+**5. Appliquer aux niveaux dataset et table (passage direct pour attribute) :**
+
+```text
+Service == "adac" && (
+  (PolicyTags.department == "finance" && Resource == "dataset")
+  || (PolicyTags.sensitivity == "high" && Resource == "table")
+  || Resource == "attribute"
+)
+```
+
+:::info
+Les tags au niveau attribute ne sont **pas appliqués** avec ce modèle.
+:::
+
+**6. Appliquer uniquement au niveau attribute :**
+
+```text
+Service == "adac" && (
+  Resource == "dataset"
+  || Resource == "table"
+  || (PolicyTags.sensitivity == "high" && Resource == "attribute")
+)
+```
+
+**7. Combiner plusieurs valeurs de tag (l'utilisateur a besoin de l'une des valeurs listées) :**
+
+```text
+Service == "adac" && (
+  Resource == "dataset"
+  || (PolicyTags.sensitivity in ["high", "medium"] && Resource == "table")
+  || Resource == "attribute"
+)
+```
+
+:::info
+Pour plus d'informations sur la syntaxe CEL, les opérateurs, et le générateur de condition visuel, consultez [Rôles et conditions, Conditions CEL](/guides/public-cloud/data-platform/iam-roles-conditions#nouvelles-conditions-cel).
+:::
+
+## Bonnes pratiques
+
+- **Taguez toujours d'abord au niveau dataset.** Puisque la chaîne de contrôles commence au dataset, un dataset non tagué avec des tables taguées crée une configuration confuse. Définissez un tag de base sur le dataset.
+
+- **Utilisez des conditions CEL restreintes par Resource.** Ne comptez jamais sur la CEL par défaut générée par l'UI Grant Access pour le contrôle d'accès en production. Éditez toujours la CEL pour inclure une portée `Resource`.
+
+- **Ordonnez les vérifications CEL comme dataset → table → attribute.** Cela correspond à l'ordre d'évaluation de la chaîne de contrôles et rend les conditions plus faciles à lire et à déboguer.
+
+- **Gardez des structures de tag simples.** Utilisez une seule clé de tag (par exemple, `sensitivity`) avec un petit nombre de valeurs (par exemple, `public`, `internal`, `restricted`). Évitez les combinaisons de tags profondément imbriquées.
+
+- **Accordez des tags cumulatifs.** N'oubliez pas que les utilisateurs ont besoin de tags pour chaque niveau de la chaîne. Si un utilisateur a besoin d'un accès `restricted` à une table, il a également besoin du tag présent sur le dataset parent.
+
+- **Testez avec un utilisateur dédié.** Avant de déployer des politiques d'accès, créez un utilisateur de test et vérifiez chaque niveau de la chaîne de contrôles indépendamment. Consultez [Tester le contrôle d'accès](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-testing).
+
+- **Auditez régulièrement les conditions CEL.** Au fur et à mesure que les policy tags changent, les conditions CEL sur les associations de rôle peuvent devenir obsolètes. Revoyez-les lors de la modification des associations de tags.
+
+- **Documentez votre schéma de tags.** Conservez un registre des clés et valeurs de tag utilisées, de leur signification, et des ressources auxquelles elles sont associées.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

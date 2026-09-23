@@ -1,14 +1,11 @@
 import type { CpNavKey } from '../types';
 
-// `linkKey` rather than `route` — see CpNavLocation.linkKey before converting.
-// `step` is en/fr only: the other locales' pages are untranslated, so there is no
-// translation to store and the generator falls back to en.
 export const privatecloudNutanix: CpNavKey = {
   universe: 'hosted-private-cloud',
   locations: [
     {
-      linkKey: 'control-panel/privatecloud-nutanix',
-      source: { node: 'nutanix' },
+      route: '/#/dedicated/nutanix',
+      source: { node: 'nutanix', labels: ['sidebar_nutanix'] },
       text: {
         en: {
           product: 'Nutanix',

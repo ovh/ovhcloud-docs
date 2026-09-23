@@ -1,5 +1,89 @@
 # Changelog
 
+## 2026.09.22
+
+### Documentation
+- 4700 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.21
+
+### Features
+- **PCI:** Warn about changes in the order of interfaces after hot-attach and detach (#700)
+
+### Documentation
+- 261 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.18
+
+### Fixes
+- **i18n:** align the Italian support links (#811)
+- **pci:** un display the metrics guide (#806)
+- **i18n:** restore the Spanish support-link label mangled by a global replace (#805)
+
+### Documentation
+- 791 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.17
+
+### Fixes
+- **cpnav,fragments:** pin blocks to English on untranslated guides (#800)
+
+### Documentation
+- 36 guides updated across de, en, es, it, pl, pt
+
+## 2026.09.16
+
+### Features
+- **mks:** remove Control Panel screenshots, add textual navigation steps (#707)
+- **lb:** update guide about getting source ip (#727)
+
+### Fixes
+- **mks:** convert links, symlink locale files, drop orphaned images
+
+### Documentation
+- 168 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.15
+
+### Features
+- **vps:** translate the native Valheim guide to de, es, it, pl, pt
+- **vps:** update the Valheim guide for the native Game Panel image
+- add the web-hosting cpnav key and tokenize its blocks
+- **i18n:** translate the Data Platform sidebar labels to French
+
+### Fixes
+- split the DNS zone cpnav key by the path each guide documents
+- **data-platform:** align FR terminology and neutralise tutorial register
+- **i18n:** restore diacritics in internal anchor links (#777)
+- **data-platform:** align the French translations with the EN source fixes
+
+### Maintenance
+- tokenize the Web Cloud Databases cpnav blocks
+
+### Documentation
+- 2611 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.14
+
+### Features
+- **data-platform:** rewrite generic page titles for search
+- **data-platform:** add Views and Deduplicate guides
+- **data-platform:** import Data Platform documentation
+
+### Fixes
+- **data-platform:** correct spelling and grammar across 17 guides
+- **data-platform:** repair dead in-page anchors
+- **data-platform:** repair the API authentication guide
+- **data-platform:** add the S3 trademark footer to the 23 guides using S3
+- **data-platform:** repair the Facebook connector guide
+- **data-platform:** correct two invented Objective sentences
+- **data-platform:** drop empty TOC headings, unlink localhost, fix descriptions
+- **data-platform:** localize the landing card links
+- **data-platform:** unblock the build — fence languages and API links
+
+### Documentation
+- 2018 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.11
 
 ### Fixes

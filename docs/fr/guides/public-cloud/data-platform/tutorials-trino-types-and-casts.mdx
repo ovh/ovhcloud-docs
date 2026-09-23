@@ -1,0 +1,93 @@
+---
+title: Types de données et casts Trino
+description: Quel que soit le chemin que vous empruntez pour interroger votre project via Trino, l'éditeur SQL de l'Explorer, un consumer Trino, ou un outil externe
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Quel que soit le chemin que vous empruntez pour interroger votre project via [Trino](https://trino.io/), l'éditeur SQL de l'[Explorer](/guides/public-cloud/data-platform/lakehouse-manager-explorer), un [consumer Trino](/guides/public-cloud/data-platform/connectors-consumers-trino), ou un outil externe, les types que vous manipulez sont les **types Trino**, et non les types logiques que vous voyez dans le [Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-attributes). La plupart du temps les deux coïncident, mais certains cas nécessitent un `CAST` explicite au moment de l'`INSERT`.
+
+## Types de données : du Lakehouse à Trino
+
+Le tableau ci-dessous fait correspondre chaque type Lakehouse au type Trino sous lequel il est exposé :
+
+| Type Lakehouse    | Type Trino      | Remarques                                       |
+|-------------------|-----------------|--------------------------------------------------|
+| `integer`         | `INTEGER`       | Entier signé 32 bits                              |
+| `bigint`          | `BIGINT`        | Entier signé 64 bits                              |
+| `real` / `float`  | `REAL`          | Nombre à virgule flottante 32 bits                |
+| `double`          | `DOUBLE`        | Nombre à virgule flottante 64 bits                |
+| `decimal`         | `DECIMAL(p, s)` | La précision et l'échelle sont préservées         |
+| `varchar`         | `VARCHAR`       | Non borné sauf si une longueur a été définie à la création |
+| `boolean`         | `BOOLEAN`       |                                                    |
+| `date`            | `DATE`          |                                                    |
+| `timestamp`       | `TIMESTAMP`     | Sans fuseau horaire                               |
+
+:::info
+Le type Trino exact d'une colonne, y compris toute longueur ou précision, est celui avec lequel la table a été **créée**. En cas de doute, exécutez `SHOW CREATE TABLE <catalog>.<schema>.<table>;`. Tout `CAST` dans un `INSERT` doit cibler ce type, et non le type logique que vous voyez dans le Lakehouse Manager.
+:::
+
+### Conversions implicites (aucun CAST nécessaire)
+
+Trino élargit automatiquement ces types, vous pouvez donc insérer directement la valeur source :
+
+- `INTEGER` → `BIGINT`
+- `REAL` → `DOUBLE`
+- `DECIMAL` → un `DECIMAL` plus large
+- `VARCHAR(n)` → `VARCHAR` non borné : un littéral tel que `'foo'` est un `VARCHAR(3)` et se convertit vers une chaîne Iceberg sans aucun changement
+- `DATE` → `TIMESTAMP`
+
+### Casts à écrire explicitement
+
+Trino ne convertira **pas** ces types de lui-même. Un `INSERT` sans `CAST` renvoie `TYPE_MISMATCH` :
+
+- `VARCHAR` → numérique ou date : `CAST('1' AS INTEGER)`, `CAST('2026-05-26' AS DATE)`
+- numérique → `VARCHAR` : `CAST(x AS VARCHAR)`
+- `TIMESTAMP` ↔ `TIMESTAMP WITH TIME ZONE` (tout changement de prise en compte du fuseau horaire)
+- `DECIMAL(p1, s1)` → `DECIMAL(p2, s2)` lorsque la précision ou l'échelle diffère et qu'une troncature est possible
+- Types complexes : il n'y a pas de conversion entre des valeurs `ROW` de structures différentes, vous devez reconstruire le champ `ROW(...)` champ par champ
+
+## Insérer des valeurs typées
+
+### Utiliser une forme de littéral valide
+
+`INT '1'` n'est **pas** une syntaxe Trino valide. `INT` est accepté comme alias d'`INTEGER` dans une *déclaration de colonne*, mais pas dans la forme de *littéral typé* `TYPE 'value'`.
+
+Pour insérer un entier, utilisez l'une des formes suivantes :
+
+```sql
+INSERT INTO t VALUES (1);                    -- littéral entier natif
+INSERT INTO t VALUES (INTEGER '1');          -- littéral typé, nom de type canonique
+INSERT INTO t VALUES (CAST('1' AS INTEGER)); -- cast explicite
+```
+
+:::info
+Lire la même colonne ne déclenche jamais d'erreur, car aucun littéral typé n'est évalué lors d'un `SELECT`. Seule la forme `INT 'x'` casse le parseur.
+:::
+
+### Résoudre les TYPE_MISMATCH lors d'insertions VARCHAR
+
+`CAST(x AS VARCHAR)` produit un `VARCHAR` non borné, compatible avec une colonne string Iceberg. Si vous obtenez toujours un `TYPE_MISMATCH`, vérifiez les points suivants, dans l'ordre :
+
+1. **La colonne cible n'est peut-être pas non bornée.** Si la table a été créée via Trino avec `VARCHAR(50)`, le connector conserve cette contrainte de longueur. Confirmez avec `DESCRIBE catalog.schema.table;` ou `SHOW CREATE TABLE catalog.schema.table;`. Si la colonne est `varchar(50)`, effectuez un cast vers `CAST(x AS VARCHAR(50))`.
+2. **Ordre ou nombre des colonnes.** Sans liste de colonnes explicite, Trino associe les valeurs par position et déclenche un `TYPE_MISMATCH` dès qu'une colonne en aval ne correspond plus, et l'erreur pointe parfois vers la mauvaise expression. Préférez toujours :
+   ```sql
+   INSERT INTO t (col_a, col_b, col_c) VALUES (...);
+   ```
+3. **Types complexes.** `CAST(... AS VARCHAR)` sur un `ROW`, `ARRAY` ou `MAP` échoue. Convertissez champ par champ, ou utilisez `json_format(CAST(... AS JSON))`.
+4. **Colonnes générées et horodatages.** Un `VARCHAR` ne se convertit pas implicitement vers `TIMESTAMP` ou `DATE`. Un `TYPE_MISMATCH` qui semble concerner un `VARCHAR` peut en réalité provenir d'une autre colonne dans la même clause `VALUES`.
+
+:::warning
+Si l'incompatibilité persiste, rassemblez le `SHOW CREATE TABLE`, l'instruction `INSERT` complète et le message d'erreur exact avant d'ouvrir un ticket de support. Cela suffit pour identifier la colonne fautive.
+:::
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

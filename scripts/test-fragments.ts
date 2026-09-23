@@ -99,6 +99,31 @@ for (const locale of LOCALES) {
   );
 }
 
+// ------------------------------------------------------- the |en modifier
+// A page whose prose is untranslated English pins its token, so every locale build
+// renders the English body instead of that locale's own.
+for (const locale of LOCALES) {
+  const out = apply(`intro\n\n[[fragment:${KEY}|en]]\n\noutro\n`, locale);
+  check(
+    `${locale}: pinned token is gone after expansion`,
+    !out.includes('[[fragment:'),
+  );
+  check(
+    `${locale}: pinned token expands to the ENGLISH body`,
+    out.includes(textFragments[KEY]?.en as string),
+  );
+  if (locale !== 'en') {
+    check(
+      `${locale}: pinned token does NOT expand to that locale's body`,
+      !out.includes(textFragments[KEY]?.[locale] as string),
+    );
+  }
+}
+check(
+  'the plain rule does not swallow a pinned token (|en is not part of the key)',
+  apply(`[[fragment:${KEY}|en]]`, 'fr') !== apply(`[[fragment:${KEY}]]`, 'fr'),
+);
+
 // nested /links/ tokens inside a body are left for the link rules to resolve,
 // which run immediately after — so the fragment rules must not mangle them.
 check(

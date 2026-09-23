@@ -15,6 +15,15 @@ export const CPNAV_UNIVERSES: Record<
   'hosted-private-cloud': { en: 'Hosted Private Cloud' },
   'bare-metal-cloud': { en: 'Bare Metal Cloud' },
   'public-cloud': { en: 'Public Cloud' },
+  // Manager i18n `sidebar_network`: English everywhere except Polish.
+  network: { en: 'Network', pl: 'Sieć' },
+  // Manager i18n `sidebar_telecom`, translated in three locales.
+  telecom: {
+    en: 'Telecom',
+    fr: 'Télécom',
+    de: 'Telekommunikation',
+    pl: 'Telefonia',
+  },
   // Manager i18n `sidebar_security_identity_operations`. Translated, unlike the brand
   // universes above, so every locale is listed.
   'identity-security-operations': {

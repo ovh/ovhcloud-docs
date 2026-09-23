@@ -104,16 +104,38 @@ check(
   'route renders a ManagerLink',
   single.includes('<ManagerLink to="/#/web/email_pro">'),
 );
+// Synthetic keys: these two link styles must keep working even when no shipped key uses
+// them. They were asserted on `privatecloud-nutanix` until B5 converted it from `linkKey`
+// to `route`, at which point the tests failed for a data change rather than a defect.
+CPNAV_KEYS['__test-linkkey'] = {
+  universe: 'hosted-private-cloud',
+  locations: [
+    {
+      linkKey: 'control-panel/privatecloud-nutanix',
+      text: { en: { product: 'Nutanix', crumbs: ['Nutanix'] } },
+    },
+  ],
+};
+CPNAV_KEYS['__test-nolink'] = {
+  universe: 'hosted-private-cloud',
+  locations: [{ text: { en: { crumbs: ['Nutanix'] } } }],
+};
 check(
   'linkKey renders a /links/ markdown link',
-  renderBlock(['privatecloud-nutanix'], 'en').includes(
+  renderBlock(['__test-linkkey'], 'en').includes(
     '[Nutanix](/links/control-panel/privatecloud-nutanix)',
   ),
 );
 check(
-  'a destination without a direct link emits no such bullet',
-  !renderBlock(['privatecloud-nutanix'], 'en').includes('<ManagerLink'),
+  'linkKey emits no ManagerLink',
+  !renderBlock(['__test-linkkey'], 'en').includes('<ManagerLink'),
 );
+check(
+  'a destination without a direct link emits no such bullet',
+  !renderBlock(['__test-nolink'], 'en').includes('Direct link'),
+);
+delete CPNAV_KEYS['__test-linkkey'];
+delete CPNAV_KEYS['__test-nolink'];
 
 // --- localisation --------------------------------------------------------------------
 const LOCALE_HEADINGS: Array<[Locale, string]> = [

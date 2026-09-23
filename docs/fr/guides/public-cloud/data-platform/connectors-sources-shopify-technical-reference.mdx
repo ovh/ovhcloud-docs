@@ -1,0 +1,515 @@
+---
+title: "Shopify : référence technique"
+description: Ceci est le complément technique à la documentation principale du connecteur Shopify
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Ceci est le complément technique à la documentation principale du [connecteur Shopify](/guides/public-cloud/data-platform/connectors-sources-shopify). Il couvre les internes de l'authentification, la référence complète des endpoints, la pagination, les limites de débit, le format de sortie et les limitations, tout ce qui est nécessaire pour intégrer le connecteur dans un pipeline de données.
+
+## Authentification
+
+### Modes pris en charge
+
+Le connecteur prend en charge deux modes d'authentification interchangeables qui aboutissent tous deux à l'envoi d'un en-tête `X-Shopify-Access-Token` à chaque requête API.
+
+| Mode | Champs renseignés dans l'interface | Ce que fait le connecteur |
+|---|---|---|
+| **Token direct** | `shop` + `access_token` | Envoie le token tel quel. |
+| **OAuth client_credentials** | `shop` + `client_id` + `client_secret` | Échange les identifiants auprès de l'endpoint OAuth de Shopify, puis utilise le token d'accès hors ligne obtenu. |
+
+Si `access_token` est renseigné, il est prioritaire. L'échange OAuth est ignoré.
+
+### Formats de token
+
+| Préfixe | Source | Remarques |
+|---|---|---|
+| `shpat_…` | Ancien flux « Develop apps » dans l'admin Shopify | Token révélé une seule fois dans l'interface |
+| `shpua_…` | Résultat du grant OAuth `client_credentials` | Token d'accès hors ligne, n'expire pas tant que l'application est installée |
+
+Les deux préfixes sont valides dans le champ **Access Token** et sont utilisés de manière identique par le connecteur.
+
+### Méthodes d'authentification obsolètes
+
+| Méthode | Pourquoi |
+|---|---|
+| Clé API (chaîne de requête `?key=…`) | Supprimée par Shopify |
+| Storefront access token | Audience différente (navigation client) ; non accepté par l'API Admin |
+| Flux OAuth `authorization_code` avec redirection | Conçu pour des applications publiques distribuées, pas pour un pipeline de données serveur à serveur |
+
+### Approbation de l'application personnalisée
+
+Pour les données Customer / Order / DraftOrder / AbandonedCheckout / FulfillmentOrder, Shopify exige une approbation **Protected Customer Data** au niveau de l'application. Sur une boutique de développement, celle-ci est accordée instantanément lorsque le marchand coche les cases correspondantes dans le Dev Dashboard. Sur les boutiques de production distribuées via l'App Store, Shopify examine la demande manuellement.
+
+Lorsque l'approbation est manquante, l'API renvoie des erreurs `ACCESS_DENIED` sur les champs concernés. Le connecteur traite cela comme attendu et renvoie les données qui ont pu être récupérées avec succès (avec les champs restreints vidés).
+
+## Architecture
+
+Le connecteur renvoie du JSON brut depuis l'API GraphQL de Shopify. La platform prend le relais à partir de là. Elle détecte automatiquement le schéma à partir du payload JSON, aplatit les objets imbriqués en colonnes en notation pointée (converties en minuscules avec underscores), et stocke le résultat dans le lakehouse, interrogeable via Trino. Tout nouveau champ ajouté par Shopify à un node apparaît automatiquement à l'extraction suivante.
+
+Le connecteur lui-même est responsable de :
+
+| Responsabilité | Comportement |
+|---|---|
+| **Authentification** | Construit l'en-tête `X-Shopify-Access-Token` à partir du token direct ou d'un échange OAuth |
+| **Routage des endpoints** | Fait correspondre le type d'endpoint sélectionné à une requête GraphQL intégrée |
+| **Pagination** | Boucle sur `first: N, after: cursor` tant que `pageInfo.hasNextPage` est vrai |
+| **Ralentissement basé sur le coût** | Lit `extensions.cost.throttleStatus`, se met en pause si la prochaine requête dépasserait le budget disponible |
+| **Limitation de débit** | Intercepte les erreurs GraphQL `THROTTLED` et le code HTTP 429, relance avec `Retry-After` |
+| **Refus d'accès au niveau des champs** | Renvoie les données partielles avec les champs restreints supprimés (au lieu d'échouer) |
+
+### Version de l'API
+
+Toutes les requêtes ciblent la version `2026-04` de l'API GraphQL Admin de Shopify. Consultez les [notes de version de Shopify](https://shopify.dev/changelog) avant de passer à une version plus récente, les changements de schéma peuvent renommer des champs ou changer des types.
+
+## Référence des endpoints
+
+Chaque endpoint paginé partage la même forme d'appel :
+
+```http
+POST https://{shop}.myshopify.com/admin/api/2026-04/graphql.json
+{ "query": "...", "variables": { "first": 100, "after": null } }
+```
+
+Le connecteur itère sur les pages jusqu'à ce que `pageInfo.hasNextPage == false` ou que le plafond `max_items` spécifié par l'utilisateur soit atteint.
+
+Pour chaque endpoint ci-dessous, la « Sortie » est du **JSON brut** : l'objet `node` GraphQL complet, avec les champs imbriqués préservés. La platform l'aplatit en aval.
+
+### products
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `products(first, after, sortKey: CREATED_AT)`
+
+**Champs par défaut :** `id`, `handle`, `title`, `description`, `vendor`, `productType`, `status`, `tags`, horodatages, `totalInventory`, `tracksInventory`, `featuredImage`, `options`, `seo`, `onlineStoreUrl`, `priceRangeV2`.
+
+### product_variants
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `productVariants(first, after)` : de premier niveau depuis l'API 2022-07 ; aucun ID de produit parent requis.
+
+**Champs par défaut :** `id`, `sku`, `title`, `position`, `price`, `compareAtPrice`, `barcode`, `taxable`, `inventoryQuantity`, `availableForSale`, horodatages, `selectedOptions`, référence `product` parente, `image`.
+
+### collections
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `collections(first, after)` : vue unifiée des collections manuelles + intelligentes.
+
+**Champs par défaut :** `id`, `handle`, `title`, `description`, `updatedAt`, `sortOrder`, `productsCount`, `seo`, `image`.
+
+### customers
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `customers(first, after)`
+
+**Champs par défaut :** `id`, `firstName`, `lastName`, `email`, `phone`, `state`, `note`, `tags`, horodatages, `verifiedEmail`, `numberOfOrders`, `amountSpent`, `defaultAddress`, `lifetimeDuration`.
+
+Les champs PII (firstName, lastName, email, phone, defaultAddress.zip) nécessitent l'approbation Protected Customer Data. Sans elle, les lignes passent quand même avec ces champs vidés.
+
+### customer_segment_members
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `segment_id` | text | **Oui** : GID Shopify, par exemple `gid://shopify/Segment/12345` |
+| `max_items` | number | Non |
+
+**Champ racine :** `customerSegmentMembers(first, after, segmentId: $segment_id)`
+
+Utilisez d'abord l'endpoint `segments` pour découvrir les ID de segment.
+
+### orders
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `query_filter` | text | Non (par défaut `status:any`) |
+| `max_items` | number | Non |
+
+**Champ racine :** `orders(first, after, query: $query_filter, sortKey: CREATED_AT)`
+
+`query_filter` accepte la [syntaxe de recherche Shopify](https://shopify.dev/docs/api/usage/search-syntax) (par exemple `created_at:>=2026-01-01`, `financial_status:paid`).
+
+**Champs par défaut :** `id`, `name`, `legacyResourceId`, horodatages de cycle de vie, `displayFinancialStatus`, `displayFulfillmentStatus`, ensembles monétaires (totalPrice, subtotalPrice, totalTax, totalDiscounts, totalRefunded, totalShippingPrice), `customer`, adresses, `channelInformation`.
+
+### draft_orders
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `draftOrders(first, after)`
+
+**Champs par défaut :** `id`, `name`, `status`, `email`, `note2`, horodatages, ensembles monétaires, `customer`, `shippingAddress`.
+
+### abandoned_checkouts
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `abandonedCheckouts(first, after)`
+
+**Champs par défaut :** `id`, `name`, `abandonedCheckoutUrl`, horodatages, ensembles monétaires, `customer`.
+
+### fulfillment_orders
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `fulfillmentOrders(first, after)`
+
+**Champs par défaut :** `id`, `status`, `requestStatus`, horodatages, `destination` (champs d'adresse), `assignedLocation`, `order` parente.
+
+### tender_transactions
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `tenderTransactions(first, after)`
+
+**Champs par défaut :** `id`, `paymentMethod`, `processedAt`, `remoteReference`, `test`, `amount`, `order` parente, `user`.
+
+### locations
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `locations(first, after)`
+
+**Champs par défaut :** `id`, `name`, `isActive`, horodatages, `fulfillsOnlineOrders`, `shipsInventory`, `legacyResourceId`, `address`.
+
+### inventory_items
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `inventoryItems(first, after)`
+
+**Champs par défaut :** `id`, `sku`, `tracked`, `requiresShipping`, horodatages, `countryCodeOfOrigin`, `harmonizedSystemCode`, `unitCost`, `variant` + `product` parents.
+
+### segments
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `segments(first, after)`
+
+**Champs par défaut :** `id`, `name`, `query` (expression de définition du segment), `creationDate`, `lastEditDate`.
+
+### companies
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `companies(first, after)` : B2B uniquement ; renvoie une liste vide si le B2B n'est pas activé sur la boutique.
+
+**Champs par défaut :** `id`, `name`, `externalId`, `note`, horodatages, `locationsCount`, `ordersCount`, `totalSpent`.
+
+### company_locations
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `companyLocations(first, after)` : B2B uniquement.
+
+**Champs par défaut :** `id`, `name`, `externalId`, `note`, horodatages, adresses, `company` parente.
+
+### price_lists
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `priceLists(first, after)` : B2B / gros.
+
+**Champs par défaut :** `id`, `name`, `currency`, `parent.adjustment`, `catalog` lié.
+
+### catalogs
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `catalogs(first, after)` : affectations de catalogue B2B.
+
+**Champs par défaut :** `id`, `title`, `status`, `priceList` lié.
+
+### markets
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `markets(first, after)` : configuration multi-région.
+
+**Champs par défaut :** `id`, `name`, `handle`, `enabled`, `primary`, `webPresence.rootUrls`, `currencySettings.baseCurrency`.
+
+### discount_nodes
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `discountNodes(first, after)` : union des remises automatiques + code + manuelles.
+
+**Champs par défaut :** `id`, plus un payload `discount` typé utilisant des fragments en ligne pour `DiscountAutomaticBasic`, `DiscountAutomaticBxgy`, `DiscountCodeBasic`, `DiscountCodeBxgy`, `DiscountCodeFreeShipping`, `DiscountAutomaticFreeShipping`. Chaque variante expose `title`, `status`, `startsAt`, `endsAt`, des compteurs d'utilisation.
+
+### code_discount_nodes
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `codeDiscountNodes(first, after)` : remises par code uniquement.
+
+Même forme de champs que `discount_nodes`, restreinte aux types `DiscountCode*`.
+
+### gift_cards
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `giftCards(first, after)` : Shopify Plus uniquement.
+
+**Champs par défaut :** `id`, `enabled`, `expiresOn`, horodatages, `lastCharacters`, `note`, `balance`, `initialValue`, `customer` propriétaire.
+
+### selling_plan_groups
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `sellingPlanGroups(first, after)` : plans d'abonnement.
+
+**Champs par défaut :** `id`, `name`, `description`, `createdAt`, `merchantCode`, `appId`, `summary`, `productsCount`, `options`.
+
+### marketing_events
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `marketingEvents(first, after)` : suivi des campagnes.
+
+**Champs par défaut :** `id`, `type`, `remoteId`, `startedAt`, `endedAt`, `manageUrl`, `previewUrl`, champs UTM, `app` propriétaire.
+
+### publications
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `publications(first, after)` : publications de canaux de vente.
+
+**Champs par défaut :** `id`, `name`, `supportsFuturePublishing`, `app` propriétaire.
+
+### payouts / disputes / balance_transactions
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Chemin racine :** `shopifyPaymentsAccount.{payouts | disputes | balanceTransactions}(first, after)`. Shopify Payments doit être activé sur la boutique. Le connecteur renvoie une liste vide (avec un avertissement) lorsque `shopifyPaymentsAccount` est nul.
+
+**Champs par défaut (payouts) :** `id`, `status`, `issuedAt`, `net`, répartition du récapitulatif.
+**Champs par défaut (disputes) :** `id`, `status`, `initiatedAt`, `amount`, `reasonDetails`.
+**Champs par défaut (balance_transactions) :** `id`, `type`, `transactionDate`, `test`, `amount`, `fee`, `net`.
+
+### metaobjects
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `metaobject_type` | text | **Oui** : le `type` de la définition du métaobjet (par exemple `recipe`) |
+| `max_items` | number | Non |
+
+**Champ racine :** `metaobjects(first, after, type: $metaobject_type)`
+
+Utilisez d'abord l'endpoint `metaobject_definitions` pour lister les types disponibles.
+
+**Champs par défaut :** `id`, `handle`, `type`, `displayName`, `updatedAt`, `capabilities.publishable.status`, `fields[].{key, value, type, jsonValue}`.
+
+### metaobject_definitions
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `metaobjectDefinitions(first, after)`
+
+**Champs par défaut :** `id`, `type`, `name`, `displayNameKey`, `description`, `fieldDefinitions` imbriqué.
+
+### metafield_definitions
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `owner_type` | select | **Oui** : l'une des valeurs PRODUCT, PRODUCTVARIANT, CUSTOMER, ORDER, COLLECTION, ARTICLE, BLOG, PAGE, SHOP, LOCATION, COMPANY, COMPANY_LOCATION, MARKET |
+| `max_items` | number | Non |
+
+**Champ racine :** `metafieldDefinitions(first, after, ownerType: $owner_type)`
+
+**Champs par défaut :** `id`, `namespace`, `key`, `name`, `description`, `ownerType`, `type.name`, `pinnedPosition`.
+
+### articles / blogs / pages / url_redirects / files
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+Endpoints de contenu paginés standard. Chacun renvoie l'objet `node` typé, voir la [référence GraphQL de Shopify](https://shopify.dev/docs/api/admin-graphql/latest) pour la forme exacte des champs par type. Le connecteur demande un sous-ensemble de champs par défaut raisonnable par endpoint (handle, title, body/summary, horodatages, statut de publication, ...).
+
+Pour `files`, la requête utilise des fragments en ligne pour `MediaImage`, `Video` et `GenericFile`, de sorte que la sortie inclut un payload spécifique au type de média en plus de `id`, `alt`, `createdAt`, `fileStatus`.
+
+### events
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `max_items` | number | Non |
+
+**Champ racine :** `events(first, after, sortKey: CREATED_AT, reverse: true)` : journal d'audit de la boutique.
+
+**Champs par défaut :** `id`, `message`, `createdAt`, `appTitle`, `attributeToApp`, `attributeToUser`, `criticalAlert`.
+
+### staff_members / delivery_profiles / fulfillment_services
+
+Endpoints standard avec un paramètre `max_items`. `fulfillment_services` est particulier. Les données sont imbriquées sous `shop.fulfillmentServices` et sont renvoyées sous forme de liste (non paginée). Le connecteur gère automatiquement ce chemin spécial.
+
+### shop
+
+Aucun paramètre. Renvoie une liste à un élément avec les métadonnées de la boutique : id, nom, domaine, devise, fuseau horaire, plan, adresse de facturation, domaine principal, feature flags, horodatages. Utile comme petite table de référence.
+
+### custom_query
+
+| Paramètre | Type | Requis |
+|---|---|---|
+| `query` | textarea | **Oui** |
+| `variables` | json | Non (par défaut `{}`) |
+| `connection_path` | text | Non (par défaut = détection automatique) |
+| `max_items` | number | Non |
+
+Exécute n'importe quelle requête GraphQL contre l'API Admin. Contraintes :
+
+1. La requête **doit** déclarer `$first: Int!` et `$after: String` comme variables.
+2. Elle **doit** paginer une connexion avec `pageInfo { hasNextPage endCursor }`.
+3. Fournissez soit `connection_path` (chemin en pointillé vers la connexion depuis la racine des données, par exemple `products`, `shop.metafields`), soit laissez le connecteur détecter automatiquement la première connexion `edges`/`pageInfo` dans la réponse.
+
+Le connecteur substitue `$first` (par défaut 250 ou `max_items` si défini) et `$after` (curseur de la page précédente), puis boucle jusqu'à ce que `pageInfo.hasNextPage` soit faux.
+
+`variables` vous permet de passer des paramètres supplémentaires utilisés par votre requête (par exemple `{"query": "tag:vip"}` pour un filtre de recherche client). `$first` / `$after` sont réservés.
+
+La validation s'exécute au moment de l'extraction, les requêtes invalides (variables manquantes) déclenchent une erreur claire avant le premier appel HTTP.
+
+## Pagination
+
+Tous les endpoints paginés utilisent une **pagination basée sur un curseur** (connexions de style Relay). Le connecteur boucle :
+
+```json
+{
+  edges { node { ... } }
+  pageInfo { hasNextPage endCursor }
+}
+```
+
+Avec `first: 100` (taille de page par défaut, plafonnée à 250) et `after: <endCursor précédent>`. La boucle se termine lorsque `hasNextPage == false` ou que le `max_items` spécifié par l'utilisateur est atteint.
+
+Les endpoints à objet unique (`shop`) et la liste imbriquée `fulfillment_services` ignorent la pagination. Le connecteur enveloppe la réponse dans une liste à un élément.
+
+## Limites de débit
+
+L'API GraphQL Admin de Shopify utilise une limitation de débit **basée sur le coût** (et non sur les requêtes par seconde). Chaque requête a un coût en points calculé à partir de la taille de ses connexions ; chaque boutique dispose d'un budget par application qui se recharge à un taux fixe.
+
+| Plan | Budget | Taux de rechargement |
+|---|---|---|
+| Standard / Shopify / Advanced | 100 pts | 100 pts/s |
+| Shopify Plus | 1 000 pts | 1 000 pts/s |
+| Enterprise | 2 000 pts | 2 000 pts/s |
+
+Consultez la [documentation officielle de Shopify sur les limites de débit](https://shopify.dev/docs/api/usage/rate-limits) pour les détails à jour.
+
+### Gestion de la limitation
+
+Le connecteur gère la limitation de trois façons :
+
+1. **Pause préventive** : après chaque réponse, il inspecte `extensions.cost.throttleStatus`. Si le coût de la prochaine page dépasserait le budget actuellement disponible, il se met en pause pendant le temps nécessaire au rechargement.
+2. **Erreurs GraphQL `THROTTLED`** : Shopify renvoie parfois un code HTTP 200 avec une erreur `THROTTLED` dans le corps. Le connecteur relance après un court délai.
+3. **HTTP 429** : rare, mais géré avec `Retry-After`. Le connecteur relance jusqu'à 5 fois avant de lever une erreur.
+
+## Format de sortie
+
+### JSON brut
+
+Le connecteur renvoie le contenu de `edges[].node` sous forme de liste de dictionnaires, exactement comme Shopify GraphQL les a renvoyés. Les objets imbriqués (adresses, ensembles monétaires, tableaux enfants) sont préservés.
+
+Exemple de node produit (tronqué) :
+
+```json
+{
+  "id": "gid://shopify/Product/123",
+  "handle": "snowboard",
+  "title": "All-mountain snowboard",
+  "vendor": "Acme",
+  "productType": "Snowboard",
+  "status": "ACTIVE",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "totalInventory": 42,
+  "featuredImage": {
+    "url": "https://cdn.shopify.com/.../snowboard.jpg",
+    "altText": "Snowboard front view"
+  },
+  "priceRangeV2": {
+    "minVariantPrice": { "amount": "299.00", "currencyCode": "EUR" }
+  }
+}
+```
+
+### Aplati dans le lakehouse
+
+La platform aplatit automatiquement les objets imbriqués en colonnes en notation pointée, puis les convertit :
+
+| Chemin JSON brut | Colonne du lakehouse |
+|---|---|
+| `id` | `id` |
+| `featuredImage.url` | `featuredimage_url` |
+| `priceRangeV2.minVariantPrice.amount` | `pricerangev2_minvariantprice_amount` |
+
+Les champs de type liste d'objets (par exemple `tags`, `options`) sont éclatés automatiquement, une ligne par élément de liste.
+
+## Limitations
+
+- **Les GID sont des chaînes, pas des entiers.** Les identifiants Shopify se présentent sous la forme `gid://shopify/Resource/12345` : conservez-les comme des chaînes dans vos requêtes en aval.
+- **Aucune opération en masse.** Les très grandes extractions (millions d'enregistrements) paginent de façon synchrone à travers l'API GraphQL. Pour les boutiques comptant des millions de lignes, écrivez plutôt une `custom_query` contre `bulkOperationRunQuery`, ou extrayez de façon incrémentale avec un filtre de date (`query_filter`).
+- **Les endpoints Shopify Payments nécessitent une inscription.** `payouts`, `disputes`, `balance_transactions` renvoient des listes vides si Shopify Payments n'est pas activé sur la boutique.
+- **Approbation Protected Customer Data au niveau des champs.** Sans elle, les lignes customer / order sont renvoyées avec les champs PII (firstName, lastName, email, phone, zip) vidés, mais les lignes elles-mêmes sont renvoyées. Approuvez les catégories de données concernées dans le Dev Dashboard pour obtenir les PII complètes.
+- **Les sous-ressources nécessitent `custom_query`.** Les transactions / remboursements / fulfillments par commande et les métachamps par produit ne sont pas des endpoints dédiés. Ils sont accessibles via `custom_query` si vous écrivez un GraphQL imbriqué.
+- **Les endpoints B2B renvoient vide sans B2B.** `companies`, `company_locations`, `catalogs`, `price_lists` renvoient `[]` sur les boutiques sans B2B activé. Aucune erreur, juste du vide.
+- **`gift_cards` est réservé à Shopify Plus.** Les plans inférieurs reçoivent `ACCESS_DENIED` et le connecteur renvoie une liste vide.
+- **L'ensemble de champs est fixe par endpoint.** Chaque endpoint intégré a une sélection de champs par défaut. Pour personnaliser les champs (plus ou moins), utilisez `custom_query`.
+- **Changelog GraphQL de Shopify.** Le connecteur est figé sur la version d'API `2026-04`. Les renommages ou suppressions de champs dans les versions plus récentes ne sont pas pris en compte automatiquement, consultez les [notes de version de Shopify](https://shopify.dev/changelog) avant de passer à une version supérieure.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
