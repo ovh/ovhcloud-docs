@@ -188,7 +188,7 @@ No performance impact has been observed on encrypted File Storage shares so far.
 
     
     :::info
-    To create an encrypted share, use the `standard-1az-luks` type instead of `standard-1az`. This automatically generates a dedicated encryption key — do not modify or delete it, as doing so would make the share's data permanently unrecoverable.
+    To create an encrypted share, set `encryption.encrypted` to `true` in the request body. This automatically derives the `standard-1az-luks` type and generates a dedicated encryption key — do not modify or delete it, as doing so would make the share's data permanently unrecoverable.
     :::
 
     
@@ -597,6 +597,10 @@ No performance impact has been observed on encrypted File Storage shares so far.
       --name `<my-first-share-name>` \
       NFS 150
     ```
+
+    :::info
+    Replace `standard-1az` with `standard-1az-luks` to create an encrypted share.
+    :::
     
     :::info
     Note: Replace `<my-first-share-name>` with the name you want to assign to your share.
@@ -1321,9 +1325,9 @@ No performance impact has been observed on encrypted File Storage shares so far.
     :::
 
     
-    **2\. Declare the OpenStack provider**
+    **2\. Declare the OVHcloud provider**
     
-    Add the following configuration to your `main.tf` to specify the required Terraform providers:
+    Add the following configuration to your `main.tf` to specify the required Terraform provider:
     
     ```
     vim main.tf
@@ -1332,69 +1336,91 @@ No performance impact has been observed on encrypted File Storage shares so far.
       required_providers {
         ovh = {
           source  = "ovh/ovh"
-        }
-    
-        openstack = {
-          source  = "terraform-provider-openstack/openstack"
+          version = ">= 2.20.0"
         }
       }
     }
     ```
     
-    This block ensures that Terraform uses the correct providers for managing OVH and OpenStack resources.
+    This block ensures that Terraform uses the OVHcloud provider, with a minimum version that supports File Storage encryption (OMK).
     
     **3\. Retrieve information about your private network**
     
     Add the following blocks to your `main.tf` file to fetch details about your private network and subnet:
     
     ```bash
-    data "openstack_networking_network_v2" "private_network" {
-      name   = "<YOUR_PRIVATE_NETWORK_NAME>"
-      region = "<YOUR_REGION_NAME>"
+    data "ovh_cloud_project_network_private" "private_network" {
+      service_name = "<YOUR_PROJECT_ID>"
+      network_id   = "<YOUR_PRIVATE_NETWORK_ID>"
     }
     
-    data "openstack_networking_subnet_v2" "private_subnet" {
-      name   = "<YOUR_PRIVATE_SUBNET_NAME>"
-      region = "<YOUR_REGION_NAME>"
+    data "ovh_cloud_project_network_private_subnets" "private_subnets" {
+      service_name = "<YOUR_PROJECT_ID>"
+      network_id   = data.ovh_cloud_project_network_private.private_network.network_id
     }
     ```
     
-    These data blocks allow Terraform to query OpenStack and retrieve the necessary details of your private network and subnet, which are required for configuring the File Storage service.
+    :::info
+    Replace `<YOUR_PRIVATE_NETWORK_ID>` with your private network ID. You can retrieve it via the OVHcloud API or CLI, as shown in the previous tabs.
+    :::
+
+    
+    These data blocks allow Terraform to query the OVHcloud API and retrieve the necessary details of your private network and subnet, which are required for configuring the File Storage service.
     
     **4\. Create a share network**
     
     Add the following resource to your `main.tf` to create a share network for your File Storage service:
     
     ```bash
-    resource "openstack_sharedfilesystem_sharenetwork_v2" "sharenetwork" {
-      name              = "`<YOUR_SHARE_NETWORK_NAME>`"
-      region            = "`<YOUR_REGION_NAME>`"
-      neutron_net_id    = data.openstack_networking_network_v2.private_network.id
-      neutron_subnet_id = data.openstack_networking_subnet_v2.private_subnet.id
+    resource "ovh_cloud_storage_file_share_network" "sharenetwork" {
+      service_name = "<YOUR_PROJECT_ID>"
+      name         = "<YOUR_SHARE_NETWORK_NAME>"
+      region       = "<YOUR_REGION_NAME>"
+      network_id   = data.ovh_cloud_project_network_private.private_network.network_id
+      subnet_id    = data.ovh_cloud_project_network_private_subnets.private_subnets.subnets[0].id
     }
     ```
     
-    This resource creates a share network in OpenStack, associating it with your existing private network and subnet. It is required to provision and manage shared file systems.
+    This resource binds your existing private network and subnet to a share network. It is required to provision and manage File Storage shares.
+    
+    :::info
+    If your private network has several subnets, replace `subnets[0]` with the index (or a filtered expression) matching the subnet for your target region.
+    :::
+
     
     **5\. Create an NFS share**
     
     Add the following resource to your `main.tf` to create an NFS share on your File Storage service:
     
     ```bash
-    vim main.tf
-    
-    
-    resource "openstack_sharedfilesystem_share_v2" "share" {
+    resource "ovh_cloud_storage_file_share" "share" {
+      service_name     = "<YOUR_PROJECT_ID>"
       name             = "<YOUR_SHARE_NAME>"
       region           = "<YOUR_REGION_NAME>"
-      share_type       = "standard-1az"
-      share_proto      = "NFS"
+      protocol         = "NFS"
+      share_type       = "STANDARD_1AZ"
       size             = 150
-      share_network_id = openstack_sharedfilesystem_sharenetwork_v2.sharenetwork.id
+      share_network_id = ovh_cloud_storage_file_share_network.sharenetwork.id
     }
     ```
     
-    This resource provisions an NFS share in OpenStack, linked to the previously created share network. Adjust the `size` and `share_type` according to your requirements.
+    This resource provisions an NFS share attached to the previously created share network. Adjust the `size` according to your requirements.
+    
+    :::info
+    To create an encrypted share (OMK), add an `encryption` block:
+    
+    ```bash
+    resource "ovh_cloud_storage_file_share" "share" {
+      # ...
+      encryption = {
+        enabled = true
+      }
+    }
+    ```
+    
+    This automatically encrypts the share at rest with LUKS and generates a dedicated encryption key. Encryption can only be set at creation — changing it afterwards recreates the share. Requires `terraform-provider-ovh >= 2.20.0`.
+    :::
+
     
     **6\. Authorize a client VM**
     
@@ -1415,16 +1441,15 @@ No performance impact has been observed on encrypted File Storage shares so far.
     Use the private IP (e.g., `10.1.0.123`) to grant access to the NFS share:
     
     ```bash
-    resource "openstack_sharedfilesystem_share_access_v2" "share_access" {
-      share_id     = openstack_sharedfilesystem_share_v2.share.id
-      region       = "<YOUR_REGION_NAME>"
-      access_type  = "ip"
+    resource "ovh_cloud_storage_file_share_acl" "share_access" {
+      service_name = ovh_cloud_storage_file_share.share.service_name
+      share_id     = ovh_cloud_storage_file_share.share.id
       access_to    = "10.1.0.123"
-      access_level = "rw"
+      access_level = "READ_WRITE"
     }
     ```
     
-    This resource authorizes the specified client VM to access the NFS share with read/write permissions.
+    This resource authorizes the specified client IP to access the NFS share with read/write permissions (`access_level` also accepts `READ_ONLY`).
     
     **7\. Retrieve the export path**
     
@@ -1432,7 +1457,7 @@ No performance impact has been observed on encrypted File Storage shares so far.
     
     ```bash
     output "export_path" {
-      value = openstack_sharedfilesystem_share_v2.share.export_locations[0].path
+      value = ovh_cloud_storage_file_share.share.current_state.export_locations[0].path
     }
     ```
     
