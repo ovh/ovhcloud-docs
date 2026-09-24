@@ -1,0 +1,173 @@
+---
+title: "Comment réinitialiser OPCP"
+description: "Découvrez comment réinitialiser OPCP : désinstallation du plan de contrôle, réinitialisation du stockage et redéploiement complet"
+lastUpdated: 2026-09-24
+---
+
+## Objectif
+
+Cette procédure décrit comment effectuer un redéploiement complet d'OPCP sans réinstaller le système d'exploitation hôte du serveur contrôleur.
+
+:::danger
+Il s'agit d'une opération destructrice. Vous perdrez toutes vos données, y compris la configuration d'OPCP ainsi que toutes les données stockées sur les serveurs OPCP, lors d'une réinitialisation complète d'OPCP.
+:::
+
+## Prérequis
+
+Vous devez avoir un accès SSH au nœud contrôleur ainsi que les droits `sudo`. Pour le vérifier, exécutez :
+
+```bash
+ssh <your-node-ip>
+sudo -i
+```
+
+Ces droits sont nécessaires sur tous les nœuds contrôleurs.
+
+Vous devez également disposer d'un accès aux commutateurs. Pour le vérifier, connectez-vous-y en SSH :
+
+```bash
+ssh admin@<switch-ip>
+```
+
+Vous trouverez les adresses IP de vos commutateurs dans la configuration matérielle d'OPCP. Exécutez `opcp-cli config edit --hardware` et recherchez, sous `netbox_devices`, les équipements ayant le rôle `tor` ou `tor_ipmi`. Récupérez la valeur du champ `primary_ipv4`.
+
+Pour obtenir les mots de passe des commutateurs, utilisez `opcp-cli secrets passwords --edit` et recherchez les clés `network_devices_admin_arista_secret`, `network_devices_admin_cisco_secret` et `network_devices_enable_secret`.
+
+## En pratique
+
+Le plan de contrôle OPCP s'exécute dans K3s avec Ceph comme backend de stockage.
+
+### Obtenir les informations Ceph
+
+La première étape est d'obtenir les informations sur le cluster Ceph :
+
+```bash
+ceph device ls
+```
+
+Le résultat est similaire à ceci :
+
+```console
+DEVICE                                     HOST:DEV                  DAEMONS  WEAR  LIFE EXPECTANCY
+SAMSUNG_MZQL21T9HCJR-00A07_S64GNL0Y414610  opcp-crxdemo-6-0:nvme3n1  osd.0      0%
+SAMSUNG_MZQL21T9HCJR-00A07_S64GNL0Y414613  opcp-crxdemo-6-0:nvme1n1  osd.3      0%
+SAMSUNG_MZQL21T9HCJR-00A07_S64GNL0Y414614  opcp-crxdemo-6-0:nvme2n1  osd.2      0%
+SAMSUNG_MZQL21T9HCJR-00A07_S64GNL0Y414621  opcp-crxdemo-6-0:nvme4n1  osd.1      0%
+```
+
+Vous obtenez ainsi la liste de tous les disques utilisés comme OSD Ceph. Conservez-la : vous en aurez besoin pour effacer les disques.
+
+### Arrêter le cluster K3s
+
+Arrêtez ensuite K3s sur chaque nœud contrôleur :
+
+```bash
+systemctl stop k3s.service
+```
+
+### Effacer le cluster Ceph
+
+L'étape suivante consiste à effacer toutes les données Ceph :
+
+```bash
+rm -rf /var/lib/rook
+```
+
+Effacez ensuite, sur tous les nœuds contrôleurs, toutes les signatures (table de partition, système de fichiers, LVM, RAID, etc.) des disques recensés [précédemment](#obtenir-les-informations-ceph) :
+
+```bash
+wipefs -a -f /dev/nvmeXnX # exécutez cette commande pour chaque disque listé dans ceph device ls
+```
+
+Vous pouvez maintenant effacer de manière sécurisée toutes les données (préférez l'effacement cryptographique, c'est plus rapide) :
+
+```bash
+nvme format /dev/nvmeXnX --ses=1 # effacement cryptographique
+# ou
+nvme format /dev/nvmeXnX --ses=2 # effacement des données utilisateur (écrasement)
+```
+
+### Réinitialiser K3s
+
+Réinitialisez d'abord les règles iptables, puis désinstallez K3s, pour éviter le cloisonnement des commutateurs après la réinitialisation :
+
+```bash
+iptables -P INPUT ACCEPT
+iptables -P OUTPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -t mangle -F
+iptables -t mangle -X
+/usr/local/bin/k3s-uninstall.sh
+```
+
+### Réinitialiser les équipements réseau
+
+Pour réinitialiser les équipements réseau, vous devez accéder via SSH aux commutateurs réseau. Il existe deux types de commutateurs : IPMI et TOR.
+
+:::warning
+L'accès aux commutateurs via SSH implique que vous disposiez des mots de passe de ces commutateurs. L'authentification par clé publique n'est pas configurée.
+
+Consultez la section « [Prérequis](#prérequis) » pour savoir comment obtenir les mots de passe des équipements réseau.
+:::
+
+#### Réinitialiser les commutateurs IPMI (Cisco)
+
+Accédez via SSH au commutateur IPMI et exécutez les commandes suivantes :
+
+```bash
+en
+write erase
+reload
+```
+
+#### Réinitialiser les commutateurs TOR (Arista)
+
+Réinitialisez la configuration de démarrage de tous les commutateurs TOR. Assurez-vous de commencer par TOR-B, sinon vous ne pourrez plus y accéder.
+
+```bash
+en
+bash
+sudo -i
+rm -rf /mnt/flash/.ragnarok
+rm -rf /mnt/flash/EOS*.swi.sha512sum
+rm -rf /mnt/flash/NogTaskMgr.py
+rm -rf /mnt/flash/ca-bundle.crt
+rm -rf /mnt/flash/network-ovh-pyclient-.tar.gz
+
+rm -rf /mnt/flash/nog.*.cfg
+rm -rf /mnt/flash/nog_diff_startup.py
+rm -rf /mnt/flash/nog_task_exec.py
+rm -rf /mnt/flash/ragnarok
+rm -rf /mnt/flash/ragnctl
+rm -rf /mnt/flash/rc.eos
+rm -rf /mnt/flash/startup-config
+exit
+exit
+reload force
+```
+
+:::warning
+N'exécutez pas `rm -rf /mnt/flash/*` ! Cette commande efface le firmware : le commutateur ne peut plus démarrer avec la configuration ZTP et vous devez alors téléverser un firmware via un câble série.
+:::
+
+### Redéployer le contrôleur
+
+Sur le premier nœud contrôleur, exécutez la commande suivante :
+
+```bash
+opcp-cli deploy --force-reconcile
+```
+
+## Aller plus loin
+
+[Installer un contrôleur OPCP](/guides/hosted-private-cloud/opcp/install-controller)
+
+[Mise en route de votre OPCP](/guides/hosted-private-cloud/opcp/getting-started)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
