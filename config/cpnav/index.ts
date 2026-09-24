@@ -23,6 +23,7 @@ import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { networkLoadBalancer } from './keys/network-load-balancer';
+import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
@@ -151,6 +152,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Network, in Manager sidebar order -----------------------------------------------
   'network-vrack': networkVrack,
   'network-vrack-services': networkVrackServices,
+  'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-load-balancer': networkLoadBalancer,
   'network-security-dashboard': networkSecurityDashboard,
