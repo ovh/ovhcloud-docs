@@ -1,7 +1,7 @@
 -----
 ## Contents (US)
 + Public Cloud
-    + [AI & Machine Learning](products/public-cloud-ai-machine-learning)
+    + [AI & Machine Learning](products/public-cloud-ai-machine-learning){landing=public-cloud/ai-machine-learning/landing-page-ai-machine-learning}
         + [General Information](public-cloud-ai-machine-learning-general-information)
             + [AI Dashboard - Getting started](public-cloud/ai-machine-learning/ai-dashboard-getting-started)
             + [AI Tools - Lifecycle policy](public-cloud/ai-machine-learning/ai-tools-lifecycle-policy)
@@ -70,7 +70,7 @@
             + [AI Deploy - Tutorial - Deploy an interactive app for EDA and prediction using Streamlit](public-cloud/ai-machine-learning/ai-deploy-streamlit-eda-iris)
             + [AI Deploy - Tutorial - Deploy and call a spam classifier with FastAPI](public-cloud/ai-machine-learning/ai-deploy-fastapi-spam-classifier)
             + [AI Deploy - Tutorial - How to load test your application with Locust](public-cloud/ai-machine-learning/ai-deploy-load-test-app)
-    + [Compute](products/public-cloud-compute)
+    + [Compute](products/public-cloud-compute){landing=public-cloud/compute/landing-page-compute}
         + [Key concepts](public-cloud-compute-key-concepts)
             + [Public Cloud Instances - Key concepts](public-cloud/compute/key-concepts)
         + [Getting started](public-cloud-compute-getting-started)
@@ -125,7 +125,7 @@
             + [Public Cloud Instances - Responsibility sharing](public-cloud/compute/public-cloud-instances-responsibility-sharing)
             + [Public Cloud & VPS - Image and OS lifecycle and end of life/support announcements](bare-metal-cloud/vps/public-cloud-image-os-lifecycle-end-life-support-announcements)
             + [Getting started with Local Zones](public-cloud/compute/getting-started-local-zones)
-    + [Managed Kubernetes Service (MKS)](products/public-cloud-managed-kubernetes)
+    + [Managed Kubernetes Service (MKS)](products/public-cloud-managed-kubernetes){landing=public-cloud/managed-kubernetes/landing-page-managed-kubernetes}
         + [Key concepts](public-cloud-managed-kubernetes-key-concepts)
             + [Managed Kubernetes - Known limits](public-cloud/managed-kubernetes/known-limits)
             + [Available datacenters, worker nodes and persistent storage flavors](public-cloud/managed-kubernetes/datacenters-nodes-storage-flavors)
@@ -190,7 +190,7 @@
             + [Recommended external resources for Kubernetes](public-cloud/managed-kubernetes/recommended-external-resources)
             + [OVHcloud Managed Kubernetes - Features and roadmap](public-cloud/managed-kubernetes/available-upcoming-features)
             + [Kubernetes plugins CNI, CRI, CSI..., software versions, and reserved resources](public-cloud/managed-kubernetes/plugins-software-versions-reserved-resources)
-    + [Managed Private Registry (MPR)](products/public-cloud-managed-private-registry)
+    + [Managed Private Registry (MPR)](products/public-cloud-managed-private-registry){landing=public-cloud/managed-private-registry/landing-page-managed-private-registry}
         + [Getting started](public-cloud-managed-private-registry-getting-started)
             + [Create a private registry](public-cloud/managed-private-registry/create-private-registry)
             + [Creating a private registry Harbor through Terraform](public-cloud/managed-private-registry/creating-private-registry-harbor-through-terraform)
@@ -209,7 +209,7 @@
             + [FAQ - Managed Private Registry MPR](public-cloud/managed-private-registry/faq)
         + [Additional resources](public-cloud-managed-private-registry-additional-resources)
             + [Managed Private Registry - Responsibility sharing](public-cloud/managed-private-registry/responsibility-sharing)
-    + [Public Cloud - General information](products/public-cloud-cross-functional)
+    + [Public Cloud - General information](products/public-cloud-cross-functional){landing=public-cloud/cross-functional/landing-page-cross-functional}
         + [Key concepts](public-cloud-cross-functional-key-concepts)
             + [Comparison and resilience of Deployment Modes - Understanding 1-AZ / Local Zones](public-cloud/cross-functional/deployment-modes-comparison-resilience-details)
             + [How do Savings Plans work?](public-cloud/cross-functional/savings-plans)
@@ -240,7 +240,7 @@
             + [Public Cloud FAQ](public-cloud/cross-functional/public-cloud-faq)
         + [Additional resources](public-cloud-cross-functional-additional-resources)
             + [Public Cloud billing](public-cloud/cross-functional/public-cloud-billing)
-    + [Databases](products/public-cloud-databases)
+    + [Databases](products/public-cloud-databases){landing=public-cloud/databases/landing-page-databases}
         + [Key concepts](public-cloud-databases-key-concepts)
             + [Databases & Analytics - Lifecycle policy](public-cloud/databases/lifecycle-policy)
             + [Databases & Analytics - FAQ](public-cloud/databases/faq)
@@ -313,7 +313,7 @@
             + [Valkey - Capabilities and limitations](public-cloud/databases/valkey-capabilities-limitations)
             + [Valkey - Advanced parameters references](public-cloud/databases/valkey-advanced-parameters-references)
             + [Valkey - Tutorial - Boost your CMS from the example of WordPress](public-cloud/databases/valkey-tutorial-boost-cms-from-example-wordpress)
-    + [Analytics](products/public-cloud-data-analytics)
+    + [Analytics](products/public-cloud-data-analytics){landing=public-cloud/data-analytics/landing-page-data-analytics}
         + [Dashboards](public-cloud-data-analytics-dashboards)
             + [Dashboards - Configure your Dashboards instance to accept incoming connections](public-cloud/data-analytics/dashboards-configure-dashboards-instance-accept-incoming-connections)
             + [Dashboards - Capabilities and limitations](public-cloud/data-analytics/dashboards-capabilities-limitations)
@@ -332,7 +332,7 @@
             + [OpenSearch™ - Capabilities and limitations](public-cloud/data-analytics/opensearch-capabilities)
             + [OpenSearch™ - Advanced parameters references](public-cloud/data-analytics/opensearch-advanced-parameters-references)
             + [OpenSearch™ - Monitor your infra with Logstash or Fluent Bit](public-cloud/data-analytics/opensearch-logstash)
-    + [Networking](products/public-cloud-network-services)
+    + [Networking](products/public-cloud-network-services){landing=public-cloud/network-services/landing-page-network-services}
         + [Key concepts](public-cloud-network-services-key-concepts)
             + [Concepts - Public Cloud Networking](public-cloud/network-services/networking-concepts)
             + [Concepts - Additional IP or Floating IP](public-cloud/network-services/additional-ip-vs-floating-ip)
@@ -368,7 +368,7 @@
         + [Additional resources](public-cloud-network-services-additional-resources)
             + [Monitor your Public Cloud Load Balancer with Prometheus](public-cloud/network-services/loadbalancer-monitoring-prometheus)
 + Bare Metal Cloud
-    + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers)
+    + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers){landing=bare-metal-cloud/dedicated-servers/landing-page-dedicated-servers}
         + [Key concepts](bare-metal-cloud-dedicated-servers-key-concepts)
             + [Dedicated servers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/get-know-ovhcloud-control-panel)
             + [Kimsufi, So You Start, and Rise - Get to Know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/kimsufi-so-you-start-rise-get-know-ovhcloud-control-panel)
@@ -553,7 +553,7 @@
             + [Public Cloud & VPS - Image and OS lifecycle and end of life/support announcements](bare-metal-cloud/vps/public-cloud-image-os-lifecycle-end-life-support-announcements)
             + [End of Plesk and cPanel support for VPS - Ensuring continuity of your services](bare-metal-cloud/vps/eos-cpanel-plesk)
 + Hosted Private Cloud
-    + [Public VCF as-a-Service](products/hosted-private-cloud-public-vcf-aas)
+    + [Public VCF as-a-Service](products/hosted-private-cloud-public-vcf-aas){landing=hosted-private-cloud/public-vcf-aas/landing-page-public-vcf-aas}
         + [Key concepts](hosted-private-cloud-public-vcf-aas-key-concepts)
             + [Public VCF as-a-Service - The fundamentals of Public VCF as-a-Service](hosted-private-cloud/public-vcf-aas/get-concepts)
             + [Public VCF as-a-Service - Technical capabilities and limitations](hosted-private-cloud/public-vcf-aas/technical-capabilities-limitations)
@@ -571,7 +571,7 @@
             + [Public VCF as-a-Service - Backup with Veeam Data Platform](hosted-private-cloud/public-vcf-aas/backup-veeam-data-platform)
         + [Additional resources](hosted-private-cloud-public-vcf-aas-additional-resources)
             + [Public VCF as-a-Service - FAQ](hosted-private-cloud/public-vcf-aas/faq)
-    + [Nutanix](products/hosted-private-cloud-nutanix-on-ovhcloud)
+    + [Nutanix](products/hosted-private-cloud-nutanix-on-ovhcloud){landing=hosted-private-cloud/nutanix-on-ovhcloud/landing-page-nutanix-on-ovhcloud}
         + [Key concepts](hosted-private-cloud-nutanix-on-ovhcloud-key-concepts)
             + [How to Find the Nutanix AOS Versions Supported by OVHcloud](hosted-private-cloud/nutanix-on-ovhcloud/find-nutanix-aos-versions-supported-by-ovhcloud)
             + [Overview of Nutanix on OVHcloud](hosted-private-cloud/nutanix-on-ovhcloud/overview-nutanix-ovhcloud)
@@ -624,7 +624,7 @@
             + [How to Set Up Advanced Replication and Disaster Recovery with Nutanix](hosted-private-cloud/nutanix-on-ovhcloud/set-up-advanced-replication-disaster-recovery-nutanix)
             + [Configuring Disaster Recovery with Metro](hosted-private-cloud/nutanix-on-ovhcloud/metro-availability)
             + [Ordering and managing a HYCU for OVHcloud license](hosted-private-cloud/nutanix-on-ovhcloud/ordering-managing-hycu-ovhcloud-license)
-    + [VMware on OVHcloud](products/hosted-private-cloud-vmware)
+    + [VMware on OVHcloud](products/hosted-private-cloud-vmware){landing=hosted-private-cloud/vmware/landing-page-vmware}
         + [Key concepts](hosted-private-cloud-vmware-key-concepts)
             + [VMware on OVHcloud - Responsibility sharing](hosted-private-cloud/vmware/ovhcloud-responsibility-sharing)
             + [VMware on OVHcloud solutions lifecycle policy](hosted-private-cloud/vmware/lifecycle-policy)
@@ -716,7 +716,7 @@
             + [NSX FAQ](hosted-private-cloud/vmware/nsx-faq)
             + [Pricing and management of OVHcloud NSX Edges](hosted-private-cloud/vmware/nsx-pricing)
 + Storage and Backup
-    + [Block Storage](products/storage-and-backup-block-storage)
+    + [Block Storage](products/storage-and-backup-block-storage){landing=storage-and-backup/block-storage/landing-page-block-storage}
         + [Key concepts](storage-and-backup-block-storage-key-concepts)
             + [Choosing the right Block Storage class](storage-and-backup/block-storage/the-right-storage-class)
         + [Getting started](storage-and-backup-block-storage-getting-started)
@@ -732,11 +732,11 @@
             + [Change your Block Storage volume type](storage-and-backup/block-storage/switch-volume-type)
         + [Additional resources](storage-and-backup-block-storage-additional-resources)
             + [Block Storage - Responsibility sharing](storage-and-backup/block-storage/responsibility-sharing)
-    + [File Storage](products/storage-and-backup-file-storage)
+    + [File Storage](products/storage-and-backup-file-storage){landing=storage-and-backup/file-storage/landing-page-file-storage}
         + [File Storage Service - Key concepts](storage-and-backup/file-storage/key-concepts)
         + [File Storage Service - Getting started](storage-and-backup/file-storage/getting-started)
         + [File Storage Service - Managing share snapshots](storage-and-backup/file-storage/create-snapshot)
-    + [Object Storage (S3™-compatible)](products/storage-and-backup-object-storage)
+    + [Object Storage (S3™-compatible)](products/storage-and-backup-object-storage){landing=storage-and-backup/object-storage/landing-page-object-storage}
         + [Key concepts](storage-and-backup-object-storage-key-concepts)
             + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/choosing-the-right-storage-class-for-your-needs)
             + [Object Storage - Endpoints and geoavailability](storage-and-backup/object-storage/endpoints-geoavailability)
@@ -785,7 +785,7 @@
                 + [Cloud Archive Swift - Manage your archives with an SFTP/SCP client](storage-and-backup/object-storage/pca-sftp)
                 + [Getting started with Cloud Archive Storage](storage-and-backup/object-storage/getting-started-cloud-archive-storage)
 + Network
-    + [Additional IP](products/network-additional-ip)
+    + [Additional IP](products/network-additional-ip){landing=network/additional-ip/landing-page-additional-ip}
         + [Key concepts](network-additional-ip-key-concepts)
             + [Concepts - Primary IP and Additional IP](network/additional-ip/primary-concepts)
         + [Configuration](network-additional-ip-configuration)
@@ -800,7 +800,7 @@
             + [Enabling IPs After Anti-Hack Flags](network/additional-ip/enabling-ips-after-anti-hack-flags)
     + [Bring Your Own IP](products/network-bring-your-own-ip)
         + [How to use the Bring Your Own IP BYOIP feature](network/bring-your-own-ip/bring-your-own-ip)
-    + [Load Balancer](products/network-load-balancer)
+    + [Load Balancer](products/network-load-balancer){landing=network/load-balancer/landing-page-load-balancer}
         + [Key concepts](network-load-balancer-key-concepts)
             + [Introduction to the OVHcloud Load Balancer](network/load-balancer/use-presentation)
             + [OVHcloud Load Balancer FAQ](network/load-balancer/create-faq)
@@ -831,14 +831,14 @@
             + [Retrieving server health status](network/load-balancer/retrieve-servers-state)
         + [Additional resources](network-load-balancer-additional-resources)
             + [Details of API functions](network/load-balancer/use-api-details)
-    + [Domain Name System (DNS)](products/network-network-tools)
+    + [Domain Name System (DNS)](products/network-network-tools){landing=network/network-tools/landing-page-network-tools}
         + [Getting Familiar with DNS](network/network-tools/getting-familiar-dns)
         + [How to Configure Reverse DNS](network/network-tools/configure-reverse-dns)
         + [How to Configure Reverse DNS in the OVHcloud API](network/network-tools/configure-reverse-dns-ovhcloud-api)
         + [Troubleshooting](network-network-tools-troubleshooting)
             + [Using networking tools available to OVHcloud customers](network/network-tools/using-networking-tools-available-ovhcloud-customers)
             + [How can I find out if my IP address is managed by OVHcloud?](network/network-tools/whois-ip)
-    + [OVHcloud Connect](products/network-ovhcloud-connect)
+    + [OVHcloud Connect](products/network-ovhcloud-connect){landing=network/ovhcloud-connect/landing-page-ovhcloud-connect}
         + [Key concepts](network-ovhcloud-connect-key-concepts)
             + [OVHcloud Connect - Concepts overview](network/ovhcloud-connect/concepts-overview)
             + [OVHcloud Connect - Layer 2 mode](network/ovhcloud-connect/layer-2-mode)
@@ -855,7 +855,7 @@
         + [Additional resources](network-ovhcloud-connect-additional-resources)
             + [OVHcloud Connect - Technical capabilities and limitations](network/ovhcloud-connect/technical-capabilities-limitations)
 + Manage and Operate
-    + [API](products/manage-and-operate-api)
+    + [API](products/manage-and-operate-api){landing=manage-and-operate/api/landing-page-api}
         + [Getting started](manage-and-operate-api-getting-started)
             + [First steps with the OVHcloud API](manage-and-operate/api/first-steps)
             + [Exploring the OVHcloud APIs](manage-and-operate/api/console-preview)
@@ -866,7 +866,7 @@
             + [Using service accounts to connect to OVHcloud APIs](manage-and-operate/iam/using-service-accounts-connect-ovhcloud-apis)
     + [CLI](products/manage-and-operate-cli)
         + [Getting Started with OVHcloud CLI](manage-and-operate/cli/getting-started-ovhcloud-cli)
-    + [IAM](products/manage-and-operate-iam)
+    + [IAM](products/manage-and-operate-iam){landing=manage-and-operate/iam/landing-page-iam}
         + [User Management & Federation](manage-and-operate-iam-user-management-and-federation)
             + [Getting started](manage-and-operate-iam-user-management-and-federation-getting-started)
                 + [Presentation of identity interactions within an OVHcloud Account](manage-and-operate/iam/presentation-identity-interactions-within-ovhcloud-account)
@@ -887,7 +887,7 @@
         + [Generating OVHcloud account logs with Logs Data Platform](manage-and-operate/logs-data-platform/generating-ovhcloud-account-logs)
         + [Using service accounts to connect to OVHcloud APIs](manage-and-operate/iam/using-service-accounts-connect-ovhcloud-apis)
         + [How to restrict local users from billing information in the OVHcloud Control Panel](account/account-information/restrict-local-users-from-billing-information)
-    + [Key Management Service (KMS)](products/manage-and-operate-kms)
+    + [Key Management Service (KMS)](products/manage-and-operate-kms){landing=manage-and-operate/kms/landing-page-kms}
         + [OKMS architecture overview](manage-and-operate/kms/architecture-overview)
         + [Getting started with OVHcloud Key Management Service KMS](manage-and-operate/kms/quick-start)
         + [Using OVHcloud Key Management Service KMS](manage-and-operate/kms/use-key-management-service)
@@ -895,7 +895,7 @@
         + [How to connect a compatible product using KMIP protocol](manage-and-operate/kms/connect-product-using-kmip)
         + [Key Management Service - Pushing logs to Logs Data Platform](manage-and-operate/kms/key-management-service-pushing-logs-logs-data-platform)
         + [OKMS - Responsibility sharing](manage-and-operate/kms/okms-responsibility-sharing)
-    + [Logs Data Platform](products/manage-and-operate-logs-data-platform)
+    + [Logs Data Platform](products/manage-and-operate-logs-data-platform){landing=manage-and-operate/logs-data-platform/landing-page-logs-data-platform}
         + [Getting Started](manage-and-operate-logs-data-platform-getting-started)
             + [Introduction to Logs Data Platform](manage-and-operate/logs-data-platform/introduction-to-logs-data-platform)
             + [Quick Start for Logs Data Platform](manage-and-operate/logs-data-platform/getting-started)
@@ -944,14 +944,14 @@
         + [Use Cases](manage-and-operate-logs-data-platform-use-cases)
             + [Pushing Logs from a Kubernetes Cluster to Logs Data Platform Using Fluent Bit](manage-and-operate/logs-data-platform/kubernetes-fluent-bit)
             + [Tracking Slow MySQL Queries with Logs Data Platform](manage-and-operate/logs-data-platform/usecase-mysql-slow-queries)
-    + [Secret Manager](products/manage-and-operate-secret-manager)
+    + [Secret Manager](products/manage-and-operate-secret-manager){landing=manage-and-operate/secret-manager/landing-page-secret-manager}
         + [Using the Secret Manager in the OVHcloud Control Panel](manage-and-operate/secret-manager/use-in-control-panel)
         + [Using the Secret Manager with the REST API](manage-and-operate/secret-manager/rest-api)
         + [Using the Secret Manager with the HashiCorp Vault KV2-compliant API](manage-and-operate/secret-manager/kv2-api)
     + [Terraform](products/manage-and-operate-terraform)
         + [Using Terraform with OVHcloud](manage-and-operate/terraform/using-terraform-with-ovhcloud)
 + Account and Service Management
-    + [Account information](products/account-account-information)
+    + [Account information](products/account-account-information){landing=account/account-information/landing-page-account-information}
         + [Getting Started](account-account-information-getting-started)
             + [Creating an OVHcloud account](account/account-information/create-account)
             + [Logging in to the OVHcloud Control Panel](account/account-information/log-in-control-panel)
@@ -984,7 +984,7 @@
             + [Securing an account with two-factor authentication](account/account-information/secure-account-two-factor-authentication)
             + [Restrict IP access to the OVHcloud Control Panel](account/account-information/restrict-ip-access)
             + [Beware of scams – Recognizing fraudulent email and phishing](account/account-information/recognize-phishing-scams)
-    + [Managing billing, payments, and services](products/account-billing)
+    + [Managing billing, payments, and services](products/account-billing){landing=account/billing/landing-page-billing}
         + [Managing services](account-billing-managing-services)
             + [Best practices for managing your OVHcloud services and account](account/billing/best-practices)
             + [Managing commitments in the OVHcloud Control Panel](account/billing/manage-commitments)
