@@ -10,7 +10,7 @@ interface FallbackHeadingProps {
 /**
  * Custom FallbackHeading that renders the page title (from frontmatter, when
  * the body has no H1) and, right below the H1, a "lead" paragraph built from
- * the `excerpt` (or legacy `description`) frontmatter field.
+ * the `description` frontmatter field.
  *
  * Rspress only uses these fields for the `<head>` meta description, never in
  * the visible page. This override surfaces the summary on the page itself.
@@ -23,7 +23,7 @@ interface FallbackHeadingProps {
 export function FallbackHeading(props: FallbackHeadingProps) {
   const { frontmatter } = useFrontmatter();
   const fm = frontmatter as Record<string, unknown>;
-  const lead = (fm?.excerpt ?? fm?.description) as string | undefined;
+  const lead = fm?.description as string | undefined;
 
   const heading = <OriginalFallbackHeading {...props} />;
 
