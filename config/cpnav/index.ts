@@ -23,6 +23,7 @@ import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { networkLoadBalancer } from './keys/network-load-balancer';
+import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
@@ -39,6 +40,7 @@ import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
+import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
@@ -60,6 +62,7 @@ import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
+import { securitySecretManager } from './keys/security-secret-manager';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -132,6 +135,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
   'publiccloud-file-storage': publiccloudFileStorage,
+  'publiccloud-cold-archive': publiccloudColdArchive,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
   'publiccloud-public-ips': publiccloudPublicIps,
@@ -148,6 +152,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Network, in Manager sidebar order -----------------------------------------------
   'network-vrack': networkVrack,
   'network-vrack-services': networkVrackServices,
+  'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-load-balancer': networkLoadBalancer,
   'network-security-dashboard': networkSecurityDashboard,
@@ -164,6 +169,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-service-accounts': iamServiceAccounts,
   'iam-policies': iamPolicies,
   'security-kms': securityKms,
+  'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
@@ -178,6 +184,20 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'billing-payment-methods': billingPaymentMethods,
   'billing-services': billingServices,
 };
+
+/**
+ * Multi-key combinations that occur in the guides. One rule is generated per entry, so a
+ * combination must be declared before a token can use it; `pnpm cpnav:validate` reports
+ * undeclared ones. They are enumerated rather than computed because a rule per possible
+ * subset is combinatorial and `ReplaceRule.replace` is typed as a plain string.
+ * Order within an entry does not matter — entries are canonicalised.
+ */
+export const CPNAV_SETS: string[][] = [
+  ['iam-policies', 'security-kms'],
+  ['web-email-pro', 'web-exchange'],
+  ['web-email-pro', 'web-mx-plan', 'web-exchange'],
+  ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
+];
 
 const ORDER = Object.keys(CPNAV_KEYS);
 

@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026.09.25
+
+### Features
+- live-priced VPS product cards across the Game Panel guides (#857)
+- **vps:** update the Game Panel installation process following the new console manager (#854)
+- **vps:** update the Garry's Mod guide for the native Game Panel image (#855)
+- **opcp:** add docs for OPCP factory reset (#785)
+- **opcp:** add documentation for controller backup (#762)
+
+### Maintenance
+- RM obsolete guide (#832)
+
+### Documentation
+- 362 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.23
+
+### Documentation
+- 97 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.22
+
+### Documentation
+- 4700 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.21
+
+### Features
+- **PCI:** Warn about changes in the order of interfaces after hot-attach and detach (#700)
+
+### Documentation
+- 261 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.18
 
 ### Fixes
