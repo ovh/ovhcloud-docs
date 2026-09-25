@@ -2814,6 +2814,7 @@
             + [Order a free SSL certificate](network/load-balancer/order-freecertificate)
             + [Load Balancer API Quick Reference](network/load-balancer/use-api-reference)
             + [OVHcloud Load Balancer TCP / HTTP / HTTPS Logs Forwarding](network/load-balancer/use-api-logs-customers)
+            + [Monitor OVHcloud Load Balancer metrics](network/load-balancer/use-api-metrics)
             + [Load balancing methods](network/load-balancer/create-balancing)
         + [Configuration](network-load-balancer-configuration)
             + [Infrastructure](network-load-balancer-configuration-infrastructure)
