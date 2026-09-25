@@ -1,12 +1,12 @@
 ---
 title: "Comment déployer Scality RING sur OPCP"
-description: "Découvrez comment déployer un cluster Scality RING sur du bare metal OPCP d'OVHcloud avec Terraform, de la préparation des nœuds à la vérification"
+description: "Découvrez comment déployer un cluster Scality RING sur du bare metal OPCP avec Terraform, de la préparation des nœuds à la vérification"
 lastUpdated: 2026-09-25
 ---
 
 ## Objectif
 
-[Scality RING](https://www.scality.com/products/ring/) est une plateforme de stockage logicielle qui transforme un ensemble de serveurs en un système de stockage objet (S3<sup>1</sup>) et/ou fichier (NFS/CIFS) unique, avec une protection des données assurée soit par erasure coding (ARC), soit par réplication (COS), sans nécessiter de contrôleur RAID matériel.
+[Scality RING](https://www.scality.com/products/ring/) est une plateforme de stockage logicielle qui transforme un ensemble de serveurs en un système unique de stockage objet (S3<sup>1</sup>) et/ou fichier (NFS/CIFS), avec une protection des données assurée soit par erasure coding (ARC), soit par réplication (COS), sans nécessiter de contrôleur RAID matériel.
 
 :::info
 Scality RING est une [**solution tierce certifiée OPCP**](/guides/hosted-private-cloud/opcp/opcp-compatibility-matrix). Cette procédure de déploiement est rédigée et maintenue par Scality, et non par OVHcloud. Pour toute assistance concernant RING lui-même, contactez le [support Scality](https://support.scality.com).
@@ -16,10 +16,10 @@ L'**On-Prem Cloud Platform (OPCP)** d'OVHcloud expose les serveurs physiques de 
 
 Ce guide détaille le déploiement d'un cluster RING sur du bare metal OPCP, de bout en bout :
 
-1. la préparation des nœuds bare metal (bonding réseau et, éventuellement, RAID logiciel pour le disque OS).
-2. le provisionnement des ports réseau et des instances bare metal avec Terraform.
-3. le lancement automatique de l'installeur RING, piloté par `cloud-init`, puisque les nœuds ne sont pas joignables en SSH avant leur démarrage.
-4. la vérification du déploiement et l'accès à l'interface du superviseur RING.
+1. La préparation des nœuds bare metal (bonding réseau et, éventuellement, RAID logiciel pour le disque OS).
+2. Le provisionnement des ports réseau et des instances bare metal avec Terraform.
+3. Le lancement automatique de l'installeur RING, piloté par `cloud-init`, puisque les nœuds ne sont pas joignables en SSH avant leur démarrage.
+4. La vérification du déploiement et l'accès à l'interface du superviseur RING.
 
 :::info
 Ce guide ne couvre **pas** la construction des images disque du superviseur et des nœuds de stockage Scality RING, ni l'obtention d'une licence RING. Il suppose que vous disposez déjà des deux. Consultez la section « [Prérequis](#prérequis) » ci-dessous pour savoir où les obtenir.
@@ -27,20 +27,20 @@ Ce guide ne couvre **pas** la construction des images disque du superviseur et d
 
 ## Prérequis
 
-- Un projet OVHcloud OPCP disposant de suffisamment de nœuds Bare Metal Pool à l'état Ironic `available` pour votre topologie cible. Le cluster minimal pris en charge par RING sur cette plateforme est **1 nœud superviseur et 3 nœuds de stockage**, les 3 nœuds de stockage devant être soit des modèles au catalogue **High Capacity Storage** (write cache pas encore disponible), soit des modèles **High Performance Storage**.
-- Un **identifiant d'application** OpenStack (application credential) pour ce projet, utilisable à la fois par la CLI OpenStack et par Terraform. Consultez l'étape *Création d'une Application Credential depuis Horizon* du guide OVHcloud « [Comment utiliser Terraform](/guides/hosted-private-cloud/opcp/use-terraform) » pour OPCP.
-- Les outils suivants installés sur le poste de travail depuis lequel vous lancez le déploiement :
-  - la [CLI OpenStack](https://docs.openstack.org/python-openstackclient/latest/) (`openstack`), pour importer les images, configurer LACP/RAID (étape 3) et lancer les commandes de vérification (étape 8) ;
+- Disposer d'un projet OVHcloud OPCP comptant suffisamment de nœuds Bare Metal Pool à l'état Ironic `available` pour votre topologie cible. Le cluster minimal pris en charge par RING sur cette plateforme est **1 nœud superviseur et 3 nœuds de stockage**, les 3 nœuds de stockage devant être soit des modèles du catalogue **High Capacity Storage** (write cache pas encore disponible), soit des modèles **High Performance Storage**.
+- Disposer d'un **identifiant d'application** OpenStack (application credential) pour ce projet, utilisable à la fois par la CLI OpenStack et par Terraform. Consultez l'étape *Création d'une Application Credential depuis Horizon* du guide OVHcloud « [Comment utiliser Terraform](/guides/hosted-private-cloud/opcp/use-terraform) » pour OPCP.
+- Avoir installé les outils suivants sur le poste de travail depuis lequel vous lancez le déploiement :
+  - la [CLI OpenStack](https://docs.openstack.org/python-openstackclient/latest/) (`openstack`), pour importer les images (étape 2), configurer le LACP et le RAID (étape 3) et lancer les commandes de vérification (étape 8) ;
   - [Terraform](https://developer.hashicorp.com/terraform) (ou [OpenTofu](https://opentofu.org/)) avec le provider [`terraform-provider-openstack`](https://registry.terraform.io/providers/terraform-provider-openstack/openstack), pour provisionner les ports réseau et les instances bare metal ;
-  - [`jq`](https://jqlang.org/), pour analyser la sortie JSON de plusieurs commandes `openstack` utilisées ci-dessous ;
+  - [`jq`](https://jqlang.org/), pour analyser la sortie JSON de la vérification des groupes de ports (étape 8) ;
   - un client SSH, utile si vous devez accéder directement au superviseur plutôt que par sa seule interface web.
-- Une image qcow2 **superviseur** Scality RING et une ou plusieurs images qcow2 **stockage**, basées sur Rocky Linux ou RHEL — les seuls systèmes d'exploitation pris en charge par RING sur OPCP — prêtes à être importées dans Glance. L'image superviseur doit déjà embarquer le bundle d'installation RING, car le superviseur n'a aucun moyen garanti de le récupérer après son démarrage sur cette plateforme.
+- Disposer d'une image qcow2 **superviseur** Scality RING et d'une ou plusieurs images qcow2 **stockage**, basées sur Rocky Linux ou RHEL — les seuls systèmes d'exploitation pris en charge par RING sur OPCP — prêtes à être importées dans Glance. L'image superviseur est censée déjà embarquer le bundle d'installation RING, car le superviseur n'a aucun moyen garanti de le récupérer après son démarrage sur cette plateforme.
   :::info
-  Vous n'avez pas à construire ces images vous-même : demandez les images qcow2 superviseur et stockage (ainsi que le bundle d'installation RING, s'il n'est pas déjà intégré à l'image superviseur) à Scality, via votre interlocuteur commercial ou le [support Scality](https://support.scality.com). La construction ou la personnalisation des images RING n'est pas couverte par ce guide — consultez le [portail de documentation Scality](https://documentation.scality.com) pour cette procédure, ou le guide OVHcloud sur la construction d'une [image CentOS Stream personnalisée](/guides/hosted-private-cloud/opcp/how-to-create-centos-image) pour comprendre les exigences sous-jacentes d'Ironic/Nova en matière d'images.
+  Vous ne construisez pas ces images vous-même : demandez les images qcow2 superviseur et stockage (ainsi que le bundle d'installation RING, s'il n'est pas déjà intégré à l'image superviseur) à Scality, via votre interlocuteur commercial ou le [support Scality](https://support.scality.com). La construction ou la personnalisation des images RING n'est pas couverte par ce guide — consultez le [portail de documentation Scality](https://documentation.scality.com) pour cette procédure, ou le guide OVHcloud sur la construction d'une [image CentOS Stream personnalisée](/guides/hosted-private-cloud/opcp/how-to-create-centos-image) pour comprendre les exigences sous-jacentes d'Ironic/Nova en matière d'images.
   :::
-- Une **licence** Scality RING valide. RING ne s'installe et ne fonctionne sans licence que dans un état d'évaluation limité et borné dans le temps ; demandez une licence auprès du [support Scality](https://support.scality.com) avant toute mise en production.
-- Un export de l'outil de dimensionnement RING (un fichier `cluster.csv` décrivant les rôles de vos nœuds, la disposition des disques et les paramètres de dimensionnement RING), généralement fourni par votre interlocuteur commercial ou support Scality.
-- Le réseau privé backend déjà provisionné par le Bare Metal Pool pour votre projet (utilisé pour le plan interne RING) ; éventuellement, un second réseau pour le trafic client S3/NFS, que Terraform peut créer pour vous.
+- Posséder une **licence** Scality RING valide. RING ne s'installe et ne fonctionne sans licence que dans un état d'évaluation limité et borné dans le temps ; demandez une licence auprès du [support Scality](https://support.scality.com) avant toute mise en production.
+- Disposer d'un export de l'outil de dimensionnement RING (un fichier `cluster.csv` décrivant les rôles de vos nœuds, la disposition des disques et les paramètres de dimensionnement RING), généralement fourni par votre interlocuteur commercial ou le support Scality.
+- Disposer du réseau privé backend déjà provisionné par le Bare Metal Pool pour votre projet (utilisé pour le plan interne RING) et, éventuellement, d'un second réseau pour le trafic client S3/NFS, que Terraform peut créer pour vous.
 
 :::info
 Ce guide suppose une bonne connaissance des concepts fondamentaux de RING (rings, connecteurs, protection des données COS/ARC, rôle du superviseur). Pour un rappel de ces notions, consultez le [portail de documentation Scality](https://documentation.scality.com).
@@ -69,7 +69,7 @@ openstack token issue -f value -c id
 ```
 
 :::tip
-Dans certaines régions OPCP, le catalogue de services annonce des endpoints qui ne sont pas joignables depuis votre réseau. Si les commandes `openstack` échouent à se connecter après l'émission réussie d'un jeton, ajoutez des surcharges d'endpoint explicites par service (`OS_COMPUTE_ENDPOINT_OVERRIDE`, `OS_IMAGE_ENDPOINT_OVERRIDE`, `OS_NETWORK_ENDPOINT_OVERRIDE`, `OS_BAREMETAL_ENDPOINT_OVERRIDE`, `OS_VOLUME_ENDPOINT_OVERRIDE`) pointant vers les adresses fournies pour votre projet. Le provider OpenStack de Terraform accepte les mêmes surcharges dans son bloc provider.
+Dans certaines régions OPCP, le catalogue de services annonce des endpoints qui ne sont pas joignables depuis votre réseau. Si les commandes `openstack` ne parviennent pas à se connecter après l'émission réussie d'un jeton OpenStack, ajoutez des surcharges d'endpoint explicites par service (`OS_COMPUTE_ENDPOINT_OVERRIDE`, `OS_IMAGE_ENDPOINT_OVERRIDE`, `OS_NETWORK_ENDPOINT_OVERRIDE`, `OS_BAREMETAL_ENDPOINT_OVERRIDE`, `OS_VOLUME_ENDPOINT_OVERRIDE`) pointant vers les adresses fournies pour votre projet. Le provider OpenStack de Terraform accepte les mêmes surcharges dans son bloc provider.
 :::
 
 ### 2. Importer les images RING dans Glance
@@ -85,16 +85,16 @@ openstack image create --disk-format qcow2 --container-format bare \
 ```
 
 :::warning
-Les noms d'image doivent être uniques dans le projet. Importer une image sous un nom déjà existant dans Glance fait échouer votre plan Terraform plutôt que de réutiliser silencieusement l'ancienne image ; choisissez donc un nouveau nom à chaque import d'une image reconstruite (par exemple en ajoutant un suffixe de version).
+Les noms d'image doivent être uniques dans le projet. Si vous importez une image sous un nom déjà présent dans Glance, votre plan Terraform échoue au lieu de réutiliser silencieusement l'ancienne image ; choisissez donc un nouveau nom à chaque import d'une image reconstruite (par exemple en ajoutant un suffixe de version).
 :::
 
 La construction ou la personnalisation de ces images sort du périmètre de ce guide — consultez la note de la section « [Prérequis](#prérequis) » pour savoir comment les obtenir.
 
 ### 3. Préparer les nœuds bare metal
 
-Deux réglages au niveau des nœuds se situent en dehors de Terraform, car le driver Ironic OpenStack standard ne dispose d'aucune ressource Terraform pour eux. Configurez les deux **avant** le déploiement des nœuds — ils ne peuvent être modifiés que sur des nœuds sans instance, et refaire cette opération plus tard nécessite d'abord de détruire l'instance.
+Deux réglages au niveau des nœuds se situent en dehors de Terraform, car le driver OpenStack Ironic standard ne dispose d'aucune ressource Terraform pour eux. Configurez ces réglages **avant** le déploiement des nœuds — ils ne peuvent être modifiés que sur des nœuds sans instance, et les refaire plus tard nécessite d'abord de détruire l'instance.
 
-**Bonding réseau (LACP).** RING attend que chaque nœud présente son ou ses réseaux sous forme d'interface agrégée (`bond0` pour le plan backend et, si vous utilisez un réseau frontend, `bond1`), pour que la perte d'une seule carte réseau ou d'un switch top-of-rack ne mette pas le nœud hors service. Configurez un groupe de ports 802.3ad (LACP) par plan directement dans OpenStack Ironic, en suivant le guide OVHcloud « [Comment configurer LACP sur un nœud](/guides/hosted-private-cloud/opcp/how-to-setup-lacp-on-node) ». Utilisez la politique de hachage `layer3+4` pour que le trafic se répartisse sur les 2 membres du bond (la valeur par défaut du noyau, `layer2`, attache chaque flux à un seul lien).
+**Bonding réseau (LACP).** RING attend que chaque nœud présente son ou ses réseaux sous forme d'interface agrégée (`bond0` pour le plan backend et, si vous utilisez un réseau frontend, `bond1`), afin que la perte d'une seule carte réseau ou d'un switch top-of-rack ne mette pas le nœud hors service. Configurez un groupe de ports 802.3ad (LACP) par plan directement dans OpenStack Ironic, en suivant le guide OVHcloud « [Comment configurer LACP sur un nœud](/guides/hosted-private-cloud/opcp/how-to-setup-lacp-on-node) ». Utilisez la politique de hachage `layer3+4` pour que le trafic se répartisse sur les 2 membres du bond (la valeur par défaut du noyau, `layer2`, attache chaque flux à un seul lien).
 
 :::warning
 Les groupes de ports LACP ne peuvent être créés que sur des nœuds sans instance active. Si un nœud possède déjà une instance, détruisez-la d'abord — le guide OVHcloud ne couvre pas la reconfiguration du bonding sur un nœud en production.
@@ -108,7 +108,7 @@ La création de la grappe RAID efface les disques qui la composent. N'activez ce
 
 ### 4. Définir votre configuration Terraform
 
-RING ne fournit pas de module Terraform public pour OPCP ; cette configuration est donc construite directement à partir des providers OpenStack, `tls` et `random`. Elle nécessite, dans l'ordre : une IP backend fixe par nœud, votre CSV de dimensionnement complété avec ces adresses, les instances bare metal elles-mêmes, une paire de clés SSH de déploiement dédiée, et suffisamment de `cloud-init` pour que le superviseur pilote l'installation une fois tous les nœuds démarrés.
+RING ne fournit pas de module Terraform public pour OPCP ; cette configuration est donc construite directement à partir des providers OpenStack, `tls` et `random`. Elle nécessite, dans l'ordre : une IP backend fixe par nœud, votre CSV de dimensionnement complété avec ces adresses, une paire de clés SSH de déploiement dédiée, les instances bare metal elles-mêmes, et une configuration `cloud-init` suffisante pour que le superviseur pilote l'installation une fois tous les nœuds démarrés.
 
 **Providers et adresses des nœuds**
 
@@ -305,7 +305,7 @@ Avant de lancer `terraform plan`, vérifiez en lecture seule les conditions pré
 - Si `lacp_enabled` est activé, chaque nœud susceptible d'être sélectionné par Terraform porte déjà ses groupes de ports LACP (étape 3). Nova peut choisir n'importe quel nœud `available` et le CSV de l'installeur fige les noms de bond au moment du plan : un nœud sans bonding démarre avec une configuration réseau incohérente.
 - Si vous avez configuré le RAID logiciel, son état correspond à ce que vous souhaitez pour ce déploiement.
 
-Corriger un écart à ce stade coûte bien moins cher que de le découvrir après qu'une instance bare metal a déjà été provisionnée.
+Corriger un écart à ce stade est bien moins coûteux qu'après le provisionnement d'une instance bare metal.
 
 ### 6. Vérifier et appliquer le plan Terraform
 
@@ -315,10 +315,10 @@ terraform plan -out=tfplan
 terraform show tfplan > tfplan.txt
 ```
 
-Lisez attentivement `tfplan.txt` avant d'appliquer :
+Lisez attentivement `tfplan.txt` avant d'appliquer le plan :
 
 :::warning
-Sur du bare metal, un *replace* Terraform d'une instance correspond à un redéploiement Ironic complet de la machine physique — le nœud est effacé et reprovisionné à partir de zéro. Recherchez spécifiquement `must be replaced` ou `must be destroyed` sur toute instance bare metal, port réseau ou paire de clés de déploiement, et, si vous en voyez un inattendu, vérifiez qu'il est voulu avant d'appliquer.
+Sur du bare metal, un *replace* Terraform d'une instance correspond à un redéploiement Ironic complet de la machine physique — le nœud est effacé et reprovisionné à partir de zéro. Recherchez spécifiquement `must be replaced` ou `will be destroyed` sur toute instance bare metal, port réseau ou paire de clés de déploiement, et, si l'une de ces mentions apparaît de façon inattendue, identifiez-en la cause avant d'appliquer le plan.
 :::
 
 ```bash
@@ -329,8 +329,8 @@ terraform apply tfplan
 
 Puisque les nœuds ne sont pas joignables en SSH avant leur démarrage, l'installeur RING est lancé par `cloud-init` lui-même plutôt que par un opérateur exécutant un script :
 
-- Terraform génère une paire de clés de déploiement dédiée. La partie publique est ajoutée aux `authorized_keys` root de chaque nœud ; la partie privée n'est présente que dans le `cloud-init` du superviseur, pour que seul le superviseur puisse accéder en root à chaque nœud de stockage.
-- Au premier démarrage, le superviseur écrit sur le disque local le CSV d'installation complété et la configuration de l'installeur, puis sonde le SSH root de chaque nœud de stockage (l'ordre de démarrage des nœuds bare metal n'étant pas garanti, cela s'exécute généralement avec un délai d'attente généreux, de l'ordre d'une heure).
+- Terraform génère une paire de clés de déploiement dédiée. La partie publique est ajoutée au fichier `authorized_keys` de root sur chaque nœud ; la partie privée n'est présente que dans le `cloud-init` du superviseur, pour que seul le superviseur puisse accéder en root à chaque nœud de stockage.
+- Au premier démarrage, le superviseur écrit sur le disque local le CSV d'installation complété et la configuration de l'installeur, puis attend que chaque nœud de stockage réponde en SSH root (l'ordre de démarrage des nœuds bare metal n'étant pas garanti, cette attente est généralement assortie d'un délai généreux, de l'ordre d'une heure).
 - Une fois que tous les nœuds répondent, le superviseur lance l'installeur RING de façon non interactive et détachée, pour qu'il survive à la fin de `cloud-init` et ne soit pas affecté par une coupure de connexion vers le superviseur.
 
 Aucune action de l'opérateur n'est requise à cette étape — c'est tout l'intérêt de la conception pilotée par `cloud-init`.
@@ -343,7 +343,7 @@ Avant de considérer que l'installation progresse normalement, vérifiez que la 
 openstack baremetal port group list --node <node> --long -f json | jq '.[] | {name, internal_info}'
 ```
 
-Chaque groupe de ports backend doit porter l'ID de port du nœud issu de votre sortie Terraform `port_ids` dans `internal_info.tenant_vif_port_id` (et, si vous avez configuré un réseau frontend, chaque groupe de ports frontend doit porter l'entrée `frontend_port_ids` correspondante). Cette correspondance n'est pas garantie contractuellement par Ironic, il vaut donc la peine de la vérifier après chaque déploiement, pas uniquement le premier.
+Chaque groupe de ports backend doit porter l'ID de port du nœud issu de votre sortie Terraform `port_ids` dans `internal_info.tenant_vif_port_id` (et, si vous avez configuré un réseau frontend, chaque groupe de ports frontend doit porter l'entrée `frontend_port_ids` correspondante). Cette correspondance n'est pas garantie contractuellement par Ironic, mieux vaut donc la vérifier après chaque déploiement, et pas uniquement après le premier.
 
 Depuis le superviseur, vérifiez dans l'OS invité que chaque bond est monté avec l'adresse attendue et que la route par défaut pointe vers la passerelle backend, puis suivez le journal d'installation :
 
@@ -352,7 +352,7 @@ tail -f /var/tmp/scality/install.log
 ```
 
 :::info
-Une fois lancé, l'installeur ne se relance pas s'il trouve un marqueur `done` ou un processus encore en cours d'exécution ; redémarrer un nœud en cours d'installation ne relance donc pas une installation terminée ou en cours.
+À chaque lancement, l'installeur s'arrête aussitôt s'il trouve un marqueur `done` ou un processus encore en cours d'exécution ; redémarrer un nœud en cours d'installation ne relance donc pas une installation terminée ou en cours.
 :::
 
 ### 9. Accéder à l'interface du superviseur RING
@@ -371,7 +371,7 @@ Si vous n'avez pas encore activé de licence RING, faites-le maintenant via l'in
 
 ## Conclusion
 
-À ce stade, Terraform gère les ports réseau, les instances bare metal et les identifiants générés, et `cloud-init` a piloté une installation RING sans intervention sur l'ensemble des nœuds. Vous disposez d'un cluster Scality RING fonctionnel sur OPCP d'OVHcloud, prêt pour l'activation de la licence (si ce n'est pas déjà fait) et pour la configuration de S3/IAM et, le cas échéant, des connecteurs fichiers. Pour tout ce qui va au-delà — dimensionnement, modifications de la topologie du ring, configuration des connecteurs, mises à jour — consultez le [portail de documentation Scality](https://documentation.scality.com), et contactez le [support Scality](https://support.scality.com) pour toute question de licence ou d'incident.
+À ce stade, Terraform gère les ports réseau, les instances bare metal et les identifiants générés, et `cloud-init` a piloté une installation RING sans intervention sur l'ensemble des nœuds. Vous disposez d'un cluster Scality RING fonctionnel sur OPCP, prêt pour l'activation de la licence (si ce n'est pas déjà fait) et pour la configuration de S3/IAM et, le cas échéant, des connecteurs fichiers. Pour tout ce qui va au-delà — dimensionnement, modifications de la topologie du ring, configuration des connecteurs, mises à jour — consultez le [portail de documentation Scality](https://documentation.scality.com), et contactez le [support Scality](https://support.scality.com) pour toute question de licence ou d'incident.
 
 ## Aller plus loin
 
@@ -389,4 +389,4 @@ Si vous n'avez pas encore activé de licence RING, faites-le maintenant via l'in
 
 Échangez avec notre [communauté d'utilisateurs](/links/community).
 
-<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services d'OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.

@@ -1,6 +1,6 @@
 ---
 title: "How to deploy Scality RING on OPCP"
-description: "Find out how to deploy a Scality RING storage cluster on OVHcloud OPCP bare metal with Terraform, from node preparation to verification"
+description: "Find out how to deploy a Scality RING storage cluster on OPCP bare metal with Terraform, from node preparation to verification"
 lastUpdated: 2026-09-25
 ---
 
@@ -16,10 +16,10 @@ OVHcloud's **On-Prem Cloud Platform (OPCP)** Bare Metal Pool exposes physical se
 
 This guide walks through deploying a RING cluster on OPCP bare metal, end to end:
 
-1. preparing the bare-metal nodes (network bonding and, optionally, software RAID for the OS disk).
-2. provisioning the network ports and bare-metal instances with Terraform.
-3. letting the RING installer run itself, driven by `cloud-init`, since the nodes cannot be reached over SSH before they boot.
-4. verifying the deployment and reaching the RING supervisor UI.
+1. Preparing the bare-metal nodes (network bonding and, optionally, software RAID for the OS disk).
+2. Provisioning the network ports and bare-metal instances with Terraform.
+3. Letting the RING installer run itself, driven by `cloud-init`, since the nodes cannot be reached over SSH before they boot.
+4. Verifying the deployment and reaching the RING supervisor UI.
 
 :::info
 This guide does **not** cover building the Scality RING supervisor and storage disk images, or obtaining a RING licence. It assumes you already have both. See [Requirements](#requirements) below for where to get them.
@@ -27,16 +27,16 @@ This guide does **not** cover building the Scality RING supervisor and storage d
 
 ## Requirements
 
-- An OVHcloud OPCP project with enough Bare Metal Pool nodes in the Ironic `available` state for your target topology. RING's minimum supported cluster on this platform is **1 supervisor node and 3 storage nodes**. Storage nodes use either **High Capacity Storage** catalogue models (write cache not available yet) or **High Performance Storage** models.
+- An OVHcloud OPCP project with enough Bare Metal Pool nodes in the Ironic `available` state for your target topology. RING's minimum supported cluster on this platform is **1 supervisor node and 3 storage nodes**. The 3 storage nodes must be either **High Capacity Storage** catalogue models (write cache not available yet) or **High Performance Storage** models.
 - An OpenStack **application credential** for that project, usable by both the OpenStack CLI and Terraform. See the *Creating an Application Credential from Horizon* step of OVHcloud's [How to use Terraform](/guides/hosted-private-cloud/opcp/use-terraform) guide for OPCP.
 - The following tools installed on the workstation you will run the deployment from:
-  - the [OpenStack CLI](https://docs.openstack.org/python-openstackclient/latest/) (`openstack`), to upload images, set up LACP/RAID (step 3) and run the verification commands (step 8);
+  - the [OpenStack CLI](https://docs.openstack.org/python-openstackclient/latest/) (`openstack`), to upload images (step 2), set up LACP/RAID (step 3) and run the verification commands (step 8);
   - [Terraform](https://developer.hashicorp.com/terraform) (or [OpenTofu](https://opentofu.org/)) with the [`terraform-provider-openstack`](https://registry.terraform.io/providers/terraform-provider-openstack/openstack) provider, to provision the network ports and bare-metal instances;
-  - [`jq`](https://jqlang.org/), to parse the JSON output of several `openstack` commands used below;
+  - [`jq`](https://jqlang.org/), to parse the JSON output of the port group check in step 8;
   - an SSH client, useful if you need to reach the supervisor directly rather than only through its web UI.
-- A Scality RING **supervisor** qcow2 image and one or more **storage** qcow2 images, based on Rocky Linux or RHEL — the only operating systems RING supports on OPCP — ready to upload to Glance. The supervisor image must already carry the RING installer bundle, since the supervisor has no guaranteed way to fetch it after boot on this platform.
+- A Scality RING **supervisor** qcow2 image and one or more **storage** qcow2 images, based on Rocky Linux or RHEL — the only operating systems RING supports on OPCP — ready to upload to Glance. The supervisor image is expected to already carry the RING installer bundle, since the supervisor has no guaranteed way to fetch it after boot on this platform.
   :::info
-  These images are not something you build yourself: request the supervisor and storage qcow2 images (and the RING installer bundle, if not already embedded in the supervisor image) from Scality, through your account team or [Scality support](https://support.scality.com). Building or customising RING images is not covered by this guide — see the [Scality documentation portal](https://documentation.scality.com) for that procedure, or OVHcloud's guide on building a [custom CentOS Stream image](/guides/hosted-private-cloud/opcp/how-to-create-centos-image) for background on the underlying Ironic/Nova image requirements.
+  You do not build these images yourself: request the supervisor and storage qcow2 images (and the RING installer bundle, if not already embedded in the supervisor image) from Scality, through your account team or [Scality support](https://support.scality.com). Building or customising RING images is not covered by this guide — see the [Scality documentation portal](https://documentation.scality.com) for that procedure, or OVHcloud's guide on building a [custom CentOS Stream image](/guides/hosted-private-cloud/opcp/how-to-create-centos-image) for background on the underlying Ironic/Nova image requirements.
   :::
 - A valid Scality RING **licence**. RING will install and run without one only in a limited, time-boxed evaluation state; request a licence through [Scality support](https://support.scality.com) before going into production.
 - A RING sizing-tool export (a `cluster.csv` describing your node roles, disk layout and RING sizing parameters), typically provided by your Scality account team or support contact.
@@ -69,7 +69,7 @@ openstack token issue -f value -c id
 ```
 
 :::tip
-In some OPCP regions, the service catalog advertises endpoints that are not reachable from your network. If `openstack` commands fail to connect after a successful token issue, add explicit per-service endpoint overrides (`OS_COMPUTE_ENDPOINT_OVERRIDE`, `OS_IMAGE_ENDPOINT_OVERRIDE`, `OS_NETWORK_ENDPOINT_OVERRIDE`, `OS_BAREMETAL_ENDPOINT_OVERRIDE`, `OS_VOLUME_ENDPOINT_OVERRIDE`) pointing at the addresses your project was given. Terraform's OpenStack provider accepts the same overrides in its provider block.
+In some OPCP regions, the service catalog advertises endpoints that are not reachable from your network. If `openstack` commands fail to connect after a successful `openstack token issue`, add explicit per-service endpoint overrides (`OS_COMPUTE_ENDPOINT_OVERRIDE`, `OS_IMAGE_ENDPOINT_OVERRIDE`, `OS_NETWORK_ENDPOINT_OVERRIDE`, `OS_BAREMETAL_ENDPOINT_OVERRIDE`, `OS_VOLUME_ENDPOINT_OVERRIDE`) pointing at the addresses your project was given. Terraform's OpenStack provider accepts the same overrides in its provider block.
 :::
 
 ### 2. Uploading the RING images to Glance
@@ -92,7 +92,7 @@ Building or customising these images is outside the scope of this guide — see 
 
 ### 3. Preparing the bare-metal nodes
 
-Two node-level settings live outside Terraform, because the standard OpenStack Ironic driver has no Terraform resource for them. Configure both **before** the nodes are deployed — they can only be changed on nodes that carry no instance, and redoing them later requires tearing the instance down first.
+Two node-level settings live outside Terraform, because the standard OpenStack Ironic driver has no Terraform resource for them. Configure these settings **before** the nodes are deployed — they can only be changed on nodes that carry no instance, and redoing them later requires tearing the instance down first.
 
 **Network bonding (LACP).** RING expects each node to present its network(s) as a bonded interface (`bond0` for the backend plane and, if you use a frontend network, `bond1`), so that losing a single NIC or top-of-rack switch does not take the node down. Configure an 802.3ad (LACP) port group per plane directly in OpenStack Ironic, following OVHcloud's [How to setup LACP on a Node](/guides/hosted-private-cloud/opcp/how-to-setup-lacp-on-node) guide. Use the `layer3+4` transmit-hash policy so traffic spreads across both members of the bond (the kernel default, `layer2`, pins every flow to a single link).
 
@@ -108,7 +108,7 @@ Creating the RAID array erases the disks it is built from. Only enable it on nod
 
 ### 4. Defining your Terraform configuration
 
-RING does not ship a public Terraform module for OPCP, so this configuration is built directly from the OpenStack, `tls` and `random` providers. It needs, in order: a fixed backend IP per node, your sizing-tool CSV completed with those addresses, the bare-metal instances themselves, a dedicated deployment SSH keypair, and enough `cloud-init` for the supervisor to drive the install once every node is up.
+RING does not ship a public Terraform module for OPCP, so this configuration is built directly from the OpenStack, `tls` and `random` providers. It needs, in order: a fixed backend IP per node, your sizing-tool CSV completed with those addresses, a dedicated deployment SSH keypair, the bare-metal instances themselves, and enough `cloud-init` configuration for the supervisor to drive the install once every node is up.
 
 **Providers and node addresses**
 
@@ -296,12 +296,12 @@ If your deployment also serves S3/NFS clients on a separate network from the RIN
 
 ### 5. Running a preflight check
 
-Before running `terraform plan`, verify the pre-deploy contract read-only:
+Before running `terraform plan`, run the following read-only checks:
 
 - The application credential and Terraform provider can both reach the project.
 - Both the supervisor and storage images exist in Glance under the names your configuration references.
 - At least as many nodes are in the `available` Ironic state as your `cluster.csv` requires.
-- If `lacp_enabled` is set, every node you expect Terraform to pick already carries its LACP port groups (step 3) — Nova can select any `available` node, and the installer CSV bakes in bond names at plan time, so a node without bonding will boot mismatched.
+- If `lacp_enabled` is set, every node you expect Terraform to pick already carries its LACP port groups (step 3) — Nova can select any `available` node, and the installer CSV bakes in bond names at plan time, so a node without bonding will boot with a mismatched network configuration.
 - If you configured software RAID, its state matches what you intend for this deploy.
 
 Fixing a gap now is far cheaper than fixing it after a bare-metal instance is provisioned.
@@ -317,7 +317,7 @@ terraform show tfplan > tfplan.txt
 Read `tfplan.txt` carefully before applying:
 
 :::warning
-On bare metal, a Terraform *replace* of an instance is a full Ironic redeploy of the physical machine — the node is wiped and reprovisioned from scratch. Look specifically for `must be replaced` or `must be destroyed` on any bare-metal instance, network port, or the deployment keypair, and stop to double-check intent before applying if you see one you did not expect.
+On bare metal, a Terraform *replace* of an instance is a full Ironic redeploy of the physical machine — the node is wiped and reprovisioned from scratch. Look specifically for `must be replaced` or `will be destroyed` on any bare-metal instance, network port, or the deployment keypair, and, if you see one you did not expect, find out why before applying.
 :::
 
 ```bash
@@ -351,12 +351,12 @@ tail -f /var/tmp/scality/install.log
 ```
 
 :::info
-Once launched, the installer skips itself if it finds a `done` marker or a still-running process, so rebooting a node mid-install will not restart a finished or in-progress install.
+Each time it is launched, the installer exits immediately if it finds a `done` marker or a still-running process, so rebooting a node mid-install will not restart a finished or in-progress install.
 :::
 
 ### 9. Accessing the RING supervisor UI
 
-Retrieve the GUI/admin password Terraform generated for you:
+Retrieve the GUI/admin password generated by Terraform:
 
 ```bash
 terraform output -raw gui_password
@@ -370,7 +370,7 @@ If you have not yet activated a RING licence, do so now through the supervisor U
 
 ## Conclusion
 
-At this point, Terraform owns the network ports, the bare-metal instances and the generated credentials, and `cloud-init` has driven an unattended RING install across every node. You have a running Scality RING cluster on OVHcloud OPCP, ready for licence activation (if not already done) and for configuring S3/IAM and, if applicable, file connectors. For everything past this point — sizing, ring topology changes, connector configuration, upgrades — consult the [Scality documentation portal](https://documentation.scality.com), and reach out to [Scality support](https://support.scality.com) for anything licence- or issue-related.
+At this point, Terraform owns the network ports, the bare-metal instances and the generated credentials, and `cloud-init` has driven an unattended RING install across every node. You have a running Scality RING cluster on OPCP, ready for licence activation (if not already done) and for configuring S3/IAM and, if applicable, file connectors. For everything past this point — sizing, ring topology changes, connector configuration, upgrades — consult the [Scality documentation portal](https://documentation.scality.com), and reach out to [Scality support](https://support.scality.com) for anything licence- or issue-related.
 
 ## Go further
 
