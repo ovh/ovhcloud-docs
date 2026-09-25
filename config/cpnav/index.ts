@@ -35,9 +35,11 @@ import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
+import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
@@ -59,6 +61,7 @@ import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
+import { securitySecretManager } from './keys/security-secret-manager';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -81,6 +84,7 @@ import { webVideoCenter } from './keys/web-video-center';
 import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webZimbra } from './keys/web-zimbra';
+import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
@@ -117,6 +121,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // URL: the chain names the product, the link is always the project list.
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-databases': publiccloudDatabases,
+  'publiccloud-analytics': publiccloudAnalytics,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
@@ -129,6 +134,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
   'publiccloud-file-storage': publiccloudFileStorage,
+  'publiccloud-cold-archive': publiccloudColdArchive,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
   'publiccloud-public-ips': publiccloudPublicIps,
@@ -161,6 +167,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-service-accounts': iamServiceAccounts,
   'iam-policies': iamPolicies,
   'security-kms': securityKms,
+  'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
@@ -184,12 +191,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
  * Order within an entry does not matter — entries are canonicalised.
  */
 export const CPNAV_SETS: string[][] = [
-  // `nutanix-on-ovhcloud/hardware-gateway-replacement`: the gateway is a dedicated server
-  // reached from Bare Metal Cloud, the cluster from Hosted Private Cloud.
-  ['privatecloud-nutanix', 'baremetal-dedicated-servers'],
-  // `nutanix-on-ovhcloud/vrack-interconnection`: the cluster, the vRack it joins and the
-  // load balancer in front of it are three screens in three universes.
-  ['privatecloud-nutanix', 'network-vrack', 'network-load-balancer'],
+  ['iam-policies', 'security-kms'],
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
@@ -216,6 +218,13 @@ export function tokenFor(keys: readonly string[]): string {
 }
 
 /** Every key set a token may name: each single key, plus each declared combination. */
-export function allKeySets(): string[][] {
-  return [...ORDER.map((k) => [k]), ...CPNAV_SETS.map((s) => canonicalise(s))];
+export function allKeySets(locale?: string): string[][] {
+  const combos = new Map<string, string[]>();
+  const root = locale ? `${DOCS_DIR}/${locale}` : DOCS_DIR;
+  for (const set of discoverKeySets(root)) {
+    if (!set.every((k) => k in CPNAV_KEYS)) continue;
+    const canonical = canonicalise(set);
+    combos.set(canonical.join('+'), canonical);
+  }
+  return [...ORDER.map((k) => [k]), ...combos.values()];
 }

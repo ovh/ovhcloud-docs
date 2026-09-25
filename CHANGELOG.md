@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026.09.23
+
+### Documentation
+- 97 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.22
+
+### Documentation
+- 4700 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.21
+
+### Features
+- **PCI:** Warn about changes in the order of interfaces after hot-attach and detach (#700)
+
+### Documentation
+- 261 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.18
+
+### Fixes
+- **i18n:** align the Italian support links (#811)
+- **pci:** un display the metrics guide (#806)
+- **i18n:** restore the Spanish support-link label mangled by a global replace (#805)
+
+### Documentation
+- 791 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.17
+
+### Fixes
+- **cpnav,fragments:** pin blocks to English on untranslated guides (#800)
+
+### Documentation
+- 36 guides updated across de, en, es, it, pl, pt
+
+## 2026.09.16
+
+### Features
+- **mks:** remove Control Panel screenshots, add textual navigation steps (#707)
+- **lb:** update guide about getting source ip (#727)
+
+### Fixes
+- **mks:** convert links, symlink locale files, drop orphaned images
+
+### Documentation
+- 168 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.15
 
 ### Features

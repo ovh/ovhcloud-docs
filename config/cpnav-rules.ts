@@ -214,7 +214,7 @@ function escapeRegExp(literal: string): string {
  */
 export function generateCpNavRules(locale: Locale): ReplaceRule[] {
   const rules: ReplaceRule[] = [];
-  for (const keys of allKeySets()) {
+  for (const keys of allKeySets(locale)) {
     const spelled = keys.join('+');
     // Escape '$' so String.replace() cannot interpret $-patterns in the body.
     const escapeDollars = (body: string) => body.replace(/\$/g, '$$$$');
