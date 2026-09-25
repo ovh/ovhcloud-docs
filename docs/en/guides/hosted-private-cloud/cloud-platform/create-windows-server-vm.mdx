@@ -1,0 +1,364 @@
+---
+title: Creating a Windows Server VM on SNC Cloud Platform
+description: How to create a Windows Server VM on SNC Cloud Platform from a Microsoft evaluation ISO
+lastUpdated: 2026-09-22
+---
+
+Practical guide to uploading a Windows image into Glance and provisioning a Windows Server VM on the SNC Cloud Platform OpenStack deployment, when no ready-made Windows image is available. Target audience: anyone comfortable with a command line; prior OpenStack familiarity helps but isn't required.
+
+## Goal
+
+This guide covers end-to-end provisioning of a Windows Server VM on an OpenStack platform that has no ready-made Windows image in Glance: downloading the Microsoft evaluation ISO, uploading it to Glance, provisioning network/storage, installing the OS (automated or manual), and post-install network configuration — since Windows has no cloud-init equivalent, several steps that are automatic on a Linux VM must be done by hand.
+
+:::warning
+**Microsoft licensing**: supplying Microsoft licenses isn't, at this time, handled by the platform. This guide uses a Microsoft evaluation ISO (a temporary license, for testing purposes) — acquiring, managing, and staying compliant with any Microsoft license (Windows Server or otherwise) remains entirely the customer's responsibility.
+:::
+
+## Prerequisites
+
+- Access to the platform via a `clouds.yaml` (OpenStack application credential), `member` role at minimum.
+- The `openstack` CLI (`python-openstackclient`), installable via `pip`.
+- A local machine with enough free disk space to stage the Windows ISO (~10 GB) — the upload happens **from the local machine to Glance**, not via a server-side download (see [Step 3](#step-3--upload-the-iso-into-glance) for why).
+- A (free) Microsoft account to download a Windows Server evaluation ISO.
+
+:::info
+**TLS note**: depending on how old your local machine's OpenSSL/LibreSSL is, the `openstack` CLI may fail to negotiate TLS 1.3 against the platform's API. If `openstack token issue` fails with an `SSL routines` or `handshake failure` error, see [known pitfalls](#known-pitfalls-troubleshooting).
+:::
+
+## Overview: why this is more manual than a Linux VM
+
+A Linux VM provisioned on this platform uses a ready-made **cloud-init** image: on first boot, the cloud-init agent reads OpenStack metadata (SSH key, network config, `user_data`) and configures the machine automatically, IP addressing included.
+
+A Windows ISO has no such agent. Two direct consequences:
+
+1. **The install itself isn't automated** by default — the ISO launches the interactive Windows Setup wizard. This guide shows how to automate it via an answer file (`autounattend.xml`), but a fully manual install through the graphical console is also possible and described as an alternative.
+2. **Post-install network configuration is manual.** This platform's public network, `Ext-Net`, has **no DHCP server** (`enable_dhcp = false` on its subnet) — Linux VMs work around this because cloud-init statically configures the IP from OpenStack metadata. Windows has no such capability: the IP address must be entered by hand once the OS is installed (see [Step 9](#step-9--find-the-ip-and-configure-networking-manual)).
+
+## Step 1 — Download the Windows ISO
+
+Microsoft distributes time-limited evaluation ISOs for Windows Server (typically 180 days) via the [Evaluation Center](https://www.microsoft.com/evalcenter/) — requires a Microsoft account.
+
+1. Pick an edition (e.g. Windows Server 2025) and language.
+2. Download the ISO locally (~7-8 GB depending on edition).
+3. Note the local path, e.g. `~/Downloads/windows-server-2025-eval.iso`.
+
+> A Windows ISO generally bundles **several editions** in a single `install.wim` file (Standard/Datacenter, with/without the graphical desktop experience). They'll be listed in step 4 to pick which one to install.
+
+## Step 2 — Install and configure the OpenStack CLI
+
+```bash
+pip install python-openstackclient
+
+export OS_CLIENT_CONFIG_FILE=/path/to/clouds.yaml
+export OS_CLOUD=openstack   # section name inside clouds.yaml
+
+openstack token issue        # verify authentication
+openstack image list         # sanity check
+```
+
+## Step 3 — Upload the ISO into Glance
+
+Several methods exist to import an image into Glance. On this platform, the recommended method is direct upload from the local machine:
+
+| Method | How it works | On this platform |
+|---|---|---|
+| `glance-direct` (client upload, CLI) | The file is streamed **from the local machine** to Glance over HTTP | ✅ Recommended method, used in this guide. |
+| `web_download` | Glance downloads the image **server-side**, from a supplied URL | Requires outbound internet access from the platform's internal services, which is intentionally not opened as part of the ongoing SecNumCloud qualification — prefer the direct upload above. |
+| Manual upload via the Horizon UI | Uploading a local file through the "Create Image" web form | Not yet offered on this platform — use the CLI (`glance-direct`) in the meantime. |
+
+```bash
+openstack image create \
+  --disk-format iso \
+  --container-format bare \
+  --private \
+  --progress \
+  --file ~/Downloads/windows-server-2025-eval.iso \
+  windows-server-2025-eval
+```
+
+Uploading a ~7-8 GB ISO typically takes 1-3 minutes depending on the local machine's upload bandwidth. `--private` restricts the image's visibility to your project.
+
+Verify the result:
+
+```bash
+openstack image show windows-server-2025-eval -f value -c status -c size
+# status should read "active"
+```
+
+## Step 4 — Prepare an unattended install medium
+
+This step is **optional**: Windows Setup can also be driven by hand through the graphical console (see the note at the end of this section). Automating it via an answer file (`autounattend.xml`) avoids manual interaction and is reproducible.
+
+### 4.1 Identify the editions available in the ISO
+
+```bash
+# macOS
+hdiutil attach -nobrowse -readonly ~/Downloads/windows-server-2025-eval.iso
+# note the returned mount point, e.g. /Volumes/XXXXX
+```
+
+The `sources/install.wim` file holds each edition's metadata (name, index, description) in an internal XML block. Without a dedicated tool (`wimlib-imagex` not installed), a short script extracts it:
+
+```python
+import mmap
+with open("/Volumes/XXXXX/sources/install.wim", "rb") as f:
+    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    matches = []
+    pos = 0
+    while True:
+        start = mm.find("<WIM>".encode("utf-16-le"), pos)
+        if start == -1: break
+        end = mm.find("</WIM>".encode("utf-16-le"), start)
+        matches.append((start, end - start))
+        pos = end
+    # the largest block is the full edition catalog
+    matches.sort(key=lambda t: -t[1])
+    s, l = matches[0]
+    print(mm[s:s+l].decode("utf-16-le", errors="ignore"))
+```
+
+Each `<IMAGE INDEX="N">` block in the result carries a readable `<DISPLAYNAME>` tag (e.g. *"Windows Server 2025 Standard Evaluation (Desktop Experience)"*) — note the `INDEX` of the edition you want, it will be used in the answer file.
+
+### 4.2 Download the VirtIO drivers
+
+This platform's disks and network cards are emulated as **VirtIO** devices by the underlying KVM/QEMU hypervisor — Windows doesn't ship these drivers natively (unlike classic IDE/SATA storage, which is natively supported). The official driver package (Fedora/Red Hat project, Microsoft-signed):
+
+```bash
+curl -L -o virtio-win.iso \
+  https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso
+hdiutil attach -nobrowse -readonly virtio-win.iso
+```
+
+The relevant folders are organized by OS version then architecture, e.g. `NetKVM/2k25/amd64/`, `viostor/2k25/amd64/`, `vioscsi/2k25/amd64/` (adjust `2k25` to the targeted Windows version if different).
+
+### 4.3 Build the secondary medium (autounattend.xml + drivers)
+
+A complete answer-file template is available for download: <a href="/images/hosted-private-cloud/cloud-platform/create-windows-server-vm/resources/autounattend.xml" download>autounattend.xml</a>. Key points to adapt before use:
+
+- `/IMAGE/INDEX`: the edition index identified in 4.1.
+- `AdministratorPassword/Value`: a generated password (never commit a real plaintext password to a versioned repo once filled in — see [Known pitfalls](#known-pitfalls-troubleshooting)).
+- `DriverPaths`: list several candidate drive letters (`D:`, `E:`, `F:`) — see the note below.
+
+:::warning
+**Why several candidate letters?** The drive letter actually assigned to the drivers medium depends on how many CD-ROM drives are attached to the instance (which can vary), and can't be reliably predicted ahead of time. Windows Setup silently skips paths that don't exist — listing 2-3 plausible letters is the standard practice rather than guessing exactly right.
+:::
+
+Lay out the medium:
+
+```
+media/
+├── autounattend.xml
+└── drivers/
+    ├── NetKVM/amd64/   (copied from virtio-win.iso)
+    ├── viostor/amd64/
+    └── vioscsi/amd64/
+```
+
+Build the ISO (macOS, no third-party tool needed):
+
+```bash
+hdiutil makehybrid -iso -joliet -default-volume-name UNATTEND \
+  -o unattend.iso media/
+```
+
+On Linux: `genisoimage -o unattend.iso -J -R -V UNATTEND media/` (or the equivalent `xorriso`).
+
+> **Alternative without automation**: without an `autounattend.xml`, Windows Setup is driven entirely by hand through the noVNC graphical console (see [Step 8](#step-8--follow-the-install-through-the-console)) — slower but fine for a one-off test. VirtIO drivers are still required (load them manually via "Load driver" during setup, or afterward via Device Manager — see [known pitfalls](#known-pitfalls-troubleshooting)).
+
+## Step 5 — Upload the secondary medium into Glance
+
+Same method as step 3:
+
+```bash
+openstack image create \
+  --disk-format iso \
+  --container-format bare \
+  --private \
+  --file unattend.iso \
+  windows-autounattend
+```
+
+## Step 6 — Provision network and volumes
+
+### 6.1 Network and security group
+
+```bash
+openstack network create win-network
+openstack subnet create win-subnet --network win-network \
+  --subnet-range 192.168.120.0/24 --dns-nameserver 8.8.8.8
+
+openstack security group create win-secgroup
+openstack security group rule create win-secgroup \
+  --protocol tcp --dst-port 3389 --remote-ip <your-trusted-IP-range>
+```
+
+:::warning
+Never open RDP to `0.0.0.0/0` on a Windows VM — it's a prime target for brute-force attacks. Restrict `--remote-ip` to a known range (VPN, fixed IP).
+:::
+
+### 6.2 Public network port — independent from the instance
+
+On this platform, a public IP is obtained by attaching a **second network interface directly to the shared external network `Ext-Net`** (no classic floating IP). Creating this port **separately**, before the instance, lets you detach/reattach it to another instance later without losing the address:
+
+```bash
+openstack network show Ext-Net -f value -c id   # note the ID
+openstack port create --network <ext-net-id> --security-group win-secgroup win-extnet-port
+```
+
+:::warning
+An `openstack port create` with `--fixed-ip ip-address=<chosen IP>` on `Ext-Net` fails by policy (`403 Forbidden`) — picking a specific public IP isn't available on this platform, the IP is auto-assigned from the pool instead. This matters if you ever need to recreate the instance: a port created this way (independent) **survives** instance deletion; a port created implicitly via `--nic net-id=` at `server create` time is deleted automatically along with the instance (and the IP goes back into the pool).
+:::
+
+### 6.3 System volume — marked bootable before use
+
+```bash
+openstack volume create --size 60 win-system-volume
+openstack volume set --bootable win-system-volume
+```
+
+:::warning
+A blank volume (`source_type=blank`) is **never** automatically flagged "bootable" by Cinder, even after an OS has been installed onto it from inside a VM. Without this flag, `openstack server create` refuses to boot from it with `Block Device ... is not bootable` — set it **before** creating the instance.
+:::
+
+## Step 7 — Create the instance
+
+The most important point in this guide: the order of `boot_index` values determines which device becomes the instance's **root device** — and a root device can **never** be detached via the API, live or offline, for the entire lifetime of the instance.
+
+```bash
+# fetch the required IDs
+WIN_ISO_ID=$(openstack image show windows-server-2025-eval -f value -c id)
+UNATTEND_ID=$(openstack image show windows-autounattend -f value -c id)
+VOLUME_ID=$(openstack volume show win-system-volume -f value -c id)
+EXTNET_PORT_ID=$(openstack port show win-extnet-port -f value -c id)
+NETWORK_ID=$(openstack network show win-network -f value -c id)
+
+openstack server create \
+  --flavor b3-8 \
+  --security-group win-secgroup \
+  --nic net-id=$NETWORK_ID \
+  --nic port-id=$EXTNET_PORT_ID \
+  --block-device uuid=$VOLUME_ID,source_type=volume,destination_type=volume,disk_bus=sata,boot_index=0,delete_on_termination=false \
+  --block-device uuid=$WIN_ISO_ID,source_type=image,destination_type=volume,disk_bus=sata,device_type=cdrom,boot_index=1,delete_on_termination=false,volume_size=9 \
+  --block-device uuid=$UNATTEND_ID,source_type=image,destination_type=volume,disk_bus=sata,device_type=cdrom,boot_index=-1,delete_on_termination=false,volume_size=1 \
+  win-test-instance
+```
+
+Key points in this command:
+
+- **`boot_index=0` on the (empty) system volume, not on the ISO.** On first boot, the firmware (BIOS/UEFI) tries the disk at index 0: empty, no OS found, it automatically falls through to the next device (the ISO, index 1) and boots Windows Setup from there. Once installation completes, the disk at index 0 is now bootable and becomes the natural target on subsequent boots. **Direct consequence: the system disk, not the ISO, becomes the root device — the ISO remains an ordinary volume, detachable normally once installation is done** (see [Step 11](#step-11--post-install-cleanup)).
+- **`disk_bus=sata` everywhere**, not `ide`. QEMU's IDE bus exposes only 4 slots total; this platform automatically injects a config volume (`config-2`, visible inside the OS as an extra CD-ROM drive) that consumes one slot on its own. With 2 CD-ROMs + 1 disk + this config volume, the IDE bus overflows — the instance then gets stuck looping through `scheduling`/`spawning` task states, never reaching `ACTIVE`, with no explicit error message. SATA offers 6 slots, comfortably enough, and remains natively supported by Windows Setup (no driver needed to see it).
+- **`--nic port-id=` for Ext-Net**, never `--nic net-id=` — for the reason explained in 6.2 (port/IP portability).
+
+## Step 8 — Follow the install through the console
+
+```bash
+openstack console url show --novnc win-test-instance
+```
+
+Open the returned URL in a browser. If a valid `autounattend.xml` was supplied (step 4), installation proceeds without interaction. Otherwise, walk through Windows Setup manually:
+
+1. Pick language/edition (matches the `/IMAGE/INDEX` chosen if not automated).
+2. "Custom install" → select the empty disk (60 GB) as the target.
+3. If the disk doesn't show up in the list: click **"Load driver"**, browse to the drivers medium (`viostor` or `vioscsi` depending on the configured bus), load the driver matching the architecture (`amd64`).
+4. Let the install run (several automatic reboots).
+
+## Step 9 — Find the IP and configure networking (manual)
+
+### Where to find the instance's public IP
+
+```bash
+openstack server show win-test-instance -f value -c addresses
+# or, more readable:
+openstack server list -f table -c Name -c Networks
+```
+
+This command gives the IP **assigned on the OpenStack side** — but until Windows is configured to use it, the VM is **not reachable** from outside. The next step connects the two.
+
+### Why manual configuration is needed
+
+Recap from the [overview](#overview-why-this-is-more-manual-than-a-linux-vm): the `Ext-Net` subnet has no DHCP. `ipconfig` will show a **self-assigned** address (`169.254.x.x`, APIPA) on the public network card until something is configured:
+
+![ipconfig showing an APIPA address on the public card, DHCP failed](/images/hosted-private-cloud/cloud-platform/create-windows-server-vm/ipconfig-result.png)
+*(in this example, the "Ethernet" card on the left has already been manually configured — see the next screenshot)*
+
+### Configure the static IP (GUI recommended)
+
+From the console (the local machine's physical keyboard layout may differ from the one configured in Windows — see [known pitfalls](#known-pitfalls-troubleshooting) if special characters get mangled when pasting commands):
+
+**Control Panel → Network and Sharing Center → Change adapter settings → [public network card] → Properties → Internet Protocol Version 4 (TCP/IPv4) → Properties**
+
+![Static IPv4 configuration window filled in with the public IP, mask, gateway and DNS](/images/hosted-private-cloud/cloud-platform/create-windows-server-vm/static-ip-config.png)
+
+Fill in:
+- **IP address**: the one returned by `openstack server show` (above)
+- **Subnet mask**: `255.255.255.0` (`/24` subnet)
+- **Default gateway**: retrievable via `openstack subnet show <ext-net-subnet-id> -f value -c gateway_ip`
+- **DNS**: retrievable via `openstack subnet show <ext-net-subnet-id> -f value -c dns_nameservers`
+
+### Check the network cards (VirtIO drivers)
+
+If a network card doesn't show up at all in `Get-NetAdapter` (PowerShell), or shows a "Code 28" error in Device Manager (missing driver):
+
+![Device Manager, Ethernet Controller with Code 28 error - driver not installed](/images/hosted-private-cloud/cloud-platform/create-windows-server-vm/device-manager-code28.png)
+
+The NetKVM driver (shipped on the medium prepared in step 4) must be installed manually:
+
+**Device Manager → right-click the device → Update driver → Browse my computer → navigate to `[letter]:\drivers\NetKVM\amd64`**
+
+Once done, the card shows up correctly identified:
+
+![Device Manager, 2 Red Hat VirtIO Ethernet Adapter cards recognized without errors](/images/hosted-private-cloud/cloud-platform/create-windows-server-vm/device-manager-netkvm-ok.png)
+
+## Step 10 — Connect over RDP
+
+RDP is disabled by default on Windows. If it wasn't enabled automatically via `autounattend.xml` (`FirstLogonCommands`, see the provided template), enable it by hand:
+
+**System → Remote Desktop → Enable**
+
+Then, in Windows Defender Firewall, verify the "Remote Desktop" rule is allowed on **all network profiles**, not just Private/Domain — a newly configured network card is often classified "Public" by default, a profile on which the RDP rule isn't active by default:
+
+```
+netsh advfirewall firewall set rule group="remote desktop" new enable=yes profile=any
+```
+
+Then connect with a standard RDP client (Microsoft Remote Desktop, `mstsc`, etc.) to the IP configured in step 9, port 3389.
+
+> The built-in administrator account name may be **localized** depending on the install language (e.g. `Administrateur` on a fr-FR install, not `Administrator`) — check via `whoami` or `net user` once connected.
+
+## Step 11 — Post-install cleanup
+
+Thanks to the correct `boot_index` choice in step 7, the install ISO (and the unattended-install medium) are **not** root devices — they detach normally, without recreating the instance:
+
+```bash
+openstack server remove volume win-test-instance <windows-iso-volume-id>
+openstack server remove volume win-test-instance <unattend-iso-volume-id>
+
+# then, once detached (check via `openstack volume show <id> -c status`)
+openstack volume delete <windows-iso-volume-id>
+openstack volume delete <unattend-iso-volume-id>
+```
+
+This directly affects billing: these volumes stay billed for as long as they exist, attached or not.
+
+## Known pitfalls (troubleshooting)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Glance import stuck in `queued` status | `web_download` attempted from an external URL — not a supported method on this platform | Use direct upload from the local machine instead (`openstack image create --file`, [step 3](#step-3--upload-the-iso-into-glance)) |
+| `openstack token issue` fails with an `SSL`/`handshake failure` error | Local machine's OpenSSL/LibreSSL too old to negotiate TLS 1.3 | Install `pyOpenSSL` and inject the `urllib3.contrib.pyopenssl.inject_into_urllib3()` patch (e.g. via a `sitecustomize.py` file in the Python venv in use) |
+| `Block Device <id> is not bootable` when creating the instance | Blank volume not flagged "bootable" in Cinder | `openstack volume set --bootable <volume-id>` before `server create` ([step 6.3](#63-system-volume--marked-bootable-before-use)) |
+| Instance stuck looping through `task_state=scheduling`/`spawning`, never reaching `ACTIVE`, no explicit error | IDE bus overflow (4 slots max, one consumed by the config volume the platform auto-injects) | Use `disk_bus=sata` on every `block_device` ([step 7](#step-7--create-the-instance)) |
+| `Cannot detach a root device volume` | Attempting to detach the device with `boot_index=0` — impossible for the entire lifetime of the instance, live or offline | Plan for this at creation time: put `boot_index=0` on the system disk, not the ISO ([step 7](#step-7--create-the-instance)). If already done, the only fix is recreating the instance pointing at the same (already-installed) system volume — no data loss |
+| Network card missing from `Get-NetAdapter`, or "Code 28" in Device Manager | VirtIO driver (NetKVM) not loaded during install | Load the driver manually from the prepared medium ([step 9](#check-the-network-cards-virtio-drivers)) |
+| `ipconfig` shows a `169.254.x.x` (APIPA) address on the public card | This platform's `Ext-Net` subnet has no DHCP server (unlike Linux VMs, which use cloud-init for static addressing) | Configure the IP manually ([step 9](#configure-the-static-ip-gui-recommended)) |
+| Characters get mangled when pasting a command into the noVNC console (`,` becomes `;`, `.` becomes `/`, etc.) | Keyboard layout mismatch between the local machine and the one configured in Windows (e.g. fr-FR/AZERTY vs. US QWERTY emulated by the console clipboard) | Avoid special characters in pasted commands (e.g. PowerShell's `-Property X -EQ Y` syntax instead of `$_.X -eq Y`), or temporarily switch the active keyboard layout in Windows |
+| WinRM rejects correct credentials with `401 Unauthorized` | Two possible causes: (1) the `Administrator` account doesn't exist under that name — localized per install language (e.g. `Administrateur` on fr-FR); (2) `LocalAccountTokenFilterPolicy` not set, WinRM Basic Auth rejects local accounts by default | Check the exact name via `whoami`/`net user`; set `reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f` then restart the WinRM service |
+| `openstack port create --fixed-ip ip-address=...` on `Ext-Net` fails with `403 Forbidden` | Platform policy: picking a specific public IP isn't available | Accept the auto-assigned IP from the pool; if the instance may need recreating later, create the port upfront ([step 6.2](#62-public-network-port--independent-from-the-instance)) to at least guarantee its portability across instances |
+
+## Going further
+
+- Full answer-file template: <a href="/images/hosted-private-cloud/cloud-platform/create-windows-server-vm/resources/autounattend.xml" download>autounattend.xml</a>
+- Official VirtIO drivers (Fedora project): [fedorapeople.org/.../virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso)
+- Windows Server evaluation ISO: [Microsoft Evaluation Center](https://www.microsoft.com/evalcenter/)
+- Microsoft documentation on answer files (`unattend.xml`): [learn.microsoft.com — Windows Setup Automation](https://learn.microsoft.com/windows-hardware/manufacture/desktop/windows-setup-automation-overview)
+- [This platform's Terraform guide](/guides/hosted-private-cloud/cloud-platform/terraform) (Linux VM, S3, networking)

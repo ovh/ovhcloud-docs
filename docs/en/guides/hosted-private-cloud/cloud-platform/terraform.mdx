@@ -1,0 +1,290 @@
+---
+title: Terraform Guide — OVHcloud SNC Cloud Platform
+description: How to use the Terraform OpenStack and AWS providers on SNC Cloud Platform
+lastUpdated: 2026-09-22
+---
+
+Usage documentation for the `terraform-provider-openstack/openstack` provider (and the `aws` provider reconfigured for S3-compatible object storage) on this platform. Target audience: DevOps/SRE already familiar with Terraform.
+
+## Overview
+
+The platform exposes a standard OpenStack API (Keystone, Nova, Neutron, Cinder, Glance, Placement) reachable via the official `terraform-provider-openstack/openstack` Terraform provider, plus an **S3-compatible object storage** endpoint (Ceph RGW or equivalent) driven through the `hashicorp/aws` provider repointed at a custom endpoint — there is no dedicated S3-compatible Terraform provider, this is the standard pattern for this kind of platform.
+
+| Component | Terraform provider | Usage |
+|---|---|---|
+| Identity / Compute / Network / Block Storage / Image | `terraform-provider-openstack/openstack` | All standard OpenStack resources |
+| S3-compatible object storage | `hashicorp/aws` (reconfigured) | Buckets, objects |
+| SSH key / self-signed TLS certificate | `hashicorp/tls` | Key generation, no external API call |
+
+## Prerequisites
+
+- Terraform `>= 1.5`.
+- A `clouds.yaml` file with an **application credential** (not a classic login/password pair).
+
+This information is retrieved from the manager, on the **"Get your Application Credentials"** tile on the dashboard:
+
+![Manager dashboard with service tiles (Virtual Machines, Object Storage, IP management...) and the Get your Application Credentials link](/images/hosted-private-cloud/cloud-platform/terraform/dashboard-services.png)
+
+Then under **API access → Application credentials**, where a ready-to-use `clouds.yaml` can be downloaded directly, or a new credential created:
+
+![Manager API access page, with the Download clouds.yaml button and the list of existing application credentials](/images/hosted-private-cloud/cloud-platform/terraform/api-access-credentials.png)
+
+```yaml
+clouds:
+  openstack:
+    auth:
+      auth_url: https://auth.<region>.cloud.snc.ovh.net/v3
+      application_credential_id: "..."
+      application_credential_secret: "..."
+    region_name: "podX.rbx"
+    interface: "public"
+    identity_api_version: 3
+    auth_type: "v3applicationcredential"
+```
+
+- For object storage: an S3-compatible access key / secret key pair, separate from `clouds.yaml`.
+
+## Authentication & provider configuration
+
+### OpenStack
+
+The provider reads `clouds.yaml` through the standard `openstacksdk` environment variables — **no secret hardcoded in `.tf` files**:
+
+```hcl
+provider "openstack" {
+  cloud = "openstack" # section name inside clouds.yaml
+}
+```
+
+```bash
+export OS_CLOUD=openstack
+export OS_CLIENT_CONFIG_FILE=/path/to/clouds.yaml   # if the file isn't in a standard location
+```
+
+`OS_CLIENT_CONFIG_FILE` is needed whenever `clouds.yaml` doesn't live in the current directory, `~/.config/openstack/`, or `/etc/openstack/` — which is usually the case in a versioned repo, where the file lives at a dedicated path so it stays easy to exclude from version control.
+
+### S3-compatible object storage
+
+```hcl
+provider "aws" {
+  region                      = "us-east-1" # arbitrary value, not checked by the RGW
+  access_key                  = var.s3_access_key
+  secret_key                  = var.s3_secret_key
+  skip_credentials_validation = true
+  skip_region_validation      = true
+  skip_requesting_account_id  = true
+
+  endpoints {
+    s3 = var.s3_endpoint_url
+  }
+}
+```
+
+The three `skip_*` flags are mandatory: the `aws` provider defaults to validating the region and account against real AWS IAM/STS, which don't exist here. Without them, `terraform plan` fails before it even touches the bucket.
+
+`s3_access_key`, `s3_secret_key` and `s3_endpoint_url` are retrieved from the manager, on the **Object Storage → Connect** page:
+
+![Manager Object Storage page, Connection Details section with Access Key, Secret Key and Endpoint per region](/images/hosted-private-cloud/cloud-platform/terraform/object-storage-connection.png)
+
+The secret key is only shown once, when the access key is created — if it's lost, the key must be deleted and a new one created.
+
+## Platform specifics to know before you start
+
+These points aren't covered by the generic provider docs — they're specific to this platform.
+
+### 1. No floating IP / Neutron router
+
+The floating IP service will be available starting with the platform's major release #2. In the meantime, publicly exposed instances get their IP via a **second network interface attached directly to the shared external network `Ext-Net`**, which hands them a fixed public IP:
+
+```hcl
+data "openstack_networking_network_v2" "ext_net" {
+  name = "Ext-Net"
+}
+
+resource "openstack_compute_instance_v2" "example" {
+  # ...
+  network {
+    uuid = openstack_networking_network_v2.private.id
+  }
+
+  network {
+    uuid           = data.openstack_networking_network_v2.ext_net.id
+    access_network = true # marks this interface as the source of access_ip_v4
+  }
+}
+```
+
+`access_network = true` explicitly tells the provider which interface should feed the computed `access_ip_v4` attribute — without it, the choice between multiple interfaces isn't guaranteed.
+
+This `Ext-Net` interface, created implicitly here by the provider, has a behavior worth knowing: the underlying Neutron port is automatically deleted if the instance is destroyed, releasing the public IP back into the pool (it isn't guaranteed to be reassigned to the next instance). [The IP management guide](/guides/hosted-private-cloud/cloud-platform/public-ip-management) details how to create this port independently of the instance so the same public address can be kept across instances.
+
+### 2. Every flavor has a 0 GB root disk
+
+Direct consequence: booting an instance with just `image_id` fails with `Only volume-backed servers are allowed for flavors with zero disk`. A `block_device` with `destination_type = "volume"` is always required, creating a boot Cinder volume from the image:
+
+```hcl
+resource "openstack_compute_instance_v2" "example" {
+  # ...
+  block_device {
+    uuid                  = data.openstack_images_image_v2.os.id
+    source_type           = "image"
+    destination_type      = "volume"
+    volume_size           = 20 # must exceed the image's virtual size, not its on-disk footprint
+    boot_index            = 0
+    delete_on_termination = true
+  }
+}
+```
+
+:::warning
+`volume_size` must be strictly larger than the image's **virtual size** (Glance's `virtual_size`), not its compressed on-disk size. An image that weighs a few hundred MB compressed can have a virtual size of 15-20 GB once decompressed — undersizing the volume produces `Image virtual size is XGB and doesn't fit in a volume of size YGB`.
+:::
+
+### 3. Reuse existing resources via data sources
+
+System images ("Debian 13 OVH", "AlmaLinux 10", etc.) and the external network already exist on the project — don't recreate them:
+
+```hcl
+data "openstack_images_image_v2" "os" {
+  name        = "Debian 13 OVH"
+  most_recent = true
+}
+```
+
+## Resource patterns
+
+### Network + access-restricted security group
+
+Recommended pattern to scope exposure to known IP ranges (internal network, VPN) rather than `0.0.0.0/0`, without hand-duplicating one rule per port × CIDR:
+
+```hcl
+locals {
+  allowed_cidrs = [
+    "203.0.113.0/24",
+    "198.51.100.0/26",
+  ]
+
+  allowed_ports = {
+    ssh   = 22
+    http  = 80
+    https = 443
+  }
+
+  secgroup_rules = {
+    for pair in setproduct(keys(local.allowed_ports), local.allowed_cidrs) :
+    "${pair[0]}-${pair[1]}" => {
+      port = local.allowed_ports[pair[0]]
+      cidr = pair[1]
+    }
+  }
+}
+
+resource "openstack_networking_secgroup_rule_v2" "allowed" {
+  for_each = local.secgroup_rules
+
+  security_group_id = openstack_networking_secgroup_v2.this.id
+  direction         = "ingress"
+  ethertype         = "IPv4"
+  protocol          = "tcp"
+  port_range_min    = each.value.port
+  port_range_max    = each.value.port
+  remote_ip_prefix  = each.value.cidr
+}
+```
+
+`setproduct()` builds the port × CIDR cartesian product; the `for_each` key (`"${port}-${cidr}"`) keeps Terraform state stable even if list ordering changes — essential to avoid cascading destroy/create on a mere reordering.
+
+### Compute: SSH key generated by Terraform
+
+No need to manage a separate keypair — the `tls` provider generates one, stored in state (treat it as a secret):
+
+```hcl
+resource "tls_private_key" "this" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "openstack_compute_keypair_v2" "this" {
+  name       = "${var.prefix}-keypair"
+  public_key = tls_private_key.this.public_key_openssh
+}
+
+output "ssh_private_key" {
+  value     = tls_private_key.this.private_key_pem
+  sensitive = true
+}
+```
+
+### S3-compatible object storage
+
+Once the `aws` provider is repointed (see above), standard resources work as expected:
+
+```hcl
+resource "aws_s3_bucket" "data" {
+  bucket = "${var.prefix}-data"
+}
+```
+
+## Secrets and sensitive data
+
+- Any variable holding a secret (application credential, S3 key, password) is declared `sensitive = true` — Terraform hides its value in `plan`/`apply` logs, but **it still ends up in plaintext in the state**. An encrypted remote backend (or at minimum a local state excluded from version control) becomes mandatory as soon as the project goes beyond individual use.
+- `terraform.tfvars` holding real values must be excluded from version control (`.gitignore`), same as `clouds.yaml`.
+
+:::warning
+**`bcrypt()` gotcha**: Terraform's native `bcrypt(string)` function generates a **random salt on every evaluation**. Calling it directly inside a resource (e.g. a Caddyfile rendered via `templatefile()` and embedded in `user_data`) means the hash changes on every `plan`, forcing an instance replacement every single run — even with no real change. Precompute the hash once (outside Terraform, or via an implementation script) and pass it as a static value through a `sensitive` variable to avoid this.
+:::
+
+## Application bootstrap via `user_data` / cloud-init
+
+Pattern to embed a complete application (code, configuration, systemd service) declaratively, without a separate SSH provisioner:
+
+```hcl
+locals {
+  cloud_init = templatefile("${path.module}/cloud-init.tftpl", {
+    app_py_b64 = base64encode(file("${path.module}/../app/app.py"))
+    # ...
+  })
+}
+
+resource "openstack_compute_instance_v2" "this" {
+  user_data = local.cloud_init
+  # ...
+}
+```
+
+The cloud-init template uses `write_files` (with `encoding: b64` for binary/encoded content) and `runcmd` for installing and starting services.
+
+:::warning
+**Ordering pitfall**: if a custom configuration file overwrites a package's **conffile** before that package is installed (e.g. writing `/etc/caddy/Caddyfile` before `apt-get install caddy`), `dpkg` detects a conflict and shows an interactive prompt — which has no TTY under cloud-init, so `dpkg` fails silently, which can prevent the package's postinst script from completing correctly (e.g. a missing system user creation). Always install the package **before** overwriting its config files, copying the custom file in via a `runcmd` step after installation rather than through `write_files` directly at the final path.
+:::
+
+## Recommended workflow
+
+```bash
+export OS_CLOUD=openstack
+export OS_CLIENT_CONFIG_FILE=/path/to/clouds.yaml
+
+terraform fmt -recursive
+terraform validate
+terraform plan -input=false
+terraform apply -input=false   # review the plan before confirming
+```
+
+- `terraform validate` makes no network calls: run it before every `plan`.
+- Always review a `plan` before `apply`, especially the count of destroyed resources — an innocuous-looking change inside a `templatefile()` (e.g. `user_data` content) forces a full instance replacement.
+- Local state (`terraform.tfstate`) is fine for individual/exploratory use. For team use, migrate to a remote backend (S3-compatible via this same endpoint, for instance, with locking).
+
+## Known pitfalls (troubleshooting)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Neither a boot device, image ID, or image name were able to be determined` | Malformed or missing `block_device` while no `image_id`/`image_name` is set on the resource | Check the `block_device` block syntax, or pass `image_id` directly if the platform allows it |
+| `Only volume-backed servers are allowed for flavors with zero disk` | Zero-root-disk flavor, direct image boot attempted | Use a `block_device` with `destination_type = "volume"` |
+| `Image virtual size is XGB and doesn't fit in a volume of size YGB` | `volume_size` smaller than the image's actual virtual size | Increase `volume_size` with a comfortable margin above the virtual size reported by Glance |
+| `plan` wants to replace the instance on every run, with no apparent change | A call to `bcrypt()` (or any non-deterministic function) evaluated into a value feeding `user_data` | Precompute the value outside Terraform, supply it as a static variable |
+| `terraform plan` fails immediately on the `aws` provider with account/region errors | Missing `skip_credentials_validation`/`skip_region_validation`/`skip_requesting_account_id` | Add them to the `provider "aws"` block |
+| A service fails to start with a missing-system-user error, after an APT package installed via cloud-init | Package conffile overwritten before install, `dpkg` stuck on an interactive prompt | Install the package before overwriting its config files (copy via `runcmd` after install, not via `write_files` at the final path) |
+
+## References
+
+Official docs: [terraform-provider-openstack](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs), [AWS provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs), [TLS provider](https://registry.terraform.io/providers/hashicorp/tls/latest/docs).
