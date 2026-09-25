@@ -2515,6 +2515,7 @@
                 + [Managing SMS credits and enabling automatic re-crediting](web-cloud/messaging/sms/activer-la-recharge-automatique-du-credit-sms)
                 + [Manage your SMS history](web-cloud/messaging/sms/sms-history)
                 + [Everything you need to know about SMS senders](web-cloud/messaging/sms/sms-senders)
+                    + [Déclarer un Sender ID SMS pour l'Espagne](web-cloud/messaging/sms/declaration-sender-id-espagne)
                 + [Everything you need to know about SMS users](web-cloud/messaging/sms/sms-users)
                 + [How to create an SMS recipient list](web-cloud/messaging/sms/liste-de-destinataire-sms)
                 + [Managing SMS address books](web-cloud/messaging/sms/sms-address-books)
