@@ -629,7 +629,7 @@
             + [Object Storage features and specifications on OPCP](hosted-private-cloud/opcp/s3-opcp-limitations)
             + [How to create a custom Debian image](hosted-private-cloud/opcp/how-to-create-debian-image)
             + [How to create a custom CentOS image](hosted-private-cloud/opcp/how-to-create-centos-image)
-            + [How to deploy Scality RING](hosted-private-cloud/opcp/how-to-deploy-scality-ring)
+            + [How to deploy Scality RING on OPCP](hosted-private-cloud/opcp/how-to-deploy-scality-ring)
             + [Ceph RBD Block Storage - Performance, Resilience and Scalability with OpenStack](hosted-private-cloud/opcp/storage-ceph-rbd-overview)
     + [Nutanix on OVHcloud](products/hosted-private-cloud-nutanix)
         + [Overview](hosted-private-cloud/nutanix-on-ovhcloud/overview)
