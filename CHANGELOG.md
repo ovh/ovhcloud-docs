@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.09.25.1
+
+### Features
+- **File storage:** update GS for adding encryption type (#860)
+
+### Fixes
+- **links:** restore link targets misrouted by the migration
+
+### Documentation
+- 276 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.25
 
 ### Features

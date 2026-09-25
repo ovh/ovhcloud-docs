@@ -30,6 +30,7 @@ import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
+import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
@@ -110,6 +111,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
+  'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   // --- Bare Metal Cloud, in Manager sidebar order -------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,
