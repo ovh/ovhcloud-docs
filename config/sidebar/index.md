@@ -2637,6 +2637,7 @@
                 + [Enterprise File Storage - How to deploy an EFS stack for Trident CSI with Terraform](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-terraform)
             + [Migration](storage-file-storage-enterprise-file-storage-migration)
                 + [Enterprise File Storage - Clone a volume](storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume)
+                + [Enterprise File Storage - Migrate a volume to vRack using share replication](storage-and-backup/file-storage/enterprise-file-storage/netapp-migrate-vrack-replication)
             + [Additional resources](storage-file-storage-enterprise-file-storage-additional-resources)
                 + [File Storage services - Responsibility model](account-and-service-management/responsibility-sharing/file-storage)
                 + [File Storage reversibility policy](account-and-service-management/reversibility/file-storage-reversibility-policy)
