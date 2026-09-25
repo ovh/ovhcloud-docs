@@ -1,0 +1,104 @@
+---
+title: "Comment sauvegarder les données du contrôleur OPCP"
+description: "Découvrez comment sauvegarder manuellement les données du contrôleur OPCP"
+lastUpdated: 2026-09-24
+---
+
+## Objectif
+
+OPCP sauvegarde les données de son contrôleur, ce qui vous permet de les restaurer en cas de panne physique ou logique. Ces sauvegardes ne couvrent aucune autre donnée, comme celles présentes sur les serveurs OPCP.
+
+Les sauvegardes des données du contrôleur OPCP sont automatiquement planifiées toutes les heures pour les bases de données, les PV, les parts de clé KMS (autounsealer) et `tfstate`. Les bases de données sont sauvegardées via la ressource Kubernetes `ScheduledBackups` ; les PV, les parts de clé KMS (autounsealer) et `tfstate`, via [Velero](https://velero.io/).
+
+Les sauvegardes de `tfstate` contiennent l'état d'[OpenTofu](https://opentofu.org/) dans le cadre de la configuration d'OPCP. OpenTofu l'utilise, par exemple, pour configurer l'IAM.
+
+Les PV désignent les ressources Kubernetes Persistent Volume. Il s'agit de données avec état stockées dans le cluster Kubernetes du contrôleur.
+
+Les parts de clé KMS (autounsealer) sont des secrets nécessaires pour desceller (unseal) le système de gestion des secrets.
+
+## Prérequis
+
+Assurez-vous que vos sauvegardes sont stockées en dehors du cluster : exécutez `opcp-cli config edit` et vérifiez que `backups.endpoint.url` pointe en dehors du cluster. De plus, `backups.endpoint.region` doit être défini en conséquence. Les buckets configurés dans `backups.db.bucket` et `backups.pv.bucket` doivent exister.
+
+Les identifiants doivent également être définis correctement avec `opcp-cli secrets passwords --edit`. Les clés `stringData.backup_access_key_id` et `stringData.backup_secret_access_key` doivent être définies avec les secrets fournis par le fournisseur S3<sup>1</sup>. Assurez-vous que l'utilisateur a accès à tous les buckets.
+
+## En pratique
+
+Vous pouvez déclencher des sauvegardes manuellement depuis le terminal.
+
+### Procédure rapide
+
+Exécutez les lignes suivantes en tant que `root` (en utilisant `sudo -i`) sur le nœud contrôleur OPCP.
+
+```bash
+kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash # planifie immédiatement les sauvegardes de tous les clusters de bases de données
+velero get schedule -o json | jq -r '.items[] | .metadata.name as $name | {cmd: ("velero backup create --from-schedule " + $name)} | .cmd' | bash # planifie immédiatement les sauvegardes de toutes les ressources sauvegardées par velero
+```
+
+Vérifiez en exécutant ce qui suit sur le nœud contrôleur OPCP.
+
+```bash
+kubectl get backup -A
+velero backup get
+```
+
+### Bases de données
+
+Pour lister toutes les bases de données, exécutez `kubectl get cluster -A`. Effectuez une sauvegarde en exécutant `kubectl cnpg backup {db-name} -n {namespace}`. Remplacez `{db-name}` par le nom du cluster de bases de données et `{namespace}` par l'espace de noms correspondant.
+
+Il existe un raccourci pour déclencher les sauvegardes de tous les clusters de bases de données : `kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash`.
+
+### Parts de clé KMS (autounsealer)
+
+Créez une sauvegarde de `kms-autounsealer-shares-backup` :
+
+```bash
+velero backup create --from-schedule kms-autounsealer-shares-backup
+```
+
+### PV
+
+Créez une sauvegarde des PV :
+
+```bash
+velero backup create --from-schedule pvs-backup
+```
+
+### tfstate
+
+OPCP s'appuie sur [OpenTofu](https://opentofu.org/) lors de la configuration. Son état doit être sauvegardé. Créez une sauvegarde en exécutant :
+
+```bash
+velero backup create --from-schedule tfstate-backup
+```
+
+### Vérification
+
+Pour vérifier les sauvegardes des bases de données, exécutez `kubectl get backup -A` : la commande liste toutes les sauvegardes de bases de données disponibles.
+
+Pour vérifier que les sauvegardes des PV, des parts de clé KMS (autounsealer) et de `tfstate` sont présentes, exécutez `velero backup get`.
+
+Vérifiez également vos buckets S3, par exemple avec [s3cmd](https://s3tools.org/s3cmd) : s'ils ne contiennent aucune donnée, la configuration des sauvegardes est incorrecte. Configurez d'abord `s3cmd` pour lire depuis votre bucket :
+
+```bash
+cat << EOF > ~/.s3cfg
+[default]
+access_key = ${ACCESS_KEY_ID}
+secret_key = ${SECRET_ACCESS_KEY}
+bucket_location = ${REGION}
+host_base = s3.gra.io.cloud.ovh.net
+host_bucket = %(bucket)s.s3.gra.io.cloud.ovh.net
+EOF
+```
+
+Ajustez les valeurs selon vos besoins. Vous pouvez ensuite exécuter `s3cmd ls s3://bucket-name` pour vérifier que le bucket contient des données.
+
+## Aller plus loin
+
+Pour plus d'informations sur la configuration de vos sauvegardes, consultez le guide « [Comment mettre à jour les buckets S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets) ».
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d’utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.
