@@ -11,6 +11,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
@@ -115,7 +116,13 @@ const pathExcludes = devPath
 
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
-  plugins: [pluginLastUpdatedFromFrontmatter()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
+    // the plugin's `loose` default: diagrams are contributor-written, so no
+    // click callbacks or raw HTML in labels.
+    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
+  ],
   builderConfig: {
     plugins: [pluginSass()],
     html: {

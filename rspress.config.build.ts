@@ -10,6 +10,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
+import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
@@ -97,7 +98,13 @@ export default defineConfig({
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
-  plugins: [pluginLastUpdatedFromFrontmatter()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
+    // the plugin's `loose` default: diagrams are contributor-written, so no
+    // click callbacks or raw HTML in labels.
+    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
+  ],
 
   builderConfig: {
     logLevel: 'error',

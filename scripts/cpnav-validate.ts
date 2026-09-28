@@ -5,6 +5,7 @@
  *
  * ERRORS (exit 1 — block the commit / the build):
  *   - a key whose `en` text is missing (en is the fallback every locale relies on)
+ *   - a key still carrying the `TODO` placeholders `pnpm cpnav:new` seeds it with
  *   - a location with both `route` and `linkKey`, or with a link but no `product`
  *   - a declared key set naming an unknown key
  *   - a token in the guides with an unknown key, an unsupported modifier, an undeclared
@@ -45,6 +46,13 @@ for (const key of keys) {
   }
   entry.locations.forEach((location, i) => {
     const at = entry.locations.length > 1 ? `${key} location ${i + 1}` : key;
+    // `pnpm cpnav:new` seeds the route, source and every label with TODO so they are read
+    // from the Manager rather than invented; one left behind ships to readers verbatim.
+    if (JSON.stringify(location).includes('TODO')) {
+      errors.push(
+        `${at}: still carries the scaffold's TODO placeholders — fill the route, source and labels from the Manager nav tree`,
+      );
+    }
     if (location.route && location.linkKey) {
       errors.push(
         `${at}: has both route and linkKey — a destination has one or neither`,

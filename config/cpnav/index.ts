@@ -2,8 +2,10 @@
 //
 // DECLARATION ORDER IS THE CANONICAL ORDER: a multi-key token renders its keys in the
 // order below whatever order it spells them in, so one set has exactly one rendering.
-// The order follows the Manager's sidebar, grouped by universe — product order is purely
-// presentational, and the sidebar is what the reader is already scanning.
+// Keys are grouped by universe. Within a universe the order is presentational only: it was
+// taken from the Manager's sidebar when the keys were written and does not track it, so it
+// no longer matches the sidebar everywhere. Do not reorder entries to follow the sidebar —
+// a move changes the canonical spelling of every multi-key token containing the key.
 
 import { accountContacts } from './keys/account-contacts';
 import { accountDashboard } from './keys/account-dashboard';
@@ -23,12 +25,14 @@ import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { networkLoadBalancer } from './keys/network-load-balancer';
+import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
+import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
@@ -88,7 +92,7 @@ import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
-  // --- Web Cloud, in Manager sidebar order -------------------------------------------
+  // --- Web Cloud ---------------------------------------------------------------------
   'web-domains': webDomains,
   'web-domain-dns-zone': webDomainDnsZone,
   'web-dns-zones': webDnsZones,
@@ -104,19 +108,20 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-mx-plan': webMxPlan,
   'web-exchange': webExchange,
   'web-microsoft-365': webMicrosoft365,
-  // --- Hosted Private Cloud, in Manager sidebar order ---------------------------------
+  // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
-  // --- Bare Metal Cloud, in Manager sidebar order -------------------------------------
+  'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
+  // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-nas-ha': storageNasHa,
-  // --- Public Cloud, in Manager sidebar order ------------------------------------------
+  // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
   'publiccloud-projects': publiccloudProjects,
@@ -148,18 +153,19 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-credits-vouchers': publiccloudCreditsVouchers,
   'publiccloud-savings-plan': publiccloudSavingsPlan,
   'publiccloud-project-settings': publiccloudProjectSettings,
-  // --- Network, in Manager sidebar order -----------------------------------------------
+  // --- Network -------------------------------------------------------------------------
   'network-vrack': networkVrack,
   'network-vrack-services': networkVrackServices,
+  'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-load-balancer': networkLoadBalancer,
   'network-security-dashboard': networkSecurityDashboard,
-  // --- Telecom, in Manager sidebar order -----------------------------------------------
+  // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
   'telecom-sms': telecomSms,
   'telecom-xdsl-fttx': telecomXdslFttx,
   'telecom-otb': telecomOtb,
-  // --- Identity, Security & Operations, in Manager sidebar order ----------------------
+  // --- Identity, Security & Operations ------------------------------------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
   'iam-identities': iamIdentities,
@@ -182,6 +188,20 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'billing-payment-methods': billingPaymentMethods,
   'billing-services': billingServices,
 };
+
+/**
+ * Multi-key combinations that occur in the guides. One rule is generated per entry, so a
+ * combination must be declared before a token can use it; `pnpm cpnav:validate` reports
+ * undeclared ones. They are enumerated rather than computed because a rule per possible
+ * subset is combinatorial and `ReplaceRule.replace` is typed as a plain string.
+ * Order within an entry does not matter — entries are canonicalised.
+ */
+export const CPNAV_SETS: string[][] = [
+  ['iam-policies', 'security-kms'],
+  ['web-email-pro', 'web-exchange'],
+  ['web-email-pro', 'web-mx-plan', 'web-exchange'],
+  ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
+];
 
 const ORDER = Object.keys(CPNAV_KEYS);
 

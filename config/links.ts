@@ -510,6 +510,17 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/vps/vps-dokploy/',
     pt: 'https://www.ovhcloud.com/pt/vps/vps-dokploy/',
   },
+  // EN points to en-ie, not en-gb: the <ProductCard> prices this page sits
+  // next to are Ireland's (EUR), see config/product-cards.ts.
+  'bare-metal/vps-game': {
+    fr: 'https://www.ovhcloud.com/fr/vps/uc-vps-game/',
+    en: 'https://www.ovhcloud.com/en-ie/vps/uc-vps-game/',
+    de: 'https://www.ovhcloud.com/de/vps/uc-vps-game/',
+    es: 'https://www.ovhcloud.com/es-es/vps/uc-vps-game/',
+    it: 'https://www.ovhcloud.com/it/vps/uc-vps-game/',
+    pl: 'https://www.ovhcloud.com/pl/vps/uc-vps-game/',
+    pt: 'https://www.ovhcloud.com/pt/vps/uc-vps-game/',
+  },
   'bare-metal/vps-gmod': {
     fr: 'https://www.ovhcloud.com/fr/vps/gmod-vps/',
     en: 'https://www.ovhcloud.com/en-gb/vps/gmod-vps/',

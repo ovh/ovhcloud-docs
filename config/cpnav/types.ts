@@ -75,7 +75,6 @@ export interface CpNavLocation {
    *
    * The path is the nav node's application resolved to its `publicURL`, plus the node's
    * hash — not `/#/<application>/<hash>`, which differs for most applications.
-   * `tempscripts/mgr_node.py` composes it; `cpnav_drift.py` checks it.
    */
   route?: string;
   /**
@@ -95,10 +94,6 @@ export interface CpNavLocation {
    * normal case. `labels` carries translation keys instead, for a destination whose
    * label is a TAB inside a screen and therefore has no nav node — e.g. the IAM
    * Identities tabs, or a service's Logs tab.
-   *
-   * Checked by `tempscripts/cpnav_drift.py`, which is deliberately NOT part of the build:
-   * the `manager` repo is a local checkout, unavailable in CI — the same constraint
-   * `config/product-availability.ts` documents.
    */
   source?: { node?: string; labels?: string[] };
   text: Partial<Record<Locale, CpNavLocationText>>;
