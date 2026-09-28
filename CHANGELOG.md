@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.09.28
+
+### Features
+- **build:** render mermaid diagrams with rspress-plugin-mermaid
+
+### Fixes
+- **cpnav:** minor fixes in procedure (#877)
+- **scripts:** purge legacy excerpt line format (#876)
+
+### Documentation
+- 35 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.25.1
 
 ### Features
