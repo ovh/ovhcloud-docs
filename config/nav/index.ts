@@ -73,6 +73,10 @@ const usNavItems: NavItemConfig[] = [
     text: 'nav.resources',
     links: { en: 'https://us.ovhcloud.com/resources/' },
   },
+  {
+    text: 'nav.contactSales',
+    links: { en: 'https://us.ovhcloud.com/contact-sales/' },
+  },
 ];
 
 // Export nav config for rspress.config.ts - contains full localized data

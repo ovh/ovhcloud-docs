@@ -13,6 +13,7 @@ import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
 import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
+import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
@@ -187,6 +188,12 @@ export default defineConfig({
     },
     source: {
       define: {
+        // Legal footer values, consumed by theme/components/SiteFooter. It
+        // renders in the browser and cannot import config/regions.
+        __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
+        __FOOTER_CORPORATE_URL__: JSON.stringify(regionConfig.corporateUrl),
+        __FOOTER_LEGAL_NOTICE__: JSON.stringify(regionConfig.legalNotice ?? ''),
+        __FOOTER_LINKS__: JSON.stringify(regionConfig.footerLinks ?? []),
         FEEDBACK_API_URL: JSON.stringify(process.env.FEEDBACK_API_URL ?? ''),
         SENTRY_DSN: JSON.stringify(process.env.SENTRY_DSN ?? ''),
         SENTRY_ENVIRONMENT: JSON.stringify(
@@ -322,7 +329,7 @@ export default defineConfig({
       },
     ],
     footer: {
-      message: `<div><a href="${regionConfig.corporateUrl}" target="_blank" rel="nofollow">${regionConfig.copyright}</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>`,
+      message: buildFooterMessage(),
     },
   },
 });

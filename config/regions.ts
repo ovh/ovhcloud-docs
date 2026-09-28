@@ -68,6 +68,18 @@ export interface RegionConfig {
    * wording, not just in entity name, so the whole string is region-owned.
    */
   copyright: string;
+  /**
+   * Trademark and ownership notice printed under the copyright line. The US
+   * subsidiary is required to carry it; the EU footer has no equivalent, so
+   * this is optional rather than an empty string everywhere else.
+   */
+  legalNotice?: string;
+  /**
+   * Legal and commercial links shown in the footer, after the copyright. The
+   * privacy-centre trigger is added by the footer itself and is not listed
+   * here, because it opens the consent manager rather than a page.
+   */
+  footerLinks?: ReadonlyArray<{ text: string; link: string }>;
 }
 
 // Footer copyright end year, resolved when the config module loads (i.e. at
@@ -123,7 +135,26 @@ export const REGIONS: Record<Region, RegionConfig> = {
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',
-    copyright: `Copyright ©${COPYRIGHT_YEAR} OVH US LLC`,
+    copyright:
+      `Copyright ©${COPYRIGHT_YEAR} OVH US LLC and affiliated companies all rights reserved. ` +
+      'OVHcloud, the OVHcloud logo and all other OVH marks contained herein are ' +
+      'registered trademarks of OVH SAS.',
+    legalNotice:
+      'All other marks contained herein are the property of their respective owners.',
+    footerLinks: [
+      {
+        text: 'Terms of Service',
+        link: 'https://us.ovhcloud.com/legal/terms-of-service/',
+      },
+      {
+        text: 'Privacy Policy',
+        link: 'https://us.ovhcloud.com/legal/privacy-policy/',
+      },
+      {
+        text: 'Talk to an Expert',
+        link: 'https://us.ovhcloud.com/contact-sales/',
+      },
+    ],
   },
 };
 

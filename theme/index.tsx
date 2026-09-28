@@ -22,6 +22,7 @@ import { Nav } from 'theme/components/Nav';
 import { PageFeedback } from 'theme/components/PageFeedback';
 import { SEOHead } from 'theme/components/SEOHead';
 import { Sidebar } from 'theme/components/Sidebar';
+import { SiteFooter } from 'theme/components/SiteFooter';
 import { initSentry } from 'theme/sentry';
 
 // Lazy-loaded non-critical components (separate chunks, loaded after hydration)
@@ -128,6 +129,7 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
               </>
             }
             beforeDocFooter={<PageFeedback />}
+            afterDoc={<SiteFooter />}
           />
           <Suspense fallback={null}>
             <LazyAIChatbotDrawer />
