@@ -590,7 +590,7 @@
             + [Comment sauvegarder une instance SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance)
             + [Comment sauvegarder un bucket Object Storage SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-backup-object-storage-bucket)
             + [How to rename or move an encrypted object in SNC Cloud Platform Object Storage](hosted-private-cloud/cloud-platform/snc-cloud-platform-rename-move-encrypted-object)
-            + [Terraform provider usage on SNC Cloud Platform](hosted-private-cloud/cloud-platform/terraform)
+            + [Terraform guide — OVHcloud SNC Cloud Platform](hosted-private-cloud/cloud-platform/terraform)
             + [Managing Glance images on SNC Cloud Platform](hosted-private-cloud/cloud-platform/glance-image-management)
             + [Managing public IPs on SNC Cloud Platform](hosted-private-cloud/cloud-platform/public-ip-management)
             + [Creating a Windows Server VM on SNC Cloud Platform](hosted-private-cloud/cloud-platform/create-windows-server-vm)
