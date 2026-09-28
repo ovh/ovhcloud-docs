@@ -789,6 +789,7 @@
                 + [Putting a Metal instance in rescue mode](public-cloud/compute/rescue-mode-metal-instance)
                 + [How to replace an SSH key pair on an instance](public-cloud/compute/replacing-lost-ssh-key-pair)
                 + [Deploying a GPU instance](public-cloud/compute/deploy-a-gpu-instance)
+                + [Deploying AI workloads on an 8x NVIDIA H200 NVL GPU instance](public-cloud/compute/deploy-8-h200-nvl-gpu-instance)
                 + [How to configure reverse DNS for a Public Cloud instance](public-cloud/compute/setup-instance-reverse)
                 + [Resize an instance](public-cloud/compute/resize-instance-manager)
                 + [Creating and using a Server Group in Horizon and CLI](public-cloud/compute/create-server-group-horizon-cli)
