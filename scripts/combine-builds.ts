@@ -29,7 +29,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Worker } from 'node:worker_threads';
-import { regionConfig } from '../config/regions';
+import { contentSubdir, regionConfig } from '../config/regions';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -484,10 +484,12 @@ async function combineSingleRoot(): Promise<void> {
   // The build is already at the dist/ root. Sanity-check it produced HTML.
   if (
     !fs.existsSync(DIST_DIR) ||
-    !fs.existsSync(path.join(DIST_DIR, 'guides'))
+    !fs.existsSync(
+      path.join(DIST_DIR, contentSubdir(regionConfig) || 'index.html'),
+    )
   ) {
     console.error(
-      `❌ Expected a root build in ${DIST_DIR} (no guides/ directory found).`,
+      `❌ Expected a root build in ${DIST_DIR} (nothing at ${contentSubdir(regionConfig) || 'index.html'}).`,
     );
     process.exit(1);
   }

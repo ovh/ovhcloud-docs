@@ -15,7 +15,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { regionConfig } from '../config/regions';
+import { contentSubdir, regionConfig } from '../config/regions';
 
 const LOCALES = regionConfig.locales;
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -43,7 +43,14 @@ const union = new Set<string>();
 
 for (const loc of LOCALES) {
   perLocale[loc] = new Set();
-  const dir = path.join(ROOT, regionConfig.contentDir, loc, 'guides');
+  // '' on a region whose guides sit at the locale root (US), so join()
+  // collapses to the locale dir itself.
+  const dir = path.join(
+    ROOT,
+    regionConfig.contentDir,
+    loc,
+    contentSubdir(regionConfig),
+  );
   if (!fs.existsSync(dir)) continue;
   for (const f of walk(dir)) {
     if (!isResolvable(f)) continue;

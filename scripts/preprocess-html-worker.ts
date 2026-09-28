@@ -12,6 +12,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
+import { contentSubdir, regionConfig } from '../config/regions';
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static']);
 
@@ -159,15 +160,24 @@ function processDir(
       // `guides/`) carry filters; non-guide pages (home, etc.) get none.
       // Values are the stable path slugs — the search UI maps them to
       // locale-translated labels at render time (see config/sidebar/index.md).
+      // On a region whose guides sit at the locale root (US) there is no
+      // leading `guides/` segment, so the universe is segment 0 and every
+      // index below shifts by one.
+      const subdir = contentSubdir(regionConfig);
       const pathSegments = relativePath.split('/');
+      const hasPrefix = subdir !== '';
+      const offset = hasPrefix ? 1 : 0;
+      const inGuides = !hasPrefix || pathSegments[0] === subdir;
       const universe =
-        pathSegments[0] === 'guides' && pathSegments.length >= 3
-          ? pathSegments[1]
+        inGuides && pathSegments.length >= 2 + offset
+          ? pathSegments[offset]
           : '';
       // A product exists only when there's a segment BETWEEN universe and the
-      // final slug (guides/<universe>/<product>/<slug> → length ≥ 4).
+      // final slug (<universe>/<product>/<slug> → at least three left).
       const product =
-        universe && pathSegments.length >= 4 ? pathSegments[2] : '';
+        universe && pathSegments.length >= 3 + offset
+          ? pathSegments[offset + 1]
+          : '';
 
       // Inject, in a single pass over the `.rp-doc` root:
       //   1. The Pagefind result title (`data-pagefind-meta="title:…"`).

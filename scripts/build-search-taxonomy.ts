@@ -63,10 +63,10 @@ function firstLeafLink(node: Node): string | null {
   return null;
 }
 
-/** Path segments after `/guides/`: [universe, product, …slug]. */
+/** Path segments after the region's route prefix: [universe, product, …slug]. */
 function segmentsOf(link: string): string[] {
-  return link
-    .replace(/^\/guides\//, '')
+  const prefix = regionConfig.routePrefix;
+  return (link.startsWith(prefix) ? link.slice(prefix.length) : link)
     .replace(/\.html$/, '')
     .split('/');
 }

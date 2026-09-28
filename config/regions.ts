@@ -57,6 +57,15 @@ export interface RegionConfig {
    * fall back to their bare locale code.
    */
   htmlLang?: Readonly<Record<string, string>>;
+  /**
+   * Prefix every guide route carries, including both slashes.
+   *
+   * It mirrors the folder layout under `contentDir`: the worldwide tree keeps
+   * its `guides/` folder and so its `/guides/` segment, while the US tree has
+   * none and serves its universes straight off the root. Changing this without
+   * moving the folders would make the URL and the path on disk disagree.
+   */
+  routePrefix: string;
   /** Canonical site origin, used for sitemaps and canonical URLs. */
   siteUrl: string;
   /** OVHcloud API console URL used by the "API Reference" sidebar header item. */
@@ -118,6 +127,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     repoSubdir: 'docs',
     localePrefix: true,
     includeSupplements: true,
+    routePrefix: '/guides/',
     siteUrl: 'https://docs.ovhcloud.com',
     apiConsoleUrl: 'https://eu.api.ovh.com/console/',
     corporateUrl: 'https://www.ovhcloud.com/',
@@ -132,6 +142,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     localePrefix: false,
     includeSupplements: false,
     htmlLang: { en: 'en-us' },
+    routePrefix: '/',
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',
@@ -157,6 +168,15 @@ export const REGIONS: Record<Region, RegionConfig> = {
     ],
   },
 };
+
+/**
+ * The folder under a locale root that holds the guides, or '' when they sit
+ * directly at the root (US). Derived from `routePrefix` so the route and the
+ * folder cannot disagree: they are the same fact.
+ */
+export function contentSubdir(region: RegionConfig): string {
+  return region.routePrefix.replace(/^\/|\/$/g, '');
+}
 
 function resolveRegion(): Region {
   const value = process.env.REGION;
