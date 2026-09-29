@@ -31,8 +31,72 @@
  * untranslated and 2722 as translated, with no page left unpinned and no translated page
  * wrongly required to pin.
  */
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+const gitSymlinks = new Map<string, Set<string>>();
+
+/**
+ * Absolute paths of the files git records as symlinks (mode 120000) under `docsDir`.
+ *
+ * Asked of git because the filesystem cannot answer everywhere: with `core.symlinks=false`
+ * — the Windows default — every symlink checks out as a text stub holding its target path,
+ * and `lstat` reports a regular file. Empty when git cannot be run, which leaves the
+ * `lstat` test in `isSymlink` as the only signal.
+ */
+function gitSymlinksUnder(docsDir: string): Set<string> {
+  const cached = gitSymlinks.get(docsDir);
+  if (cached) return cached;
+  const repo = path.dirname(docsDir);
+  const found = new Set<string>();
+  try {
+    const out = execFileSync(
+      'git',
+      ['ls-files', '-s', '-z', '--', path.basename(docsDir)],
+      {
+        cwd: repo,
+        encoding: 'utf-8',
+        maxBuffer: 256 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    );
+    for (const record of out.split('\0')) {
+      if (!record.startsWith('120000 ')) continue;
+      found.add(path.resolve(repo, record.slice(record.indexOf('\t') + 1)));
+    }
+  } catch {
+    // Not a git checkout, or no git binary.
+  }
+  gitSymlinks.set(docsDir, found);
+  return found;
+}
+
+/** Whether `file` is a symlink — a real link, or a stub that git records as one. */
+export function isSymlink(docsDir: string, file: string): boolean {
+  return (
+    fs.lstatSync(file).isSymbolicLink() ||
+    gitSymlinksUnder(docsDir).has(path.resolve(file))
+  );
+}
+
+/**
+ * The file a symlinked `file` points at, or null when it dangles. On a stub checkout the
+ * target is read from the stub, which holds the link's relative path as its only content.
+ */
+export function symlinkTarget(docsDir: string, file: string): string | null {
+  try {
+    if (fs.lstatSync(file).isSymbolicLink()) return fs.realpathSync(file);
+    if (!gitSymlinksUnder(docsDir).has(path.resolve(file))) return null;
+    const target = path.resolve(
+      path.dirname(file),
+      fs.readFileSync(file, 'utf-8').trim(),
+    );
+    return fs.existsSync(target) ? target : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Share of the locale body's lines that must also exist in the EN body (signal 4). */
 export const UNTRANSLATED_BODY_OVERLAP = 0.85;
@@ -89,7 +153,7 @@ export function classifyLocaleFile(
   const locale = rel[0];
   if (!locale || locale === 'en') return null;
 
-  if (fs.lstatSync(file).isSymbolicLink()) return { reason: 'symlink' };
+  if (isSymlink(docsDir, file)) return { reason: 'symlink' };
 
   const en = path.join(docsDir, 'en', ...rel.slice(1));
   if (!fs.existsSync(en)) return null;
