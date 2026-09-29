@@ -129,7 +129,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     includeSupplements: true,
     routePrefix: '/guides/',
     siteUrl: 'https://docs.ovhcloud.com',
-    apiConsoleUrl: 'https://eu.api.ovh.com/console/',
+    apiConsoleUrl: 'https://api.eu.ovhcloud.com/console/',
     corporateUrl: 'https://www.ovhcloud.com/',
     copyright: `© Copyright 1999-${COPYRIGHT_YEAR} OVH SAS.`,
   },
