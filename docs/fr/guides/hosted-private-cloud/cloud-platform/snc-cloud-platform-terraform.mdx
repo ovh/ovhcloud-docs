@@ -1,0 +1,327 @@
+---
+title: Guide Terraform
+description: Découvrez comment utiliser les providers Terraform OpenStack et AWS sur SNC Cloud Platform, de l'authentification par clouds.yaml au stockage compatible S3
+lastUpdated: 2026-09-29
+---
+
+## Objectif
+
+Guide pratique pour utiliser le provider `terraform-provider-openstack/openstack` (et le provider `aws` reconfiguré pour l'Object Storage compatible S3<sup>1</sup>) sur cette plateforme. Public cible : DevOps/SRE déjà familiers de Terraform.
+
+## Vue d'ensemble
+
+La plateforme expose une API OpenStack standard (Keystone, Nova, Neutron, Cinder, Glance, Placement) accessible via le provider Terraform officiel `terraform-provider-openstack/openstack`, plus un endpoint **Object Storage compatible S3** (Ceph RGW ou équivalent) qui se pilote via le provider `hashicorp/aws` reconfiguré sur un endpoint personnalisé. Il n'existe pas de provider Terraform dédié compatible S3 : c'est le modèle standard pour ce type de plateforme.
+
+| Composant | Provider Terraform | Usage |
+|---|---|---|
+| Identity / Compute / Network / Block Storage / Image | `terraform-provider-openstack/openstack` | Toutes les ressources OpenStack classiques |
+| Object Storage compatible S3 | `hashicorp/aws` (reconfiguré) | Buckets, objets |
+| Clé SSH / certificat TLS auto-signé | `hashicorp/tls` | Génération de clés, pas d'appel API externe |
+
+## Prérequis
+
+- Disposer de Terraform `>= 1.5` (`>= 1.10` pour le backend distant avec verrou S3 natif, reportez-vous à la section « [Workflow recommandé](#workflow-recommandé) »).
+- Disposer d'un fichier `clouds.yaml` avec un **application credential** (pas d'identifiant/mot de passe classique).
+- Pour l'Object Storage : disposer d'un couple clé d'accès / clé secrète compatible S3, distinct du `clouds.yaml`.
+
+L'application credential se récupère dans le manager, via le lien <code className="action">Get your Application Credentials</code> de la section **API Access & Documentation** du tableau de bord :
+
+![Tuiles de services du tableau de bord du manager et lien Get your Application Credentials](/images/hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform/dashboard-services.png)
+
+Puis dans <code className="action">API access</code> > <code className="action">Application credentials</code>, où vous pouvez télécharger directement un `clouds.yaml` prêt à l'emploi ou créer un nouvel application credential :
+
+![Page API access du manager avec le bouton Download clouds.yaml et les application credentials existants](/images/hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform/api-access-credentials.png)
+
+```yaml
+clouds:
+  openstack:
+    auth:
+      auth_url: https://auth.<region>.cloud.snc.ovh.net/v3
+      application_credential_id: "..."
+      application_credential_secret: "..."
+    region_name: "podX.rbx"
+    interface: "public"
+    identity_api_version: 3
+    auth_type: "v3applicationcredential"
+```
+
+## En pratique
+
+### Authentification & configuration des providers
+
+#### OpenStack
+
+Le provider lit `clouds.yaml` via les variables d'environnement standard `openstacksdk` — **aucun secret en dur dans les fichiers `.tf`** :
+
+```hcl
+provider "openstack" {
+  cloud = "openstack" # nom de la section dans clouds.yaml
+}
+```
+
+```bash
+export OS_CLOUD=openstack
+export OS_CLIENT_CONFIG_FILE=/chemin/vers/clouds.yaml   # si le fichier n'est pas dans un répertoire standard
+```
+
+`OS_CLIENT_CONFIG_FILE` est nécessaire si `clouds.yaml` ne se trouve pas dans le répertoire courant, `~/.config/openstack/` ou `/etc/openstack/` — c'est le cas la plupart du temps dans un dépôt versionné, où le fichier est stocké à un emplacement dédié pour pouvoir être facilement exclu du contrôle de version.
+
+#### Object Storage compatible S3
+
+```hcl
+provider "aws" {
+  region                      = "us-east-1" # valeur arbitraire, non vérifiée par le RGW
+  access_key                  = var.s3_access_key
+  secret_key                  = var.s3_secret_key
+  skip_credentials_validation = true
+  skip_region_validation      = true
+  skip_requesting_account_id  = true
+
+  endpoints {
+    s3 = var.s3_endpoint_url
+  }
+}
+```
+
+Les 3 `skip_*` sont indispensables : le provider `aws` tente par défaut de valider la région et le compte auprès d'IAM/STS AWS, qui n'existent pas ici. Sans ces paramètres, `terraform plan` échoue avant même de toucher au bucket.
+
+`s3_access_key`, `s3_secret_key` et `s3_endpoint_url` se récupèrent dans le manager, sur la page <code className="action">Object Storage</code> > <code className="action">Connect</code> :
+
+![Page Object Storage du manager, section Connection Details avec Access Key, Secret Key et Endpoint par région](/images/hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform/object-storage-connection.png)
+
+La clé secrète n'est affichée qu'une seule fois, à la création de la clé d'accès — si elle est perdue, supprimez la clé d'accès et créez-en une nouvelle.
+
+### Spécificités de la plateforme à connaître avant de commencer
+
+Ces points ne figurent pas dans la documentation générique du provider — ils sont propres à cette plateforme.
+
+#### 1. Pas de floating IP / routeur Neutron
+
+Le service floating IP sera disponible à partir de la version majeure n° 2 de la plateforme. En attendant, les instances exposées publiquement obtiennent leur IP via une **deuxième interface réseau attachée directement au réseau externe partagé `Ext-Net`**, qui leur fournit une IP publique fixe :
+
+```hcl
+data "openstack_networking_network_v2" "ext_net" {
+  name = "Ext-Net"
+}
+
+resource "openstack_compute_instance_v2" "example" {
+  # ...
+  network {
+    uuid = openstack_networking_network_v2.private.id
+  }
+
+  network {
+    uuid           = data.openstack_networking_network_v2.ext_net.id
+    access_network = true # désigne cette interface pour access_ip_v4
+  }
+}
+```
+
+`access_network = true` indique explicitement au provider quelle interface doit alimenter l'attribut calculé `access_ip_v4` — sans lui, le choix entre plusieurs interfaces n'est pas garanti.
+
+Cette interface `Ext-Net`, ici créée implicitement par le provider, a un comportement à connaître : le port Neutron sous-jacent est supprimé automatiquement si l'instance est détruite, ce qui libère l'IP publique dans le pool (rien ne garantit qu'elle soit réattribuée à la prochaine instance). Le guide « [Gestion des IP publiques](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management) » détaille comment créer ce port indépendamment de l'instance pour pouvoir conserver la même adresse publique d'une instance à l'autre.
+
+#### 2. Tous les flavors ont un disque racine de 0 Go
+
+Conséquence directe : démarrer une instance avec uniquement `image_id` échoue avec `Only volume-backed servers are allowed for flavors with zero disk`. Il faut systématiquement un `block_device` avec `destination_type = "volume"`, qui crée un volume Cinder de démarrage à partir de l'image :
+
+```hcl
+resource "openstack_compute_instance_v2" "example" {
+  # ...
+  block_device {
+    uuid                  = data.openstack_images_image_v2.os.id
+    source_type           = "image"
+    destination_type      = "volume"
+    volume_size           = 20 # doit excéder la taille virtuelle de l'image, pas juste son poids sur disque
+    boot_index            = 0
+    delete_on_termination = true
+  }
+}
+```
+
+:::warning
+`volume_size` doit être strictement supérieur à la **taille virtuelle** de l'image (`virtual_size` côté Glance), pas à sa taille compressée sur disque. Une image annoncée à quelques centaines de Mo peut avoir une taille virtuelle de 15-20 Go une fois décompressée — sous-dimensionner le volume produit l'erreur `Image virtual size is XGB and doesn't fit in a volume of size YGB`.
+:::
+
+#### 3. Réutiliser les ressources existantes via des data sources
+
+Les images système (`Debian 13`, `AlmaLinux 10`, etc.) et le réseau externe sont déjà présents sur le projet — ne les recréez pas :
+
+```hcl
+data "openstack_images_image_v2" "os" {
+  name        = "Debian 13"
+  most_recent = true
+}
+```
+
+### Modèles de ressources
+
+#### Groupe de sécurité à accès restreint
+
+Modèle recommandé pour limiter l'exposition à des plages d'IP connues (réseau interne, VPN) plutôt qu'à `0.0.0.0/0`, sans dupliquer une règle par port × CIDR à la main :
+
+```hcl
+locals {
+  allowed_cidrs = [
+    "203.0.113.0/24",
+    "198.51.100.0/26",
+  ]
+
+  allowed_ports = {
+    ssh   = 22
+    http  = 80
+    https = 443
+  }
+
+  secgroup_rules = {
+    for pair in setproduct(keys(local.allowed_ports), local.allowed_cidrs) :
+    "${pair[0]}-${pair[1]}" => {
+      port = local.allowed_ports[pair[0]]
+      cidr = pair[1]
+    }
+  }
+}
+
+resource "openstack_networking_secgroup_rule_v2" "allowed" {
+  for_each = local.secgroup_rules
+
+  security_group_id = openstack_networking_secgroup_v2.this.id
+  direction         = "ingress"
+  ethertype         = "IPv4"
+  protocol          = "tcp"
+  port_range_min    = each.value.port
+  port_range_max    = each.value.port
+  remote_ip_prefix  = each.value.cidr
+}
+```
+
+`setproduct()` génère le produit cartésien port × CIDR ; la clé de `for_each` (`"${port}-${cidr}"`) garantit un state Terraform stable même si l'ordre des listes change — indispensable pour éviter des destroy/create en cascade sur un simple réordonnancement.
+
+#### Compute : clé SSH générée par Terraform
+
+Pas besoin de gérer une paire de clés séparément — le provider `tls` en génère une, stockée dans le state (à protéger comme un secret) :
+
+```hcl
+resource "tls_private_key" "this" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "openstack_compute_keypair_v2" "this" {
+  name       = "${var.prefix}-keypair"
+  public_key = tls_private_key.this.public_key_openssh
+}
+
+output "ssh_private_key" {
+  value     = tls_private_key.this.private_key_pem
+  sensitive = true
+}
+```
+
+#### Object Storage compatible S3
+
+Une fois le provider `aws` reconfiguré (voir plus haut), les ressources standard fonctionnent normalement :
+
+```hcl
+resource "aws_s3_bucket" "data" {
+  bucket = "${var.prefix}-data"
+}
+```
+
+### Secrets et données sensibles
+
+- Déclarez toute variable portant un secret (application credential, clé S3, mot de passe) avec `sensitive = true` — Terraform masque sa valeur dans les logs de `plan`/`apply`, mais **elle reste en clair dans le state**. Un backend distant chiffré (ou a minima un state local exclu du contrôle de version) est indispensable dès que le projet dépasse l'usage individuel.
+- `terraform.tfvars` contenant les valeurs réelles doit être exclu du contrôle de version (`.gitignore`), tout comme `clouds.yaml`.
+
+:::warning
+**Piège avec `bcrypt()`** : la fonction native Terraform `bcrypt(string)` génère un **sel aléatoire à chaque évaluation**. Si vous l'appelez directement dans une ressource (ex. un Caddyfile généré via `templatefile()` et embarqué dans un `user_data`), le hash change à chaque `plan`, ce qui force un remplacement de l'instance à chaque exécution — même sans aucun changement réel. Précalculez le hash une fois (en dehors de Terraform, ou via un script d'implémentation) et passez-le comme valeur statique d'une variable `sensitive` pour éviter ce problème.
+:::
+
+### Bootstrap applicatif via `user_data` / cloud-init
+
+Modèle pour embarquer une application complète (code, configuration, service systemd) de façon déclarative, sans provisioner SSH séparé :
+
+```hcl
+locals {
+  cloud_init = templatefile("${path.module}/cloud-init.tftpl", {
+    app_py_b64 = base64encode(file("${path.module}/../app/app.py"))
+    # ...
+  })
+}
+
+resource "openstack_compute_instance_v2" "this" {
+  user_data = local.cloud_init
+  # ...
+}
+```
+
+Le template cloud-init utilise `write_files` (avec `encoding: b64` pour le contenu binaire/encodé) et `runcmd` pour installer et démarrer les services.
+
+:::warning
+**Piège d'ordonnancement** : si un fichier de configuration personnalisé écrase un **conffile** d'un paquet APT pas encore installé (ex. écrire `/etc/caddy/Caddyfile` avant `apt-get install caddy`), `dpkg` détecte un conflit et affiche une invite interactive. Sous cloud-init, il n'y a pas de TTY : `dpkg` échoue donc silencieusement, ce qui peut empêcher le postinst du paquet de s'exécuter correctement (ex. un utilisateur système n'est jamais créé). Installez toujours le paquet **avant** d'écraser ses fichiers de configuration, en copiant le fichier personnalisé dans un `runcmd` après l'installation plutôt que via `write_files` directement à l'emplacement final.
+:::
+
+### Workflow recommandé
+
+```bash
+export OS_CLOUD=openstack
+export OS_CLIENT_CONFIG_FILE=/chemin/vers/clouds.yaml
+
+terraform fmt -recursive
+terraform validate
+terraform plan -input=false
+terraform apply -input=false   # relire le plan avant de confirmer
+```
+
+- `terraform validate` ne fait aucun appel réseau : lancez-le systématiquement avant `plan`.
+- Relisez toujours un `plan` avant `apply`, en particulier le nombre de ressources détruites — un changement anodin dans un `templatefile()` (ex. le contenu de `user_data`) force le remplacement complet de l'instance.
+- Un state local (`terraform.tfstate`) est adapté à un usage individuel/exploratoire. Pour un usage en équipe, migrez vers un backend distant sur ce même endpoint compatible S3, comme décrit dans le guide « [Utiliser OVHcloud Object Storage comme Backend Terraform pour stocker votre état (state) Terraform](/guides/public-cloud/compute/use-object-storage-terraform-backend-state) », avec le verrou natif activé :
+
+```hcl
+# backend.tf — même bucket/key et credentials S3 que le provider de ressources
+terraform {
+    backend "s3" {
+      bucket = "terraform-state"
+      key    = "terraform.tfstate"
+      region = "eu-west-rbx-snc"
+      # toute région de stockage activée
+      endpoints = {
+        s3 = "https://<endpoint-s3>/"
+      }
+      skip_credentials_validation = true
+      skip_region_validation      = true
+      skip_requesting_account_id  = true
+      skip_s3_checksum            = true
+
+      # Champs à ajouter si les credentials de l'utilisateur Object Storage ne sont
+      # pas déjà configurés dans ~/.aws/credentials, ~/.aws/config ou dans des
+      # variables d'environnement.
+      access_key                  = "clé d'accès utilisateur s3"
+      secret_key                  = "clé secrète utilisateur s3"
+
+      # Verrou natif du state S3 via conditional writes (requiert Terraform >= 1.10)
+      use_lockfile = true
+    }
+}
+```
+
+### Pièges connus (dépannage)
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| `Neither a boot device, image ID, or image name were able to be determined` | `block_device` mal formé ou absent alors qu'aucun `image_id`/`image_name` n'est fourni au niveau de la ressource | Vérifiez la syntaxe du bloc `block_device`, ou passez `image_id` directement si la plateforme le permet |
+| `Only volume-backed servers are allowed for flavors with zero disk` | Flavor à disque racine 0 Go, démarrage direct sur image tenté | Utilisez un `block_device` avec `destination_type = "volume"` |
+| `Image virtual size is XGB and doesn't fit in a volume of size YGB` | `volume_size` inférieur à la taille virtuelle réelle de l'image | Augmentez `volume_size` avec une marge confortable au-dessus de la taille virtuelle annoncée par Glance |
+| Le `plan` propose de remplacer l'instance à chaque exécution, sans changement apparent | Appel à `bcrypt()` (ou toute fonction non déterministe) évalué dans une valeur qui alimente `user_data` | Précalculez la valeur en dehors de Terraform et fournissez-la comme variable statique |
+| `terraform plan` échoue immédiatement sur le provider `aws` avec des erreurs de compte/région | `skip_credentials_validation`/`skip_region_validation`/`skip_requesting_account_id` manquants | Ajoutez-les au bloc `provider "aws"` |
+| Un service ne démarre pas, avec une erreur liée à un utilisateur système manquant, après l'installation d'un paquet APT via cloud-init | Conffile du paquet écrasé avant son installation, `dpkg` bloqué sur une invite interactive | Installez le paquet avant d'écraser ses fichiers de configuration (copie via `runcmd` après l'installation, pas via `write_files` à l'emplacement final) |
+
+## Aller plus loin
+
+Documentation officielle : [terraform-provider-openstack](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs), [provider AWS](https://registry.terraform.io/providers/hashicorp/aws/latest/docs), [provider TLS](https://registry.terraform.io/providers/hashicorp/tls/latest/docs).
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.
