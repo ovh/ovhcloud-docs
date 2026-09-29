@@ -2686,7 +2686,6 @@
                 + [Supervising your HAProxy deployment with Logs Data Platform](manage-and-operate/observability/logs-data-platform/usecase-haproxy)
                 + [Pushing logs from a Kubernetes cluster to Logs Data Platform using Fluent Bit](manage-and-operate/observability/logs-data-platform/ingestion-kubernetes-fluent-bit)
                 + [Extracting logs from Logs Data Platform](manage-and-operate/observability/logs-data-platform/usecase-extract-logs-from-ldp)
-                + [Handling roles and permissions when IAM is not enabled](manage-and-operate/observability/logs-data-platform/getting-started-roles-permission)
                 + [SAP logs on OVHcloud Logs Data Platform - Solution Setup](hosted-private-cloud/sap-on-ovhcloud/cookbook-sap-logs-on-ovhcloud-logs-data-platform-solution-setup)
     + [Key Management Service (KMS)](manage-operate-kms)
         + [Getting started with OVHcloud Key Management Service (KMS)](manage-and-operate/kms/quick-start)
