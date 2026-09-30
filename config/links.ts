@@ -1272,15 +1272,6 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/identity-security-operations/logs-data-platform/',
     pt: 'https://www.ovhcloud.com/pt/identity-security-operations/logs-data-platform/',
   },
-  'manage-operate/logs-data-platform': {
-    fr: 'https://www.ovhcloud.com/fr/logs-data-platform/',
-    en: 'https://www.ovhcloud.com/en-gb/logs-data-platform/',
-    de: 'https://www.ovhcloud.com/de/logs-data-platform/',
-    es: 'https://www.ovhcloud.com/es-es/logs-data-platform/',
-    it: 'https://www.ovhcloud.com/it/logs-data-platform/',
-    pl: 'https://www.ovhcloud.com/pl/logs-data-platform/',
-    pt: 'https://www.ovhcloud.com/pt/logs-data-platform/',
-  },
   'manage-operate/logs-data-platform-order': {
     fr: "https://www.ovh.com/fr/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
     en: "https://www.ovh.com/en/order/express/#/express/review?products=~(~(planCode~'logs-account~productId~'logs))",
