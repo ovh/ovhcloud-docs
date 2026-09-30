@@ -1,7 +1,7 @@
 ---
 title: Import i eksport kluczy w OVHcloud KMS za pomocą BYOK
 description: Dowiedz się, jak bezpiecznie importować i eksportować zaszyfrowany materiał klucza w OVHcloud KMS przy użyciu asymetrycznego opakowywania kluczy RSA (BYOK)
-lastUpdated: 2026-09-29
+lastUpdated: 2026-09-30
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -227,7 +227,7 @@ Obsługiwane algorytmy opakowywania ([RFC 7518](https://datatracker.ietf.org/doc
 | `PKCS1` | Materiał klucza RSA w kodowaniu PKCS#1 |
 | `PKCS8` | Materiał klucza prywatnego w kodowaniu PKCS#8 |
 
-Po opakowaniu publicznym kluczem miejsca docelowego prześlij uzyskaną wartość `ciphertext` w formacie JWE Compact Serialization w żądaniu importu. Przykład w Go dla tego kroku opakowywania znajdziesz w sekcji [Pełny przykład w Go](#pełny-przykład-w-go).
+Po opakowaniu publicznym kluczem miejsca docelowego prześlij uzyskaną wartość `ciphertext` w formacie JWE Compact Serialization w żądaniu importu. Przykład w Go dla tego kroku opakowywania znajdziesz w sekcji [Przykład end-to-end w Go](#przykład-end-to-end-w-go).
 
 ### Import opakowanego klucza
 
@@ -251,7 +251,7 @@ Każdy wpis `wrappedKeys`:
 | --- | --- | --- |
 | `keyFormatType` | **Tak** | `RAW`, `JWK`, `PKCS1` lub `PKCS8` |
 | `wrappingKeyId` | **Tak** | UUID docelowego klucza transportowego RSA |
-| `ciphertext` | **Tak** | Zaszyfrowany materiał klucza jako JWE Compact Serialization |
+| `ciphertext` | **Tak** | Zaszyfrowany materiał klucza jako JWE Compact Serialization. Nagłówek JWE musi ustawiać `alg` na `RSA-OAEP` lub `RSA-OAEP-256`, a `enc` na `A256GCM`. |
 
 Możesz zaimportować sam klucz publiczny (`class` staje się `PUBLIC_KEY`) lub klucz prywatny (KMS odtwarza część publiczną; `class` staje się `KEY_PAIR`). Materiał symetryczny jest przechowywany jako `SECRET_KEY`.
 
@@ -421,6 +421,27 @@ resp, err := okmsClient.ImportKeyPairPEM(
   ctx,
   okmsId,
   pemBytes,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+wrappingKeyID := resp.Id
+```
+
+Możesz też zaimportować go bezpośrednio z `*rsa.PublicKey`:
+
+```go
+destKey, err := rsa.GenerateKey(rand.Reader, 4096)
+if err != nil {
+  return err
+}
+resp, err := okmsClient.ImportKey(
+  ctx,
+  okmsId,
+  &destKey.PublicKey,
   "byok-export-transport-pub",
   "",
   []types.CryptographicUsages{types.WrapKey},
@@ -604,7 +625,7 @@ Przenieś `ciphertext` do środowiska docelowego. Rozpakuj go **prywatnym** kluc
 - Jeśli miejscem docelowym jest inna domena OKMS, zaimportuj tam opakowany materiał za pomocą `wrappedKeys` jak w [Import opakowanego klucza](#import-opakowanego-klucza), używając identyfikatora klucza transportowego tej domeny jako `wrappingKeyId`.
 - Jeśli miejscem docelowym jest system zewnętrzny, użyj jego natywnego API rozpakowywania / importu z prywatnym kluczem transportowym oraz tym samym `keyFormatType` / algorytmem opakowywania, którego użyto przy eksporcie.
 
-### Pełny przykład w Go
+### Przykład end-to-end w Go
 
 Poniższe przykłady przeprowadzają obie ceremonie z parą kluczy RSA, używając [SDK Go](https://pkg.go.dev/github.com/ovh/okms-sdk-go) do wywołań OVHcloud KMS oraz [go-jose](https://pkg.go.dev/github.com/go-jose/go-jose/v4) do operacji JWE wykonywanych poza OVHcloud KMS. Oba przykłady kodują materiał klucza w formacie PKCS#8 (DER), co odpowiada wartości `PKCS8` pola `keyFormatType`.
 
@@ -683,6 +704,9 @@ Algorytm szyfrowania treści JWE (`enc`) musi mieć wartość `A256GCM`.
 Miejsce docelowe (tutaj lokalny program) generuje parę kluczy transportowych, importuje do OVHcloud KMS tylko jej część publiczną, a następnie odszyfrowuje wyeksportowany JWE częścią prywatną.
 
 ```go
+// Identyfikator klucza serwisowego do wyeksportowania, na przykład klucza zaimportowanego w poprzednim przykładzie.
+keyID := uuid.MustParse("<key-id>")
+
 // 1. Wygeneruj parę kluczy transportowych w miejscu docelowym.
 destKey, err := rsa.GenerateKey(rand.Reader, 4096)
 if err != nil {
@@ -736,10 +760,12 @@ plaintext, err := jwe.Decrypt(destKey)
 if err != nil {
   return err
 }
+
 exportedKey, err := x509.ParsePKCS8PrivateKey(plaintext)
 if err != nil {
   return err
 }
+// exportedKey zawiera wyeksportowany materiał klucza, używany w dalszej części programu.
 ```
 
 ## Sprawdź również

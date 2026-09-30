@@ -1,7 +1,7 @@
 ---
 title: Schlüssel auf OVHcloud KMS mit BYOK importieren und exportieren
 description: Erfahren Sie, wie Sie verschlüsseltes Schlüsselmaterial sicher mit OVHcloud KMS mittels asymmetrischer RSA-Umschließung (BYOK) importieren und exportieren
-lastUpdated: 2026-09-29
+lastUpdated: 2026-09-30
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -227,7 +227,7 @@ Unterstützte Algorithmen für die Umschließung ([RFC 7518](https://datatracker
 | `PKCS1` | RSA-Schlüsselmaterial in PKCS#1-Kodierung |
 | `PKCS8` | Privates Schlüsselmaterial in PKCS#8-Kodierung |
 
-Nach dem Umschließen mit dem öffentlichen Zielschlüssel senden Sie den entstandenen JWE-Compact-Serialization-`ciphertext` in der Importanfrage. Ein Go-Beispiel für diesen Umschließungsschritt finden Sie unter [Vollständiges Beispiel in Go](#vollständiges-beispiel-in-go).
+Nach dem Umschließen mit dem öffentlichen Zielschlüssel senden Sie den entstandenen JWE-Compact-Serialization-`ciphertext` in der Importanfrage. Ein Go-Beispiel für diesen Umschließungsschritt finden Sie unter [End-to-End-Beispiel in Go](#end-to-end-beispiel-in-go).
 
 ### Den umschlossenen Schlüssel importieren
 
@@ -251,7 +251,7 @@ Jeder `wrappedKeys`-Eintrag:
 | --- | --- | --- |
 | `keyFormatType` | **Ja** | `RAW`, `JWK`, `PKCS1` oder `PKCS8` |
 | `wrappingKeyId` | **Ja** | UUID des RSA-Transportschlüssels am Ziel |
-| `ciphertext` | **Ja** | Verschlüsseltes Schlüsselmaterial als JWE Compact Serialization |
+| `ciphertext` | **Ja** | Verschlüsseltes Schlüsselmaterial als JWE Compact Serialization. Der JWE-Header muss `alg` auf `RSA-OAEP` oder `RSA-OAEP-256` und `enc` auf `A256GCM` setzen. |
 
 Sie können einen öffentlichen Schlüssel allein importieren (`class` wird zu `PUBLIC_KEY`) oder einen privaten Schlüssel (das KMS rekonstruiert den öffentlichen Teil; `class` wird zu `KEY_PAIR`). Symmetrisches Material wird als `SECRET_KEY` gespeichert.
 
@@ -421,6 +421,27 @@ resp, err := okmsClient.ImportKeyPairPEM(
   ctx,
   okmsId,
   pemBytes,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+wrappingKeyID := resp.Id
+```
+
+Alternativ können Sie ihn direkt aus einem `*rsa.PublicKey` importieren:
+
+```go
+destKey, err := rsa.GenerateKey(rand.Reader, 4096)
+if err != nil {
+  return err
+}
+resp, err := okmsClient.ImportKey(
+  ctx,
+  okmsId,
+  &destKey.PublicKey,
   "byok-export-transport-pub",
   "",
   []types.CryptographicUsages{types.WrapKey},
@@ -604,7 +625,7 @@ Unterstützte Algorithmen für die Umschließung: `types.RSAOAEP`, `types.RSAOAE
 - Ist das Ziel eine andere OKMS-Domain, importieren Sie das umschlossene Material dort mit `wrappedKeys` wie unter [Den umschlossenen Schlüssel importieren](#den-umschlossenen-schlüssel-importieren), und verwenden Sie die ID des Transportschlüssels dieser Domain als `wrappingKeyId`.
 - Ist das Ziel ein externes System, nutzen Sie dessen native API zum Aufheben der Umschließung bzw. zum Import mit dem privaten Transportschlüssel, demselben `keyFormatType` und demselben Algorithmus für die Umschließung wie beim Export.
 
-### Vollständiges Beispiel in Go
+### End-to-End-Beispiel in Go
 
 Die folgenden Beispiele führen beide Zeremonien mit einem RSA-Schlüsselpaar durch. Sie verwenden das [Go SDK](https://pkg.go.dev/github.com/ovh/okms-sdk-go) für die Aufrufe an OVHcloud KMS und [go-jose](https://pkg.go.dev/github.com/go-jose/go-jose/v4) für die JWE-Operationen außerhalb von OVHcloud KMS. Beide Beispiele kodieren das Schlüsselmaterial in PKCS#8 (DER), was dem `keyFormatType`-Wert `PKCS8` entspricht.
 
@@ -683,6 +704,9 @@ Der Algorithmus für die JWE-Inhaltsverschlüsselung (`enc`) muss `A256GCM` sein
 Das Ziel (hier das lokale Programm) erzeugt das Transportschlüsselpaar, importiert nur dessen öffentlichen Teil in OVHcloud KMS und entschlüsselt anschließend das exportierte JWE mit dem privaten Teil.
 
 ```go
+// ID des zu exportierenden Serviceschlüssels, zum Beispiel des im vorherigen Beispiel importierten Schlüssels.
+keyID := uuid.MustParse("<key-id>")
+
 // 1. Erzeugen Sie das Transportschlüsselpaar am Ziel.
 destKey, err := rsa.GenerateKey(rand.Reader, 4096)
 if err != nil {
@@ -736,10 +760,12 @@ plaintext, err := jwe.Decrypt(destKey)
 if err != nil {
   return err
 }
+
 exportedKey, err := x509.ParsePKCS8PrivateKey(plaintext)
 if err != nil {
   return err
 }
+// exportedKey enthält das exportierte Schlüsselmaterial, das im weiteren Programm verwendet wird.
 ```
 
 ## Weiterführende Informationen
