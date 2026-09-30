@@ -227,7 +227,7 @@ Supported wrapping algorithms ([RFC 7518](https://datatracker.ietf.org/doc/html/
 | `PKCS1` | RSA key material in PKCS#1 encoding |
 | `PKCS8` | Private key material in PKCS#8 encoding |
 
-After wrapping with the destination public key, send the resulting JWE Compact Serialization `ciphertext` in the import request. For a Go example of this wrapping step, see [Full example in Go](#full-example-in-go).
+After wrapping with the destination public key, send the resulting JWE Compact Serialization `ciphertext` in the import request. For a Go example of this wrapping step, see [End-to-end example in Go](#end-to-end-example-in-go).
 
 ### Import the wrapped key
 
@@ -251,7 +251,7 @@ Each `wrappedKeys` entry:
 | --- | --- | --- |
 | `keyFormatType` | **Yes** | `RAW`, `JWK`, `PKCS1`, or `PKCS8` |
 | `wrappingKeyId` | **Yes** | UUID of the destination RSA transport key |
-| `ciphertext` | **Yes** | Encrypted key material as JWE Compact Serialization |
+| `ciphertext` | **Yes** | Encrypted key material as JWE Compact Serialization. The JWE header must set `alg` to `RSA-OAEP` or `RSA-OAEP-256` and `enc` to `A256GCM` |
 
 You can import a public key on its own (`class` becomes `PUBLIC_KEY`) or a private key (the KMS reconstructs the public part; `class` becomes `KEY_PAIR`). Symmetric material is stored as `SECRET_KEY`.
 
@@ -421,6 +421,27 @@ resp, err := okmsClient.ImportKeyPairPEM(
   ctx,
   okmsId,
   pemBytes,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+wrappingKeyID := resp.Id
+```
+
+Or import it directly from an `*rsa.PublicKey`:
+
+```go
+destKey, err := rsa.GenerateKey(rand.Reader, 4096)
+if err != nil {
+  return err
+}
+resp, err := okmsClient.ImportKey(
+  ctx,
+  okmsId,
+  &destKey.PublicKey,
   "byok-export-transport-pub",
   "",
   []types.CryptographicUsages{types.WrapKey},
@@ -604,7 +625,7 @@ Transfer the `ciphertext` to the destination environment. Unwrap it with the des
 - If the destination is another OKMS domain, import the wrapped material there with `wrappedKeys` as in [Import the wrapped key](#import-the-wrapped-key), using that domain's transport key ID as `wrappingKeyId`.
 - If the destination is an external system, use its native unwrap / import API with the private transport key and the same `keyFormatType` / wrapping algorithm you used at export.
 
-### Full example in Go
+### End-to-end example in Go
 
 The following examples run both ceremonies on an RSA key pair, using the [Go SDK](https://pkg.go.dev/github.com/ovh/okms-sdk-go) for the OVHcloud KMS calls and [go-jose](https://pkg.go.dev/github.com/go-jose/go-jose/v4) for the JWE operations outside OVHcloud KMS. Both examples encode the key material in PKCS#8 (DER), which matches the `keyFormatType` value `PKCS8`.
 
@@ -683,6 +704,9 @@ The JWE content encryption algorithm (`enc`) must be `A256GCM`.
 The destination (here, the local program) generates the transport key pair, imports only its public part into OVHcloud KMS, then decrypts the exported JWE with the private part.
 
 ```go
+// ID of the service key to export, for example the key imported in the previous example.
+keyID := uuid.MustParse("<key-id>")
+
 // 1. Generate the transport key pair on the destination.
 destKey, err := rsa.GenerateKey(rand.Reader, 4096)
 if err != nil {
@@ -736,10 +760,12 @@ plaintext, err := jwe.Decrypt(destKey)
 if err != nil {
   return err
 }
+
 exportedKey, err := x509.ParsePKCS8PrivateKey(plaintext)
 if err != nil {
   return err
 }
+// exportedKey holds the exported key material, used in the rest of the program.
 ```
 
 ## Go further
