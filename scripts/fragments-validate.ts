@@ -29,7 +29,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { FRAGMENTS_DIR, textFragments } from '../config/fragments';
 import { type Locale, locales } from '../config/shared';
-import { classifyLocaleFile, describe } from './lib/untranslated';
+import {
+  classifyLocaleFile,
+  describe,
+  isSymlink,
+  symlinkTarget,
+} from './lib/untranslated';
 
 const DOCS_DIR = path.join(process.cwd(), 'docs');
 const LOCALES = locales.map((l) => l.lang) as Locale[];
@@ -133,7 +138,7 @@ function stripCode(raw: string): string {
  * rendered in their locale is a language mismatch inside the page. `|en` is the only
  * place that intent can live, since replaceRules see raw source and never frontmatter.
  *
- * Collected as realpaths so the check runs once per target, not once per symlink.
+ * Collected as target paths so the check runs once per target, not once per symlink.
  */
 const symlinkTargets = new Set<string>();
 
@@ -144,16 +149,13 @@ function walk(dir: string): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     // Do not follow locale symlinks: the EN target is counted on its own.
-    if (entry.isSymbolicLink()) {
-      if (entry.name.endsWith('.mdx')) {
-        try {
-          symlinkTargets.add(fs.realpathSync(full));
-        } catch {
-          // Dangling symlink: not this validator's business — the build reports it.
-        }
-      }
+    if (entry.name.endsWith('.mdx') && isSymlink(DOCS_DIR, full)) {
+      const target = symlinkTarget(DOCS_DIR, full);
+      // Dangling symlink: not this validator's business — the build reports it.
+      if (target) symlinkTargets.add(target);
       continue;
     }
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) walk(full);
     else if (entry.isFile() && entry.name.endsWith('.mdx')) {
       localeFiles.push(full);

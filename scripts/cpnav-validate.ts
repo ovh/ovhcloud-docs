@@ -26,7 +26,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CPNAV_KEYS, canonicalise, tokenFor } from '../config/cpnav/index';
 import { type Locale, locales } from '../config/shared';
-import { classifyLocaleFile, describe } from './lib/untranslated';
+import {
+  classifyLocaleFile,
+  describe,
+  isSymlink,
+  symlinkTarget,
+} from './lib/untranslated';
 
 const DOCS_DIR = path.join(process.cwd(), 'docs');
 const LOCALES = locales.map((l) => l.lang) as Locale[];
@@ -194,7 +199,7 @@ function scan(file: string): void {
  * rendered in their locale is a language mismatch inside the page. `|en` is the only
  * place that intent can live, since replaceRules see raw source and never frontmatter.
  *
- * Collected as realpaths so the check runs once per target, not once per symlink.
+ * Collected as target paths so the check runs once per target, not once per symlink.
  */
 const symlinkTargets = new Set<string>();
 
@@ -206,14 +211,11 @@ function walk(dir: string): void {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(p);
     else if (entry.name.endsWith('.mdx')) {
-      if (!entry.isSymbolicLink()) localeFiles.push(p);
-      if (entry.isSymbolicLink()) {
-        try {
-          symlinkTargets.add(fs.realpathSync(p));
-        } catch {
-          // Dangling symlink: not this validator's business — the build reports it.
-        }
-      }
+      if (isSymlink(DOCS_DIR, p)) {
+        const target = symlinkTarget(DOCS_DIR, p);
+        // Dangling symlink: not this validator's business — the build reports it.
+        if (target) symlinkTargets.add(target);
+      } else localeFiles.push(p);
       scan(p);
     }
   }
