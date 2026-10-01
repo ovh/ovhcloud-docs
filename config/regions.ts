@@ -66,6 +66,13 @@ export interface RegionConfig {
    * moving the folders would make the URL and the path on disk disagree.
    */
   routePrefix: string;
+  /**
+   * Whether the in-page AI assistant is offered: the sparkle button beside the
+   * search box and the "AI assistant" entry in the Ask AI menu. The external
+   * LLM links (ChatGPT, Claude, Perplexity) are not affected -- they open
+   * someone else's product with a link to the page, and need no service here.
+   */
+  aiAssistant: boolean;
   /** Canonical site origin, used for sitemaps and canonical URLs. */
   siteUrl: string;
   /** OVHcloud API console URL used by the "API Reference" sidebar header item. */
@@ -128,6 +135,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     localePrefix: true,
     includeSupplements: true,
     routePrefix: '/guides/',
+    aiAssistant: true,
     siteUrl: 'https://docs.ovhcloud.com',
     apiConsoleUrl: 'https://api.eu.ovhcloud.com/console/',
     corporateUrl: 'https://www.ovhcloud.com/',
@@ -143,6 +151,8 @@ export const REGIONS: Record<Region, RegionConfig> = {
     includeSupplements: false,
     htmlLang: { en: 'en-us' },
     routePrefix: '/',
+    // The US does not run the assistant service.
+    aiAssistant: false,
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',

@@ -188,6 +188,8 @@ export default defineConfig({
     },
     source: {
       define: {
+        // Whether to render the in-page AI assistant (see config/regions.ts).
+        __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),

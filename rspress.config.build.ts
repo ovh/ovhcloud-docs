@@ -240,6 +240,8 @@ export default defineConfig({
           peerRegion(REGION)?.localePrefix ?? false,
         ),
         __PEER_HTML_LANG__: JSON.stringify(peerRegion(REGION)?.htmlLang ?? {}),
+        // Whether to render the in-page AI assistant (see config/regions.ts).
+        __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
