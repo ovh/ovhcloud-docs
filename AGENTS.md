@@ -18,7 +18,7 @@ pnpm dev
 pnpm build
 
 # Build single locale
-pnpm build --locale=fr
+pnpm build:fr
 # or: LOCALE=fr rspress build -c rspress.config.build.ts
 
 # Preview production build
@@ -113,8 +113,7 @@ The sidebar is generated from a single source of truth and supports full i18n.
 | `config/sidebar/index.ts` | Entry point — creates the sidebar per locale, handles dev/prod routing |
 | `config/sidebar/supplements.ts` | Header items (API ref, changelog…) and Security section (not in `index.md`) |
 | `i18n.json` | Contains `sidebar.gen.*` translations for non-leaf labels |
-| `base/pages/index-translations.{locale}.yaml` | Source YAML translations for products/sections |
-| `scripts/sidebar-sync-i18n.ts` | Syncs `sidebar.gen.*` keys from `index.md` + YAML → `i18n.json` |
+| `scripts/sidebar-sync-i18n.ts` | Seeds missing `sidebar.gen.*` keys from `index.md` into `i18n.json` (never overwrites an existing entry) |
 | `scripts/sidebar-validate.ts` | Checks that sidebar guide links point to existing `.mdx` files |
 | `scripts/sidebar-orphans.ts` | Finds guides not referenced in the sidebar |
 
@@ -142,7 +141,7 @@ There are two kinds of sidebar items:
 
 For non-leaf translations:
 - Universe names use hardcoded translations in `parser.ts` (`UNIVERSE_TRANSLATIONS`)
-- Product/section labels are looked up in `base/pages/index-translations.{locale}.yaml` files
+- Product/section labels live only in `i18n.json` (a new key is seeded with the English label in all 7 locales, to translate by hand)
 - All are stored as `sidebar.gen.{camelCaseRef}` keys in `i18n.json`
 
 #### Dev vs Production
