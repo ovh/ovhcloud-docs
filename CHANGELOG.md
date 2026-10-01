@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.10.01
+
+### Fixes
+- **scripts:** improve validators for symlink functions (#888)
+
+### Maintenance
+- **docs:** delete leftover bullets from tokenized pages (#895)
+- **docs:** link fixes for LDP pages (#894)
+- **docs:** delete obsolete LDP guide (#889)
+
+### Documentation
+- 398 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.28
 
 ### Features
