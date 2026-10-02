@@ -1,0 +1,201 @@
+---
+title: Suivre les métriques de votre Load Balancer OVHcloud
+description: Suivez les métriques de connexions et de requêtes de votre Load Balancer OVHcloud depuis l'espace client ou en interrogeant l'endpoint via l'API
+lastUpdated: 2026-09-25
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+import Api from '@components/Api';
+
+## Objectif
+
+Votre Load Balancer OVHcloud mesure en continu le trafic qu'il traite. Ces mesures sont accessibles de deux manières : sous forme de graphiques dans l'espace client OVHcloud, et sous forme de séries temporelles brutes que vous pouvez interroger vous-même via un endpoint compatible Prometheus.
+
+**Ce guide vous explique comment :**
+
+- consulter les graphiques de trafic de votre Load Balancer dans l'espace client OVHcloud
+- récupérer un token et un endpoint de métriques via l'API OVHcloud
+- interroger directement les séries temporelles et interpréter la réponse
+
+:::info
+Les deux méthodes exploitent les deux mêmes séries temporelles. Interroger l'endpoint vous-même ne donne pas accès à des métriques supplémentaires : cela vous permet d'utiliser les métriques existantes dans vos propres outils, avec vos propres plages de temps et votre propre logique d'actualisation. Consultez la section « [Métriques disponibles](#available-metrics) » pour la liste exacte.
+:::
+
+## Prérequis
+
+- Disposer d'un [Load Balancer OVHcloud](/guides/network/load-balancer/use-presentation) dans votre compte
+- Être connecté à votre <ManagerLink to="/">espace client OVHcloud</ManagerLink>
+- Pour la méthode via API : des identifiants API, tels que décrits dans le guide « [Premiers pas avec les API OVHcloud](/guides/manage-and-operate/api/first-steps) »
+- Pour la méthode via API : un client capable d'envoyer des requêtes HTTP, comme `curl`
+
+[[cpnav:network-load-balancer]]
+
+## En pratique
+
+### Métriques disponibles <a name="available-metrics"></a>
+
+Votre Load Balancer expose deux métriques de trafic :
+
+| Métrique | Description |
+|---|---|
+| `haproxy_process_connections_total` | Nombre total de connexions acceptées par le Load Balancer. Interrogée sous forme de taux, elle donne un nombre de connexions par seconde. |
+| `haproxy_process_requests_total` | Nombre total de requêtes traitées par le Load Balancer. Interrogée sous forme de taux, elle donne un nombre de requêtes par seconde. |
+
+Ces deux métriques sont des compteurs : elles n'ont de sens qu'associées à une fonction de taux. Chaque série porte les labels suivants :
+
+| Label | Description | Exemple |
+|---|---|---|
+| `servicename` | Nom interne de votre Load Balancer. | `loadbalancer-xxxxxxxxxxxxxxxxxxxxxxxx` |
+| `zone` | Zone d'où provient la mesure. Un Load Balancer déployé sur plusieurs zones produit une série par zone. | `gra` |
+
+:::warning
+Ces deux métriques sont les seules métriques de trafic exposées. L'endpoint renvoie également les séries standard de collecte Prometheus (`up`, `scrape_duration_seconds`, `scrape_samples_scraped`, `scrape_samples_post_metric_relabeling`, `scrape_series_added`), qui décrivent le processus de collecte lui-même et ne contiennent aucune information sur votre trafic.
+:::
+
+### Consulter les graphiques dans l'espace client OVHcloud
+
+L'espace client trace les deux métriques pour vous. La présentation diffère entre sa version actuelle et sa nouvelle version.
+
+<Tabs>
+<Tab label="Espace client OVHcloud">
+
+Ouvrez la page de votre service Load Balancer, puis consultez la section `Graphiques`.
+
+Deux graphiques sont disponibles :
+
+- `Connexions simultanées` — basé sur `haproxy_process_connections_total`
+- `Requêtes par minute` — basé sur `haproxy_process_requests_total`
+
+Les deux graphiques tracent un taux par seconde, quelle que soit la formulation des titres. Ils exploitent les mêmes valeurs que la méthode via API décrite ci-dessous.
+
+Utilisez le sélecteur de période situé au-dessus des graphiques pour modifier la plage de temps :
+
+| Offre | Périodes disponibles |
+|---|---|
+| LB1 | `1H`, `3H`, `6H`, `12H`, `1J`, `7J`, `1M` |
+| LB2 | `1H`, `6H`, `12H`, `1J`, `7J`, `1M`, `6M`, `1Y` |
+
+</Tab>
+<Tab label="Espace client OVHcloud (nouvelle version)">
+
+Ouvrez la page de votre service Load Balancer, puis sélectionnez l'onglet `Statistiques`.
+
+L'onglet affiche quatre indicateurs pour la période sélectionnée :
+
+- `Moy. connexions/s` et `Pic connexions/s`
+- `Moy. requêtes/s` et `Pic requêtes/s`
+
+En dessous, un graphique trace `Connexions/s` et `Requêtes/s` sur la même période.
+
+Utilisez le sélecteur de période pour modifier la plage de temps :
+
+| Offre | Périodes disponibles |
+|---|---|
+| LB1 | `1h`, `3h`, `6h`, `12h`, `1j`, `1sem`, `1M` |
+| LB2 | `1h`, `6h`, `12h`, `1j`, `1sem`, `1M`, `6M`, `1A` |
+
+Si le message `Impossible de récupérer le jeton de métriques. Les statistiques ne sont pas disponibles.` s'affiche, l'espace client n'a pas pu obtenir de token de métriques pour le service. Réessayez ultérieurement et contactez le support si le message persiste.
+
+</Tab>
+</Tabs>
+
+### Récupérer un token de métriques via l'API OVHcloud
+
+Pour interroger les métriques vous-même, demandez d'abord un token pour votre service :
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/metricsToken"} />
+
+| Paramètre | Requis | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | Nom interne de votre Load Balancer. | `loadbalancer-xxxxxxxxxxxxxxxxxxxxxxxx` |
+
+Le `serviceName` est affiché sur la page du service dans l'espace client. Vous pouvez également lister les Load Balancers de votre compte avec l'appel <ApiLink section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing"}>API dédié</ApiLink>.
+
+L'appel retourne l'endpoint à interroger ainsi que le token d'authentification :
+
+```json
+{
+  "endpoint": "https://cluster00000.mimir.observability.ovh.net:19101",
+  "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoiLi4uIn0..."
+}
+```
+
+Deux caractéristiques de cette réponse sont importantes si vous automatisez l'appel :
+
+- **L'endpoint n'est pas fixe.** Lisez-le dans chaque réponse plutôt que de le coder en dur : il n'est pas identique pour tous les services.
+- **Un nouveau token est retourné à chaque appel de l'endpoint.** Demandez-en un depuis votre script plutôt que d'en conserver une copie.
+
+:::warning
+Un token n'est valable que pour le Load Balancer pour lequel il a été émis. Utiliser un token obtenu pour un service afin d'interroger les métriques d'un autre service échoue, même si le reste de la requête est identique. Demandez un token par Load Balancer.
+:::
+
+### Interroger les métriques
+
+La valeur `endpoint` expose une API compatible Prometheus. Interrogez une plage de temps avec `query_range`, en transmettant le token dans un en-tête `Authorization: Bearer` :
+
+```bash
+curl -G "${ENDPOINT}/prometheus/api/v1/query_range" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  --data-urlencode 'query=sum(rate(haproxy_process_connections_total{servicename="loadbalancer-xxxxxxxxxxxxxxxxxxxxxxxx"}[1m]))' \
+  --data-urlencode "start=2026-09-25T10:00:00Z" \
+  --data-urlencode "end=2026-09-25T11:00:00Z" \
+  --data-urlencode "step=60"
+```
+
+| Paramètre | Description |
+|---|---|
+| `query` | Expression PromQL. Encadrez le compteur avec `rate()` pour obtenir un taux par seconde. |
+| `start` / `end` | Bornes de la plage de temps, au format ISO 8601. |
+| `step` | Résolution en secondes. Un point est retourné par pas. |
+
+Remplacez le nom de la métrique par `haproxy_process_requests_total` pour obtenir le nombre de requêtes par seconde.
+
+La réponse suit le format Prometheus standard, avec une entrée `values` par pas :
+
+```json
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {},
+        "values": [
+          [1790333820, "0.2666666666666666"],
+          [1790333880, "0.3333333333333333"],
+          [1790333940, "0.2666666666666666"]
+        ]
+      }
+    ]
+  }
+}
+```
+
+Chaque entrée associe un horodatage Unix à la valeur mesurée à cet instant, retournée sous forme de chaîne de caractères.
+
+> [!TIP]
+> Pour tracer séparément chaque zone d'un Load Balancer multizone, regroupez par le label `zone` au lieu d'additionner les zones : `sum by (zone) (rate(haproxy_process_connections_total{servicename="loadbalancer-xxxxxxxxxxxxxxxxxxxxxxxx"}[1m]))`.
+
+### Choisir une plage de temps et un pas
+
+Utilisez un pas cohérent avec la largeur de votre plage : un pas trop fin sur une plage large retourne un grand nombre de points sans apporter de précision supplémentaire. À titre de référence, voici les correspondances appliquées par l'espace client à ses propres graphiques :
+
+| Période | Intervalle de taux | Pas |
+|---|---|---|
+| Jusqu'à 1 jour | `1m` | 60 s |
+| 7 jours | `2m15s` | 135 s |
+| 1 mois | `15m15s` | 915 s |
+| 6 mois | `1h0m15s` | 3615 s |
+| 1 an | `3h0m15s` | 10815 s |
+
+## Aller plus loin
+
+[Gestion du service OVHcloud Load Balancer via l'espace client](/guides/network/load-balancer/use-lb)
+
+[Fonctionnalités principales de l'API Load Balancer](/guides/network/load-balancer/use-api-reference)
+
+[Transfert des logs (Log Forwarding) TCP / HTTP / HTTPS du Load Balancer OVHcloud](/guides/network/load-balancer/use-api-logs-customers)
+
+[[fragment:professional-services]]
+
+Echangez avec notre [communauté d'utilisateurs](/links/community).
