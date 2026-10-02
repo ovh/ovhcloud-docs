@@ -1,0 +1,884 @@
+---
+title: "How to restore OPCP from a backup"
+lastUpdated: "2026-10-01"
+---
+
+## Introduction
+
+There are different scenarios in which you might want to restore a backup. However, in OPCP, restoring only part of a backup is not supported. You can only restore the full backup, including all resources.
+
+The backup contains the following kinds of resources:
+
+- Databases
+- tfstate resources
+- PVs from Kubernetes
+- KMS setup
+
+:::danger
+This guide only covers the control plane. All of your data and workloads must be restored separately.
+:::
+
+:::warning
+This process can take a long time. Expect to spend most of the time waiting for operations to complete.
+:::
+
+:::info
+It is really helpful to run the commands in a `screen` or `tmux` session to be able to watch logs or fix things in another window. Both of them are installed on the controller. Make sure you know how to work with these tools.
+:::
+
+## Prerequisites
+
+There are several prerequisites that must be fulfilled before you start to restore from a backup:
+
+- SSH access to all OPCP controllers, including `sudo` permissions.
+- The backup IDs you want to restore from.
+- The KMS unseal shares, which are not in the backup itself, as they are considered to be very sensitive data.
+- Access to the S3[^1] buckets the database backups are stored in.
+
+### Prepare S3[^1] access
+
+Make sure you have access to the S3[^1] buckets containing the backup data.
+
+The first step is to get credentials with permissions for full read, write and delete access to the S3[^1] bucket containing the database backups.
+
+:::danger
+Be careful what you do with these credentials, as you are able to delete your backups entirely.
+:::
+
+[`s3cmd`](https://s3tools.org/s3cmd) must be installed on your workstation. It must be configured as well:
+
+```bash
+ACCESS_KEY_ID=your-access-key-id # replace with your access key ID
+SECRET_ACCESS_KEY=your-access-key-secret # replace with your secret key
+REGION=your-s3-region # replace with your region
+cat <<EOF > $HOME/.s3cfg
+[default]
+access_key = ${ACCESS_KEY_ID}
+secret_key = ${SECRET_ACCESS_KEY}
+bucket_location = ${REGION}
+host_base = s3.gra.io.cloud.ovh.net; replace with your base s3 host given by the provider
+host_bucket = %(bucket)s.s3.gra.io.cloud.ovh.net; replace with your s3 URL given by the provider
+EOF
+```
+
+:::info
+Please also read your S3[^1] provider's documentation on accessing S3[^1]-compatible storage.
+:::
+
+Verify your access by running:
+
+```bash
+s3cmd ls
+```
+
+You will see a list of all the S3[^1] buckets you have access to. It will look something like this:
+
+```
+2026-08-17 02:00  s3://dev-opcp-test-config
+2026-08-06 07:25  s3://dev-opcp-test-db
+2026-08-17 02:00  s3://dev-opcp-test-etcd-snapshots
+2026-09-25 11:22  s3://opcp-pg-dev-opcp-test
+2026-09-25 11:09  s3://opcp-pv-dev-opcp-test
+2026-05-27 14:25  s3://opcp-release
+2026-09-22 07:02  s3://opcp-release-dev
+2026-08-17 14:31  s3://opcp-volumes-dev-opcp-test
+```
+
+There are two buckets that are very important:
+
+- The bucket storing your database backups
+- The bucket storing your Velero backups (`tfstate`, `pvs`, `kms-autounsealer-shares`)
+
+Run `opcp-cli config edit` to check for custom entries. If none are given, use the generated default ones:
+
+- databases: `opcp-pg-{stage}-{env}`
+- velero: `opcp-volumes-{stage}-{env}`
+
+You can find the values for `stage` and `env` in the OPCP config (`opcp-cli config edit`) as well.
+
+:::warning
+Make sure you have the KMS unseal shares backed up somewhere. Otherwise, you will not be able to restore.
+:::
+
+### Retrieve the backup IDs
+
+You need a backup ID from the `tfstate`, `pvs` and `kms` resources. You can get them in two ways.
+
+#### On a running OPCP
+
+Get your latest backups by running:
+
+```bash
+BACKUP_FILE="backups_velero_$(date +%s).json"
+BACKUP_NAMES=("tfstate-backup" "pvs-backup" "kms-autounsealer-shares-backup")
+velero backup get -o json > "${BACKUP_FILE}"
+for BACKUP_NAME in "${!BACKUP_NAMES[@]}"; do
+  echo "${BACKUP_NAME}:"
+  jq -r < "${BACKUP_FILE}" "[ .items[] | select(.metadata.labels.\"velero.io/schedule-name\" == \"${BACKUP_NAMES[$BACKUP_NAME]}\") | {name: .metadata.name, ts: .metadata.creationTimestamp|strptime(\"%Y-%m-%dT%H:%M:%SZ\")|mktime}]|sort_by(.ts)|reverse[0]|.name"
+  echo "\n"
+done
+```
+
+#### From the S3 bucket
+
+As you already prepared your [S3 access](#prepare-s3-access), you can now run
+
+```bash
+s3cmd ls s3://<your-pv-bucket-name>/backups/ # replace <your-pv-bucket-name> with your bucket name
+```
+
+to retrieve a list of all backups available. The number suffix contains the date and time the backup was made. The output looks something like this:
+
+```
+                          DIR  s3://opcp-pv-dev-opcp-test/backups/kms-autounsealer-shares-backup-20261002080019/
+                          DIR  s3://opcp-pv-dev-opcp-test/backups/pvs-backup-20261002080019/
+                          DIR  s3://opcp-pv-dev-opcp-test/backups/tfstate-backup-20261002080019/
+```
+
+## Instructions
+
+:::info
+Skip the first step if you want to do the restore on a fresh install of OPCP. You then only need to skip the `opcp-cli deploy` part of the installation.
+:::
+
+The first step is to [reset OPCP](how-to-reset-opcp), except for the last step, the [reinstallation of OPCP](how-to-reset-opcp#redeploy-controller). Skip this one for now; it is covered later in this guide as part of the restore process.
+
+### Move database backups
+
+The next step is to move the database backups within the S3[^1] bucket. To restore the backups, they must be present in the `/recovery` prefix:
+
+```bash
+OPCP_DB_BACKUP_BUCKET=your-bucket-name # change to your bucket name
+s3cmd cp --recursive --exclude "recovery/*" --exclude "archived-backups/*" "s3://${OPCP_DB_BACKUP_BUCKET}/" "s3://${OPCP_DB_BACKUP_BUCKET}/recovery/"
+```
+
+Make sure all the files have been copied:
+
+```bash
+s3cmd ls "s3://${OPCP_DB_BACKUP_BUCKET}/recovery/"
+```
+
+Finally, all the database backups must be moved from the root to the `/archived-backups` prefix:
+
+```bash
+s3cmd mv --recursive --exclude "recovery/*" --exclude "archived-backups/*" "s3://${OPCP_DB_BACKUP_BUCKET}/" "s3://${OPCP_DB_BACKUP_BUCKET}/archived-backups/$(date '+%Y-%m-%d_%Hh-%Mm')/"
+```
+
+Verify that only the `/archived-backups` and `/recovery` prefixes remain in the root:
+
+```bash
+s3cmd ls "s3://${OPCP_DB_BACKUP_BUCKET}"
+```
+
+:::info
+Be patient: copying and moving the data can take a while, as there may be a lot of it.
+:::
+
+### Prepare OPCP config
+
+:::info
+Preparing the OPCP config is possible in parallel with [moving database backups](#move-database-backups).
+:::
+
+You can now prepare the OPCP config. Run `opcp-cli config edit` as `root`. Then make sure these values are set:
+
+```yaml
+fleet_infra:
+  vars:
+    tofu_controller:
+      suspend: true # <- set to true to suspend tofu_controller
+    kms:
+      kms_unseal_mode: auto
+
+
+backups:
+  db:
+    enabled: true
+    restore:
+      netbox:
+        enabled: true
+        recoverySource: "netbox-db"
+        recoveryTargets:
+          time: ""
+      kms:
+        enabled: true
+        recoverySource: "kms-db"
+        recoveryTargets:
+          time: ""
+      keycloak:
+        enabled: true
+        recoverySource: "keycloak-db"
+        recoveryTargets:
+          time: ""
+      keystone:
+        recoverySource: "keystone-db"
+        recoveryTargets:
+          time: ""
+      nog:
+        recoverySource: "nog-db"
+        recoveryTargets:
+          time: ""
+      glance:
+        recoverySource: "glance-db"
+        recoveryTargets:
+          time: ""
+      nova_api:
+        recoverySource: "nova-api-db"
+        recoveryTargets:
+          time: ""
+      nova_cell0:
+        recoverySource: "nova-cell0-db"
+        recoveryTargets:
+          time: ""
+      nova_cell_nova:
+        recoverySource: "nova-cell-nova-db"
+        recoveryTargets:
+          time: ""
+      placement:
+        recoverySource: "placement-db"
+        recoveryTargets:
+          time: ""
+      barbican:
+        recoverySource: "barbican-db"
+        recoveryTargets:
+          time: ""
+      ironic:
+        recoverySource: "ironic-db"
+        recoveryTargets:
+          time: ""
+      ironic_inspector:
+        recoverySource: "ironic-inspector-db"
+        recoveryTargets:
+          time: ""
+      neutron:
+        recoverySource: "neutron-neutron-db"
+        recoveryTargets:
+          time: ""
+  pv:
+    enabled: true
+```
+
+### Redeploy OPCP
+
+After all the database backups are moved and your config is prepared, you can start a redeploy:
+
+```bash
+opcp-cli deploy --force-reconcile
+```
+
+:::warning
+The artifacts must be the same version as when the backup was made. Otherwise, there could be some complications.
+:::
+
+Once the deployment is done, verify that the databases not managed by OpenTofu are restored:
+
+```bash
+kubectl get Cluster -A
+```
+
+Wait until all database clusters not managed by OpenTofu are available.
+
+```
+NAMESPACE   NAME          AGE    INSTANCES   READY   STATUS                     PRIMARY
+keycloak    keycloak-db   104s   1           1       Cluster in healthy state   keycloak-db-1
+kms         kms-db        104s   1           1       Cluster in healthy state   kms-db-1
+netbox      netbox-db     104s   1           1       Cluster in healthy state   netbox-db-1
+```
+
+You can assume that these instances are restored from backup.
+
+:::info
+This step may take some time.
+
+However, recovery might get stuck at this point. You then have to reset the controller and clean the DB backups by running the following on your machine:
+
+```bash
+s3cmd rm --recursive --exclude "recovery/*" --exclude "archived-backups/*" "s3://${OPCP_DB_BACKUP_BUCKET}/" --force
+```
+
+When this is done, you can start over with a [redeploy](#redeploy-opcp).
+:::
+
+### Restore from Velero backups
+
+Make sure Velero is running:
+
+```bash
+kubectl get pods -n velero
+```
+
+The output should look something like this:
+
+```
+NAME                      READY   STATUS    RESTARTS   AGE
+node-agent-pjvz8          1/1     Running   0          9m16s
+velero-8656858c7d-z7f8x   1/1     Running   0          9m16s
+```
+
+There should be no tf-controller, so check with:
+
+```bash
+tfctl get
+```
+
+The output should look something like this:
+
+```
+NAMESPACE       NAME                            READY   MESSAGE PLAN PENDING    AGE
+flux-system     barbican                                        false           10 minutes
+flux-system     firmware                                        false           10 minutes
+flux-system     glance                                          false           10 minutes
+flux-system     glance-post-setup                               false           10 minutes
+flux-system     horizon                                         false           10 minutes
+flux-system     irobox                                          false           10 minutes
+flux-system     ironic                                          false           10 minutes
+flux-system     ironic-post-setup                               false           10 minutes
+flux-system     keycloak-post-setup                             false           10 minutes
+flux-system     keystone                                        false           10 minutes
+flux-system     keystone-post-setup                             false           10 minutes
+flux-system     neutron                                         false           10 minutes
+flux-system     neutron-post-setup                              false           10 minutes
+flux-system     nova                                            false           10 minutes
+flux-system     nova-post-setup                                 false           10 minutes
+flux-system     nuc-mgmt-ovh-dev-opcp-test                      false           13 minutes
+flux-system     os-notifications                                false           10 minutes
+flux-system     placement                                       false           10 minutes
+flux-system     placement-post-setup                            false           10 minutes
+```
+
+#### Restore tfstate
+
+To restore the `tfstate`s, run the following commands:
+
+```bash
+# 1. ensure_ks_ready: wait until all Kustomizations in flux-system are Ready
+while [[ $(kubectl get Kustomization -n flux-system | awk '{print $3}' | grep -Ev "READY|True" | wc -l) > 0 ]]; do
+    sleep 1
+done
+
+# 2. suspend_tf
+if flux get hr -n flux-system | grep -q "tofu-controller"; then
+    flux suspend hr -n flux-system tofu-controller
+fi
+for tf in $(kubectl get Terraform -n flux-system -o jsonpath='{.items[*].metadata.name}'); do
+    tfctl suspend $tf
+done
+while [[ $(kubectl get pods -n flux-system -o name | grep tf-runner | wc -l) > 0 ]]; do
+    sleep 1
+done
+if flux get hr -n flux-system | grep -q "tofu-controller"; then
+    kubectl scale --replicas=0 -n flux-system $(kubectl get rs -n flux-system -o name | grep tofu-controller)
+fi
+sleep 2
+
+# 3. Delete TF state/plan secrets and wait until they are gone
+kubectl -n flux-system delete secret $(kubectl -n flux-system get secrets -o name | grep -E '^secret/tfstate-default|^secret/tfplan-default' | cut -d '/' -f 2)
+while [[ $(kubectl -n flux-system get secrets -o name | grep -E '^secret/tfstate-default|^secret/tfplan-default' | wc -l) > 0 ]]; do
+    sleep 1
+done
+
+# 4. Restore
+velero restore create --from-backup "<TF_STATE_BACKUP>" --wait
+
+# 5. Check the restore
+velero describe restore <restore-id>
+```
+
+When the restore is successful, resume the `tofu-controller` and the Terraform resources:
+
+```bash
+if flux get hr -n flux-system | grep -q "tofu-controller"; then
+    flux resume hr -n flux-system tofu-controller
+fi
+for tf in $(kubectl get Terraform -n flux-system -o jsonpath='{.items[*].metadata.name}'); do
+    tfctl resume $tf
+done
+```
+
+Once the script finishes, remove or comment out the `fleet_infra.vars.tofu_controller.suspend` variable and deploy again:
+
+```bash
+opcp-cli config edit
+# comment out the fleet_infra.vars.tofu_controller.suspend variable
+opcp-cli deploy --system
+```
+
+Wait until the tfstate is fully reconciled:
+
+```bash
+tfctl get
+```
+
+```
+NAMESPACE       NAME                            READY   MESSAGE                                                                       PLAN PENDING    AGE
+flux-system     barbican                        True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     firmware                        True    No drift: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71                  false           1 hour
+flux-system     glance                          True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     glance-post-setup               True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     horizon                         True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     irobox                          True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     ironic                          True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     ironic-post-setup               True    Plan no changes: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71           false           1 hour
+flux-system     keycloak-post-setup             True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     keystone                        True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     keystone-post-setup             True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     neutron                         True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     neutron-post-setup              True    No drift: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71                  false           1 hour
+flux-system     nova                            True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     nova-post-setup                 True    Plan no changes: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71           false           1 hour
+flux-system     nuc-mgmt-ovh-dev-opcp-test      True    Outputs written: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71           false           1 hour
+flux-system     os-notifications                True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     placement                       True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
+flux-system     placement-post-setup            True    Plan no changes: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71           false           1 hour
+```
+
+Then wait until all databases are up and running:
+
+```bash
+watch kubectl get cluster -A
+```
+
+The output should look something like this:
+
+```
+NAMESPACE   NAME                  AGE   INSTANCES   READY   STATUS                     PRIMARY
+barbican    barbican-db           51m   1           1       Cluster in healthy state   barbican-db-1
+glance      glance-db             51m   1           1       Cluster in healthy state   glance-db-1
+ironic      ironic-db             49m   1           1       Cluster in healthy state   ironic-db-1
+ironic      ironic-inspector-db   49m   1           1       Cluster in healthy state   ironic-inspector-db-1
+keycloak    keycloak-db           90m   1           1       Cluster in healthy state   keycloak-db-1
+keystone    keystone-db           55m   1           1       Cluster in healthy state   keystone-db-1
+kms         kms-db                90m   1           1       Cluster in healthy state   kms-db-1
+netbox      netbox-db             90m   1           1       Cluster in healthy state   netbox-db-1
+neutron     neutron-neutron-db    51m   1           1       Cluster in healthy state   neutron-neutron-db-1
+nog         nog-db                55m   1           1       Cluster in healthy state   nog-db-1
+nova        nova-api-db           51m   1           1       Cluster in healthy state   nova-api-db-1
+nova        nova-cell-nova-db     51m   1           1       Cluster in healthy state   nova-cell-nova-db-1
+nova        nova-cell0-db         51m   1           1       Cluster in healthy state   nova-cell0-db-1
+placement   placement-db          51m   1           1       Cluster in healthy state   placement-db-1
+```
+
+Make sure all resources are OK by checking `flux get all -A`.
+
+#### Restore PVs
+
+After the `tfstate` is restored, you can continue by restoring the PVs:
+
+```bash
+# 1. ensure_ks_ready
+while [[ $(kubectl get Kustomization -n flux-system | awk '{print $3}' | grep -Ev "READY|True" | wc -l) > 0 ]]; do
+    sleep 1
+done
+
+# 2. suspend_tf (same as for tfstate)
+if flux get hr -n flux-system | grep -q "tofu-controller"; then
+    flux suspend hr -n flux-system tofu-controller
+fi
+for tf in $(kubectl get Terraform -n flux-system -o jsonpath='{.items[*].metadata.name}'); do
+    tfctl suspend $tf
+done
+while [[ $(kubectl get pods -n flux-system -o name | grep tf-runner | wc -l) > 0 ]]; do
+    sleep 1
+done
+if flux get hr -n flux-system | grep -q "tofu-controller"; then
+    kubectl scale --replicas=0 -n flux-system $(kubectl get rs -n flux-system -o name | grep tofu-controller)
+fi
+sleep 2
+
+# 3. Suspend needed HRs
+flux suspend hr -n monitoring kube-prometheus-stack
+flux suspend hr -n kms ovhcloud-ssm
+
+# 4. Set the backup location to read-only
+kubectl patch backupstoragelocation backup-location --namespace velero --type merge --patch '{"spec":{"accessMode":"ReadOnly"}}'
+
+# 5. Delete workloads and PVCs
+kubectl delete deploy -n monitoring kube-prometheus-stack-grafana
+kubectl delete pvc -n monitoring kube-prometheus-stack-grafana
+kubectl delete deploy -n glance glance-api
+kubectl delete pvc -n glance glance-images
+kubectl delete sts -n kms ovhcloud-ssm
+kubectl delete deploy -n kms ovhcloud-ssm
+kubectl delete pvc -n kms ovhcloud-ssm-sqlite-ovhcloud-ssm-0
+kubectl delete deploy -n ironic ironic-conductor
+kubectl delete pvc -n ironic ironic-shared
+
+# 6. Wait loops
+while [[ $(kubectl get deploy -A | grep -E "kube-prometheus-stack-grafana|glance-api|ironic-conductor" | wc -l) > 0 ]]; do sleep 1; done
+while [[ $(kubectl get sts -A | grep -E "ovhcloud-ssm" | wc -l) > 0 ]]; do sleep 1; done
+while [[ $(kubectl get pvc -A | grep -E "kube-prometheus-stack-grafana|glance-images|ovhcloud-ssm-sqlite-ovhcloud-ssm-0|ironic-shared" | wc -l) > 0 ]]; do sleep 1; done
+while [[ $(kubectl get pv -A | grep -E "kube-prometheus-stack-grafana|glance-images|ovhcloud-ssm-sqlite-ovhcloud-ssm-0|ironic-shared" | wc -l) > 0 ]]; do sleep 1; done
+# get_pods: wait until these pods are gone (removed manually by the operator)
+while [[ $(kubectl get pods -A -o name | grep -E "^pod/ironic-conductor|^pod/glance-api|^pod/ovhcloud-ssm|^pod/kube-prometheus-stack-grafana" | grep -Ev "netbox-initializers|-db" | wc -l) -gt 0 ]]; do
+    kubectl get pods -A -o name | grep -E "^pod/ironic-conductor|^pod/glance-api|^pod/ovhcloud-ssm|^pod/kube-prometheus-stack-grafana" | grep -Ev "netbox-initializers|-db"
+    sleep 1
+done
+
+# 7. Restore
+velero restore create --from-backup "<PV_BACKUP>" --wait
+```
+
+Check the restore state:
+
+```bash
+velero describe restore <restore-id>
+```
+
+When the restore is successful, resume the Terraform and HelmRelease resources:
+
+```bash
+if flux get hr -n flux-system | grep -q "tofu-controller"; then
+    flux resume hr -n flux-system tofu-controller
+fi
+for tf in $(kubectl get Terraform -n flux-system -o jsonpath='{.items[*].metadata.name}'); do
+    tfctl resume $tf
+done
+flux resume hr -n monitoring kube-prometheus-stack
+flux resume hr -n kms ovhcloud-ssm
+```
+
+:::info
+The restore process takes time, but it might get stuck while terminating PVCs. Watch the process by running `watch kubectl get pvc -A`.
+
+If termination is stuck, you can check if the PVC is still mounted somewhere:
+
+```bash
+kubectl -n ironic describe pvc ironic-shared
+```
+
+```
+Name:          ironic-shared
+Namespace:     ironic
+StorageClass:  ceph-filesystem
+Status:        Bound
+Volume:        pvc-3ae4c7f8-cc0e-4d86-91c4-6212438d38ac
+Labels:        application=ironic
+               component=shared
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               volume.beta.kubernetes.io/storage-provisioner: rook-system.cephfs.csi.ceph.com
+               volume.kubernetes.io/storage-provisioner: rook-system.cephfs.csi.ceph.com
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      1000Gi
+Access Modes:  RWX
+VolumeMode:    Filesystem
+Used By:       ironic-conductor-5b6d784fd9-m7bsd
+               ironic-conductor-658dd44b78-9twxm
+               ironic-dnsmasq-b4f47d8c4-lr5pf
+               ironic-http-5d4c5b8774-bfnsk
+               ironic-prometheus-exporter-65d8848d45-fmmgh
+               ironic-tftp-59554bcfdd-pbbcl
+Events:        <none>
+```
+
+Delete all the pods in the "Used By" section with `kubectl -n ironic delete pod ironic-http-5d4c5b8774-bfnsk` (adjust the pod name accordingly).
+:::
+
+Once the script is finished, you can get the Velero restores:
+
+```bash
+velero get restore
+```
+
+The output should look something like this:
+
+```
+NAME                                           BACKUP                          STATUS      STARTED                         COMPLETED                       ERRORS   WARNINGS   CREATED                         SELECTOR
+pvs-backup-20260922080601-20260923094508       pvs-backup-20260922080601       Completed   2026-09-23 09:45:08 +0000 UTC   2026-09-23 09:46:26 +0000 UTC   0        0          2026-09-23 09:45:08 +0000 UTC   <none>
+tfstate-backup-20260922080601-20260923064848   tfstate-backup-20260922080601   Completed   2026-09-23 06:48:48 +0000 UTC   2026-09-23 06:48:50 +0000 UTC   0        0          2026-09-23 06:48:48 +0000 UTC   <none>
+```
+
+You may also check the details of the restore. Replace the restore name with your own:
+
+```bash
+velero describe restore --details pvs-backup-20260922080601-20260923094508
+```
+
+Your output should look something like this:
+
+```
+Name:         pvs-backup-20260922080601-20260923094508
+Namespace:    velero
+Labels:       <none>
+Annotations:  <none>
+
+Phase:                       Completed
+Total items to be restored:  12
+Items restored:              12
+
+Started:    2026-09-23 09:45:08 +0000 UTC
+Completed:  2026-09-23 09:46:26 +0000 UTC
+
+Backup:  pvs-backup-20260922080601
+
+Namespaces:
+  Included:  all namespaces found in the backup
+  Excluded:  <none>
+
+Resources:
+  Included:        *
+  Excluded:        nodes, events, events.events.k8s.io, backups.velero.io, restores.velero.io, resticrepositories.velero.io, csinodes.storage.k8s.io, volumeattachments.storage.k8s.io, backuprepositories.velero.io
+  Cluster-scoped:  auto
+
+Namespace mappings:  <none>
+
+Label selector:  <none>
+
+Or label selector:  <none>
+
+Restore PVs:  auto
+
+kopia Restores:
+  Completed:
+    glance/glance-api-68b4cf7cd7-wwghs: images
+    ironic/ironic-conductor-58c9cd655-xdpg4: shared
+    kms/ovhcloud-ssm-0: ovhcloud-ssm-sqlite
+    monitoring/kube-prometheus-stack-grafana-5b4c694b99-q85tj: storage
+
+CSI Snapshot Restores: <none included>
+
+Existing Resource Policy:   <none>
+ItemOperationTimeout:       4h0m0s
+
+Preserve Service NodePorts:  auto
+
+Uploader config:
+
+
+HooksAttempted:   0
+HooksFailed:      0
+
+Resource List:
+  v1/PersistentVolume:
+    - pvc-1d304753-8f19-4a7b-a6d3-ad4e6bb7b3f0(skipped)
+    - pvc-3852053c-4f35-4ca8-acb0-b21013dcb87d(skipped)
+    - pvc-42679363-ef8a-488a-95e2-adcda749950f(skipped)
+    - pvc-6ea33bb4-eefb-44e6-a132-3ab5d5842ad2(skipped)
+  v1/PersistentVolumeClaim:
+    - glance/glance-images(created)
+    - ironic/ironic-shared(created)
+    - kms/ovhcloud-ssm-sqlite-ovhcloud-ssm-0(created)
+    - monitoring/kube-prometheus-stack-grafana(created)
+  v1/Pod:
+    - glance/glance-api-68b4cf7cd7-wwghs(created)
+    - ironic/ironic-conductor-58c9cd655-xdpg4(created)
+    - kms/ovhcloud-ssm-0(created)
+    - monitoring/kube-prometheus-stack-grafana-5b4c694b99-q85tj(created)
+```
+
+#### Restore KMS
+
+Get the name of the pod starting with `ovhcloud-kms-setup-selfunseal` in the `kms` namespace and look into the logs:
+
+```bash
+kubectl logs -n kms ovhcloud-kms-setup-selfunseal-7vg52
+```
+
+You should see something like this:
+
+```
+Creating empty config file at /root/.ovh-kms/okms.yaml
+KMS status: Sealed
+KMS status: Sealed
+KMS is sealed. Unsealing KMS...
+Init unsealing KMS
+Completed: false
+Error: Seal key is incorrect or deprecated.
+ID="5d0385bc-1ab8-4260-bfb4-3377e2b27ca1", Request-ID:"OVHKMS.5d0385bc-1ab8-4260-bfb4-3377e2b27ca1", Code=33624076, System=SSM, Component=General, Category=Internal
+```
+
+This is because the secrets you just restored do not match the SSM instance. You should have stored your secret shares in a safe place. If you did not, the KMS cannot be restored.
+
+Get your secret shares from your secure location and adjust them by removing the keys `creationTimestamp`, `uid` and `resourceVersion`, as well as `status`, if present, from the YAML file.
+
+After that, use `kubectl apply -f` to apply the secrets.
+
+Once this succeeds, delete the `kms-auto-unsealer-ccm-admin-certificate` secret by using `kubectl -n kms delete secret kms-auto-unsealer-ccm-admin-certificate`.
+
+Finally, you can run the restore:
+
+```bash
+# 1. Suspend and scale down the auto-unsealer
+flux suspend hr -n kms kms-auto-unsealer
+kubectl scale --replicas=0 -n kms sts/kms-auto-unsealer
+
+# 2. Restore
+velero restore create --from-backup "<KMS_SHARES_BACKUP>" --wait
+```
+
+Check the restore state:
+
+```bash
+velero describe restore <restore-id>
+```
+
+When the restore is successfully completed, resume the auto-unsealer and scale it to 1:
+
+```bash
+flux resume hr -n kms kms-auto-unsealer
+kubectl scale --replicas=1 -n kms sts/kms-auto-unsealer
+```
+
+When this is finished, run `flux reconcile ks apps` to make sure everything in the `kms` namespace is updated and restarted, except for the `kms-db` pod.
+
+After the shares are restored, you have to recreate the Barbican certificate. First, check which certificate you have to recreate:
+
+```bash
+kubectl exec -ti -n kms kms-db-1 -- psql kms -c 'select * from kms_domains'
+```
+
+The output should look something like this:
+
+```
+Defaulted container "postgres" out of: postgres, bootstrap-controller (init)
+              domain_id               |                drk_id                | public_description | private_description |       created_at       |       updated_at       |          urn_prefix          | enabled | disabled_at | deleted | deleted_at
+--------------------------------------+--------------------------------------+--------------------+---------------------+------------------------+------------------------+------------------------------+---------+-------------+---------+------------
+ 00000000-0000-0000-0000-000000000000 | 00000000-0000-0000-0000-000000000000 | internal domain    | internal domain     |                        |                        |                              | t       |             | f       |
+ 1cc51abc-33c8-42ed-832b-b8d07b10e04f | 1ed42b05-b535-42d3-87f2-0d49bc21b302 |                    |                     | 2025-12-01 14:18:14+00 | 2025-12-01 14:18:14+00 | XXX-WORKAROUND-NOT-EMPTY-XXX | t       |             | f       |
+ 94140ac9-191e-4001-8ae1-0ccacb2fb093 | b48ba528-597b-41ea-a128-77c827439ce3 |                    |                     | 2025-12-01 17:27:46+00 | 2025-12-01 17:27:46+00 | XXX-WORKAROUND-NOT-EMPTY-XXX | t       |             | f       |
+(3 rows)
+```
+
+Take the first `domain_id` that is not the internal domain (`00000000-…`), replace `<domain_id>` with it in the command below, and recreate the certificate with `kubectl`:
+
+```bash
+kubectl apply -f - <<EOF
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kms-barbican-recreate-domain-cert
+  namespace: kms
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kms-barbican-recreate-domain-cert
+  namespace: barbican
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "patch", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kms-barbican-recreate-domain-cert
+  namespace: barbican
+subjects:
+- kind: ServiceAccount
+  name: kms-barbican-recreate-domain-cert
+  namespace: kms
+roleRef:
+  kind: Role
+  name: kms-barbican-recreate-domain-cert
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kms-barbican-recreate-domain-cert
+  namespace: kms
+rules:
+- apiGroups: [""]
+  resources: ["secrets", "endpoints"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kms-barbican-recreate-domain-cert
+  namespace: kms
+subjects:
+- kind: ServiceAccount
+  name: kms-barbican-recreate-domain-cert
+  namespace: kms
+roleRef:
+  kind: Role
+  name: kms-barbican-recreate-domain-cert
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kms-barbican-recreate-domain-cert
+  namespace: kms
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        # Must match the CiliumNetworkPolicy kms-self-unsealer-np (policy enforcement mode is "always")
+        app.kubernetes.io/name: kms-self-unsealer
+    spec:
+      serviceAccountName: kms-barbican-recreate-domain-cert
+      restartPolicy: Never
+      containers:
+      - name: recreate-domain-cert
+        image: gor-publiccloud-docker.rt.ovhcloud.tools/irobox/kms-manager:3.0.2-8-1.sha.gc6c1b67
+        securityContext:
+          runAsUser: 0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/bash"]
+        args:
+          - "-c"
+          - "yes | bash /opt/recreate-domain.cert.sh barbican ovhcloud-kms-ccm-domain-barbican kmip <domain_id>"
+        env:
+          # Empty KUBECONFIG makes kubectl/client fall back to the in-cluster ServiceAccount token
+          - name: KUBECONFIG
+            value: ""
+EOF
+```
+
+Watch the logs of the `kms-barbican-recreate-domain-cert` pod using `k9s`. When this is successful, proceed with the cleanup:
+
+```bash
+kubectl -n kms delete job kms-barbican-recreate-domain-cert
+kubectl -n kms delete serviceaccount kms-barbican-recreate-domain-cert
+kubectl -n kms delete role kms-barbican-recreate-domain-cert
+kubectl -n kms delete rolebinding kms-barbican-recreate-domain-cert
+kubectl -n barbican delete role kms-barbican-recreate-domain-cert
+kubectl -n barbican delete rolebinding kms-barbican-recreate-domain-cert
+```
+
+Restart all the pods in the `barbican` namespace except for `barbican-db-1`.
+
+After all the DBs are restored, the DB credentials have been regenerated and no longer match the `cell_mappings` table in the `nova-api` database:
+
+```bash
+kubectl -n nova exec -ti nova-api-db-1 -- psql --no-align --tuples-only nova -c "select database_connection from cell_mappings;"
+```
+
+Check the output against the existing DB credentials:
+
+```bash
+kubectl -n nova get secret nova-cell-nova-db-app -o json | jq -r '.data.uri' | base64 -d
+# postgresql://nova:PASS_NOVA_CELL_NOVA@nova-cell-nova-db-rw:5432/nova
+kubectl -n nova get secret nova-cell0-db-app -o json | jq -r '.data.uri' | base64 -d
+# postgresql://nova:PASS_NOVA_CELL0@nova-cell0-db-rw:5432/nova_cell0
+```
+
+Update them as needed:
+
+```bash
+kubectl -n nova exec -ti nova-api-db-1 -- psql nova
+# update cell_mappings set database_connection='postgresql://nova:PASS_NOVA_CELL_NOVA@nova-cell-nova-db-rw:5432/nova' where name='nova';
+# update cell_mappings set database_connection='postgresql://nova:PASS_NOVA_CELL0@nova-cell0-db-rw:5432/nova_cell0' where name='cell0';
+```
+
+Once that is done, restart the `nova-api` deployment:
+
+```bash
+kubectl -n nova rollout restart deploy/nova-api
+```
+
+Your OPCP restore is now complete. Verify that all services are working as expected.
+
+## Go further
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).
+
+[^1]: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.
