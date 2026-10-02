@@ -8,8 +8,7 @@
  * checks the generated hierarchy: sidebar order, absolute links, product
  * descriptions, exclusions (internal/, noindex), navigational pages kept out of
  * the full bundles, language fallbacks linked to their real locale, orphans.
- * Also covers a single-locale region served at the root (US). No Rspress
- * build needed.
+ * No Rspress build needed.
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -262,67 +261,65 @@ check(
   enStats?.missingDescriptions.length === 0,
 );
 
-// --- Single-locale region served at the root (US, `localePrefix: false`) ---
-// The build sits at the dist/ root, guides have no `guides/` segment, and no
-// URL carries a /<locale>/ prefix.
-const usDocs = path.join(tmp, 'docs-us');
-const usDist = path.join(tmp, 'dist-us');
-const US_ROUTE = 'public-cloud/compute/start';
-write(
-  path.join(usDocs, 'en', `${US_ROUTE}.mdx`),
-  '---\ntitle: "Start"\ndescription: "Start here"\n---\n\nUS body.\n',
-);
-write(
-  path.join(usDist, `${US_ROUTE}.md`),
-  `---\ntitle: "Start"\ndescription: "Start here"\nurl: ${SITE}/${US_ROUTE}\nlang: en\n---\n\n# Start\n\nUS body.\n`,
-);
-write(path.join(usDist, 'llms.txt'), 'flat Rspress index\n');
-generateLlms({
-  distDir: usDist,
-  docsDir: usDocs,
+// --- Single-locale region served at the domain root (US) ---
+// Same EN pages, but built straight into dist/ and served without /en/.
+const rootDist = path.join(tmp, 'dist-root');
+fs.cpSync(path.join(distDir, 'en'), rootDist, { recursive: true });
+fs.rmSync(path.join(rootDist, 'llms'), { recursive: true, force: true });
+// The worker writes unprefixed `url:` frontmatter for a root region.
+for (const f of fs.readdirSync(rootDist, { recursive: true }) as string[]) {
+  if (!f.endsWith('.md')) continue;
+  const file = path.join(rootDist, f);
+  fs.writeFileSync(
+    file,
+    fs.readFileSync(file, 'utf-8').replaceAll(`${SITE}/en/`, `${SITE}/`),
+  );
+}
+const rootStats = generateLlms({
+  distDir: rootDist,
+  docsDir,
   siteUrl: SITE,
   builtLocales: ['en'],
-  rootLocale: 'en',
   localePrefix: false,
   locales: [
-    { lang: 'en', label: '🇺🇸 English', title: 'OVHcloud Documentation' },
+    { lang: 'en', label: '🇬🇧 English', title: 'OVHcloud Documentation' },
   ],
-  treeFor: () => [
-    {
-      text: 'sidebar.gen.publicCloud',
-      items: [
-        {
-          text: 'sidebar.gen.publicCloudCompute',
-          items: [{ text: 'Start', link: `/${US_ROUTE}` }],
-        },
-      ],
-    },
-  ],
+  treeFor: () => tree,
   label: (key) => labels[key]?.en ?? key,
 });
-const usRoot = fs.readFileSync(path.join(usDist, 'llms.txt'), 'utf-8');
+const readRoot = (rel: string) =>
+  fs.readFileSync(path.join(rootDist, rel), 'utf-8');
+const rootDir = readRoot('llms.txt');
 check(
-  'us: root llms.txt replaces the flat Rspress index',
-  usRoot.startsWith('# OVHcloud Documentation\n'),
+  'root build: /llms.txt is the directory',
+  rootDir.includes(
+    `- [Compute](${SITE}/llms/${PRODUCT}/llms.txt): Run instances`,
+  ),
 );
 check(
-  'us: product index at the root, no locale prefix',
-  usRoot.includes(`- [Compute](${SITE}/llms/${PRODUCT}/llms.txt)`),
-);
-check('us: no language list', !usRoot.includes('Other languages'));
-check('us: no /en/ dist directory', !fs.existsSync(path.join(usDist, 'en')));
-check(
-  'us: page links without locale prefix',
-  fs
-    .readFileSync(path.join(usDist, `llms/${PRODUCT}/llms.txt`), 'utf-8')
-    .includes(`- [Start](${SITE}/${US_ROUTE}.md): Start here`),
+  'root build: no language list for a single locale',
+  !rootDir.includes('Other languages'),
 );
 check(
-  'us: full bundle at the root',
-  fs
-    .readFileSync(path.join(usDist, 'llms-full.txt'), 'utf-8')
-    .includes('US body.'),
+  'root build: full bundle at the root',
+  readRoot('llms-full.txt').includes(`${SITE}/llms.txt`),
 );
+const rootProduct = readRoot(`llms/${PRODUCT}/llms.txt`);
+check(
+  'root build: page links without locale prefix',
+  rootProduct.includes(`- [First](${SITE}/${G}/a-first.md): First guide`),
+);
+check(
+  'root build: no /en/ URL anywhere',
+  ![rootDir, rootProduct, readRoot('llms-full.txt')].some((t) =>
+    t.includes(`${SITE}/en/`),
+  ),
+);
+check(
+  'root build: no stray dist/en tree',
+  !fs.existsSync(path.join(rootDist, 'en')),
+);
+check('root build: stats', rootStats[0]?.products === 2);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 

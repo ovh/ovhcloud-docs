@@ -118,10 +118,18 @@ function escapeXml(s: string): string {
 function runWorker(
   dir: string,
   locale: string,
+  // URL prefix of `dir`: `/<locale>` unless the region serves at the root.
+  basePath = regionConfig.localePrefix ? `/${locale}` : '',
 ): Promise<{ html: number; md: number }> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(workerPath, {
-      workerData: { dir, locale, siteUrl: SITE_URL, docsDir: DOCS_DIR },
+      workerData: {
+        dir,
+        locale,
+        siteUrl: SITE_URL,
+        docsDir: DOCS_DIR,
+        basePath,
+      },
     });
     worker.on('message', resolve);
     worker.on('error', reject);

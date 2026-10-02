@@ -74,32 +74,15 @@ export interface BuildModelOptions {
   tree: SidebarNode[];
   /** Resolve a `sidebar.gen.*` key to its label in `locale`. */
   label: (key: string) => string;
-  distDir: string;
+  /** This locale's build output: `dist/<locale>` or, unprefixed, `dist`. */
+  localeDist: string;
   docsDir: string;
-  siteUrl: string;
+  /** Public URL of a locale's root, no trailing slash (see ./index.ts). */
+  urlBaseFor: (locale: string) => string;
   builtLocales: readonly string[];
-  /** Locales live under `/<locale>/`; false for a region served at the root. */
-  localePrefix: boolean;
   /** Localized title of the orphan pseudo-product. */
   othersTitle: string;
 }
-
-/**
- * Directory of a locale's build under dist/, and the absolute URL it is served
- * at. A single-locale region (US, `localePrefix: false`) has no `/<locale>/`
- * segment: both resolve to the dist/ and site root.
- */
-export const localeDistDir = (
-  distDir: string,
-  locale: string,
-  localePrefix: boolean,
-) => (localePrefix ? path.join(distDir, locale) : distDir);
-
-export const localeUrl = (
-  siteUrl: string,
-  locale: string,
-  localePrefix: boolean,
-) => (localePrefix ? `${siteUrl}/${locale}` : siteUrl);
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static', 'llms']);
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---\s*\n?/;
@@ -137,9 +120,7 @@ function oneLine(value: unknown): string | undefined {
 }
 
 export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
-  const { locale, distDir, docsDir, siteUrl, builtLocales, localePrefix } =
-    opts;
-  const localeDist = localeDistDir(distDir, locale, localePrefix);
+  const { locale, localeDist, docsDir, urlBaseFor, builtLocales } = opts;
   const cache = new Map<string, LlmsPage | null>();
 
   function resolvePage(route: string): LlmsPage | null {
@@ -191,8 +172,8 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
     // this deployment; otherwise keep the local copy.
     const linkToReal = fallback && builtLocales.includes(contentLocale);
     const mdUrl = linkToReal
-      ? `${localeUrl(siteUrl, contentLocale, localePrefix)}/${contentRoute}.md`
-      : `${localeUrl(siteUrl, locale, localePrefix)}/${route}.md`;
+      ? `${urlBaseFor(contentLocale)}/${contentRoute}.md`
+      : `${urlBaseFor(locale)}/${route}.md`;
 
     return {
       route,

@@ -5,7 +5,9 @@
  * MD:   Injects frontmatter from source MDX (title, description, url, lang)
  *       for LLM consumption.
  *
- * Input (workerData):  { dir: string, locale: string, siteUrl: string, docsDir: string }
+ * Input (workerData):  { dir, locale, siteUrl, docsDir, basePath? }
+ *   basePath: URL prefix of `dir` — `/<locale>` (default, multi-locale
+ *   region) or `''` for a single-locale region served at the domain root.
  * Output (message):    { html: number, md: number }
  */
 
@@ -172,7 +174,8 @@ function processDir(
       // Read the source MDX frontmatter once — reused for the Pagefind title
       // meta (below) and the .md frontmatter injection (further down).
       const slug = entry.name.replace(/\.html$/, '');
-      const relativePath = `${basePath}/${slug}`.replace(`/${locale}/`, '');
+      // Path below the locale root (`guides/…`), whatever the URL prefix.
+      const relativePath = `${basePath}/${slug}`.slice(rootBase.length + 1);
       const mdxPath = path.join(docsDir, locale, `${relativePath}.mdx`);
       const fm = readMdxFrontmatter(mdxPath);
       const title = fm?.title || '';
@@ -338,11 +341,13 @@ function processDir(
   return { html, md };
 }
 
-const { dir, locale, siteUrl, docsDir } = workerData as {
+const { dir, locale, siteUrl, docsDir, basePath } = workerData as {
   dir: string;
   locale: string;
   siteUrl: string;
   docsDir: string;
+  basePath?: string;
 };
-const counts = processDir(dir, locale, siteUrl, docsDir, `/${locale}`);
+const rootBase = basePath ?? `/${locale}`;
+const counts = processDir(dir, locale, siteUrl, docsDir, rootBase);
 parentPort?.postMessage(counts);
