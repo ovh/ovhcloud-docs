@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.10.02
+
+### Fixes
+- improve llms.txt generation
+
+### Documentation
+- 7 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.01.1
+
+### Maintenance
+- **docs:** Fix tokenized pages (#903)
+
+### Documentation
+- 510 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.10.01
 
 ### Fixes
