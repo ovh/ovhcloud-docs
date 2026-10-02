@@ -1,0 +1,313 @@
+---
+title: Object Storage - Getting started with Private Endpoint (Beta)
+description: Find out how to access your Object Storage buckets from a Public Cloud Private Network without going through the public internet, using a Private Endpoint
+lastUpdated: 2026-10-02
+---
+
+import Api from '@components/Api';
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+:::warning
+**Beta feature.** Private Endpoint for Object Storage is currently in Beta. Features, API routes and field names may change before General Availability, and this guide will be updated accordingly. During the Beta, Private Endpoints can only be managed through the OVHcloud API.
+:::
+
+## Objective
+
+A **Private Endpoint** lets the resources on a Public Cloud Private Network subnet reach your S3<sup>1</sup>-compatible Object Storage over the OVHcloud network, without a Gateway and without going through the public internet.
+
+**This guide explains how to create a Private Endpoint, connect your S3 client to it, and make sure your buckets can only be reached through this private path.**
+
+:::info
+Private Endpoint is only available for S3-compatible Object Storage. Swift-based Object Storage is not supported.
+:::
+
+## Requirements
+
+- A [Public Cloud project](/guides/public-cloud/cross-functional/create-a-public-cloud-project) in your OVHcloud account
+- A [Private Network and subnet](/guides/public-cloud/network-services/vrack), active in the region where you want to create the Private Endpoint
+- An instance attached to this subnet
+- An [Object Storage user and bucket](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage)
+- Access to the [OVHcloud API](/guides/manage-and-operate/api/first-steps)
+
+## Instructions
+
+### How it works
+
+When you create a Private Endpoint, OVHcloud places it in the subnet of your choice and gives it:
+
+- a private IP address (VIP) in this subnet;
+- a hostname, in the form `pe-{id}.s3.{region}.endpoint.cloud.ovh.net`.
+
+Your instances then send their S3 requests to this hostname instead of the public Object Storage endpoint. Your credentials (access key and secret key) do not change.
+
+Private Endpoint uses [OVHcloud API v2](/guides/manage-and-operate/api/apiv2). Instead of performing actions one by one, you describe the configuration you want in a `targetSpec` object. OVHcloud then applies it in the background. You can follow its progress with the `resourceStatus` field, and the `currentTasks` list shows the operations in progress.
+
+The routes used in this guide are the following:
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/v2/publicCloud/project/{projectId}/reference/privateEndpoint/serviceAvailability` | List the services and connectivity tiers available |
+| `GET` | `/v2/publicCloud/project/{projectId}/privateEndpoint` | List the Private Endpoints of a project |
+| `POST` | `/v2/publicCloud/project/{projectId}/privateEndpoint` | Create a Private Endpoint |
+| `GET` | `/v2/publicCloud/project/{projectId}/privateEndpoint/{privateEndpointId}` | Get the details of a Private Endpoint |
+| `PUT` | `/v2/publicCloud/project/{projectId}/privateEndpoint/{privateEndpointId}` | Rename a Private Endpoint or change its description |
+| `DELETE` | `/v2/publicCloud/project/{projectId}/privateEndpoint/{privateEndpointId}` | Delete a Private Endpoint |
+
+### Step 1 - Choose a connectivity tier
+
+Each Private Endpoint has a connectivity tier, which determines its bandwidth:
+
+| Tier | Bandwidth | Recommended for |
+|---|---|---|
+| `start` | 500 Mbps | Workloads with moderate throughput (default tier) |
+| `pro` | 2 Gbps | Workloads with higher throughput |
+| `business` | 4 Gbps | Heavy data transfers: backups, analytics, machine learning pipelines |
+
+These tiers match the Start, Pro and Business plans of Object Storage. The bandwidth values apply to the Beta and may change.
+
+To check which services and tiers are available in each region, use the following call:
+
+```bash
+GET /v2/publicCloud/project/{projectId}/reference/privateEndpoint/serviceAvailability
+```
+
+To display Object Storage only, add `/s3` at the end of the route.
+
+### Step 2 - Create the Private Endpoint
+
+Use the following call:
+
+```bash
+POST /v2/publicCloud/project/{projectId}/privateEndpoint
+```
+
+with a request body similar to this one:
+
+```json
+{
+  "targetSpec": {
+    "name": "my-s3-endpoint",
+    "description": "Private S3 access for the backup subnet",
+    "location": { "region": "GRA11" },
+    "service": {
+      "name": "s3",
+      "connectivityName": "business"
+    },
+    "network": { "id": "<network_id>" },
+    "subnet": { "id": "<subnet_id>" },
+    "publicDnsEnabled": false
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `name`, `description` | A name and an optional description for your Private Endpoint. |
+| `location.region` | The region of your Private Network. |
+| `service.name` | The service to reach. Only `s3` is available. |
+| `service.connectivityName` | The connectivity tier: `start`, `pro` or `business` (see Step 1). |
+| `network.id`, `subnet.id` | The IDs of the Private Network and subnet in which to place the Private Endpoint. Both are required. |
+| `publicDnsEnabled` | Whether the Private Endpoint hostname is published in public DNS (see Step 3). |
+| `vipAddress` | Optional. A private IP address of your choice in the subnet. If you leave it out, an address is assigned automatically. |
+
+The Private Endpoint is created in the background: its `resourceStatus` is first `CREATING`. To follow its progress, retrieve its details:
+
+```bash
+GET /v2/publicCloud/project/{projectId}/privateEndpoint/{privateEndpointId}
+```
+
+The Private Endpoint is ready when `resourceStatus` is `READY` and `currentTasks` is empty. Write down its ID, its IP address and its hostname: you will need them in the next steps.
+
+### Step 3 - Set up name resolution
+
+The standard public endpoint of Object Storage (`s3.{region}.io.cloud.ovh.net`) is **not** automatically redirected to your Private Endpoint. Your applications must explicitly use the Private Endpoint hostname, for example `pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net`.
+
+Choose how this hostname is resolved, depending on your instances:
+
+- **Your instances can use a public DNS resolver:** set `publicDnsEnabled` to `true` when creating the Private Endpoint. OVHcloud publishes and manages the DNS record for you, and there is nothing else to configure. The record points to a private IP address, which can only be reached from your Private Network.
+- **Your instances cannot use a public DNS resolver, or you do not want the record to be public:** set `publicDnsEnabled` to `false` and manage resolution yourself, for example in a private DNS zone. Point the following names to the IP address of the Private Endpoint:
+    - `pe-{id}.s3.{region}.endpoint.cloud.ovh.net`;
+    - `*.pe-{id}.s3.{region}.endpoint.cloud.ovh.net`, which covers URLs that include the bucket name.
+
+### Step 4 - Connect your S3 client to the Private Endpoint
+
+Once the Private Endpoint is `READY`, replace the Object Storage endpoint in your S3 client with the Private Endpoint hostname. In the examples below, replace `pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net` with your own hostname.
+
+<Tabs>
+<Tab label="AWS CLI">
+
+```bash
+aws --endpoint-url https://pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net s3 ls
+aws --endpoint-url https://pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net s3 cp /data/myfile.txt s3://<bucket_name>
+```
+
+To avoid adding `--endpoint-url` to each command, you can save the endpoint in a profile of the `~/.aws/config` file:
+
+```ini
+[profile private-endpoint]
+region = gra
+endpoint_url = https://pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net
+```
+
+</Tab>
+<Tab label="boto3 (Python)">
+
+```python
+import boto3
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url="https://pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net",
+    aws_access_key_id="<access_key>",
+    aws_secret_access_key="<secret_key>",
+    region_name="gra",
+)
+s3.list_buckets()
+```
+
+</Tab>
+<Tab label="s3cmd">
+
+In the `~/.s3cfg` file:
+
+```ini
+host_base = pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net
+host_bucket = pe-a1b2c3d4.s3.gra.endpoint.cloud.ovh.net
+```
+
+</Tab>
+</Tabs>
+
+You can keep using the access key and secret key of your existing Object Storage user.
+
+### Step 5 - Allow access to your buckets only through the Private Endpoint
+
+Creating a Private Endpoint gives your instances a private path to Object Storage, but it does **not** block access from the public endpoint. To make the Private Endpoint the only way to reach your data, add a restriction to the policy of your Object Storage user.
+
+The following statement denies every request that does not go through your Private Endpoint. Replace `<private_endpoint_id>` with the ID of your Private Endpoint:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyUnlessViaPrivateEndpoint",
+      "Effect": "Deny",
+      "Action": "s3:*",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:SourceVpce": "<private_endpoint_id>"
+        }
+      }
+    }
+  ]
+}
+```
+
+If your user already has a policy, add this statement to its existing `Statement` list rather than replacing it.
+
+To apply the policy, save it in a `policy.json` file, then use one of the following methods.
+
+**With the AWS CLI:**
+
+Use the `put-user-policy` command, adding the `--endpoint-url` option so that the request is sent to OVHcloud Object Storage rather than to AWS:
+
+```bash
+aws iam put-user-policy \
+  --endpoint-url https://s3.<region>.io.cloud.ovh.net \
+  --user-name <user_name> \
+  --policy-name private-endpoint-only \
+  --policy-document file://policy.json
+```
+
+| Parameter | Description |
+|---|---|
+| `--endpoint-url` | Your Object Storage endpoint, for example `https://s3.gra.io.cloud.ovh.net`. |
+| `--user-name` | The name of the Object Storage user to restrict. |
+| `--policy-name` | A name of your choice for this policy. |
+| `--policy-document` | The path to your JSON file, preceded by `file://`. |
+
+**From the OVHcloud Control Panel:**
+
+Import the JSON file as described in our guide on [identity and access management](/guides/storage-and-backup/object-storage/s3-identity-and-access-management#advanced-resource-access-management).
+
+**With the OVHcloud API:**
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/user/\{userId\}/policy"} />
+
+:::warning
+Once this policy is applied, the user can no longer access Object Storage through the public endpoint, from anywhere. Before applying it to a production user, test it on a dedicated user and check that your applications reach Object Storage through the Private Endpoint.
+:::
+
+### Step 6 (optional) - Reach the Private Endpoint from several subnets
+
+A Private Endpoint is placed in a single subnet. If instances in other subnets of the same Private Network also need private access to Object Storage, you have two options:
+
+- **Create one Private Endpoint per subnet.** This is the simplest option and requires no routing, but each Private Endpoint is billed according to its connectivity tier.
+- **Use a single Private Endpoint and a router.** Place the Private Endpoint in one subnet, and route traffic from the other subnets through a router instance connected to these subnets. A single Private Endpoint serves all your subnets, but you have to manage the router yourself.
+
+<img className="thumbnail" alt="Single Private Endpoint in Subnet A, reached from Subnet B through a router" src="/images/storage-and-backup/object-storage/s3-private-endpoint/private-endpoint-multiple-subnets.png" loading="lazy" />
+
+Instances in Subnet A reach the Private Endpoint directly. Instances in Subnet B reach it through the router that connects the two subnets.
+
+### Manage your Private Endpoints
+
+**List the Private Endpoints of a project:**
+
+```bash
+GET /v2/publicCloud/project/{projectId}/privateEndpoint
+```
+
+**Rename a Private Endpoint or change its description:**
+
+Only the name and description can be changed. First retrieve the details of the Private Endpoint with a `GET` call and write down the value of its `checksum` field. Then send this value back with your changes:
+
+```bash
+PUT /v2/publicCloud/project/{projectId}/privateEndpoint/{privateEndpointId}
+```
+
+```json
+{
+  "checksum": "<checksum>",
+  "targetSpec": {
+    "name": "my-s3-endpoint-renamed",
+    "description": "Updated description"
+  }
+}
+```
+
+The `checksum` ensures that nobody has modified the Private Endpoint in the meantime. If it has been modified, the request is rejected with a `409 Conflict` error: retrieve the details again and repeat the request with the new `checksum`.
+
+**Delete a Private Endpoint:**
+
+```bash
+DELETE /v2/publicCloud/project/{projectId}/privateEndpoint/{privateEndpointId}
+```
+
+The deletion takes place in the background: `resourceStatus` is `DELETING` until the operation is complete.
+
+:::warning
+If your Object Storage user policy only allows access through this Private Endpoint (see Step 5), update the policy before deleting the Private Endpoint. Otherwise, the user will no longer be able to access your buckets.
+:::
+
+### Coming soon
+
+The following features are planned after the Beta:
+
+- managing Private Endpoints from the OVHcloud Control Panel;
+- restricting access by source IP address within the Private Network, in addition to the Private Endpoint;
+- restricting access with bucket policies and with [OVHcloud IAM](/guides/account-and-service-management/account-information/iam-policies-api) policies.
+
+## Go further
+
+[Object Storage - Identity and access management](/guides/storage-and-backup/object-storage/s3-identity-and-access-management)
+
+[Object Storage - How to connect Object Storage buckets with other resources in a vRack](/guides/storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network)
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).
+
+<sup>1</sup>: S3 is a trademark of Amazon Technologies, Inc. OVHcloud's service is not sponsored by, endorsed by, or otherwise affiliated with Amazon Technologies, Inc.
