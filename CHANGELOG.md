@@ -10,7 +10,7 @@
 - **docs:** Add nav tokens to leftover pages (#912)
 
 ### Documentation
-- 257 guides updated across de, en, es, fr, it, pl, pt
+- 856 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.10.01.1
 
