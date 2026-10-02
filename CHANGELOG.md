@@ -3,10 +3,14 @@
 ## 2026.10.02
 
 ### Fixes
+- **docs:** repoint dead anchors of the Public Cloud prices page (#914)
 - improve llms.txt generation
 
+### Maintenance
+- **docs:** Add nav tokens to leftover pages (#912)
+
 ### Documentation
-- 7 guides updated across de, en, es, fr, it, pl, pt
+- 243 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.10.01.1
 
