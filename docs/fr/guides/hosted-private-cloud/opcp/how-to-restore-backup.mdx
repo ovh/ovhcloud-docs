@@ -23,7 +23,7 @@ Cette procédure peut prendre beaucoup de temps. Attendez-vous à passer la maje
 :::
 
 :::info
-Il est très utile d'exécuter les commandes dans une session `screen` ou `tmux`, afin de pouvoir suivre les logs ou corriger des problèmes dans une autre fenêtre. Si aucun des deux n'est installé sur le contrôleur, installez-en un en exécutant `apt install -y screen` ou `apt install -y tmux`. Assurez-vous également de savoir utiliser ces outils.
+Il est très utile d'exécuter les commandes dans une session `screen` ou `tmux`, afin de pouvoir suivre les logs ou corriger des problèmes dans une autre fenêtre. Les deux sont installés sur le contrôleur. Assurez-vous de savoir utiliser ces outils.
 :::
 
 ## Prérequis
@@ -35,30 +35,15 @@ Plusieurs prérequis doivent être remplis avant de commencer la restauration à
 - Les parts de descellement (*unseal shares*) du KMS, qui ne figurent pas dans la sauvegarde elle-même car elles sont considérées comme des données très sensibles.
 - Un accès aux buckets S3[^1] dans lesquels sont stockées les sauvegardes des bases de données.
 
-### Récupérer les identifiants des sauvegardes
-
-Vous avez besoin d'un identifiant de sauvegarde pour les ressources `tfstate`, `pvs` et `kms`. Récupérez vos dernières sauvegardes en exécutant :
-
-```bash
-BACKUP_FILE="backups_velero_$(date +%s).json"
-BACKUP_NAMES=("tfstate-backup" "pvs-backup" "kms-autounsealer-shares-backup")
-velero backup get -o json > "${BACKUP_FILE}"
-for BACKUP_NAME in "${!BACKUP_NAMES[@]}"; do
-  echo "${BACKUP_NAME}:"
-  jq -r < "${BACKUP_FILE}" "[ .items[] | select(.metadata.labels.\"velero.io/schedule-name\" == \"${BACKUP_NAMES[$BACKUP_NAME]}\") | {name: .metadata.name, ts: .metadata.creationTimestamp|strptime(\"%Y-%m-%dT%H:%M:%SZ\")|mktime}]|sort_by(.ts)|reverse[0]|.name"
-  echo "\n"
-done
-```
-
-:::info
-OPCP doit encore être en fonctionnement lorsque vous récupérez la dernière sauvegarde.
-:::
-
 ### Préparer l'accès S3[^1]
 
 Assurez-vous d'avoir accès aux buckets S3[^1] contenant les données de sauvegarde.
 
 La première étape consiste à obtenir des identifiants disposant de droits complets en lecture, écriture et suppression sur le bucket S3[^1] contenant les sauvegardes des bases de données.
+
+:::danger
+Soyez prudent avec ces identifiants : ils permettent de supprimer entièrement vos sauvegardes.
+:::
 
 [`s3cmd`](https://s3tools.org/s3cmd) doit être installé et configuré sur votre poste de travail :
 
@@ -115,7 +100,46 @@ Les valeurs de `stage` et `env` se trouvent également dans la configuration d'O
 Assurez-vous d'avoir sauvegardé les parts de descellement du KMS en lieu sûr. Sinon, vous ne pourrez pas effectuer la restauration.
 :::
 
+### Récupérer les identifiants des sauvegardes
+
+Vous avez besoin d'un identifiant de sauvegarde pour les ressources `tfstate`, `pvs` et `kms`. Vous pouvez les récupérer de deux manières.
+
+#### Sur un OPCP en fonctionnement
+
+Récupérez vos dernières sauvegardes en exécutant :
+
+```bash
+BACKUP_FILE="backups_velero_$(date +%s).json"
+BACKUP_NAMES=("tfstate-backup" "pvs-backup" "kms-autounsealer-shares-backup")
+velero backup get -o json > "${BACKUP_FILE}"
+for BACKUP_NAME in "${!BACKUP_NAMES[@]}"; do
+  echo "${BACKUP_NAME}:"
+  jq -r < "${BACKUP_FILE}" "[ .items[] | select(.metadata.labels.\"velero.io/schedule-name\" == \"${BACKUP_NAMES[$BACKUP_NAME]}\") | {name: .metadata.name, ts: .metadata.creationTimestamp|strptime(\"%Y-%m-%dT%H:%M:%SZ\")|mktime}]|sort_by(.ts)|reverse[0]|.name"
+  echo "\n"
+done
+```
+
+#### Depuis le bucket S3
+
+Comme vous avez déjà préparé votre [accès S3](#préparer-laccès-s3), vous pouvez maintenant exécuter :
+
+```bash
+s3cmd ls s3://<your-pv-bucket-name>/backups/ # remplacez <your-pv-bucket-name> par le nom de votre bucket
+```
+
+Vous obtenez la liste de toutes les sauvegardes disponibles. Le suffixe numérique correspond à la date et à l'heure de création de la sauvegarde. Le résultat est similaire à ceci :
+
+```
+                          DIR  s3://opcp-pv-dev-opcp-test/backups/kms-autounsealer-shares-backup-20261002080019/
+                          DIR  s3://opcp-pv-dev-opcp-test/backups/pvs-backup-20261002080019/
+                          DIR  s3://opcp-pv-dev-opcp-test/backups/tfstate-backup-20261002080019/
+```
+
 ## En pratique
+
+:::info
+Ignorez la première étape si vous effectuez la restauration sur une nouvelle installation d'OPCP. Dans ce cas, il vous suffit d'ignorer la partie `opcp-cli deploy` de l'installation.
+:::
 
 La première étape consiste à [réinitialiser OPCP](how-to-reset-opcp), à l'exception de la dernière étape, le [redéploiement d'OPCP](how-to-reset-opcp#redéployer-le-contrôleur). Ignorez-la pour l'instant : elle est traitée plus loin dans ce guide, dans le cadre de la restauration.
 
