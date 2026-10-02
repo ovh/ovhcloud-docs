@@ -38,7 +38,7 @@ function parseApiLine(raw) {
   let route;
   if (tokens.length === 2) {
     [method, route] = tokens;
-    section = '/' + route.replace(/^\//, '').split('/')[0];
+    section = `/${route.replace(/^\//, '').split('/')[0]}`;
   } else if (tokens.length === 3) {
     [section, method, route] = tokens;
   } else {
@@ -123,7 +123,7 @@ for (const file of files) {
       const idx = firstImport ? after.indexOf(firstImport[0]) : 0;
       final = before + after.slice(0, idx) + importLine + after.slice(idx);
     } else {
-      final = before + '\n' + importLine + after;
+      final = `${before}\n${importLine}${after}`;
     }
   }
   if (changed) {
@@ -136,5 +136,5 @@ console.log(`Files changed: ${filesChanged}`);
 console.log(`Blocks converted: ${blocksConverted}`);
 if (skipped.length) {
   console.log(`\nSkipped (${skipped.length}):`);
-  for (const s of skipped) console.log('  ' + s);
+  for (const s of skipped) console.log(`  ${s}`);
 }

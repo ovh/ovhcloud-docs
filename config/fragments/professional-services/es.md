@@ -1,0 +1,1 @@
+Para recibir formación o asistencia técnica en la implementación de nuestras soluciones, póngase en contacto con su representante comercial o consulte la página [Professional Services](/links/professional-services) para solicitar un presupuesto y que nuestros expertos analicen su proyecto.

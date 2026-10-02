@@ -1,15 +1,23 @@
+import { AnalyticsBootstrap } from '@components/Analytics';
 import { RegionProvider } from '@components/Api/RegionContext';
+import {
+  ZoneBanner,
+  ZoneNotice,
+  ZoneProvider,
+  ZoneSwitcher,
+} from '@components/Zone';
 import { useDark, useFrontmatter } from '@rspress/core/runtime';
 import {
   Layout as BasicLayout,
   DocLayout as OriginalDocLayout,
+  HomeLayout as OriginalHomeLayout,
 } from '@rspress/core/theme-original';
 import type React from 'react';
 import { lazy, Suspense, useEffect } from 'react';
-import { AnalyticsBootstrap } from '@components/Analytics';
 import { AIChatbotDrawerProvider } from 'theme/components/AIChatbotDrawer/context';
 import Breadcrumbs from 'theme/components/Breadcrumbs/Breadcrumbs.tsx';
 import { EditLink } from 'theme/components/EditLink';
+import { FallbackHeading } from 'theme/components/FallbackHeading';
 import { LlmsViewOptions } from 'theme/components/LlmsViewOptions';
 import { Nav } from 'theme/components/Nav';
 import { PageFeedback } from 'theme/components/PageFeedback';
@@ -28,8 +36,11 @@ const LazySurveyWidget = lazy(() =>
     default: m.SurveyWidget,
   })),
 );
+
+import { ELearningCourseLayout } from 'theme/layouts/ELearningCourseLayout';
 import { ELearningLayout } from 'theme/layouts/ELearningLayout';
-import { HomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
+import { HomeLayout as CustomHomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
+import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
 
@@ -41,14 +52,33 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
   const showOutline = fm?.outline !== false;
   const showSidebar = fm?.sidebar !== false;
 
+  // `.md` export (llms.txt etc.): the original DocLayout renders only the page
+  // content in that mode. Our custom layouts below don't, so routing to them
+  // serialised the whole nav + sidebar (~290 KB) into every landing, overview,
+  // e-learning and migration page's `.md`.
+  if (process.env.__SSR_MD__) {
+    return <OriginalDocLayout {...props} />;
+  }
+
   // If pageType is 'overview', use our custom OverviewLayout
   if (pageType === 'overview') {
     return <OverviewLayout {...props} />;
   }
 
+  // If pageType is 'landing', use our custom LandingLayout (product/category
+  // landing pages: single H1, banner opt-in, overview-style footer, no outline)
+  if (pageType === 'landing') {
+    return <LandingLayout {...props} />;
+  }
+
   // If pageType is 'elearning', use our custom ELearningLayout
   if (pageType === 'elearning') {
     return <ELearningLayout {...props} />;
+  }
+
+  // If pageType is 'elearning-course', use our tab-less two-column course layout
+  if (pageType === 'elearning-course') {
+    return <ELearningCourseLayout {...props} />;
   }
 
   // If pageType is 'migration', use our custom MigrationLayout
@@ -65,6 +95,15 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
     </div>
   );
 };
+
+// Same `.md` export issue as DocLayout: the original HomeLayout has a markdown
+// branch (hero + features), ours would serialise the nav and sidebar.
+const HomeLayout = (props: React.ComponentProps<typeof CustomHomeLayout>) =>
+  process.env.__SSR_MD__ ? (
+    <OriginalHomeLayout {...props} />
+  ) : (
+    <CustomHomeLayout {...props} />
+  );
 
 const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
   const isDark = useDark();
@@ -87,23 +126,37 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
 
   // Pass DocLayout explicitly to BasicLayout so it uses our custom one
   return (
-    <RegionProvider>
-      <AIChatbotDrawerProvider>
-        <AnalyticsBootstrap />
-        <SEOHead />
-        <BasicLayout
-          {...props}
-          beforeDocContent={<Breadcrumbs />}
-          beforeDocFooter={<PageFeedback />}
-        />
-        <Suspense fallback={null}>
-          <LazyAIChatbotDrawer />
-        </Suspense>
-        <Suspense fallback={null}>
-          <LazySurveyWidget />
-        </Suspense>
-      </AIChatbotDrawerProvider>
-    </RegionProvider>
+    <ZoneProvider>
+      <RegionProvider>
+        <AIChatbotDrawerProvider>
+          <AnalyticsBootstrap />
+          <SEOHead />
+          <BasicLayout
+            {...props}
+            beforeDocContent={
+              <>
+                {/* ZoneBanner sits at the top of the document column so it
+                    falls naturally below whatever topbar the OVHcloud chrome
+                    renders above the docs theme. Mounting it here (rather
+                    than as a sticky top-level node) avoids the banner
+                    visually covering the topbar at page load. */}
+                <ZoneBanner />
+                <ZoneNotice />
+                <Breadcrumbs />
+              </>
+            }
+            beforeDocFooter={<PageFeedback />}
+          />
+          <Suspense fallback={null}>
+            <LazyAIChatbotDrawer />
+          </Suspense>
+          <Suspense fallback={null}>
+            <LazySurveyWidget />
+          </Suspense>
+          <ZoneSwitcher />
+        </AIChatbotDrawerProvider>
+      </RegionProvider>
+    </ZoneProvider>
   );
 };
 
@@ -111,14 +164,23 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
 export * from '@rspress/core/theme-original';
 
 // Then override with custom components (must come AFTER wildcard export)
+const LlmsCopyButton = () => null;
+
 export { LastUpdated } from 'theme/components/LastUpdated';
 export { NavHamburger } from 'theme/components/NavHamburger';
+// Restore v1-style Tabs sync: derive a groupId from tab labels so selection
+// persists across blocks and navigation (Rspress v2 only syncs with a groupId).
+export { Tab, Tabs } from 'theme/components/SyncedTabs';
 export {
   DocLayout,
   EditLink,
+  ELearningCourseLayout,
   ELearningLayout,
+  FallbackHeading,
   HomeLayout,
+  LandingLayout,
   Layout,
+  LlmsCopyButton,
   LlmsViewOptions,
   MigrationLayout,
   Nav,

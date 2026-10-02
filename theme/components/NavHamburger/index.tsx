@@ -6,10 +6,10 @@ import {
 } from '@rspress/core/theme';
 import '@rspress/core/dist/theme/components/NavHamburger/index.css';
 import { useNavScreen } from '@rspress/core/dist/theme/components/NavHamburger/useNavScreen.js';
+import { NavScreenAppearance } from '@rspress/core/dist/theme/components/NavScreen/NavScreenAppearance.js';
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
 import { NavVersions } from 'theme/components/Nav/NavMenu';
-import { NavScreenAppearance } from '@rspress/core/dist/theme/components/NavScreen/NavScreenAppearance.js';
 import { NavScreen, NavScreenDivider } from './NavScreen';
 import { NavScreenLangs } from './NavScreenLangs';
 
@@ -40,10 +40,7 @@ export function NavHamburger() {
     <>
       {isScreenOpen &&
         createPortal(
-          <NavScreen
-            isScreenOpen={isScreenOpen}
-            toggleScreen={toggleScreen}
-          />,
+          <NavScreen isScreenOpen={isScreenOpen} toggleScreen={toggleScreen} />,
           document.getElementById('__rspress_modal_container') as HTMLElement,
         )}
       <button

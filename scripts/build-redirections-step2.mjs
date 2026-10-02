@@ -19,24 +19,57 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const csmMap = JSON.parse(readFileSync('/tmp/csm-slug-to-redirect.json', 'utf8'));
-const legacyContent = readFileSync('redirections/prod-redirections_docs.map', 'utf8');
+const csmMap = JSON.parse(
+  readFileSync('/tmp/csm-slug-to-redirect.json', 'utf8'),
+);
+const legacyContent = readFileSync(
+  'redirections/prod-redirections_docs.map',
+  'utf8',
+);
 
 const DOCS_HOST = 'https://docs.ovhcloud.com';
 
 // Source region/lang → our locale
 const REGION_TO_LOCALE = {
-  asia: 'en', au: 'en', gb: 'en', ie: 'en', in: 'en', sg: 'en',
-  us: 'en', ca: 'en', nl: 'en', ma: 'en', sn: 'en', tn: 'en',
-  fr: 'fr', de: 'de', es: 'es', it: 'it', pl: 'pl', pt: 'pt',
+  asia: 'en',
+  au: 'en',
+  gb: 'en',
+  ie: 'en',
+  in: 'en',
+  sg: 'en',
+  us: 'en',
+  ca: 'en',
+  nl: 'en',
+  ma: 'en',
+  sn: 'en',
+  tn: 'en',
+  fr: 'fr',
+  de: 'de',
+  es: 'es',
+  it: 'it',
+  pl: 'pl',
+  pt: 'pt',
 };
 const OUR_LOCALES = new Set(['fr', 'en', 'de', 'es', 'it', 'pl', 'pt']);
-const MULTI_LANG_REGIONS = new Set(['asia', 'au', 'ca', 'gb', 'ie', 'in', 'sg', 'us']);
+const MULTI_LANG_REGIONS = new Set([
+  'asia',
+  'au',
+  'ca',
+  'gb',
+  'ie',
+  'in',
+  'sg',
+  'us',
+]);
 
 function srcLocale(source) {
   const parts = source.split('/').filter(Boolean);
   const region = parts[0];
-  if (MULTI_LANG_REGIONS.has(region) && parts[1] && /^[a-z]{2}$/.test(parts[1])) {
+  if (
+    MULTI_LANG_REGIONS.has(region) &&
+    parts[1] &&
+    /^[a-z]{2}$/.test(parts[1])
+  ) {
     if (OUR_LOCALES.has(parts[1])) return parts[1];
   }
   return REGION_TO_LOCALE[region] || 'en';
@@ -52,17 +85,20 @@ const out = [];
 const stats = {
   parsed: 0,
   parseFails: 0,
-  nonDocPaths: 0,           // /display, /pages, /bootstrap, /plugins
-  csmDestMissing: 0,        // dest is not a help.ovhcloud.com/csm URL
-  csmKeyInMapWithPath: 0,   // → specific page
+  nonDocPaths: 0, // /display, /pages, /bootstrap, /plugins
+  csmDestMissing: 0, // dest is not a help.ovhcloud.com/csm URL
+  csmKeyInMapWithPath: 0, // → specific page
   csmKeyInMapHomeFallback: 0, // basePath was missing → home
-  csmKeyNotInMap: 0,        // → home fallback (per user policy)
+  csmKeyNotInMap: 0, // → home fallback (per user policy)
 };
 
 for (const rawLine of legacyContent.split('\n')) {
   if (!rawLine.trim() || rawLine.startsWith('#')) continue;
   const m = rawLine.match(/^~\^([^ ]+)\$\s+(\S+);?$/);
-  if (!m) { stats.parseFails++; continue; }
+  if (!m) {
+    stats.parseFails++;
+    continue;
+  }
   stats.parsed++;
   const source = m[1].replace(/\/$/, '');
   const dest = m[2].replace(/;$/, '');
@@ -110,7 +146,9 @@ console.log(`Non-doc paths (display/...) skip: ${stats.nonDocPaths}`);
 console.log(`Dest not CSM (skip):             ${stats.csmDestMissing}`);
 console.log(`Parsed:                          ${stats.parsed}`);
 console.log(`  → specific page:               ${stats.csmKeyInMapWithPath}`);
-console.log(`  → home (basePath unmapped):    ${stats.csmKeyInMapHomeFallback}`);
+console.log(
+  `  → home (basePath unmapped):    ${stats.csmKeyInMapHomeFallback}`,
+);
 console.log(`  → home (CSM not in CSV):       ${stats.csmKeyNotInMap}`);
 console.log(`\nTotal redirects to emit:        ${out.length}`);
 

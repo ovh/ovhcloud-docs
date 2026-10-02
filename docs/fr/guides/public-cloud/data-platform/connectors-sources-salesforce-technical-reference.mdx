@@ -1,0 +1,202 @@
+---
+title: "Salesforce : référence technique"
+description: Ceci est le complément technique de la documentation principale du connecteur Salesforce
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Ceci est le complément technique de la documentation principale du [connecteur Salesforce](/guides/public-cloud/data-platform/connectors-sources-salesforce). Il couvre les internes de l'authentification, le comportement des endpoints, la pagination, les limites de débit et le format de sortie, tout ce qui est nécessaire pour intégrer le connecteur dans un pipeline de données.
+
+## 1. Authentification : flux OAuth 2.0 Client Credentials
+
+### Flux
+
+Le connecteur échange trois identifiants contre un access token de courte durée au début de chaque exécution :
+
+```yaml
+POST <instance_url>/services/oauth2/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id=<Consumer Key>
+&client_secret=<Consumer Secret>
+```
+
+Salesforce répond avec un `access_token`, l'`instance_url` canonique, et `token_type: Bearer`. Le connecteur utilise ensuite `Authorization: Bearer <token>` sur chaque requête suivante.
+
+### Les tokens ne sont pas rafraîchis
+
+Le Client Credentials Flow n'émet pas de refresh tokens. Le connecteur demande un nouveau token à chaque exécution d'extraction, ce qui reste dans la durée de vie (TTL) par défaut des access tokens Salesforce (environ 2 heures, consultez la documentation officielle pour la valeur configurée sur votre org).
+
+### Résolution de l'Instance URL
+
+Quelle que soit l'URL d'instance que vous saisissez dans la configuration du connecteur, la réponse du token renvoie l'URL canonique de votre org. Le connecteur utilise la valeur de la réponse pour tous les appels REST, vous pouvez donc fournir `https://mycompany.my.salesforce.com` ou `https://mycompany.develop.my.salesforce.com` sans problème.
+
+### Scope OAuth requis
+
+Au minimum : `Manage user data via APIs (api)`. Aucun autre scope n'est requis pour l'extraction de données. Consultez la documentation officielle [OAuth Tokens and Scopes](https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_tokens_scopes.htm).
+
+## 2. Architecture
+
+- **Schéma semi-structuré.** Chaque endpoint renvoie du JSON brut (liste de dictionnaires). La platform aplatit les champs imbriqués (notation par points) et déduit le schéma automatiquement. Vous ne déclarez de colonnes nulle part.
+- **Conception hybride par endpoint.** Les endpoints de données (`sobject_records`, `soql_query`, `sosl_search`) passent par un helper de pagination SOQL partagé. Les endpoints de métadonnées (`sobjects_list`, `sobject_describe`, `reports_list`, `limits`) appellent chacun leur ressource REST dédiée.
+- **Describe puis query pour les champs par défaut.** Lorsque `sobject_records` est utilisé sans `fields_filter`, le connecteur récupère d'abord le describe du sObject pour collecter tous les noms de champs interrogeables, puis construit un `SELECT` SOQL les listant explicitement. SOQL Salesforce n'a pas de `SELECT *` : les champs explicites sont toujours requis.
+- **Normalisation des entrées.** Les entrées SOQL/SOSL sont débarrassées des espaces en début/fin et de tout `;` final (Salesforce n'utilise pas de terminateurs d'instruction). Le champ `where_clause` accepte une entrée avec ou sans mot-clé `WHERE` en tête. Le connecteur le retire s'il est présent avant d'ajouter le sien.
+
+## 3. Référence des endpoints
+
+Tous les endpoints de données renvoient une liste d'objets JSON. Chaque objet issu de `/query` inclut un sous-dictionnaire `attributes` (`{"type": "<sObject>", "url": "/services/data/v60.0/sobjects/<sObject>/<Id>"}`) en plus des champs demandés.
+
+### sobject_records
+
+Extrait des enregistrements depuis un sObject standard ou personnalisé via SOQL.
+
+| Paramètre | Type | Requis | Description |
+|---|---|---|---|
+| `sobject_name` | text | oui | Nom API du sObject (par ex. `Account`, `Contact`, `MyObject__c`) |
+| `fields_filter` | tags | non | Liste explicite des noms API de champs. Vide → tous les champs interrogeables, découverts via describe |
+| `where_clause` | textarea | non | Expression SOQL WHERE, sans le mot-clé `WHERE` (optionnel, le `WHERE` en tête est retiré) |
+| `max_items` | number | non | Plafond strict sur les enregistrements renvoyés |
+
+- **Appel API** : `GET /services/data/v60.0/query?q=SELECT <fields> FROM <sobject_name> [WHERE <where_clause>]`
+- **Pagination** : `nextRecordsUrl` SOQL (basée sur un curseur, voir section 4)
+- **Sortie** : enregistrements bruts de la réponse SOQL.
+
+### soql_query
+
+SOQL libre pour les cas d'usage avancés (sous-requêtes, agrégats, jointures).
+
+| Paramètre | Type | Requis | Description |
+|---|---|---|---|
+| `soql` | textarea | oui | Instruction SOQL. Multi-ligne prise en charge |
+| `max_items` | number | non | Plafond strict sur les enregistrements renvoyés |
+
+- **Appel API** : `GET /services/data/v60.0/query?q=<soql>`
+- **Pagination** : `nextRecordsUrl` SOQL
+- **Sortie** : enregistrements bruts de la réponse SOQL. La structure dépend de la requête.
+
+### sosl_search
+
+Salesforce Object Search Language : recherche en texte intégral sur plusieurs sObjects.
+
+| Paramètre | Type | Requis | Description |
+|---|---|---|---|
+| `sosl` | textarea | oui | Instruction SOSL (par ex. `FIND {Acme} IN NAME FIELDS RETURNING Account(Id, Name)`) |
+| `max_items` | number | non | Plafond strict sur les enregistrements renvoyés |
+
+- **Appel API** : `GET /services/data/v60.0/search?q=<sosl>`
+- **Pagination** : page unique. SOSL renvoie un ensemble de résultats borné, généralement plafonné côté serveur à 2000 enregistrements.
+- **Sortie** : chaque enregistrement dans `searchRecords` inclut le champ `attributes.type` identifiant son sObject.
+
+### sobjects_list
+
+Le catalogue complet des sObjects disponibles pour l'utilisateur Run As.
+
+| Paramètre | Type | Requis | Description |
+|---|---|---|---|
+| `max_items` | number | non | Plafond strict sur les enregistrements renvoyés |
+
+- **Appel API** : `GET /services/data/v60.0/sobjects`
+- **Pagination** : page unique.
+- **Sortie** : un enregistrement par sObject avec ses métadonnées (`name`, `label`, `custom`, `queryable`, `createable`, etc.).
+
+### sobject_describe
+
+Schéma complet (champs, types, relations, valeurs de picklist) pour un sObject.
+
+| Paramètre | Type | Requis | Description |
+|---|---|---|---|
+| `sobject_name` | text | oui | Nom API du sObject |
+
+- **Appel API** : `GET /services/data/v60.0/sobjects/<name>/describe`
+- **Pagination** : un seul enregistrement renvoyé (table à une ligne).
+- **Sortie** : l'objet describe complet de Salesforce, profondément imbriqué, inclut `fields`, `childRelationships`, etc. La platform l'aplatit en colonnes en notation par points.
+
+### reports_list
+
+Liste des rapports stockés dans votre org.
+
+| Paramètre | Type | Requis | Description |
+|---|---|---|---|
+| `max_items` | number | non | Plafond strict sur les enregistrements renvoyés |
+
+- **Appel API** : `GET /services/data/v60.0/analytics/reports`
+- **Pagination** : page unique. Renvoie au maximum les quelques centaines de premiers rapports.
+- **Sortie** : un enregistrement par rapport (`Id`, `Name`, `DeveloperName`, `FolderName`, etc.). Les rapports eux-mêmes ne sont **pas exécutés**.
+
+### limits
+
+Utilisation de l'API et quotas au niveau de l'org.
+
+- **Appel API** : `GET /services/data/v60.0/limits`
+- **Pagination** : page unique (le payload est un seul objet JSON décrivant des dizaines de limites).
+- **Sortie** : le connecteur restructure la réponse en une liste d'enregistrements, un par limite nommée, avec les clés d'origine (`Max`, `Remaining`) préservées.
+
+## 4. Pagination
+
+Les endpoints basés sur SOQL (`sobject_records`, `soql_query`) utilisent la pagination par curseur de Salesforce :
+
+- La première réponse inclut `totalSize`, `done: false`, `records`, et `nextRecordsUrl` (un chemin comme `/services/data/v60.0/query/01g...-2000`).
+- Le connecteur suit `nextRecordsUrl` jusqu'à `done: true` ou jusqu'à atteindre `max_items`.
+- La taille de page par défaut est de 2000 enregistrements (valeur par défaut côté serveur).
+
+Les endpoints non-SOQL (`sosl_search`, `sobjects_list`, `sobject_describe`, `reports_list`, `limits`) ne paginent pas dans cette version.
+
+## 5. Limites de débit et gestion des erreurs
+
+### Limites Salesforce
+
+- **Requêtes API quotidiennes** : quota souple à l'échelle de l'org, variable selon l'édition (par ex. 100 000/jour sur Enterprise de base, plus élevé sur Unlimited, généreux sur Developer Edition). Consultez l'endpoint `limits` pour la valeur exacte actuelle sur votre org.
+- **Appels simultanés** : 5 sur Developer Edition, 25 sur Enterprise et supérieur. Chaque requête expire après 10 minutes côté serveur.
+
+Consultez [API Request Limits and Allocations](https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_api.htm) pour les chiffres actuels.
+
+### Ce que fait le connecteur
+
+- **HTTP 429** : rare sur l'API REST Salesforce mais géré : le connecteur respecte l'en-tête `Retry-After` et relance la même requête.
+- **Autres codes HTTP 4xx** : remontés immédiatement comme un échec d'extraction avec le message d'erreur Salesforce dans les logs. Le connecteur n'intercepte pas les erreurs de permission ; si l'utilisateur Run As ne peut pas voir un champ ou un sObject, l'extraction échoue et l'erreur est visible.
+- **HTTP 5xx** : identique aux 4xx, remonté immédiatement. Les erreurs serveur transitoires nécessiteront une relance manuelle.
+
+### Codes d'erreur Salesforce courants
+
+| Code d'erreur | Signification |
+|---|---|
+| `INVALID_SESSION_ID` | Access token expiré, une relance extrait un nouveau token |
+| `MALFORMED_QUERY` | Erreur de syntaxe SOQL/SOSL, vérifiez le texte de la requête |
+| `INVALID_TYPE` | `sobject_name` n'existe pas ou n'est pas accessible |
+| `INVALID_FIELD` | Un champ listé dans `fields_filter` n'est pas visible pour l'utilisateur Run As |
+| `REQUEST_LIMIT_EXCEEDED` | Quota API quotidien atteint, attendez ou augmentez l'allocation de l'org |
+| `INSUFFICIENT_ACCESS` | L'utilisateur Run As n'a pas la permission au niveau objet/champ |
+
+## 6. Format de sortie
+
+Chaque endpoint renvoie du JSON brut. La platform effectue automatiquement :
+
+- L'aplatissement des dictionnaires imbriqués en colonnes en notation par points (par ex. `attributes.type`, `attributes.url`).
+- La déduction du schéma à partir du premier lot, en l'étendant si les lots suivants introduisent de nouveaux champs.
+- Le stockage du résultat dans le lakehouse, au sein de votre dataset, sous forme de table interrogeable.
+
+Pour `sobject_records` et `soql_query`, chaque enregistrement contient les champs que vous avez sélectionnés plus le sous-objet `attributes`. Pour les endpoints de métadonnées (`sobject_describe`, `sobjects_list`, `limits`), le payload est la réponse de l'API restructurée en un ou plusieurs enregistrements.
+
+Les noms de colonnes reflètent la casse des champs API de Salesforce (PascalCase pour les champs standards : `Id`, `Name`, `CreatedDate`. Les champs personnalisés conservent la casse que vous leur avez donnée, par ex. `MyField__c`).
+
+## 7. Limitations
+
+- **L'API REST Salesforce v60.0** est codée en dur. Les versions plus récentes (Spring '26 correspond à v66.0 au moment de la rédaction) ajoutent des fonctionnalités non exposées via des endpoints dédiés ; elles restent accessibles via `soql_query` pour tout ce qui est interrogeable.
+- **Aucune opération d'écriture** (pas de création/mise à jour/suppression).
+- **Pas de prise en charge de la Bulk API 2.0** : les requêtes REST Salesforce, bien que paginées, sont moins efficaces que Bulk pour les extractions de plusieurs millions de lignes.
+- **Pas de Streaming / Platform Events / Pub/Sub API** : connecteur batch uniquement.
+- **Les rapports sont listés, pas exécutés.** L'exécution de rapports via `/analytics/reports/<id>/executeAsync` est hors périmètre dans cette version.
+- **Les champs composés (`address`, `location`) sont exclus de la découverte de champs par défaut.** Lorsque `fields_filter` est vide, le connecteur ignore ces types car ils nécessitent des requêtes sur des sous-champs. Utilisez un `fields_filter` explicite listant les sous-champs (par ex. `BillingStreet, BillingCity, BillingCountry`) pour les extraire.
+- **`FIELDS(ALL)` SOQL non utilisé.** La syntaxe `FIELDS(ALL)` de Salesforce nécessite un `LIMIT 200` et comporte d'autres restrictions ; le connecteur privilégie l'approche describe-then-query pour sa prévisibilité à grande échelle.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

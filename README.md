@@ -7,7 +7,7 @@ Serves 7 locales (fr, en, de, es, it, pl, pt) with 9500+ MDX pages.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - pnpm
 
 ## Quick Start
@@ -35,11 +35,37 @@ DEV_LOCALES=fr,en pnpm dev       # French + English (default)
 Only active locales have their content compiled, sidebar generated, and routes registered.
 This significantly reduces SSR time on the large MDX codebase.
 
+### Scoping to a route subtree (`DEV_PATH`) — blank-page fallback
+
+If `pnpm dev` shows a **blank page on every route** (browser console: `ChunkLoadError`
+on `_rspress_virtual-page-data...`), use this as a fallback to the classic `pnpm dev`.
+
+Cause: Rspress v2 inlines the page-data (frontmatter + toc + metadata) of *every* route
+into a single virtual chunk the browser must load before any page renders. With ~1635
+routes/locale that chunk is 10MB+ and exceeds the chunk-load timeout, so nothing mounts.
+`DEV_LOCALES` alone does not fix this (one locale is still ~10MB).
+
+`DEV_PATH` restricts the scanned routes to one subtree under `docs/{locale}/guides/`,
+shrinking the chunk below the timeout:
+
+```bash
+DEV_PATH=web-cloud/web-hosting pnpm dev          # one product
+DEV_PATH=web-cloud pnpm dev                       # one universe
+DEV_PATH=web-cloud/web-hosting DEV_LOCALES=en pnpm dev   # leanest: one product, one locale
+```
+
+EN-only web-hosting drops the chunk from ~10.4MB/1635 routes to ~3.3MB/122 routes; the
+page renders and the initial build goes from ~5s to ~0.2s.
+
+- **Opt-in:** unset `DEV_PATH` keeps the original full-tree behaviour. No effect on production builds.
+- **Caveat:** only the scoped subtree exists in dev — links to guides *outside* it 404 locally
+  (they resolve normally in production). Set `DEV_PATH` to cover whatever you need to click through.
+
 ### Dev Performance Notes
 
 With 9500+ MDX files, dev SSR is ~9s per page (Rspress MDX compilation overhead).
 Optimizations applied:
-- `lastUpdated` disabled in dev (runs git log per page), enabled in production only
+- Built-in `lastUpdated` disabled in both dev and production (it runs git log per page); dates come from the frontmatter `lastUpdated`
 - Shiki `markdown` and `mdx` langs removed (they disable lazy loading)
 - Reducing DEV_LOCALES to a single locale helps with initial startup
 
@@ -60,10 +86,9 @@ pnpm build:low-mem    # Sequential builds, concurrency 1
 
 ### Build Process
 
-1. `build:cache` generates the lastUpdated cache (git log dates)
-2. Turborepo runs `build:{locale}` tasks in parallel
-3. Each locale build outputs to `dist/{locale}/`
-4. `build:combine` merges all locale builds into final `dist/`
+1. Turborepo runs `build:{locale}` tasks in parallel
+2. Each locale build outputs to `dist/{locale}/`
+3. `build:combine` merges all locale builds into final `dist/`
 
 ### Single Locale Build
 
@@ -115,7 +140,6 @@ The sidebar is generated from a single markdown file and supports full i18n acro
 | `config/sidebar/index.ts` | Entry point — creates the sidebar per locale, handles dev/prod routing |
 | `config/sidebar/supplements.ts` | Header items (API ref, changelog…) and Security section (not in `index.md`) |
 | `i18n.json` | Contains `sidebar.gen.*` translations for non-leaf labels |
-| `base/pages/index-translations.{locale}.yaml` | Source YAML translations for products/sections |
 
 ### `index.md` format
 
@@ -137,7 +161,7 @@ Classification rules:
 - **Non-leaf nodes** (universes, products, sections) use i18n keys (`sidebar.gen.*`), resolved at render time from `i18n.json`
 - **Leaf nodes** (guides) read titles directly from the MDX frontmatter of the target locale at build time
 
-Universe names use hardcoded translations in `parser.ts` (`UNIVERSE_TRANSLATIONS`). Product/section labels come from `base/pages/index-translations.{locale}.yaml`.
+Universe names use hardcoded translations in `parser.ts` (`UNIVERSE_TRANSLATIONS`). Product/section labels live only in `i18n.json` (a new key is seeded with the English label in all 7 locales, to translate by hand).
 
 ### Updating the sidebar
 

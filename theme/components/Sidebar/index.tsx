@@ -1,3 +1,4 @@
+import { trackClick } from '@components/Analytics';
 import type {
   SidebarDivider as ISidebarDivider,
   SidebarItem as ISidebarItem,
@@ -7,14 +8,14 @@ import type {
 } from '@rspress/core';
 import { useSidebarDynamic } from '@rspress/core/runtime';
 import { Link, SwitchAppearance } from '@theme-original';
-import { SocialLinks } from 'theme/components/SocialLinks';
-import { trackClick } from '@components/Analytics';
 import { useAIChatbotDrawer } from 'theme/components/AIChatbotDrawer/context';
 import { PagefindSearch } from 'theme/components/PagefindSearch';
+import { SocialLinks } from 'theme/components/SocialLinks';
 import { SidebarDivider } from './SidebarDivider';
 import { SidebarGroup } from './SidebarGroup';
 import { SidebarItem } from './SidebarItem';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
+import { ActiveBranchProvider } from './useActiveBranch';
 import {
   isSidebarDivider,
   isSidebarGroup,
@@ -22,6 +23,13 @@ import {
 } from './utils';
 
 export function Sidebar() {
+  // We deliberately do NOT filter the sidebar by commercial zone — when the
+  // visitor navigates off a zone-gated guide the ZoneSwitcher disappears
+  // (it only surfaces on guides carrying `availableIn:`), so a filtered
+  // sidebar would lock products like Hosted Exchange out of the nav with
+  // no way to bring them back. Zone gating still applies to in-guide
+  // content (Region wrappers, ZoneTabs, availableIn frontmatter) — the
+  // sidebar just stays comprehensive.
   const [sidebarData, setSidebarData] = useSidebarDynamic();
 
   return (
@@ -77,19 +85,21 @@ export function SidebarList({
           <img src="/images/ai.svg" alt="AI assistant" className="w-6 h-6" />
         </button>
       </div>
-      <div className="overflow-auto">
-        {sidebarData.map((item, index) => {
-          return (
-            <SidebarListItem
-              // biome-ignore lint/suspicious/noArrayIndexKey: sidebar items have no stable unique ID
-              key={index}
-              item={item}
-              index={index}
-              setSidebarData={setSidebarData}
-            />
-          );
-        })}
-      </div>
+      <ActiveBranchProvider sidebarData={sidebarData}>
+        <div className="overflow-auto">
+          {sidebarData.map((item, index) => {
+            return (
+              <SidebarListItem
+                // biome-ignore lint/suspicious/noArrayIndexKey: sidebar items have no stable unique ID
+                key={index}
+                item={item}
+                index={index}
+                setSidebarData={setSidebarData}
+              />
+            );
+          })}
+        </div>
+      </ActiveBranchProvider>
       <div className="grow"></div>
       <div className="flex flex-row align-items border-t border-gray-200 px-2">
         <SocialLinks />
@@ -140,5 +150,5 @@ function SidebarListItem(props: {
     );
   }
 
-  return <SidebarItem item={item} key={index} depth={0} />;
+  return <SidebarItem item={item} key={index} depth={0} id={String(index)} />;
 }

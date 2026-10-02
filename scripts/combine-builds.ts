@@ -8,6 +8,9 @@
  * 2. Root redirect creation (/ -> /fr/)
  * 3. Combined sitemap.xml generation
  * 4. robots.txt + sitemap-help.xml placement
+ * 5.5. HTML/MD pre-processing (search boosts, .md frontmatter)
+ * 5.6. llms.txt family (root/per-locale directories, per-product indexes)
+ * 6. Pagefind indexing
  *
  * Usage:
  *   pnpm build:combine
@@ -19,6 +22,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { locales } from '../config/shared';
+import { parseIndexMd } from '../config/sidebar/parser';
+import { generateLlms } from './lib/llms';
+import type { SidebarNode } from './lib/llms/model';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -129,11 +136,25 @@ const rootIndexHtml = `<!DOCTYPE html>
 fs.writeFileSync(path.join(DIST_DIR, 'index.html'), rootIndexHtml);
 console.log('   ✓ Created dist/index.html (redirects to /fr/)');
 
-// Also create 301.map if it doesn't exist
-const redirectMapPath = path.join(DIST_DIR, '301.map');
-if (!fs.existsSync(redirectMapPath)) {
-  fs.writeFileSync(redirectMapPath, '/ /fr/;\n');
-  console.log('   ✓ Created dist/301.map');
+// Copy the 301.map maintained in docs/public/ to the dist root so nginx can
+// read it. Rspress copies docs/public/* into each dist/{locale}/ root (not into
+// dist/{locale}/public/), so the canonical source is the first built locale's
+// dist root. Fall back to the shared public location.
+const redirectMapCandidates = [
+  path.join(DIST_DIR, builtLocales[0], '301.map'),
+  path.join(sharedPublic, '301.map'),
+];
+const redirectMapSrc = redirectMapCandidates.find((p) => fs.existsSync(p));
+const redirectMapDst = path.join(DIST_DIR, '301.map');
+
+if (redirectMapSrc) {
+  fs.copyFileSync(redirectMapSrc, redirectMapDst);
+  console.log(
+    `   ✓ Copied 301.map to dist root (from ${path.relative(ROOT_DIR, redirectMapSrc)})`,
+  );
+} else {
+  fs.writeFileSync(redirectMapDst, '/ /fr/;\n');
+  console.log('   ✓ Created default dist/301.map');
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -282,14 +303,19 @@ const robotsDst = path.join(DIST_DIR, 'robots.txt');
 
 if (robotsSrc) {
   fs.copyFileSync(robotsSrc, robotsDst);
-  console.log(`   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`);
+  console.log(
+    `   ✓ Copied robots.txt to dist root (from ${path.relative(DIST_DIR, robotsSrc)})`,
+  );
 } else {
-  // Create default robots.txt
+  // Create default robots.txt (kept in sync with docs/public/robots.txt)
   const defaultRobots = `User-agent: *
 Allow: /
 
 Sitemap: ${SITE_URL}/sitemap.xml
 Sitemap: ${SITE_URL}/sitemap-help.xml
+
+# AI/LLM index: ${SITE_URL}/llms.txt (product directory, one llms.txt per product)
+# Per-page Markdown: append .md to any page URL
 `;
   fs.writeFileSync(robotsDst, defaultRobots);
   console.log('   ✓ Created default robots.txt');
@@ -307,7 +333,9 @@ const helpSitemapSrc = helpSitemapCandidates.find((p) => fs.existsSync(p));
 const helpSitemapDst = path.join(DIST_DIR, 'sitemap-help.xml');
 if (helpSitemapSrc) {
   fs.copyFileSync(helpSitemapSrc, helpSitemapDst);
-  console.log(`   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`);
+  console.log(
+    `   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`,
+  );
 }
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
@@ -346,9 +374,16 @@ const workerPath = fileURLToPath(
   new URL('./preprocess-html-worker.ts', import.meta.url),
 );
 
-function runWorker(dir: string): Promise<number> {
+const DOCS_DIR = path.join(ROOT_DIR, 'docs');
+
+function runWorker(
+  dir: string,
+  locale: string,
+): Promise<{ html: number; md: number }> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerPath, { workerData: { dir } });
+    const worker = new Worker(workerPath, {
+      workerData: { dir, locale, siteUrl: SITE_URL, docsDir: DOCS_DIR },
+    });
     worker.on('message', resolve);
     worker.on('error', reject);
   });
@@ -356,15 +391,64 @@ function runWorker(dir: string): Promise<number> {
 
 const preProcessResults = await Promise.all(
   builtLocales.map(async (locale) => {
-    const count = await runWorker(path.join(DIST_DIR, locale));
-    console.log(`   ✓ ${locale}: ${count} files pre-processed`);
-    return count;
+    const counts = await runWorker(path.join(DIST_DIR, locale), locale);
+    console.log(`   ✓ ${locale}: ${counts.html} HTML + ${counts.md} MD files`);
+    return counts;
   }),
 );
-const processedCount = preProcessResults.reduce((a, b) => a + b, 0);
+
+const totalHtml = preProcessResults.reduce((a, b) => a + b.html, 0);
+const totalMd = preProcessResults.reduce((a, b) => a + b.md, 0);
 console.log(
-  `   ✓ Pre-processed ${processedCount} HTML files total (h1 boost + anchor cleanup)`,
+  `   ✓ Total: ${totalHtml} HTML (h1 boost + anchor cleanup) + ${totalMd} MD (frontmatter injected)`,
 );
+console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
+
+// ============================================================================
+// 5.6 llms.txt FAMILY (AI/LLM discovery, see scripts/lib/llms/)
+// ============================================================================
+// Replaces the flat per-locale llms.txt / llms-full.txt Rspress emits (every
+// page under a single "Others" heading, since our nav items carry no `link`)
+// with a hierarchy built from the sidebar tree: a root and
+// per-locale directory of products, one llms.txt + llms-full.txt per product.
+// Runs after 5.5 so the bundles carry the injected `.md` frontmatter.
+console.log('\n5.6️⃣ Generating llms.txt family...');
+sectionStart = Date.now();
+
+const llmsI18n: Record<string, Record<string, string>> = JSON.parse(
+  fs.readFileSync(path.join(ROOT_DIR, 'i18n.json'), 'utf-8'),
+);
+const SIDEBAR_INDEX = path.join(ROOT_DIR, 'config/sidebar/index.md');
+const { i18nEntries: sidebarDefaults } = parseIndexMd(SIDEBAR_INDEX);
+
+const llmsStats = generateLlms({
+  distDir: DIST_DIR,
+  docsDir: DOCS_DIR,
+  siteUrl: SITE_URL,
+  builtLocales,
+  rootLocale: 'en',
+  locales,
+  treeFor: (locale) =>
+    parseIndexMd(SIDEBAR_INDEX, DOCS_DIR, locale)
+      .universes as unknown as SidebarNode[],
+  label: (key, locale) => {
+    const entry = llmsI18n[key] ?? sidebarDefaults[key];
+    return entry?.[locale] || entry?.en || key;
+  },
+});
+for (const s of llmsStats) {
+  console.log(
+    `   ✓ ${s.locale}: ${s.products} products, ${s.pages} pages, llms-full.txt ${(s.fullBytes / 1048576).toFixed(1)} MB`,
+  );
+}
+const noDescription = llmsStats.find(
+  (s) => s.locale === 'en',
+)?.missingDescriptions;
+if (noDescription?.length) {
+  console.log(
+    `   ⚠ ${noDescription.length} products without a description in llms.txt (add a landing page or an overview description): ${noDescription.join(', ')}`,
+  );
+}
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
 // ============================================================================
@@ -386,7 +470,16 @@ const EXCLUDE_SELECTORS =
   '.rp-sidebar, .rp-outline, .rp-nav, .rp-doc-layout__sidebar, ' +
   '.rp-doc-layout__outline, .rspress-breadcrumbs, .rp-doc-footer, ' +
   '.rp-home-layout__content, .rp-search-button, .rp-callout__title, button, ' +
-  '.header-anchor, [data-pagefind-ignore], .ovh-api-main, .ovh-api-region-select';
+  '.header-anchor, [data-pagefind-ignore], .ovh-api-main, .ovh-api-region-select, ' +
+  // The "View as Markdown" / PDF / Ask-AI toolbar renders inside `.rp-doc`
+  // right after the <h1>. `button` covers the two <button> controls, but the
+  // Markdown link is an <a> and leaked its label into every result excerpt.
+  // Excluding the container covers anything added to the toolbar later.
+  // `.rp-page-toolbar` / `.rp-landing-toolbar` are the same cluster mounted by
+  // layouts that render their own <h1> (LandingLayout), where it sits outside
+  // `.rp-doc`; listed so the exclusion holds if that markup ever moves inside.
+  '.rp-llms-container, .rp-llms-view-options__trigger, ' +
+  '.rp-page-toolbar, .rp-landing-toolbar';
 
 const indexResults = await Promise.allSettled(
   builtLocales.map(async (locale) => {
@@ -425,8 +518,12 @@ console.log('  - dist/sitemap.xml (sitemap index)');
 console.log('  - dist/<locale>/sitemap.xml (per-locale sitemap with hreflang)');
 console.log('  - dist/robots.txt (SEO)');
 console.log('  - dist/sitemap-help.xml (legacy help.ovhcloud.com URLs)');
+console.log('  - dist/llms.txt (AI/LLM product directory, English)');
 console.log(
-  '  - dist/<locale>/llms.txt (per-locale LLMs index, generated by Rspress)',
+  '  - dist/<locale>/llms.txt + llms-full.txt (per-locale directory + full text)',
+);
+console.log(
+  '  - dist/<locale>/llms/<product>/llms.txt + llms-full.txt (per-product)',
 );
 console.log('  - dist/public/ (shared assets)');
 console.log('  - dist/<locale>/pagefind/ (per-locale search index)');

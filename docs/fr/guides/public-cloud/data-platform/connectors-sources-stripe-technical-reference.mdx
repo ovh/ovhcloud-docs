@@ -1,0 +1,345 @@
+---
+title: "Stripe : référence technique"
+description: Ceci est le complément technique à la documentation principale du connecteur Stripe
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Ceci est le complément technique à la documentation principale du [connecteur Stripe](/guides/public-cloud/data-platform/connectors-sources-stripe). Il couvre les internes de l'authentification, la référence complète des endpoints, la pagination, les limites de débit, le format de sortie et les limitations, tout ce qui est nécessaire pour intégrer le connecteur dans un pipeline de données.
+
+## Authentification
+
+### Méthode
+
+Bearer token avec la clé API secrète Stripe.
+
+```yaml
+Authorization: Bearer sk_test_XXXXXXXXXXXXXXXX
+```
+
+La clé est définie une seule fois à l'initialisation du connecteur ; chaque appel API suivant réutilise la même session authentifiée.
+
+### Formats de clé
+
+| Préfixe | Type | Usage |
+|--------|------|-------|
+| `sk_test_` | Clé secrète (test) | Bac à sable, API complète, données fictives |
+| `sk_live_` | Clé secrète (live) | Production, transactions réelles |
+| `rk_test_` / `rk_live_` | Clé restreinte | Permissions limitées (lecture seule recommandée) |
+| `pk_test_` / `pk_live_` | Clé publique | Côté client uniquement, **ne peut pas être utilisée ici** |
+
+### Vérification de santé
+
+Le contrôle de santé du connecteur appelle `GET /v1/balance` : un endpoint léger disponible sur tout compte Stripe. Une réponse 200 réussie confirme que la clé secrète est valide.
+
+## Architecture
+
+### JSON brut, schéma géré par la platform
+
+Le connecteur renvoie du JSON brut depuis l'API Stripe, des tableaux d'objets Stripe avec leur structure imbriquée complète. La platform prend le relais à partir de là :
+
+1. Le schéma est détecté automatiquement à partir du payload JSON
+2. Les objets imbriqués sont aplatis en colonnes en notation pointée
+3. Les données sont stockées dans le lakehouse, interrogeables via SQL
+
+Vous ne définissez aucun schéma, ne listez aucune colonne, et n'écrivez aucun code de transformation, tout nouveau champ ajouté par Stripe à un objet apparaît automatiquement à l'extraction suivante.
+
+### API uniforme, connecteur uniforme
+
+Les endpoints de liste de Stripe sont exceptionnellement uniformes : chacun renvoie la même enveloppe, `{"object":"list","data":[..],"has_more":bool}`, et utilise la même pagination basée sur un curseur. Grâce à cela, le connecteur utilise un chemin d'extraction unique pour les 76 ressources prises en charge. Ajouter une nouvelle ressource consiste à ajouter son chemin API à un registre ; aucune nouvelle logique d'extraction n'est nécessaire.
+
+### Résolution des endpoints
+
+Les endpoints sont organisés dans l'interface en trois niveaux :
+
+1. **Groupes de domaine** (`core`, `billing`, `products`, ...) : vous sélectionnez un groupe, puis choisissez la ressource spécifique dans une liste déroulante (par exemple `billing` → `invoices`).
+2. **Endpoints autonomes** (`payment_methods`, `tax_registrations`, ...) : l'endpoint identifie directement la ressource ; aucune liste déroulante nécessaire.
+3. **Endpoint personnalisé** (`custom`) : vous saisissez n'importe quel chemin d'API Stripe (par exemple `issuing/settlements`) et le connecteur l'appelle avec la pagination standard par curseur.
+
+Quel que soit le chemin choisi, le comportement d'extraction est identique : authentifier, paginer, renvoyer du JSON brut.
+
+### Ce que gère le connecteur vs ce que gère la platform
+
+| Responsabilité | Propriétaire |
+|---------------|-------|
+| Authentification (Bearer token) | Connecteur |
+| Pagination (curseur, boucle `has_more`) | Connecteur |
+| Nouvelle tentative automatique sur 429 | Connecteur |
+| Repli ponctuel lorsqu'un endpoint rejette `limit` | Connecteur |
+| Sortie JSON brut | Connecteur |
+| Détection du schéma à partir du JSON | Platform |
+| Aplatissement des objets imbriqués en colonnes | Platform |
+| Nommage des colonnes (conversion en minuscules, underscores) | Platform |
+| Stockage dans le lakehouse | Platform |
+
+## Référence des endpoints
+
+Tous les endpoints de liste suivent le même modèle : `GET /v1/{resource}?limit=100&starting_after={cursor}`. Les réponses partagent la même enveloppe : `{"object":"list","data":[...],"has_more":bool,"url":"/v1/..."}`.
+
+Les tableaux ci-dessous documentent les 20 endpoints exposés dans l'interface et les ressources Stripe qu'ils couvrent.
+
+### core
+
+Ressources de paiement principales. Groupe de domaine unique avec une liste déroulante « Resource Type » (14 options).
+
+| Ressource | Chemin API | Description |
+|----------|----------|-------------|
+| customers | `/v1/customers` | Profils clients |
+| charges | `/v1/charges` | Charges (héritées, conservées pour la rétrocompatibilité) |
+| payment_intents | `/v1/payment_intents` | Flux de paiement moderne (recommandé par rapport à charges) |
+| balance_transactions | `/v1/balance_transactions` | Tous les mouvements de solde |
+| payouts | `/v1/payouts` | Versements bancaires |
+| refunds | `/v1/refunds` | Remboursements |
+| disputes | `/v1/disputes` | Litiges de paiement |
+| setup_intents | `/v1/setup_intents` | Flux de configuration pour enregistrer les moyens de paiement |
+| events | `/v1/events` | Journal des événements webhook |
+| files | `/v1/files` | Fichiers téléversés |
+| file_links | `/v1/file_links` | URL de fichiers partageables |
+| webhook_endpoints | `/v1/webhook_endpoints` | Récepteurs webhook configurés |
+| payment_method_configurations | `/v1/payment_method_configurations` | Moyens de paiement à afficher |
+| payment_method_domains | `/v1/payment_method_domains` | Vérification de domaine pour les moyens de paiement |
+
+**Options de l'interface :** Resource Type (requis, liste déroulante avec les 14 ressources ci-dessus) + Max Items (optionnel).
+**Pagination :** basée sur un curseur.
+**Sortie :** JSON brut. Enveloppe de liste Stripe.
+
+### products
+
+Catalogue et tarification (7 options).
+
+| Ressource | Chemin API |
+|----------|----------|
+| products | `/v1/products` |
+| prices | `/v1/prices` |
+| coupons | `/v1/coupons` |
+| promotion_codes | `/v1/promotion_codes` |
+| tax_codes | `/v1/tax_codes` |
+| tax_rates | `/v1/tax_rates` |
+| shipping_rates | `/v1/shipping_rates` |
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur. **Sortie :** JSON brut.
+
+### billing
+
+Facturation récurrente (11 options).
+
+| Ressource | Chemin API |
+|----------|----------|
+| subscriptions | `/v1/subscriptions` |
+| subscription_schedules | `/v1/subscription_schedules` |
+| invoices | `/v1/invoices` |
+| invoice_items | `/v1/invoiceitems` |
+| invoice_rendering_templates | `/v1/invoice_rendering_templates` |
+| credit_notes | `/v1/credit_notes` |
+| plans | `/v1/plans` |
+| quotes | `/v1/quotes` |
+| billing_meters | `/v1/billing/meters` |
+| billing_alerts | `/v1/billing/alerts` |
+| billing_credit_grants | `/v1/billing/credit_grants` |
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur. **Sortie :** JSON brut.
+
+**Particularité notable :** selon la [documentation API de Stripe](https://docs.stripe.com/api/subscriptions/list), l'endpoint de liste `subscriptions` renvoie par défaut **tous les abonnements qui n'ont pas été annulés** (active, trialing, past_due, incomplete, unpaid, paused). Les abonnements annulés sont exclus sauf si vous les demandez explicitement. Pour inclure les abonnements annulés, utilisez l'endpoint personnalisé avec `resource_path=subscriptions?status=canceled` ou `?status=all`.
+
+### checkout
+
+Flux de paiement hébergés (2 options : `checkout_sessions`, `payment_links`).
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur.
+
+### connect
+
+Ressources marketplace / platform (5 options : `accounts`, `application_fees`, `transfers`, `top_ups`, `country_specs`).
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur.
+
+### radar
+
+Détection de fraude : nécessite Stripe Radar (3 options : `early_fraud_warnings`, `reviews`, `value_lists`).
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur.
+
+### issuing
+
+Émission de cartes : nécessite l'activation de **Stripe Issuing** (7 options : authorizations, cardholders, cards, transactions, disputes, personalization_designs, physical_bundles).
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur.
+**Comportement si le produit n'est pas activé :** Stripe renvoie `400 Bad Request` avec le message « Your account is not set up to use Issuing ». L'extraction échoue, voir [Limitations](#limitations).
+
+### treasury
+
+Mouvement d'argent : nécessite l'activation de **Stripe Treasury** (9 sous-ressources).
+
+| Ressource | Chemin API |
+|----------|----------|
+| treasury_transactions | `/v1/treasury/transactions` |
+| treasury_transaction_entries | `/v1/treasury/transaction_entries` |
+| treasury_outbound_transfers | `/v1/treasury/outbound_transfers` |
+| treasury_outbound_payments | `/v1/treasury/outbound_payments` |
+| treasury_inbound_transfers | `/v1/treasury/inbound_transfers` |
+| treasury_received_credits | `/v1/treasury/received_credits` |
+| treasury_received_debits | `/v1/treasury/received_debits` |
+| treasury_credit_reversals | `/v1/treasury/credit_reversals` |
+| treasury_debit_reversals | `/v1/treasury/debit_reversals` |
+
+**Options de l'interface :** Resource Type (requis) + Financial Account ID (requis, format `fa_xxx`) + Max Items (optionnel). **Pagination :** basée sur un curseur.
+
+### terminal
+
+Lecteurs de carte physiques (3 options : `terminal_locations`, `terminal_readers`, `terminal_configurations`).
+
+**Options de l'interface :** Resource Type (requis) + Max Items (optionnel). **Pagination :** basée sur un curseur.
+
+### identity
+
+Vérification d'identité : nécessite **Stripe Identity** (2 options : `identity_verification_sessions`, `identity_verification_reports`).
+
+### climate
+
+Compensation carbone : nécessite **Stripe Climate** (3 options : `climate_orders`, `climate_suppliers`, `climate_products`).
+
+### reporting
+
+Rapports et Sigma (3 options : `report_runs`, `report_types`, `sigma_scheduled_query_runs`).
+
+**Particularité notable :** `/v1/reporting/report_types` rejette le paramètre `limit`. Le connecteur détecte cela, supprime le paramètre, et relance automatiquement. Aucune action nécessaire de votre côté.
+
+### payment_methods (standalone filtré)
+
+**Options de l'interface :** Customer ID (requis, format `cus_xxx`) + Max Items (optionnel).
+Liste les moyens de paiement rattachés à un client spécifique. Stripe exige le filtre client, si le Customer ID est manquant, le connecteur renvoie une liste vide au lieu d'effectuer l'appel API.
+
+### setup_attempts (standalone filtré)
+
+**Options de l'interface :** Setup Intent ID (requis, format `seti_xxx`) + Max Items (optionnel).
+
+### subscription_items (standalone filtré)
+
+**Options de l'interface :** Subscription ID (requis, format `sub_xxx`) + Max Items (optionnel).
+
+### financial_connections_transactions (standalone filtré)
+
+**Options de l'interface :** Account ID (requis, format `fca_xxx`) + Max Items (optionnel).
+
+### financial_connections_accounts (standalone)
+
+**Options de l'interface :** Max Items uniquement. Liste tous les comptes Financial Connections liés au compte Stripe.
+
+### tax_registrations (standalone)
+
+**Options de l'interface :** Max Items uniquement.
+
+### treasury_financial_accounts (standalone)
+
+**Options de l'interface :** Max Items uniquement. Remarque : les endpoints de transactions individuelles se trouvent dans le groupe de domaine `treasury`. Cet endpoint standalone concerne uniquement la liste des comptes elle-même.
+
+### custom
+
+**Options de l'interface :** Resource Path (requis) + Max Items (optionnel).
+
+Chemin d'API Stripe en texte libre. Le connecteur accepte le chemin avec ou sans préfixe `v1/` en tête, et appelle l'endpoint avec la pagination standard par curseur.
+
+Exemples de saisie :
+
+- `issuing/settlements` → `GET /v1/issuing/settlements`
+- `v1/capital/financing_offers` → `GET /v1/capital/financing_offers` (pas de double préfixe)
+
+Utilisez cet endpoint pour les ressources Stripe qui ne sont pas encore couvertes par un endpoint nommé, ou pour les endpoints de niche/bêta où un emplacement nommé n'est pas justifié.
+
+## Pagination
+
+Tous les endpoints de liste utilisent la pagination basée sur un curseur de Stripe :
+
+```http
+GET /v1/{resource}?limit=100&starting_after={last_id}
+```
+
+Réponse :
+```json
+{
+  "object": "list",
+  "url": "/v1/...",
+  "has_more": true,
+  "data": [ ... ]
+}
+```
+
+Comportement auquel vous pouvez vous attendre :
+
+- Le connecteur récupère 100 enregistrements par requête (la taille de page maximale de Stripe)
+- Il continue de paginer tant que Stripe rapporte `has_more: true`
+- Il s'arrête lorsque `has_more` vaut `false`, ou lorsque Max Items est atteint
+
+### Repli sans limite
+
+Un petit nombre d'endpoints Stripe (notamment `/v1/reporting/report_types`) n'acceptent pas le paramètre `limit`. Le connecteur détecte l'erreur 400 qui en résulte, relance la requête sans `limit`, et poursuit l'extraction de manière transparente. Vous n'avez rien à configurer. La nouvelle tentative est automatique et ne se produit qu'à la première requête.
+
+Voir la [documentation de pagination Stripe](https://docs.stripe.com/api/pagination) pour la spécification complète.
+
+## Limites de débit
+
+Stripe documente les limites de débit sur [docs.stripe.com/rate-limits](https://docs.stripe.com/rate-limits). Les chiffres exacts dépendent de l'endpoint et du type de compte, consultez la documentation officielle pour les limites actuelles.
+
+### Gestion des limites de débit
+
+Sur `429 Too Many Requests`, le connecteur attend et relance automatiquement :
+
+1. Il lit l'en-tête `Retry-After` envoyé par Stripe (en secondes)
+2. Si l'en-tête est absent, il se rabat sur une attente de 2 secondes
+3. Il relance ensuite la même requête et poursuit l'extraction
+
+Tous les autres codes d'erreur (400, 401, 403, 404, 500, etc.) se propagent comme des échecs. Le connecteur ne les intercepte ni ne les ignore. L'extraction s'arrête immédiatement avec l'erreur renvoyée par Stripe.
+
+## Format de sortie
+
+### JSON brut (sortie du connecteur)
+
+Le connecteur renvoie du JSON brut depuis l'API Stripe, des tableaux d'objets Stripe avec leur structure imbriquée complète, correspondant exactement aux schémas d'objets de Stripe.
+
+Chaque objet Stripe contient :
+
+| Champ | Description |
+|-------|-------------|
+| `id` | ID unique avec préfixe de type (`cus_`, `ch_`, `sub_`, `pi_`, `in_`, etc.) |
+| `object` | Type d'objet (`customer`, `charge`, `subscription`, ...) |
+| `created` | Horodatage Unix (secondes) |
+| `livemode` | Booléen, mode test vs live |
+| `metadata` | Carte clé-valeur définie par l'utilisateur |
+
+Les champs spécifiques à chaque ressource varient selon l'objet. Consultez la [référence API Stripe](https://docs.stripe.com/api) pour le schéma de chaque objet.
+
+### Sortie aplatie (lakehouse)
+
+La platform aplatit le JSON brut en une table plate. Les clés imbriquées deviennent des noms de colonnes avec des underscores :
+
+| Chemin JSON brut | Colonne du lakehouse |
+|--------------|-----------------|
+| `id` | `id` |
+| `object` | `object` |
+| `created` | `created` |
+| `address.country` | `address_country` |
+| `metadata.custom_key` | `metadata_custom_key` |
+
+Les noms de colonnes sont normalisés : minuscules, points et caractères spéciaux remplacés par des underscores, toujours en commençant par une lettre ou un underscore.
+
+## Limitations
+
+- **Aucun suivi des suppressions** : le connecteur extrait l'état actuel de chaque ressource. Les objets supprimés ne sont généralement pas renvoyés par les endpoints de liste. Pour une piste d'audit, extrayez `events` (qui enregistre les suppressions comme des types d'événement `*.deleted`).
+- **Horodatages Unix** : Stripe utilise des secondes Unix (entier), pas des chaînes ISO 8601. Convertissez en timestamp dans vos requêtes en aval.
+- **Restriction par produit Stripe** : Issuing, Treasury, Identity, Terminal et Climate nécessitent l'activation du produit Stripe correspondant sur le compte. Si non activé, Stripe renvoie une erreur 400 avec un message du type « Your account is not set up to use X » et l'extraction échoue. Le connecteur ne l'ignore pas et ne relance pas.
+- **Les erreurs de permission ne sont pas ignorées** : si Stripe renvoie une 403 (permission refusée), par exemple parce que votre clé API restreinte n'a pas d'accès en lecture à une ressource, l'extraction échoue immédiatement. Le connecteur n'a pas de gestion spéciale pour transformer les 403 en résultats vides ; il ne relance que sur les réponses 429 de limite de débit.
+- **Filtre par défaut de `subscriptions`** : selon la [documentation API de Stripe](https://docs.stripe.com/api/subscriptions/list), l'endpoint de liste renvoie par défaut tous les abonnements qui n'ont pas été annulés. Pour inclure les abonnements annulés, utilisez l'endpoint personnalisé avec `resource_path=subscriptions?status=canceled` ou `?status=all`.
+- **Pagination de l'endpoint personnalisé** : l'endpoint personnalisé suppose le format de réponse de liste standard de Stripe (`{"object":"list","data":[...],"has_more":bool}`). Les endpoints avec une forme de réponse non standard (par exemple les singletons comme `/v1/balance`) renverront une liste vide.
+- **Isolation mode test vs mode live** : la clé secrète détermine l'environnement depuis lequel le connecteur lit. Les données `sk_test_` et `sk_live_` sont complètement isolées. Il n'y a pas d'extraction croisée entre environnements.
+- **Aucune expansion automatique** : Stripe prend en charge `expand[]=field` pour inclure en ligne les objets liés, mais le connecteur ne définit pas cela. Les objets liés apparaissent comme des références d'ID dans la sortie ; joignez-les en aval via une extraction séparée.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

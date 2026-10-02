@@ -1,5 +1,5 @@
-import { useI18n, useLang } from '@rspress/core/runtime';
 import { trackClick } from '@components/Analytics';
+import { useI18n, useLang } from '@rspress/core/runtime';
 import { useEffect, useState } from 'react';
 import './SurveyWidget.scss';
 

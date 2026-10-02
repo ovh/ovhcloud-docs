@@ -30,7 +30,8 @@ const WRITE = process.argv.includes('--write');
 // Label is restricted to a single line — newlines in the label class would let
 // the regex span across paragraphs when an unmatched `[` appears earlier in
 // the source (markdown is forgiving about that, MDX is not).
-const LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*?(?:manager\.eu\.ovhcloud\.com|www\.ovh\.com\/auth)[^)\s]*)\)/g;
+const LINK_RE =
+  /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*?(?:manager\.eu\.ovhcloud\.com|www\.ovh\.com\/auth)[^)\s]*)\)/g;
 
 interface Replacement {
   before: string;
@@ -87,7 +88,11 @@ function urlToProp(url: string): { to: string; pattern: string } | null {
   }
 
   // Pattern A — auth without onsuccess but going to manager
-  if (/https?:\/\/www\.ovh\.com\/auth\/\?[^"\s]*manager\.eu\.ovhcloud\.com/i.test(decoded)) {
+  if (
+    /https?:\/\/www\.ovh\.com\/auth\/\?[^"\s]*manager\.eu\.ovhcloud\.com/i.test(
+      decoded,
+    )
+  ) {
     return { to: '/', pattern: 'A' };
   }
 
@@ -134,23 +139,26 @@ function migrateFile(filePath: string): {
   const replacements: Replacement[] = [];
   let count = 0;
 
-  const updated = original.replace(LINK_RE, (full, label: string, url: string) => {
-    const result = urlToProp(url);
-    if (!result) {
-      stats.byPattern.skipped++;
-      stats.skipped++;
-      return full;
-    }
-    count++;
-    stats.byPattern[result.pattern]++;
-    const replacement = `<ManagerLink to=${asJsxAttr(result.to)}>${asJsxChildren(label)}</ManagerLink>`;
-    replacements.push({
-      before: full,
-      after: replacement,
-      reason: result.pattern,
-    });
-    return replacement;
-  });
+  const updated = original.replace(
+    LINK_RE,
+    (full, label: string, url: string) => {
+      const result = urlToProp(url);
+      if (!result) {
+        stats.byPattern.skipped++;
+        stats.skipped++;
+        return full;
+      }
+      count++;
+      stats.byPattern[result.pattern]++;
+      const replacement = `<ManagerLink to=${asJsxAttr(result.to)}>${asJsxChildren(label)}</ManagerLink>`;
+      replacements.push({
+        before: full,
+        after: replacement,
+        reason: result.pattern,
+      });
+      return replacement;
+    },
+  );
 
   if (count === 0) return { migrated: false, count: 0, replacements: [] };
   if (WRITE) fs.writeFileSync(filePath, updated, 'utf8');
@@ -180,7 +188,9 @@ for (const file of files) {
     stats.files++;
     stats.replacements += count;
     if (sampleReplacements.length < sampleSize) {
-      sampleReplacements.push(...replacements.slice(0, sampleSize - sampleReplacements.length));
+      sampleReplacements.push(
+        ...replacements.slice(0, sampleSize - sampleReplacements.length),
+      );
     }
   }
 }
@@ -199,8 +209,12 @@ if (!WRITE && sampleReplacements.length > 0) {
   console.log('\nSample replacements (dry-run, --write to apply):');
   for (const r of sampleReplacements) {
     console.log(`  [${r.reason}]`);
-    console.log(`    BEFORE: ${r.before.slice(0, 140)}${r.before.length > 140 ? '…' : ''}`);
-    console.log(`    AFTER:  ${r.after.slice(0, 140)}${r.after.length > 140 ? '…' : ''}`);
+    console.log(
+      `    BEFORE: ${r.before.slice(0, 140)}${r.before.length > 140 ? '…' : ''}`,
+    );
+    console.log(
+      `    AFTER:  ${r.after.slice(0, 140)}${r.after.length > 140 ? '…' : ''}`,
+    );
   }
   console.log('\nRun with --write to apply.');
 }

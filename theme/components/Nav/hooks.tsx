@@ -67,8 +67,18 @@ function replaceLang(
 
   purePathPart = parts.join('/') || '';
 
+  // Home of a locale/version: with cleanUrls the canonical home is the bare
+  // prefix with a trailing slash (e.g. `/en/`), NOT `/en/index`. Emitting
+  // `index` here produced a duplicate, indexable `/en/index` URL and pointed
+  // the language switcher (incl. its rel="alternate" hreflang href) at it.
+  // Only without cleanUrls do we need the literal `index.html`.
   if ((versionPart || langPart) && !purePathPart) {
-    purePathPart = cleanUrls ? 'index' : 'index.html';
+    if (cleanUrls) {
+      return addLeadingSlash(
+        `${[versionPart, langPart].filter(Boolean).join('/')}/`,
+      );
+    }
+    purePathPart = 'index.html';
   }
 
   return addLeadingSlash(

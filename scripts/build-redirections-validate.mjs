@@ -4,7 +4,7 @@
  *   2. No chains (a destination must not appear as a source elsewhere).
  *   3. Coverage stats.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const DOCS = 'https://docs.ovhcloud.com';
 
@@ -19,7 +19,10 @@ function parseMap(file) {
     if (!line.trim() || line.startsWith('#')) continue;
     const m = line.match(/^~?\^?(\S+?)\$?\s+(\S+);?$/);
     if (!m) continue;
-    out.push({ source: m[1].replace(/^~\^/, ''), dest: m[2].replace(/;$/, '') });
+    out.push({
+      source: m[1].replace(/^~\^/, ''),
+      dest: m[2].replace(/;$/, ''),
+    });
   }
   return out;
 }
@@ -33,7 +36,10 @@ for (const file of MAPS) {
   for (const e of entries) {
     if (!e.dest.startsWith(DOCS)) continue;
     const m = e.dest.match(/^https:\/\/docs\.ovhcloud\.com\/([a-z]{2})\/(.*)$/);
-    if (!m) { dead++; continue; }
+    if (!m) {
+      dead++;
+      continue;
+    }
     const [, locale, rest] = m;
     if (rest === '' || rest === '/') continue; // locale home is always valid
     const cleanRest = rest.replace(/\/$/, '');
@@ -55,8 +61,8 @@ console.log('\n=== Chain detection (host-aware) ===\n');
 // Maps serving docs.ovh.com:      legacy-docs-to-new
 // Destinations on docs.ovhcloud.com are terminal (no maps applied there).
 const HOST_OF_MAP = {
-  'redirections/legacy-to-new.map':       'help.ovhcloud.com',
-  'redirections/legacy-docs-to-new.map':  'docs.ovh.com',
+  'redirections/legacy-to-new.map': 'help.ovhcloud.com',
+  'redirections/legacy-docs-to-new.map': 'docs.ovh.com',
 };
 
 const sourcesByHost = {};
@@ -74,8 +80,10 @@ const chainSamples = [];
 for (const file of MAPS) {
   for (const e of parseMap(file)) {
     // Identify destination host
-    let destHost = null, destPath = null;
-    if (e.dest.startsWith('https://docs.ovhcloud.com')) destHost = 'docs.ovhcloud.com';
+    let destHost = null,
+      destPath = null;
+    if (e.dest.startsWith('https://docs.ovhcloud.com'))
+      destHost = 'docs.ovhcloud.com';
     else if (e.dest.startsWith('https://help.ovhcloud.com')) {
       destHost = 'help.ovhcloud.com';
       destPath = e.dest.slice('https://help.ovhcloud.com'.length);
@@ -89,10 +97,15 @@ for (const file of MAPS) {
     const sources = sourcesByHost[destHost];
     if (!sources) continue;
     const noQuery = destPath.split('?')[0];
-    if (sources.has(destPath) || sources.has(destPath + '/') ||
-        sources.has(noQuery) || sources.has(noQuery + '/')) {
+    if (
+      sources.has(destPath) ||
+      sources.has(`${destPath}/`) ||
+      sources.has(noQuery) ||
+      sources.has(`${noQuery}/`)
+    ) {
       chains++;
-      if (chainSamples.length < 3) chainSamples.push(`${file}: ${e.source} → ${e.dest}`);
+      if (chainSamples.length < 3)
+        chainSamples.push(`${file}: ${e.source} → ${e.dest}`);
     }
   }
 }
@@ -102,7 +115,8 @@ for (const s of chainSamples) console.log(`  ${s}`);
 console.log('\n=== Coverage ===\n');
 for (const file of MAPS) {
   const entries = parseMap(file);
-  let toSpecific = 0, toHome = 0;
+  let toSpecific = 0,
+    toHome = 0;
   for (const e of entries) {
     if (!e.dest.startsWith(DOCS)) continue;
     const m = e.dest.match(/^https:\/\/docs\.ovhcloud\.com\/[a-z]{2}\/(.*)$/);

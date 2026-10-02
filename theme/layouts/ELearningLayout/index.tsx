@@ -4,7 +4,6 @@ import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { usePageTitle } from 'theme/hooks/usePageTitle';
 import type { ELearningCoursesProps } from 'theme/components/ELearningCourses';
 import { ELearningCourses } from 'theme/components/ELearningCourses';
 import type { ELearningCTAProps } from 'theme/components/ELearningCTA';
@@ -12,6 +11,7 @@ import { ELearningCTA } from 'theme/components/ELearningCTA';
 import type { ELearningHeroProps } from 'theme/components/ELearningHero';
 import { ELearningHero } from 'theme/components/ELearningHero';
 import { Sidebar } from 'theme/components/Sidebar';
+import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
 interface ELearningFrontmatter {
@@ -68,7 +68,6 @@ function useELearningSidebarMenu() {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              onKeyUp={() => setIsSidebarOpen(false)}
               className="rp-sidebar-menu__mask"
               aria-label="Close sidebar"
             />,

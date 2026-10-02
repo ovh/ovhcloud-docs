@@ -77,21 +77,28 @@ function findBreadcrumbTrail(
 }
 
 /**
- * Fallback breadcrumb generation for pages not found in the sidebar (orphans).
- * Splits the URL into segments, drops locale/`guides` prefixes, and humanises
- * each remaining segment ("ai-machine-learning" → "Ai machine learning").
+ * Fallback breadcrumb generation for pages not found in the sidebar (orphans,
+ * or guides hidden from a locale's sidebar — e.g. FR-only guides viewed under
+ * /en). Splits the URL into segments, drops locale/`guides` prefixes, and
+ * humanises each remaining segment ("ai-machine-learning" → "Ai machine
+ * learning").
+ *
+ * Intermediate segments are rendered WITHOUT a link: they map to universe /
+ * product / category paths (e.g. `/en/guides/web-cloud`,
+ * `/en/guides/web-cloud/internet`) that have no landing page and therefore
+ * 404. Only the final segment (the page itself) is a real route, but it's the
+ * last crumb and the component renders the last crumb as plain text anyway, so
+ * every fallback crumb is link-less.
  */
 function humanizeFallback(routePath: string): Crumb[] {
   const segments = routePath.split('/').filter(Boolean);
   const crumbs: Crumb[] = [];
-  let currentPath = '';
   for (const segment of segments) {
-    currentPath += `/${segment}`;
     if (['guides', 'en', 'fr', 'de', 'es', 'it', 'pl', 'pt'].includes(segment))
       continue;
     const title =
       segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
-    crumbs.push({ title, link: currentPath });
+    crumbs.push({ title, link: null });
   }
   return crumbs;
 }

@@ -32,8 +32,8 @@ pages/public_cloud/compute/getting_started/
 ```
 
 New:
-- [docs/en/guides/public-cloud/compute/compute-getting-started.mdx](docs/en/guides/public-cloud/compute/compute-getting-started.mdx)
-- [docs/fr/guides/public-cloud/compute/compute-getting-started.mdx](docs/fr/guides/public-cloud/compute/compute-getting-started.mdx)
+- [docs/en/guides/public-cloud/compute/getting-started.mdx](docs/en/guides/public-cloud/compute/getting-started.mdx)
+- [docs/fr/guides/public-cloud/compute/getting-started.mdx](docs/fr/guides/public-cloud/compute/getting-started.mdx)
 
 Locales under [docs/](docs/): `de`, `en`, `es`, `fr`, `it`, `pl`, `pt`.
 
@@ -127,7 +127,7 @@ Do **not** use `../images/...` — the migration rewrote every legacy relative p
 ## Markdown formats — before / after
 
 > :::tip
-> A working example of every format below — admonitions, callouts, collapsible sections, tabs, action buttons, images, video embeds, code blocks, the full component set, etc. — lives in [docs/en/_internal/format-reference.mdx](docs/en/_internal/format-reference.mdx). When in doubt, copy from there. The page is rendered in dev and prod (so you can verify formats render correctly in both), but excluded from the sidebar, sitemap, `llms.txt`, and indexed via `noindex,nofollow`.
+> A working example of every format below — admonitions, callouts, collapsible sections, tabs, action buttons, images, video embeds, code blocks, the full component set, etc. — lives in [docs/en/internal/format-reference.mdx](docs/en/internal/format-reference.mdx). When in doubt, copy from there. The page is rendered in dev and prod (so you can verify formats render correctly in both), but excluded from the sidebar, sitemap, `llms.txt`, and indexed via `noindex,nofollow`.
 > :::
 
 ### Frontmatter
@@ -249,6 +249,21 @@ import { Tab, Tabs } from '@rspress/core/theme';
 </Tabs>
 ```
 
+**Tab selection syncs by default.** Tab blocks that share the same labels sync their selected tab and remember it across pages — so all "Via the OVHcloud Control Panel" / "Via the OVHcloud API" blocks (or `Linux` / `Windows`, etc.) switch together. This is automatic; you don't add anything.
+
+**Sequential "Step" tabs are never synced.** Numbered sets — `Step 1` / `Step 2` / `Step 3` (including branched ones like `Step 3 - IMAP` / `Step 3 - POP3`), `Option 1` / `Option 2`, `Étape 1…` — are detected automatically and kept independent, so picking a step in one block won't move another block (on the page or across navigation). No action needed.
+
+**Opting a block out of sync (`noSync`)** — for the rare *non-sequential* block that still shouldn't sync, add the `noSync` prop:
+
+```mdx
+<Tabs noSync>
+  <Tab label="Plan A">…</Tab>
+  <Tab label="Plan B">…</Tab>
+</Tabs>
+```
+
+(Detection and the `noSync` opt-out live in `theme/components/SyncedTabs/index.tsx`.)
+
 ### Images
 
 Inline images use the standard Markdown syntax with an absolute `/images/...` path:
@@ -295,19 +310,48 @@ Standard GitHub-flavored Markdown tables work as-is:
 | value | value |
 ```
 
+Cells wrap automatically and the theme makes tables responsive, so a few guidelines keep them readable on every screen:
+
+**Width** — prefer **≤4 columns**; they fit any screen. **6+ columns scroll horizontally on phones** (acceptable for reference tables, but check each column earns its place). For a genuinely wide table (**8+ columns**), **transpose** it (if it has few rows and many columns) or **split** it into smaller grouped tables. There is no mobile "card" layout — wide tables scroll horizontally by design (a matrix can't be stacked without losing the grid).
+
+**Cell content**
+- Write naturally — cells wrap on their own. **Don't add `<br/>` just to force wrapping;** use it only for genuinely separate lines (e.g. several IP addresses in one cell).
+- **Long URLs and paths can't word-break and will widen the table.** Use link text — `[label](url)` — or a `/links/<key>` (see *Links*) instead of pasting a bare long URL.
+- **Never write a bare angle-bracket placeholder** like `<SID>` or `<region>` in a cell — MDX parses it as an unknown HTML tag and drops it. Backtick it (`` `<SID>` ``) or escape it (`&lt;SID&gt;`).
+
+**Format** — always include the header row; align columns with `:---` (left), `:---:` (center), `---:` (right). Prefer Markdown tables; reserve a raw HTML `<table>` for merged cells (`rowspan`/`colspan`) that Markdown can't express.
+
 ### Code blocks
 
 Same triple-backtick syntax as before, with language tags. Common languages used across the repo: `bash`, `console`, `json`, `yaml`, `ini`, `sql`, `python`, `go`, `javascript`, `typescript`, `dockerfile`, `nginx`, `apache`, `terraform`. Avoid `markdown` and `mdx` — they disable Shiki's lazy loading and slow the dev server.
 
 ### API endpoint blocks
 
-Use the `<Api>` component for inline OVHcloud API references:
+Use the `<Api>` component for OVHcloud API endpoint references, with its import:
 
 ```mdx
 import Api from '@components/Api';
 
-<Api version="v1" section="/dedicatedCloud" method="POST" route="/dedicatedCloud/{serviceName}/sap" />
+<Api version="v1" section="/dedicatedCloud" method="POST" route={"/dedicatedCloud/\{serviceName\}/sap"} />
 ```
+
+Escape path parameters as `\{serviceName\}` inside the `route={"…"}` expression. The pill renders block-like: introduce it with a full sentence ending in a colon ("… using the following API call:") — never place it mid-sentence. For an endpoint link *inside* running text or a table cell, use `<ApiLink section route method>` instead — that one is auto-registered, no import (see [Zone-aware API links](#zone-aware-api-links--apilink--createtoken)).
+
+To target **Kimsufi / So you Start** specific endpoints (not the OVHcloud API), add `brands` — a list of brands, same shape as `regions` (default `['ovh']`) — and drop `version`, which the `ks`/`sys` brands don't have (no versioned API like OVHcloud's):
+
+```mdx
+<!-- All 4: So you Start EU/CA + Kimsufi EU/CA -->
+<Api brands={['sys', 'ks']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
+```
+
+Some API calls are available on So you Start endpoints only, not on Kimsufi endpoints:
+
+```mdx
+<!-- So you Start only (EU/CA) -->
+<Api brands={['sys']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
+```
+
+`'ovh'`, `'ks'` and `'sys'` are independently selectable — mix them freely (e.g. `brands={['ovh', 'sys']}` for OVHcloud + So you Start only, or `brands={['ks']}` for Kimsufi only). Defaults to `brands={['ovh']}` (the standard EU/CA OVHcloud console, whose `version` defaults to `'v1'` if omitted), offering both EU and CA unless restricted with `regions` — e.g. `regions={["eu"]}` on a `brands={['sys']}` call shows only So you Start EU. Note `regions` is validated against a Kimsufi/So you Start-specific EU/CA set when `brands` includes `ks`/`sys`, kept separate from the OVHcloud regions so the two can diverge (e.g. if OVH later adds a third zone that Kimsufi/So you Start never will).
 
 ### Other components
 
@@ -325,7 +369,7 @@ import Tooltip from '@components/Tooltip';
 | `LinkCard` | Card link with title + description; auto-detects internal vs external |
 | `Carousel` | Scrollable carousel of items (title, details, link, icon) |
 | `GuidedTour` | Interactive guided tour (screenshots + spotlight annotations) |
-| `Tooltip` | Hover tooltip — `<Tooltip content="**markdown** allowed">word</Tooltip>` |
+| `Tooltip` | Hover tooltip. Glossary-backed: `<Tooltip term="vrack">vRack</Tooltip>` (canonical key from [config/glossary/en.yaml](config/glossary/en.yaml); aliases are not lookup keys). One-off note: `<Tooltip content="**markdown** allowed">word</Tooltip>`. **Do not hand-tag glossary terms** — tagging happens during the proofread pass. |
 | `AIChatbot` | Federated AI chatbot module (rare; usually only on landing pages) |
 
 See [components/](components/) for the full list of props.
@@ -349,25 +393,71 @@ Legacy `/pages/...` and `/products/...` paths have been permanently rewritten to
 
 ### Locale-aware external links — `/links/<key>`
 
-For URLs that change per locale (Manager, API console, product pages, order pages, etc.), use `/links/<key>`. The key resolves at build time to the right URL for the locale being built. Keys are defined in [config/links.ts](config/links.ts).
+For URLs that change per locale (Manager, product pages, order pages, etc.), use `/links/<key>`. The key resolves at build time to the right URL for the locale being built. Keys are defined in [config/links.ts](config/links.ts).
 
-Examples for the three most common cases:
+Typical example — product / order pages on ovhcloud.com:
 
 ```mdx
-<!-- Control Panel / Manager -->
-Log in to your [OVHcloud Control Panel](/links/manager).
-
-<!-- A product / order page on ovhcloud.com -->
 Order a [Public Cloud Compute instance](/links/public-cloud/compute).
 Browse the [Bare Metal range](/links/bare-metal/bare-metal).
-
-<!-- API console -->
-Open the [OVHcloud API console](/links/api).
 ```
+
+**Control Panel links are not `/links/` keys** — use the zone-aware `<ManagerLink to="/#/…">your service</ManagerLink>` component instead (it follows the reader's zone and wraps the auth flow; hardcoded `manager.*.ovhcloud.com` URLs fail the build). Same logic for API links — see the next section.
 
 The fallback chain is **target locale → `en` → first available**, so a missing translation never breaks the link.
 
 To add a new key, edit [config/links.ts](config/links.ts) and add a row with one URL per locale. Then use `(/links/your-new-key)` in any MDX file.
+
+### Zone-aware API links — `<ApiLink>` / `<CreateToken>`
+
+Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://eu.api.ovh.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
+
+```mdx
+<!-- Generic reference to the API / the API console -->
+You can also do this with <ApiLink>the OVHcloud API</ApiLink>.
+
+<!-- Console deep link: section, with custom link text -->
+All API routes used in this guide are in the <ApiLink section="/dedicated/nasha">*/dedicated/nasha* section of the API console</ApiLink>.
+
+<!-- Console deep link: operation, as a normal inline link (tables, prose) -->
+Retrieve them with the <ApiLink section="/me" method="GET" route={"/me/logs/audit"}>audit log API call</ApiLink>.
+
+<!-- Token creation with pre-filled rights -->
+<CreateToken rights="GET=/*&POST=/*&PUT=/*&DELETE=/*">Generate OVHcloud API tokens</CreateToken>
+```
+
+Without props, `<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console — use that for any generic mention. Console links are only ever section/operation deep links via the props above; never hardcode a console URL. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
+
+`<ApiLink>` also supports the same `brands`/`regions` props as `<Api>` (see [API endpoint blocks](#api-endpoint-blocks) above), for an inline link to a **Kimsufi / So you Start** endpoint instead of the OVHcloud API:
+
+```mdx
+<!-- So you Start + Kimsufi, both regions — picker offers all 4 -->
+Consult it in <ApiLink brands={['sys', 'ks']} method="GET" route={"/dedicated/server/\{serviceName\}"}>the Kimsufi/So you Start console</ApiLink>.
+
+<!-- So you Start only, EU only — no picker, direct link -->
+See <ApiLink brands={['sys']} regions={["eu"]} method="GET" route={"/dedicated/server/\{serviceName\}"}>this endpoint</ApiLink>.
+```
+
+Same rule as `<Api>`: drop `version` when `brands` doesn't include `ovh` (it has no effect and triggers a dev-only console warning), and `regions` is validated against the Kimsufi/So you Start EU/CA set, not the OVHcloud one.
+
+**EU and CA API schemas differ per route.** Before deep-linking an operation (with `<Api>` or `<ApiLink>`), check it exists in both `https://api.eu.ovhcloud.com/1.0/<section>.json` and `https://api.ca.ovhcloud.com/1.0/<section>.json` — a console deep link to an operation the zone doesn't have falls back to the section root. If only one zone has it, add `regions={["eu"]}` (renders a plain single-zone link). EU-only *products* (SMS, Email Pro, …) are restricted automatically — no prop needed.
+
+Deliberate exceptions — keep these as plain URLs, do **not** convert to components:
+
+- an **API endpoint as a value to copy** into code (e.g. the OAuth2 token endpoints in a `curl` example) — explicit EU/CA URLs in backticks; a zone-aware component would hide the variant the reader needs to copy (code blocks are never touched anyway)
+- console **UI-anchor links** that don't target an operation (`#auth`, `#servers`, `?branch=v2` without a section)
+
+Pick the component by what you are pointing at:
+
+| You want to reference… | Use | Not |
+|---|---|---|
+| The OVHcloud API / the console in general | `<ApiLink>` | hardcoded URLs, `/links/api\|console` |
+| A **specific endpoint** the reader should call, as its own display element | `<Api version="v1" section="…" method="GET" route={"…"} />` after a full sentence ending in a colon | a mid-sentence pill; prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
+| A **section or operation as an inline text link** (running prose, table cells) | `<ApiLink section="…" [method="GET" route={"…"}]>your link text</ApiLink>` | hardcoded `?section=` console URLs |
+| Either of the above, but on a **So you Start / Kimsufi** endpoint | add `brands={['sys', 'ks']}` (or `['sys']`/`['ks']`), drop `version` | hardcoded `kimsufi.com`/`soyoustart.com` console URLs |
+| Token creation with rights | `<CreateToken rights="…">` | hardcoded `createToken` URLs |
+
+Also skip "log in to the API console first" steps — the gateway and console are public pages, and the console offers authentication itself, both globally (the `Authentication` sidebar entry) and contextually on each operation. The sign-in mechanics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx); do not repeat them per guide. See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.
 
 ### Plain external links
 
@@ -396,7 +486,10 @@ Guide titles shown in the sidebar are read from each MDX file's frontmatter, **n
 pnpm install
 pnpm dev                       # defaults to fr + en
 DEV_LOCALES=en pnpm dev        # English only (faster)
+DEV_PATH=web-cloud/web-hosting pnpm dev   # scope to one subtree (fallback if dev shows a blank page)
 ```
+
+> Blank page on every route? See [README → Scoping to a route subtree (`DEV_PATH`)](README.md#scoping-to-a-route-subtree-dev_path--blank-page-fallback).
 
 1. Create or edit `.mdx` files under `docs/{locale}/guides/...` for each locale you're shipping.
 2. Drop new images under `docs/public/images/{universe}/{product}/{guide-slug}/`.

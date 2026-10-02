@@ -28,7 +28,12 @@ export function useLocaleAvailability() {
     targetLocale: string,
   ): string {
     const key = pathWithoutLocale.replace(/^\//, '').replace(/\/$/, '');
-    if (!key) return `/${targetLocale}/`;
+    // The locale home: empty path, or a leftover `index`/`index.html` that some
+    // callers (Rspress replaceLang) synthesise. Canonical home is `/{locale}/`,
+    // never `/{locale}/index` (which is a duplicate, indexable URL).
+    if (!key || key === 'index' || key === 'index.html') {
+      return `/${targetLocale}/`;
+    }
     const available = LOCALE_AVAILABILITY[key];
     if (!available) return `/${targetLocale}${pathWithoutLocale}`;
     return available.includes(targetLocale)
