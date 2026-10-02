@@ -195,6 +195,19 @@ The custom theme (`theme/index.tsx`) extends Rspress's original theme:
 #### Site origin (SEO / LLM crawlers)
 `rspress.config.build.ts` sets `siteOrigin: 'https://docs.ovhcloud.com'`. It is what makes the `llms: true` output (`llms.txt`, `llms-full.txt`, the per-page `.md` links and the AI-agent hint under the H1) emit absolute rather than relative URLs. **Three copies must stay in sync:** `siteOrigin` here, `SITE_URL` in `scripts/combine-builds.ts`, and the same constant in `theme/components/SEOHead`.
 
+#### llms.txt family
+Rspress (`llms: true`) only produces the per-page `.md` files and the agent hint; its flat per-locale `llms.txt` / `llms-full.txt` are **overwritten** by `scripts/lib/llms/` (step 5.6 of `combine-builds.ts`, after the `.md` frontmatter injection). Layout:
+
+| File | Content |
+|------|---------|
+| `/llms.txt` | Copy of the EN directory |
+| `/<locale>/llms.txt` | Directory: universe → product, each linking to its own index |
+| `/<locale>/llms/<product>/llms.txt` | Product index in sidebar order, `- [Title](….md): description` |
+| `/<locale>/llms/<product>/llms-full.txt` | Full Markdown of the product's guides |
+| `/<locale>/llms-full.txt` | Every guide of the locale, deduplicated |
+
+Structure comes from `config/sidebar/index.md`; a product's description is its landing page's (or overview's) `description`. Excluded: `internal/`, `noindex`, `_` partials; navigational page types are listed but kept out of the full files; language fallbacks (symlinks) link to the real locale's `.md`, tagged `(en)`, and are kept in the product full files but not in the locale-wide one. Custom layouts (`theme/index.tsx` DocLayout/HomeLayout) must defer to the original layout under `process.env.__SSR_MD__`, or the `.md` export serialises the whole nav. Test: `pnpm llms:test`. `docs/public/nginx.conf` serves `.md` as `text/markdown` and answers `Accept: text/markdown` on clean URLs.
+
 Sitemaps are **not** produced by an Rspress plugin (`@rspress/plugin-sitemap` was dropped) — `scripts/combine-builds.ts` writes one `sitemap.xml` per locale with hreflang alternates, a root sitemap index, `robots.txt`, and promotes the legacy `sitemap-help.xml`.
 
 ## Code Style

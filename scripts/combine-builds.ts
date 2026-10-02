@@ -8,6 +8,9 @@
  * 2. Root redirect creation (/ -> /fr/)
  * 3. Combined sitemap.xml generation
  * 4. robots.txt + sitemap-help.xml placement
+ * 5.5. HTML/MD pre-processing (search boosts, .md frontmatter)
+ * 5.6. llms.txt family (root/per-locale directories, per-product indexes)
+ * 6. Pagefind indexing
  *
  * Usage:
  *   pnpm build:combine
@@ -19,6 +22,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { locales } from '../config/shared';
+import { parseIndexMd } from '../config/sidebar/parser';
+import { generateLlms } from './lib/llms';
+import type { SidebarNode } from './lib/llms/model';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -307,8 +314,8 @@ Allow: /
 Sitemap: ${SITE_URL}/sitemap.xml
 Sitemap: ${SITE_URL}/sitemap-help.xml
 
-# AI/LLM index (per-page raw Markdown available at <url>.md):
-# ${SITE_URL}/llms.txt
+# AI/LLM index: ${SITE_URL}/llms.txt (product directory, one llms.txt per product)
+# Per-page Markdown: append .md to any page URL
 `;
   fs.writeFileSync(robotsDst, defaultRobots);
   console.log('   ✓ Created default robots.txt');
@@ -330,38 +337,6 @@ if (helpSitemapSrc) {
     `   ✓ Copied sitemap-help.xml to dist root (from ${path.relative(DIST_DIR, helpSitemapSrc)})`,
   );
 }
-console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
-
-// ============================================================================
-// 4.5 ROOT llms.txt (AI/LLM discovery entry point)
-// ============================================================================
-// Rspress (`llms: true`) emits a full per-locale index at /<locale>/llms.txt
-// (+ llms-full.txt). There is no root /llms.txt, which is the conventional
-// discovery path an AI agent probes first. Write a small root index pointing
-// at each built locale's llms.txt so agents can fan out from a single guessable
-// URL. We link, not concatenate — the per-locale files already hold the corpus.
-console.log('\n4.5️⃣ Generating root llms.txt...');
-sectionStart = Date.now();
-
-const llmsLines = [
-  '# OVHcloud Documentation',
-  '',
-  '> Product documentation for OVHcloud services. Every guide is also available',
-  '> as raw Markdown by appending `.md` to its URL (Content-Type: text/markdown),',
-  '> and each rendered page advertises that URL via',
-  '> `<link rel="alternate" type="text/markdown">` in its `<head>`.',
-  '',
-  '## Per-language indexes',
-  '',
-];
-for (const locale of builtLocales) {
-  llmsLines.push(`- [${locale}](${SITE_URL}/${locale}/llms.txt)`);
-}
-llmsLines.push('');
-fs.writeFileSync(path.join(DIST_DIR, 'llms.txt'), `${llmsLines.join('\n')}`);
-console.log(
-  `   ✓ llms.txt (root index → ${builtLocales.length} per-locale llms.txt)`,
-);
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
 // ============================================================================
@@ -427,6 +402,53 @@ const totalMd = preProcessResults.reduce((a, b) => a + b.md, 0);
 console.log(
   `   ✓ Total: ${totalHtml} HTML (h1 boost + anchor cleanup) + ${totalMd} MD (frontmatter injected)`,
 );
+console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
+
+// ============================================================================
+// 5.6 llms.txt FAMILY (AI/LLM discovery, see scripts/lib/llms/)
+// ============================================================================
+// Replaces the flat per-locale llms.txt / llms-full.txt Rspress emits (every
+// page under a single "Others" heading, since our nav items carry no `link`)
+// with a hierarchy built from the sidebar tree: a root and
+// per-locale directory of products, one llms.txt + llms-full.txt per product.
+// Runs after 5.5 so the bundles carry the injected `.md` frontmatter.
+console.log('\n5.6️⃣ Generating llms.txt family...');
+sectionStart = Date.now();
+
+const llmsI18n: Record<string, Record<string, string>> = JSON.parse(
+  fs.readFileSync(path.join(ROOT_DIR, 'i18n.json'), 'utf-8'),
+);
+const SIDEBAR_INDEX = path.join(ROOT_DIR, 'config/sidebar/index.md');
+const { i18nEntries: sidebarDefaults } = parseIndexMd(SIDEBAR_INDEX);
+
+const llmsStats = generateLlms({
+  distDir: DIST_DIR,
+  docsDir: DOCS_DIR,
+  siteUrl: SITE_URL,
+  builtLocales,
+  rootLocale: 'en',
+  locales,
+  treeFor: (locale) =>
+    parseIndexMd(SIDEBAR_INDEX, DOCS_DIR, locale)
+      .universes as unknown as SidebarNode[],
+  label: (key, locale) => {
+    const entry = llmsI18n[key] ?? sidebarDefaults[key];
+    return entry?.[locale] || entry?.en || key;
+  },
+});
+for (const s of llmsStats) {
+  console.log(
+    `   ✓ ${s.locale}: ${s.products} products, ${s.pages} pages, llms-full.txt ${(s.fullBytes / 1048576).toFixed(1)} MB`,
+  );
+}
+const noDescription = llmsStats.find(
+  (s) => s.locale === 'en',
+)?.missingDescriptions;
+if (noDescription?.length) {
+  console.log(
+    `   ⚠ ${noDescription.length} products without a description in llms.txt (add a landing page or an overview description): ${noDescription.join(', ')}`,
+  );
+}
 console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
 // ============================================================================
@@ -496,8 +518,12 @@ console.log('  - dist/sitemap.xml (sitemap index)');
 console.log('  - dist/<locale>/sitemap.xml (per-locale sitemap with hreflang)');
 console.log('  - dist/robots.txt (SEO)');
 console.log('  - dist/sitemap-help.xml (legacy help.ovhcloud.com URLs)');
+console.log('  - dist/llms.txt (AI/LLM product directory, English)');
 console.log(
-  '  - dist/<locale>/llms.txt (per-locale LLMs index, generated by Rspress)',
+  '  - dist/<locale>/llms.txt + llms-full.txt (per-locale directory + full text)',
+);
+console.log(
+  '  - dist/<locale>/llms/<product>/llms.txt + llms-full.txt (per-product)',
 );
 console.log('  - dist/public/ (shared assets)');
 console.log('  - dist/<locale>/pagefind/ (per-locale search index)');
