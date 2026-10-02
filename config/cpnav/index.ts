@@ -30,6 +30,8 @@ import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
+import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
+import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
@@ -66,6 +68,7 @@ import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
 import { securitySecretManager } from './keys/security-secret-manager';
+import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -114,10 +117,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
+  'privatecloud-hycu': privatecloudHycu,
+  'privatecloud-backup-licenses': privatecloudBackupLicenses,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
+  'storage-backup-licenses': storageBackupLicenses,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-nas-ha': storageNasHa,

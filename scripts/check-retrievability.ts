@@ -26,6 +26,9 @@
  *      `<head>` — proves agents can discover the clean `.md` before the payload
  *      is truncated by size.
  *   5. Root `/llms.txt` and each sampled locale's `/<locale>/llms.txt` exist.
+ *      On a combined build (scripts/lib/llms/), each locale directory links
+ *      to per-product indexes that exist on disk, and lists no `internal/`
+ *      page.
  *
  * Exit code 0 = all assertions pass. Non-zero = at least one failed (CI red).
  *
@@ -363,6 +366,25 @@ for (const locale of presentLocales) {
   const localeLlms = path.join(DIST_DIR, locale, 'llms.txt');
   if (!fs.existsSync(localeLlms)) {
     fail(`${locale}/llms.txt`, `per-locale /${locale}/llms.txt missing`);
+  } else if (fs.existsSync(rootLlms)) {
+    // Combined build: the directory must fan out to per-product indexes.
+    const directory = fs.readFileSync(localeLlms, 'utf-8');
+    const productLinks = [
+      ...directory.matchAll(/\((?:https?:\/\/[^/)]+)?(\/[^)]+\/llms\.txt)\)/g),
+    ]
+      .map((m) => m[1])
+      .filter((href) => href.startsWith(`/${locale}/llms/`));
+    if (productLinks.length === 0) {
+      fail(`${locale}/llms.txt`, 'no per-product llms.txt link');
+    }
+    for (const href of productLinks) {
+      const file = path.join(DIST_DIR, href);
+      if (!fs.existsSync(file)) {
+        fail(`${locale}/llms.txt`, `links to missing ${href}`);
+      } else if (fs.readFileSync(file, 'utf-8').includes('/internal/')) {
+        fail(href, 'lists an internal/ page');
+      }
+    }
   }
 
   const all = collectGuideHtml(path.join(DIST_DIR, locale, 'guides'));

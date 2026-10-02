@@ -10,6 +10,7 @@ import { useDark, useFrontmatter } from '@rspress/core/runtime';
 import {
   Layout as BasicLayout,
   DocLayout as OriginalDocLayout,
+  HomeLayout as OriginalHomeLayout,
 } from '@rspress/core/theme-original';
 import type React from 'react';
 import { lazy, Suspense, useEffect } from 'react';
@@ -39,7 +40,7 @@ const LazySurveyWidget = lazy(() =>
 
 import { ELearningCourseLayout } from 'theme/layouts/ELearningCourseLayout';
 import { ELearningLayout } from 'theme/layouts/ELearningLayout';
-import { HomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
+import { HomeLayout as CustomHomeLayout } from 'theme/layouts/HomeLayout/HomeLayout';
 import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
@@ -51,6 +52,14 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
   const pageType = fm?.pageType;
   const showOutline = fm?.outline !== false;
   const showSidebar = fm?.sidebar !== false;
+
+  // `.md` export (llms.txt etc.): the original DocLayout renders only the page
+  // content in that mode. Our custom layouts below don't, so routing to them
+  // serialised the whole nav + sidebar (~290 KB) into every landing, overview,
+  // e-learning and migration page's `.md`.
+  if (process.env.__SSR_MD__) {
+    return <OriginalDocLayout {...props} />;
+  }
 
   // If pageType is 'overview', use our custom OverviewLayout
   if (pageType === 'overview') {
@@ -87,6 +96,15 @@ const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
     </div>
   );
 };
+
+// Same `.md` export issue as DocLayout: the original HomeLayout has a markdown
+// branch (hero + features), ours would serialise the nav and sidebar.
+const HomeLayout = (props: React.ComponentProps<typeof CustomHomeLayout>) =>
+  process.env.__SSR_MD__ ? (
+    <OriginalHomeLayout {...props} />
+  ) : (
+    <CustomHomeLayout {...props} />
+  );
 
 const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
   const isDark = useDark();

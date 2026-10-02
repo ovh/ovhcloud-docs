@@ -1,7 +1,7 @@
 ---
 title: Importare ed esportare chiavi su OVHcloud KMS con BYOK
 description: Scopri come importare ed esportare in modo sicuro materiale di chiave cifrato con OVHcloud KMS grazie all'incapsulamento RSA asimmetrico delle chiavi (BYOK)
-lastUpdated: 2026-08-12
+lastUpdated: 2026-09-30
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -227,7 +227,7 @@ Algoritmi di incapsulamento supportati ([RFC 7518](https://datatracker.ietf.org/
 | `PKCS1` | Materiale di chiave RSA in codifica PKCS#1 |
 | `PKCS8` | Materiale di chiave privata in codifica PKCS#8 |
 
-Dopo l'incapsulamento con la chiave pubblica di destinazione, invia nella richiesta di importazione il `ciphertext` JWE Compact Serialization ottenuto.
+Dopo l'incapsulamento con la chiave pubblica di destinazione, invia nella richiesta di importazione il `ciphertext` JWE Compact Serialization ottenuto. Per un esempio in Go di questo passaggio di incapsulamento, consulta [Esempio end-to-end in Go](#esempio-end-to-end-in-go).
 
 ### Importare la chiave incapsulata
 
@@ -251,7 +251,7 @@ Ogni voce di `wrappedKeys`:
 | --- | --- | --- |
 | `keyFormatType` | **Sì** | `RAW`, `JWK`, `PKCS1` o `PKCS8` |
 | `wrappingKeyId` | **Sì** | UUID della chiave di trasporto RSA di destinazione |
-| `ciphertext` | **Sì** | Materiale di chiave cifrato in formato JWE Compact Serialization |
+| `ciphertext` | **Sì** | Materiale di chiave cifrato in formato JWE Compact Serialization. L'header JWE deve impostare `alg` su `RSA-OAEP` o `RSA-OAEP-256` ed `enc` su `A256GCM`. |
 
 Puoi importare una chiave solo pubblica (`class` diventa `PUBLIC_KEY`) o una chiave privata (il KMS ricostruisce la parte pubblica; `class` diventa `KEY_PAIR`). Il materiale simmetrico è archiviato come `SECRET_KEY`.
 
@@ -421,6 +421,27 @@ resp, err := okmsClient.ImportKeyPairPEM(
   ctx,
   okmsId,
   pemBytes,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+wrappingKeyID := resp.Id
+```
+
+Puoi anche importarla direttamente da un `*rsa.PublicKey`:
+
+```go
+destKey, err := rsa.GenerateKey(rand.Reader, 4096)
+if err != nil {
+  return err
+}
+resp, err := okmsClient.ImportKey(
+  ctx,
+  okmsId,
+  &destKey.PublicKey,
   "byok-export-transport-pub",
   "",
   []types.CryptographicUsages{types.WrapKey},
@@ -603,6 +624,149 @@ Trasferisci il `ciphertext` verso l'ambiente di destinazione. Disincapsulalo con
 
 - Se la destinazione è un altro dominio OKMS, importa in quel dominio il materiale incapsulato con `wrappedKeys` come in [Importare la chiave incapsulata](#importare-la-chiave-incapsulata), utilizzando l'ID della chiave di trasporto di quel dominio come `wrappingKeyId`.
 - Se la destinazione è un sistema esterno, utilizza la sua API nativa di disincapsulamento / importazione con la chiave di trasporto privata e lo stesso `keyFormatType` / algoritmo di incapsulamento dell'esportazione.
+
+### Esempio end-to-end in Go
+
+Gli esempi seguenti eseguono entrambe le cerimonie con una coppia di chiavi RSA, utilizzando l'[SDK Go](https://pkg.go.dev/github.com/ovh/okms-sdk-go) per le chiamate a OVHcloud KMS e [go-jose](https://pkg.go.dev/github.com/go-jose/go-jose/v4) per le operazioni JWE eseguite fuori da OVHcloud KMS. Entrambi gli esempi codificano il materiale di chiave in PKCS#8 (DER), che corrisponde al valore `PKCS8` di `keyFormatType`.
+
+#### Importare una chiave generata localmente
+
+Il programma genera la chiave con la libreria standard di Go, la incapsula localmente con la chiave di trasporto pubblica e poi la importa. Il materiale di chiave non viene mai inviato in chiaro a OVHcloud KMS.
+
+```go
+// 1. Crea la chiave di trasporto su OVHcloud KMS e recupera la sua parte pubblica.
+transportKey, err := okmsClient.GenerateRSAKeyPair(
+  ctx,
+  okmsId,
+  types.N4096,
+  "byok-transport-rsa",
+  types.SOFTWARE,
+  "",
+  []types.CryptographicUsages{types.WrapKey, types.UnwrapKey},
+)
+if err != nil {
+  return err
+}
+transportPub, err := okmsClient.ExportPublicKey(ctx, okmsId, transportKey.Id)
+if err != nil {
+  return err
+}
+
+// 2. Genera la chiave da importare e codificala in PKCS#8 (DER).
+srcKey, err := rsa.GenerateKey(rand.Reader, 2048)
+if err != nil {
+  return err
+}
+plaintext, err := x509.MarshalPKCS8PrivateKey(srcKey)
+if err != nil {
+  return err
+}
+
+// 3. Incapsula il materiale di chiave come JWE: incapsulamento della chiave RSA-OAEP-256, cifratura del contenuto A256GCM.
+encrypter, err := jose.NewEncrypter(
+  jose.A256GCM,
+  jose.Recipient{Algorithm: jose.RSA_OAEP_256, Key: transportPub},
+  nil,
+)
+if err != nil {
+  return err
+}
+jwe, err := encrypter.Encrypt(plaintext)
+if err != nil {
+  return err
+}
+ciphertext, err := jwe.CompactSerialize()
+if err != nil {
+  return err
+}
+
+// 4. Importa la chiave incapsulata. Il KMS la disincapsula e deduce il tipo e la dimensione dal materiale.
+imported, err := okmsClient.ImportWrappedServiceKey(
+  ctx,
+  okmsId,
+  transportKey.Id,
+  ciphertext,
+  types.PKCS8,
+  "imported-rsa-byok",
+  "",
+  []types.CryptographicUsages{types.Sign, types.Verify},
+)
+if err != nil {
+  return err
+}
+keyID := imported.Id
+```
+
+L'algoritmo di cifratura del contenuto JWE (`enc`) deve essere `A256GCM`.
+
+#### Esportare una chiave e decifrare il JWE
+
+La destinazione (qui, il programma locale) genera la coppia di chiavi di trasporto, importa solo la sua parte pubblica in OVHcloud KMS, poi decifra, con la parte privata, il JWE esportato.
+
+```go
+// ID della chiave di servizio da esportare, ad esempio la chiave importata nell'esempio precedente.
+keyID := uuid.MustParse("<key-id>")
+
+// 1. Genera la coppia di chiavi di trasporto sulla destinazione.
+destKey, err := rsa.GenerateKey(rand.Reader, 4096)
+if err != nil {
+  return err
+}
+
+// 2. Importa solo la sua parte pubblica in OVHcloud KMS, con l'utilizzo wrapKey.
+wrappingKey, err := okmsClient.ImportKey(
+  ctx,
+  okmsId,
+  &destKey.PublicKey,
+  "byok-export-transport-pub",
+  "",
+  []types.CryptographicUsages{types.WrapKey},
+)
+if err != nil {
+  return err
+}
+
+// 3. Rendi la chiave estraibile, poi esportala incapsulata dalla chiave pubblica di destinazione.
+extractable := true
+if _, err := okmsClient.UpdateServiceKey(ctx, okmsId, keyID, types.PatchServiceKeyRequest{Extractable: &extractable}); err != nil {
+  return err
+}
+defer func() {
+  extractable := false
+  _, _ = okmsClient.UpdateServiceKey(ctx, okmsId, keyID, types.PatchServiceKeyRequest{Extractable: &extractable})
+}()
+wrapped, err := okmsClient.GetWrappedServiceKey(
+  ctx,
+  okmsId,
+  keyID,
+  wrappingKey.Id,
+  types.PKCS8,
+  types.RSAOAEP256,
+)
+if err != nil {
+  return err
+}
+
+// 4. Decifra il JWE con la chiave privata di destinazione e analizza il materiale PKCS#8.
+jwe, err := jose.ParseEncrypted(
+  wrapped[0].Ciphertext,
+  []jose.KeyAlgorithm{jose.RSA_OAEP_256},
+  []jose.ContentEncryption{jose.A256GCM},
+)
+if err != nil {
+  return err
+}
+plaintext, err := jwe.Decrypt(destKey)
+if err != nil {
+  return err
+}
+
+exportedKey, err := x509.ParsePKCS8PrivateKey(plaintext)
+if err != nil {
+  return err
+}
+// exportedKey contiene il materiale di chiave esportato, utilizzato nel resto del programma.
+```
 
 ## Per saperne di più
 
