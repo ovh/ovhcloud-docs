@@ -1,8 +1,11 @@
 ---
 title: Utilizar o seu OVHcloud Key Management Service (KMS)
 description: Encripte ou assine os seus dados com a API REST regional do Key Management Service (KMS) da OVHcloud
-lastUpdated: 2026-07-16
+lastUpdated: 2026-09-16
 ---
+
+import Api from '@components/Api';
+
 
 ## Objetivo
 
@@ -36,13 +39,21 @@ Para testar as chamadas à API de forma interativa, utilize a [interface Swagger
 
 ### Criar uma chave de encriptação através da API
 
-A criação de uma chave pode ser feita através da <ApiLink section="/okms" version="v2">API OVHcloud</ApiLink> ou nas API específicas do KMS OVHcloud. Não há diferenças no resultado consoante o método de criação.
+A criação de uma chave pode ser feita através da <ApiLink section="/okms" version="v2" method="POST" route={"/okms/resource/\{okmsId\}/serviceKey"}>API OVHcloud</ApiLink> ou nas API específicas do KMS OVHcloud. Não há diferenças no resultado consoante o método de criação.
+
+:::info
+As rotas seguintes utilizam o identificador do seu domínio OKMS. É devolvido pela seguinte chamada à API:
+
+<Api version="v2" section="/okms" method="GET" route={"/okms/resource"} />
+
+Também é apresentado, juntamente com o endpoint regional, no separador **Informações gerais** do <ManagerLink to="/#/okms/key-management-service">dashboard do seu domínio OKMS</ManagerLink>.
+:::
 
 No caso das API específicas do KMS OVHcloud, a criação de uma chave é feita através da seguinte API:
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey|Criar ou importar uma CMK|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey|Criar ou importar uma CMK|
 
 A API espera os seguintes valores:
 
@@ -54,6 +65,8 @@ A API espera os seguintes valores:
 |size|Integer|Tamanho da chave - ver tabela de correspondência abaixo|
 |operations|Array|Utilização da chave - ver tabela de correspondência abaixo|
 |curve|P-256, P-384, P-521|(opcional) Curva criptográfica para as chaves do tipo EC|
+|protectionLevel|SOFTWARE, HSM|(opcional) Nível de proteção da chave: `SOFTWARE` (predefinido) — as operações criptográficas são executadas em software; `HSM` — as operações são executadas em hardware especializado partilhado (HSM). As chaves HSM não podem ser utilizadas para [BYOK](/guides/manage-and-operate/kms/import-export-keys-byok).|
+|extractable|boolean|(opcional) Indica se o material da chave poderá ser exportado - ver a secção [Atributos de sensibilidade das chaves de serviço](#atributos-de-sensibilidade-das-chaves-de-serviço) abaixo|
 
 **Exemplo de criação de uma chave simétrica:**
 
@@ -100,6 +113,22 @@ A API espera os seguintes valores:
 }
 ```
 
+**Exemplo de criação de chave protegida por HSM:**
+
+```json
+{
+  "name": "My HSM-backed AES key",
+  "context": "project A",
+  "type": "oct",
+  "size": 256,
+  "protectionLevel": "HSM",
+  "operations": [
+    "encrypt",
+    "decrypt"
+  ]
+}
+```
+
 Os tamanhos e as operações possíveis em função do tipo de chave são os seguintes:
 
 - **oct**:
@@ -109,15 +138,25 @@ Os tamanhos e as operações possíveis em função do tipo de chave são os seg
         - wrapKey, unwrapKey
 - **RSA**:
     - tamanho: 2048, 3072, 4096
-    - operações: sign, verify
+    - operações:
+        - sign, verify
+        - wrapKey, unwrapKey
 - **EC**:
     - tamanho: não especificar
     - curve: P-256, P-384, P-521
     - operações: sign, verify
 
+:::info
+Nas chaves RSA, `wrapKey` / `unwrapKey` são mutuamente exclusivas com `sign` / `verify`.
+:::
+
 #### Importar uma chave de encriptação
 
-Ao criar uma chave, é possível importar uma chave existente.
+Ao criar uma chave, é possível importar uma chave existente em texto claro no formato JWK.
+
+:::warning
+A importação de material de chave em texto claro não é recomendada para as chaves que devem permanecer de confiança. Prefira o [BYOK seguro com encapsulamento RSA assimétrico](/guides/manage-and-operate/kms/import-export-keys-byok).
+:::
 
 Para isso, pode adicionar um campo complementar **keys** no corpo do pedido:
 
@@ -158,20 +197,80 @@ Para gerir as chaves de encriptação, estão disponíveis várias API:
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|GET|/v1/servicekey|Lista as chaves de encriptação disponíveis|
-|DELETE|/v1/servicekey/&#123;keyId&#125;/delete|Elimina uma chave de encriptação|
-|POST|/v1/servicekey/&#123;keyId&#125;/activate|Ativa uma chave de encriptação|
-|POST|/v1/servicekey/&#123;keyId&#125;/deactivate|Desativa uma chave de encriptação|
+|GET|/api/&#123;okmsId&#125;/v1/servicekey|Lista as chaves de encriptação disponíveis|
+|DELETE|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;|Elimina uma chave de encriptação|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/activate|Ativa uma chave de encriptação|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/deactivate|Desativa uma chave de encriptação|
 
-A desativação de uma chave de encriptação implica que esta deixará de poder ser utilizada, embora a chave permaneça presente no KMS.
+As chaves são criadas ou importadas diretamente no estado `active`. A desativação de uma chave impede qualquer utilização criptográfica, mas mantém a chave no KMS. Só pode ser eliminada uma chave que já esteja `deactivated` ou `compromised`.
 
-A eliminação de uma chave de encriptação só é possível numa chave previamente desativada.
+Para as operações permitidas em cada estado, consulte [Estados das chaves de serviço e operações permitidas](#estados-das-chaves-de-serviço-e-operações-permitidas).
 
 :::warning
-A eliminação de uma chave de encriptação é definitiva. Todos os dados encriptados com ela ficarão definitivamente inacessíveis.
-
+A eliminação de uma chave de encriptação é definitiva. Todos os dados encriptados com essa chave ficam definitivamente inacessíveis.
 :::
 
+#### Estados das chaves de serviço e operações permitidas
+
+O estado de uma chave de serviço determina as operações aceites pelo KMS, em conformidade com os modelos de ciclo de vida das chaves definidos por [KMIP 2.1](https://docs.oasis-open.org/kmip/kmip-spec/v2.1/os/kmip-spec-v2.1-os.html) e [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final):
+
+- Uma chave `active` pode ser utilizada para todas as operações criptográficas listadas no seu campo `operations`.
+- Uma chave `deactivated` ou `compromised` não aceita operações criptográficas. Deixa de poder proteger dados (`encrypt`, `sign`, encapsular, gerar Data Keys), recuperá-los (`decrypt`, desencapsular Data Keys) ou verificar assinaturas. As operações de gestão (leitura, listagem, patch, ativação, desativação, eliminação) permanecem disponíveis.
+- Após um `DELETE`, a chave é removida de forma definitiva: qualquer pedido posterior dirigido a esse identificador de chave devolve `404 Not Found`.
+
+As alterações de estado produzem efeito imediato, sem atraso de propagação: qualquer pedido recebido após um `activate`, um `deactivate` ou um `DELETE` bem-sucedido é avaliado face ao novo estado.
+
+| Operação | `active` | `deactivated` | `compromised` | após `DELETE` |
+| --- | --- | --- | --- | --- |
+| `GET /servicekey/{keyId}` | Sim | Sim | Sim | 404 |
+| `GET /servicekey` | Sim | Sim<br />Requer `state=deactivated`<br />ou `state=all` | Sim<br />Requer `state=compromised`<br />ou `state=all` | Não listada |
+| `PATCH /servicekey/{keyId}` | Sim | Sim | Sim | 404 |
+| `POST /servicekey/{keyId}/activate` | no-op<br />204 | Sim<br />Volta a `active` | Sim<br />Volta a `active` | 404 |
+| `POST /servicekey/{keyId}/deactivate` | Sim | no-op se o motivo for o mesmo<br />Caso contrário, atualiza o motivo<br />(e eventualmente o estado) | no-op se o motivo for o mesmo<br />Caso contrário, atualiza o motivo<br />(e eventualmente o estado) | 404 |
+| `DELETE /servicekey/{keyId}` | **Não**<br />400 | Sim | Sim | 404 |
+| `POST /servicekey/{keyId}/encrypt` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/decrypt` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey/decrypt` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/sign` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/verify` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Exportação de chave encapsulada, estado da chave **exportada** | Sim | Sim | Sim | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Exportação de chave encapsulada, estado da chave de **encapsulamento** | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey` + `wrappedKeys`<br />Importação de chave encapsulada, estado da chave de **encapsulamento** | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+
+:::warning
+A desativação impede imediatamente a recuperação dos dados protegidos pela chave. Quando é utilizada a encriptação por envelope (envelope encryption), as Data Keys encapsuladas por uma chave de serviço desativada não podem ser desencapsuladas enquanto a chave não for reativada. Certifique-se de que as aplicações já não necessitam da chave antes de a desativar, ou conserve um caminho de restabelecimento através de `POST /servicekey/{keyId}/activate`.
+:::
+
+#### Atributos de sensibilidade das chaves de serviço
+
+Quando cria ou obtém uma chave de serviço, os indicadores de sensibilidade e extraibilidade são devolvidos no objeto `attributes` da resposta GET (a par de outros metadados como `state`). Apenas `extractable` é definível pelo utilizador (na criação ou via PATCH). Os outros indicadores são definidos pelo KMS. Definir `extractable` como `true` fixa definitivamente `never_extractable` como `false`.
+
+| Atributo | Definível pelo utilizador? | Descrição |
+| --- | --- | --- |
+| `extractable` | Sim (criação / PATCH) | Se `true`, o material da chave pode ser exportado (em texto claro ou encapsulado, consoante a classe da chave). Por defeito: `false` — exceto as chaves apenas públicas, cujo valor por defeito é `true`. |
+| `never_extractable` | Não | `true` se a chave nunca foi extraível desde a criação no KMS. As chaves [importadas com BYOK](/guides/manage-and-operate/kms/import-export-keys-byok) ou por importação em texto claro têm `never_extractable` definido como `false`, porque o material existia fora do KMS antes da importação. Ativar a extração também limpa este indicador de forma permanente. |
+| `sensitive` | Não | `true` quando a chave só pode ser extraída após ser encapsulada (o que também exige que `extractable` seja `true`). As chaves secretas e privadas (material AES/`oct` e RSA/EC privado) são sempre consideradas sensíveis. |
+| `always_sensitive` | Não | `true` se a chave foi sempre sensível desde a criação. |
+
+Exemplo de resposta GET (campos abreviados):
+
+```json
+{
+  "id": "<key-id>",
+  "name": "aes-to-export",
+  "type": "oct",
+  "attributes": {
+    "state": "active",
+    "extractable": true,
+    "never_extractable": false,
+    "sensitive": true,
+    "always_sensitive": true
+  }
+}
+```
+
+Para extrair uma chave em segurança, defina `extractable` como `true` apenas para a operação de exportação, exporte-a com encapsulamento RSA e volte a defini-lo como `false`. Consulte [Exportar uma chave encapsulada](/guides/manage-and-operate/kms/import-export-keys-byok#exportar-uma-chave-encapsulada).
 
 ### Encriptar dados com o KMS
 
@@ -183,7 +282,7 @@ Trata-se do método mais simples, mas que não apresenta o melhor desempenho.
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey/&#123;keyId&#125;/encrypt|Encriptação de dados com uma CMK|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/encrypt|Encriptação de dados com uma CMK|
 
 A API espera os seguintes valores:
 
@@ -213,7 +312,7 @@ A desencriptação do dado é feita de forma inversa através da API:
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey/&#123;keyId&#125;/decrypt|Desencriptação de dados com uma CMK|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/decrypt|Desencriptação de dados com uma CMK|
 
 A API espera os seguintes valores:
 
@@ -227,7 +326,7 @@ O campo **context** deve ter o mesmo valor que o indicado durante a encriptaçã
 #### Encriptação com uma Data Key (DK)
 
 Para obter mais desempenho, é possível gerar uma Data Key (DK) a partir de uma chave simétrica (AES) para a utilizar a partir da sua aplicação.
-A chave AES utilizada deve ter sido gerada com as operações "wrapKey, unwrapKey".
+A chave AES utilizada deve ter sido gerada com as operações `wrapKey` e `unwrapKey`.
 
 <img className="thumbnail" alt="Encriptação com DK" src="/images/manage-and-operate/kms/kms-usage/Datakey_encrypt.png" loading="lazy" />
 
@@ -235,7 +334,7 @@ A geração de uma DK é feita através da seguinte API:
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey/&#123;keyId&#125;/datakey|Gerar uma DK derivada de uma CMK|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/datakey|Gerar uma DK derivada de uma CMK|
 
 A API espera os seguintes valores:
 
@@ -273,7 +372,7 @@ Inversamente, é possível recuperar a versão desencriptada de uma Data Key atr
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey/&#123;keyId&#125;/datakey/decrypt|Desencriptação de uma DK|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/datakey/decrypt|Desencriptação de uma DK|
 
 A API espera os seguintes valores:
 
@@ -323,11 +422,11 @@ Segundo a documentação da [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518#se
 
 #### Assinatura de uma mensagem
 
-Dado que a chave privada não pode ser extraída do KMS, a assinatura só pode ser feita diretamente no KMS.
+Dado que a chave privada não pode ser extraída em texto claro do KMS, a assinatura só pode ser feita diretamente no KMS.
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey/&#123;keyId&#125;/sign|Assinatura de um ficheiro|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/sign|Assinatura de um ficheiro|
 
 A API espera os seguintes valores:
 
@@ -363,7 +462,7 @@ No KMS, é possível utilizar a seguinte API:
 
 |**Método**|**Caminho**|**Descrição**|
 | :-: | :-: | :-: |
-|POST|/v1/servicekey/&#123;keyId&#125;/verify|Verificação de uma assinatura|
+|POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/verify|Verificação de uma assinatura|
 
 A API espera os seguintes valores:
 
@@ -394,6 +493,8 @@ A API devolverá em seguida o resultado da verificação:
 ```
 
 ## Quer saber mais?
+
+[Importar e exportar chaves no OVHcloud KMS com BYOK](/guides/manage-and-operate/kms/import-export-keys-byok)
 
 [Métodos de autenticação OKMS](/guides/manage-and-operate/kms/okms-authentication-methods)
 

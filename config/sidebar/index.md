@@ -61,8 +61,10 @@
             + [Unknown transaction or issuer](account-and-service-management/managing-billing-payments-and-services/understand-unknown-invoice)
             + [Purchase Order (PO)](account-and-service-management/managing-billing-payments-and-services/purchase-order)
             + [Payer une commande en tant qu’administration publique](account-and-service-management/managing-billing-payments-and-services/public-administration)
+            + [Entering a commitment number on your purchase order](account-and-service-management/managing-billing-payments-and-services/commitment-number)
             + [Correcting a bank details error](account-and-service-management/managing-billing-payments-and-services/correct-bank-details-error)
             + [Renseigner votre numéro de SIRET et mettre à jour votre taux de TVA](account-and-service-management/managing-billing-payments-and-services/update-vat-rate)
+            + [Understanding and correcting electronic invoicing errors](account-and-service-management/managing-billing-payments-and-services/electronic-invoicing-errors)
             + [Hosted Private Cloud](account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments-hosted-private-cloud)
                 + [Hosted Private Cloud billing information](account-and-service-management/managing-billing-payments-and-services/facturation-private-cloud)
             + [AI Notebooks](account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments-ai-notebooks)
@@ -152,12 +154,12 @@
         + [Overview](bare-metal-cloud/dedicated-servers/overview)
         + [Key Concepts](bare-metal-cloud-dedicated-servers-key-concepts)
             + [Bare Metal 3-AZ Region - Service presentation](bare-metal-cloud/dedicated-servers/3az-presentation)
-            + [Kimsufi and So You Start customers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/getting-familiar-with-ovhcloud-control-panel)
+            + [Kimsufi and So you Start customers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/getting-familiar-with-ovhcloud-control-panel)
             + [Dedicated Servers - Shared responsiblity](account-and-service-management/responsibility-sharing/dedicated-servers)
             + [Understanding the dedicated server boot process](bare-metal-cloud/dedicated-servers/boot-process)
         + [Getting Started](bare-metal-cloud-dedicated-servers-getting-started)
             + [How to get started with a dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server)
-            + [How to get started with a Kimsufi, So You Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
+            + [How to get started with a Kimsufi, So you Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
             + [How to get started with SSH connections](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use authentication keys for SSH connections to OVHcloud servers](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
             + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
@@ -174,6 +176,7 @@
                 + [Hardware upgrade on an Advance, High Grade or Scale dedicated server](bare-metal-cloud/dedicated-servers/hardware-upgrade-hg-scale)
                 + [How to assign a tag to a Bare Metal server](bare-metal-cloud/dedicated-servers/resource-tag-assign)
                 + [How to install VMware ESXi 8 on a dedicated server](bare-metal-cloud/dedicated-servers/esxi-partitioning)
+                + [OVHcloud Dedicated Servers Logs Forwarding](bare-metal-cloud/dedicated-servers/dedicated-servers-logs-to-customers)
             + [Storage](bare-metal-cloud-dedicated-servers-configuration-storage)
                 + [Managing and rebuilding software RAID on servers using legacy boot (BIOS) mode](bare-metal-cloud/dedicated-servers/raid-soft)
                 + [Managing and rebuilding software RAID on servers using UEFI boot mode](bare-metal-cloud/dedicated-servers/raid-soft-uefi)
@@ -303,7 +306,6 @@
             + [Repartitioning a VPS after an upgrade](bare-metal-cloud/virtual-private-servers/upsize-vps-partition)
             + [First steps with pre-installed applications](bare-metal-cloud/virtual-private-servers/apps-first-steps)
             + [How to use the KVM console to access a VPS](bare-metal-cloud/virtual-private-servers/using-kvm-for-vps)
-            + [Managing a legacy VPS](bare-metal-cloud/virtual-private-servers/vps-legacy-control-panel)
         + [Configuration](products/bare-metal-cloud-virtual-private-servers-configuration)
             + [Backup options](bare-metal-cloud-virtual-private-configuration-servers-backups)
                 + [How to use snapshots on a VPS](bare-metal-cloud/virtual-private-servers/using-snapshots-on-a-vps)
@@ -325,6 +327,7 @@
             + [How to use PuTTY for SSH connections and authentication](web-cloud/web-hosting/ssh-using-putty-on-windows)
             + [How to use SFTP to transfer files](bare-metal-cloud/dedicated-servers/transfer-data-via-sftp)
             + [How to retrieve databases in rescue mode](bare-metal-cloud/dedicated-servers/restore-bdd-rescue)
+            + [How to update the OS on a VPS](bare-metal-cloud/virtual-private-servers/update-os-on-a-vps)
             + [How to create a Minecraft server on a VPS](bare-metal-cloud/virtual-private-servers/minecraft-server-on-vps)
             + [How to create a Palworld server](bare-metal-cloud/virtual-private-servers/palworld-server-on-vps)
             + [How to set up a web server (LAMP) on Debian or Ubuntu](bare-metal-cloud/dedicated-servers/installing-lamp-debian9-ubuntu18)
@@ -344,6 +347,7 @@
             + [How to install Nextcloud on an OVHcloud VPS with Docker](bare-metal-cloud/virtual-private-servers/install-nextcloud-on-vps-beginner)
             + [How to install Nextcloud on an OVHcloud VPS with Docker and Traefik](bare-metal-cloud/virtual-private-servers/install-nextcloud-on-vps-advanced)
             + [How to install an OpenClaw agent on a VPS](bare-metal-cloud/virtual-private-servers/install-openclaw)
+            + [How to install Hermes Agent on a VPS](bare-metal-cloud/virtual-private-servers/install-hermes-agent)
             + [Automated backup with plakar](storage-and-backup/backup-and-disaster-recovery-solutions/third-party-software/automated-plakar)
         + [Security](bare-metal-cloud-virtual-private-servers-security)
             + [How to secure a VPS](bare-metal-cloud/virtual-private-servers/secure-your-vps)
@@ -382,6 +386,7 @@
                 + [Deploy a Minecraft server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-minecraft)
                 + [Deploy a Palworld server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-palworld)
                 + [Deploy a Project Zomboid server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-project-zomboid)
+                + [Deploy a Rust server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-rust)
                 + [Deploy a Team Fortress 2 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-tf2)
                 + [Deploy a TeamSpeak 3 server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-teamspeak-3)
                 + [Deploy a Valheim server on the Game Panel](bare-metal-cloud/virtual-private-servers/game-panel-quick-start-valheim)
@@ -404,7 +409,7 @@
             + [Technical capabilities and limitations of Public VCF as-a-Service](hosted-private-cloud/powered-by-vmware/vcd-limitations)
         + [Getting started](hosted-private-cloud-public-VCF-getting-started)
             + [Introduction to the Hosted Private Cloud Control Panel](hosted-private-cloud/powered-by-vmware/manager-ovh-private-cloud)
-            + [Logging in to the vSphere interface](hosted-private-cloud/powered-by-vmware/vsphere-interface-connexion)
+            + [Logging in to the vSphere interface](hosted-private-cloud/powered-by-vmware/vsphere-interface-connection)
             + [Public VCF as-a-Service - Logging in to your organization](hosted-private-cloud/powered-by-vmware/vcd-logging)
             + [Public VCF as-a-Service - How to use the Public VCF as-a-Service user interface](hosted-private-cloud/powered-by-vmware/vcd-getting-started-dashboard-overview)
         + [Configuration](hosted-private-cloud-public-VCF-configuration)
@@ -441,6 +446,9 @@
         + [Key Concepts](hosted-private-cloud-managed-vmware-key-concepts)
             + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
             + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
+            + [VMware on OVHcloud Lifecycle Policy](hosted-private-cloud/powered-by-vmware/lifecycle-policy)
+            + [VMware on OVHcloud Lifecycle Policy - Determine actions to be taken](hosted-private-cloud/powered-by-vmware/lifecycle-actions)
+            + [Responsibility sharing for the VMware on OVHcloud service](hosted-private-cloud/powered-by-vmware/responsibility-sharing)
         + [Getting started](hosted-private-cloud-managed-vmware-getting-started)
             + [Getting started with NSX](hosted-private-cloud/powered-by-vmware/nsx-first-steps)
             + [Activating NSX-T in your VMware on OVHcloud infrastructure](hosted-private-cloud/powered-by-vmware/nsx-add-user-rights)
@@ -541,7 +549,6 @@
                 + [Enabling Virtual Machine Encryption with external KMS](hosted-private-cloud/powered-by-vmware/vm-encrypt)
                 + [KMS for VMware on OVHcloud - VM encryption use case scenarios](hosted-private-cloud/powered-by-vmware/vmware-overall-vm-encrypt)
                 + [KMS for VMware on OVHcloud - Configuring VM encryption](hosted-private-cloud/powered-by-vmware/okms-vm-encrypt)
-                + [Mise en route du KMS CipherTrust Manager](hosted-private-cloud/powered-by-vmware/kms-cipher-trust)
             + [Network Security (NSX)](hosted-private-cloud-managed-vmware-security-nsx)
                 + [Distributed Firewall Management in NSX](hosted-private-cloud/powered-by-vmware/nsx-manage-distributed-firewall)
                 + [Gateway Firewall Management in NSX](hosted-private-cloud/powered-by-vmware/nsx-manage-gateway-firewall)
@@ -579,10 +586,15 @@
             + [FAQ - SecNumCloud Connectivity](hosted-private-cloud/powered-by-vmware/snc-connectivity-faq)
     + [SNC Cloud Platform](hosted-private-cloud-snc-cloud-platform)
         + [Getting started](hosted-private-cloud-snc-cloud-platform-getting-started)
-            + [Mise en route de votre SNC Cloud Platform](hosted-private-cloud/cloud-platform/getting-started)
-            + [Comment sauvegarder une instance SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance)
-            + [Comment sauvegarder un bucket Object Storage SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-backup-object-storage-bucket)
-            + [How to rename or move an encrypted object in SNC Cloud Platform Object Storage](hosted-private-cloud/cloud-platform/snc-cloud-platform-rename-move-encrypted-object)
+            + [Getting started with your SNC Cloud Platform project](hosted-private-cloud/cloud-platform/getting-started)
+            + [Creating an instance and connecting to it](hosted-private-cloud/cloud-platform/snc-cloud-platform-create-instance)
+            + [Backing up and cloning an instance](hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance)
+            + [Backing up an SNC Cloud Platform Object Storage bucket](hosted-private-cloud/cloud-platform/snc-cloud-platform-backup-object-storage-bucket)
+            + [Renaming or moving an encrypted object in SNC Cloud Platform Object Storage](hosted-private-cloud/cloud-platform/snc-cloud-platform-rename-move-encrypted-object)
+            + [Using Terraform with SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform)
+            + [Managing Glance images](hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management)
+            + [Managing public IPs](hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management)
+            + [Creating a Windows Server VM](hosted-private-cloud/cloud-platform/snc-cloud-platform-create-windows-server-vm)
     + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
@@ -607,8 +619,12 @@
             + [How the Ironic to NetBox synchronisation works](hosted-private-cloud/opcp/netbox-ironic-synchronisation)
             + [How to use Terraform](hosted-private-cloud/opcp/use-terraform)
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
+            + [How to back up the OPCP controller data](hosted-private-cloud/opcp/how-to-create-a-backup)
+            + [How to upgrade OPCP](hosted-private-cloud/opcp/how-to-upgrade-opcp)
+            + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
+            + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
         + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
             + [Getting started with your CloudStore](hosted-private-cloud/opcp/cloudstore-getting-started)
         + [Landing Zone Manager](hosted-private-cloud-hosted-private-cloud-opcp-landing-zone-manager)
@@ -617,6 +633,8 @@
             + [OPCP Core compatibility matrix](hosted-private-cloud/opcp/opcp-compatibility-matrix)
             + [Object Storage features and specifications on OPCP](hosted-private-cloud/opcp/s3-opcp-limitations)
             + [How to create a custom Debian image](hosted-private-cloud/opcp/how-to-create-debian-image)
+            + [How to create a custom CentOS image](hosted-private-cloud/opcp/how-to-create-centos-image)
+            + [How to deploy Scality RING on OPCP](hosted-private-cloud/opcp/how-to-deploy-scality-ring)
             + [Ceph RBD Block Storage - Performance, Resilience and Scalability with OpenStack](hosted-private-cloud/opcp/storage-ceph-rbd-overview)
     + [Nutanix on OVHcloud](products/hosted-private-cloud-nutanix)
         + [Overview](hosted-private-cloud/nutanix-on-ovhcloud/overview)
@@ -707,6 +725,8 @@
             + [Public Cloud API Rate Limits](public-cloud/cross-functional/api-rate-limits)
             + [Comparison and resilience of Deployment Modes - Understanding 3-AZ / 1-AZ / Local Zones](public-cloud/cross-functional/deployment-modes-comparison-resilience-details)
             + [3-AZ resilience - Mechanisms and reference architectures](public-cloud/cross-functional/deployments-modes-reference-architecture)
+            + [Disaster recovery plan - Mechanisms and reference architectures](public-cloud/cross-functional/disaster-recovery-plan-architecture)
+            + [Disaster recovery plan - Implementation example](public-cloud/cross-functional/disaster-recovery-plan-implementation)
             + [How do Savings Plans work?](public-cloud/cross-functional/savings-plans)
             + [Introduction to Public Cloud Logs](public-cloud/cross-functional/logs-concepts)
         + [Getting Started](public-cloud-cross-functional-getting-started)
@@ -725,6 +745,7 @@
                 + [Delegating projects](public-cloud/cross-functional/delegate-projects)
         + [Migration](public-cloud-cross-functional-migration)
             + [Public Cloud IaaS Migration - Steps and Best Practices](public-cloud/cross-functional/iaas-migration-steps)
+            + [Migrating a Compute instance and its Block Storage volume from a Local Zone to a 1-AZ or 3-AZ region](public-cloud/cross-functional/migrating-instance-and-volume-from-local-zone)
             + [Architecture Reference - Building a Landing Zone with OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-migration)
             + [Hub and spoke landing zone on OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects)
         + [Tutorials](products/public-cloud-cross-functional-tutorials)
@@ -749,7 +770,6 @@
             + [Information regarding Public Cloud billing options](public-cloud/cross-functional/analyze-billing)
             + [Proper Usage and Limitations of Classic Multi-Attach Block Storage in 3AZ Regions](public-cloud/compute/storage-classic-multi-attach-3az)
             + [Understanding Landing Zones](public-cloud/cross-functional/whats-is-landing-zone)
-            + [Understanding Metrics in Public Cloud](public-cloud/cross-functional/metrics-informations)
     + [Compute](products/public-cloud-compute)
         + [Overview](public-cloud/compute/overview)
         + [Key Concepts](public-cloud-compute-key-concepts)
@@ -774,6 +794,7 @@
                 + [Putting a Metal instance in rescue mode](public-cloud/compute/rescue-mode-metal-instance)
                 + [How to replace an SSH key pair on an instance](public-cloud/compute/replacing-lost-ssh-key-pair)
                 + [Deploying a GPU instance](public-cloud/compute/deploy-a-gpu-instance)
+                + [Deploying AI workloads on an 8x NVIDIA H200 NVL GPU instance](public-cloud/compute/deploy-8-h200-nvl-gpu-instance)
                 + [How to configure reverse DNS for a Public Cloud instance](public-cloud/compute/setup-instance-reverse)
                 + [Resize an instance](public-cloud/compute/resize-instance-manager)
                 + [Creating and using a Server Group in Horizon and CLI](public-cloud/compute/create-server-group-horizon-cli)
@@ -829,7 +850,7 @@
             + [How to prevent your emails from being marked as spam](bare-metal-cloud/dedicated-servers/mail-sending-optimization)
     + [Storage and Backup](products/public-cloud-storage)
         + [Object Storage](products/public-cloud-storage-object-storage)
-            + [S3 compatible](products/public-cloud-storage-object-storage-s3)
+            + [S3 compatible](products/public-cloud-storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
                 + [Key Concepts](products/public-cloud-storage-object-storage-s3-key-concepts)
                     + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
                     + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
@@ -930,6 +951,8 @@
                 + [Creating a volume from a backup](public-cloud/compute/storage-create-volume-from-backup)
                 + [Increasing the size of an additional disk](public-cloud/compute/increase-the-size-of-an-additional-disk)
                 + [Test disk speed](public-cloud/compute/test-disk-speed)
+                + [Configure Classic Multi-Attach Block Storage with OCFS2](public-cloud/compute/storage-classic-multi-attach-ocfs2)
+                + [Encrypting a Block Storage volume with LUKS](public-cloud/compute/encrypting-a-block-storage-volume-with-luks)
             + [Migration](public-cloud-storage-block-storage-migration)
                 + [Migrating a Block Storage volume to an encrypted LUKS volume](public-cloud/compute/migrating-non-encrypted-to-encrypted-volume)
                 + [Change your Block Storage volume type](public-cloud/compute/switch-volume-type)
@@ -1058,12 +1081,13 @@
                     + [Customizing CoreDNS on an OVHcloud Managed Kubernetes cluster](public-cloud/containers-orchestration/managed-kubernetes/customizing-coredns)
                     + [Customizing Cilium on an OVHcloud Managed Kubernetes cluster](public-cloud/containers-orchestration/managed-kubernetes/customizing-cilium)
                 + [Traffic Management](public-cloud-containers-orchestration-managed-kubernetes-k8s-configuration-traffic-management)
-                    + [Installing Nginx Ingress on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/install-nginx-ingress)
+                    + [Installing Traefik on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/install-traefik)
                     + [Expose your applications using OVHcloud Public Cloud Load Balancer](public-cloud/containers-orchestration/managed-kubernetes/expose-applications-using-load-balancer)
                     + [Sticky sessions/Session Affinity based on Nginx Ingress on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/sticky-session-nginx-ingress)
                     + [Secure a Nginx Ingress with cert-manager on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/secure-nginx-ingress-cert-manager)
                     + [Getting the source IP behind the LoadBalancer](public-cloud/containers-orchestration/managed-kubernetes/getting-source-ip-behind-loadbalancer)
                     + [How to migrate from Load Balancer for MKS (IOLB) to Public Cloud Load Balancer (Octavia)](public-cloud/containers-orchestration/managed-kubernetes/migrate-iolb-to-public-cloud-loadbalancer)
+                    + [Migrating from NGINX Ingress Controller to Traefik on OVHcloud Managed Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/migrating-nginx-to-traefik)
                 + [Backup and Restore](public-cloud-containers-orchestration-managed-kubernetes-k8s-configuration-backup-and-restore)
                     + [Backup and Restore OVHcloud Managed Kubernetes Cluster, Namespace and Applications using TrilioVault for Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/backup-restore-cluster-trilio)
                     + [Backing-up an OVHcloud Managed Kubernetes cluster using CloudCasa](public-cloud/containers-orchestration/managed-kubernetes/backup-restore-cluster-cloudcasa)
@@ -1191,6 +1215,7 @@
                 + [Resize the storage of Public Cloud Databases](public-cloud/databases/resize-cluster-storage)
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
+                + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
@@ -1235,6 +1260,7 @@
                 + [Resize the storage of Public Cloud Databases](public-cloud/databases/resize-cluster-storage)
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
+                + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
@@ -1285,6 +1311,7 @@
                 + [Resize the storage of Public Cloud Databases](public-cloud/databases/resize-cluster-storage)
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
+                + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
@@ -1315,24 +1342,25 @@
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud databases](public-cloud/databases/faq)
                 + [Capabilities and Limitations of Public Cloud Databases](public-cloud/databases/capabilities)
-                + [Capabilities and Limitations of Public Cloud Databases for Valkey](public-cloud/databases/redis-capabilities)
+                + [Capabilities and Limitations of Public Cloud Databases for Valkey](public-cloud/databases/valkey-capabilities)
                 + [Automated Backups for Public Cloud Databases](public-cloud/databases/backups)
             + [Getting started](public-cloud-databases-valkey-getting-started)
                 + [Getting started with Public Cloud Databases](public-cloud/databases/getting-started)
-                + [Configure incoming connections of a Public Cloud Databases for Valkey service](public-cloud/databases/redis-prepare-for-incoming-connections)
-                + [Connect using the CLI for Public Cloud Databases for Valkey](public-cloud/databases/redis-connect-cli)
-                + [Connect using PHP for Public Cloud Databases for Valkey](public-cloud/databases/redis-connect-php)
-                + [Connect using Python for Public Cloud Databases for Valkey](public-cloud/databases/redis-connect-python)
-                + [Connect using RedisInsight for Public Cloud Databases for Valkey](public-cloud/databases/redis-connect-redisinsight)
+                + [Configure incoming connections of a Public Cloud Databases for Valkey service](public-cloud/databases/valkey-prepare-for-incoming-connections)
+                + [Connect using the CLI for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-cli)
+                + [Connect using PHP for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-php)
+                + [Connect using Python for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-python)
+                + [Connect using RedisInsight for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-redisinsight)
             + [Configuration](public-cloud-databases-valkey-configuration)
                 + [Maintenance operations for Public Cloud Databases](public-cloud/databases/maintenance)
                 + [Configure the private network for Public Cloud Databases](public-cloud/databases/configure-vrack)
                 + [Configure the advanced parameters for Public Cloud Databases](public-cloud/databases/advanced-configuration)
-                + [Advanced parameters for Public Cloud Databases for Valkey](public-cloud/databases/redis-advanced-parameters-references)
+                + [Advanced parameters for Public Cloud Databases for Valkey](public-cloud/databases/valkey-advanced-parameters-references)
                 + [Restore a backup of Public Cloud Databases](public-cloud/databases/restore-backup)
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
-                + [Manage ACLs via API for Public Cloud Databases for Valkey](public-cloud/databases/redis-update-acls)
+                + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
+                + [Manage ACLs via API for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
@@ -1342,7 +1370,7 @@
                 + [Migrate to OVHcloud Public Cloud Databases](public-cloud/databases/databases-move-to-cloud)
                 + [Reversibility Policy for Managed In-Memory Database product](account-and-service-management/reversibility/idb-reversibility-policy)
             + [Tutorials](public-cloud-databases-valkey-tutorials)
-                + [Boost your WordPress CMS with caching with Public Cloud Databases for Valkey](public-cloud/databases/redis-tuto-wordpress)
+                + [Boost your WordPress CMS with caching with Public Cloud Databases for Valkey](public-cloud/databases/valkey-tuto-wordpress)
             + [Security](public-cloud-databases-valkey-security)
                 + [Security Overview for Public Cloud Databases](public-cloud/databases/concepts-security-overview)
                 + [Responsibility model for Public Cloud Databases](public-cloud/databases/responsibility-model)
@@ -1367,6 +1395,7 @@
                 + [Resize the storage of Public Cloud Databases](public-cloud/databases/resize-cluster-storage)
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
+                + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
@@ -1396,6 +1425,7 @@
                 + [ClickHouse - How to connect to a ClickHouse cluster with CLI](public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli)
             + [Configuration](public-cloud-data-analytics-clickhouse-configuration)
                 + [ClickHouse - Configure incoming connections](public-cloud/data-analytics/analytics/clickhouse-incoming-connections)
+                + [Update the network configuration of Analytics](public-cloud/data-analytics/analytics/update-cluster-network)
             + [Tutorials](public-cloud-data-analytics-clickhouse-tutorials)
                 + [ClickHouse - Connect with Tabix](public-cloud/data-analytics/analytics/clickhouse-connect-tabix)
                 + [ClickHouse – Real-time Analytics with Kafka integration](public-cloud/data-analytics/analytics/clickhouse-integration-with-kafka)
@@ -1427,6 +1457,7 @@
                 + [Resize the storage of Analytics](public-cloud/data-analytics/analytics/resize-cluster-storage)
                 + [Update the flavor of Analytics](public-cloud/data-analytics/analytics/update-cluster-flavor)
                 + [Update the plan of Analytics](public-cloud/data-analytics/analytics/update-cluster-plan)
+                + [Update the network configuration of Analytics](public-cloud/data-analytics/analytics/update-cluster-network)
                 + [Set up logs forwarding for Analytics](public-cloud/data-analytics/analytics/logs-to-customers)
                 + [Set up the Kubernetes operator for Analytics](public-cloud/data-analytics/analytics/database-operator)
                 + [Fetch service metrics with Prometheus for Analytics](public-cloud/data-analytics/analytics/service-metrics-with-prometheus)
@@ -1446,12 +1477,14 @@
                 + [OpenSearch - Getting started](public-cloud/databases/opensearch-getting-started)
                 + [OpenSearch - Monitor your infra (with Logstash or Fluent Bit)](public-cloud/databases/opensearch-logstash)
                 + [OpenSearch - Advanced parameters references](public-cloud/databases/opensearch-advanced-parameters-references)
+                + [Update the network configuration of Analytics](public-cloud/data-analytics/analytics/update-cluster-network)
         + [Dashboards](products/public-cloud-data-analytics-grafana)
             + [Overview](public-cloud/data-analytics/grafana/overview)
             + [Guides](public-cloud-data-analytics-grafana-guides)
                 + [Dashboards - Capabilities and Limitations](public-cloud/databases/grafana-capabilities)
                 + [Dashboards - Configure your Dashboards instance to accept incoming connections](public-cloud/databases/grafana-prepare-for-incoming-connections)
                 + [Dashboards - Advanced parameters references](public-cloud/databases/grafana-advanced-parameters-references)
+                + [Update the network configuration of Analytics](public-cloud/data-analytics/analytics/update-cluster-network)
             + [Tutorials](public-cloud-data-analytics-grafana-tutorials)
                 + [Dashboards - Tutorial - Expose your Grafana in your private network via a reverse proxy NGINX](public-cloud/databases/grafana-tuto-reverse-proxy)
                 + [Dashboards - Tutorial - How to use the Dashboards API](public-cloud/databases/grafana-tuto-using-api)
@@ -1472,6 +1505,7 @@
                 + [Resize the storage of Analytics](public-cloud/data-analytics/analytics/resize-cluster-storage)
                 + [Update the flavor of Analytics](public-cloud/data-analytics/analytics/update-cluster-flavor)
                 + [Update the plan of Analytics](public-cloud/data-analytics/analytics/update-cluster-plan)
+                + [Update the network configuration of Analytics](public-cloud/data-analytics/analytics/update-cluster-network)
                 + [Set up logs forwarding for Analytics](public-cloud/data-analytics/analytics/logs-to-customers)
                 + [Set up the Kubernetes operator for Analytics](public-cloud/data-analytics/analytics/database-operator)
                 + [Fetch service metrics with Prometheus for Analytics](public-cloud/data-analytics/analytics/service-metrics-with-prometheus)
@@ -1654,6 +1688,7 @@
                     + [AI Endpoints - Integration with Apache Airflow](public-cloud/ai-machine-learning/ai-endpoints-apache-airflow-integration)
                     + [AI Endpoints - Integration with Hugging Face Inference Providers](public-cloud/ai-machine-learning/ai-endpoints-huggingface-integration)
                     + [AI Endpoints - Integration with Pydantic AI](public-cloud/ai-machine-learning/ai-endpoints-pydantic-ai-integration)
+                    + [AI Endpoints - Install Hermes Agent on a VPS](bare-metal-cloud/virtual-private-servers/install-hermes-agent){label=AI Endpoints - Install Hermes Agent on a VPS}
             + [Troubleshooting](public-cloud-ai-and-machine-learning-ai-endpoints-troubleshooting)
                 + [AI Endpoints - Troubleshooting](public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-endpoints-additional-resources)
@@ -1680,9 +1715,242 @@
                 + [QPUs - Getting started](public-cloud/quantum-computing/qpus/getting-started)
     + [Integrations](products/public-cloud-integrations)
         + [Prefect](public-cloud-integrations-prefect)
-    + [Data Platform](products/public-cloud-data-platform)
-        + [Data Platform documentation](public-cloud/data-platform/general-what-is-the-data-platform)
-        + [Sign-up to Data Platform](public-cloud/data-platform/general-signin-signup)
+    + [Data Platform](products/public-cloud-data-platform){landing=public-cloud/data-platform/landing-page-data-platform}
+        + [Getting Started](public-cloud-data-platform-getting-started){landing=public-cloud/data-platform/landing-page-getting-started}
+            + [1. Connect sources](public-cloud/data-platform/getting-started-connect-sources){label=1. Connect sources}
+            + [2. Organize data](public-cloud/data-platform/getting-started-organize-data){label=2. Organize data}
+            + [3. Prepare data](public-cloud/data-platform/getting-started-prepare-data){label=3. Prepare data}
+            + [4. Create queries](public-cloud/data-platform/getting-started-create-queries){label=4. Create queries}
+            + [5. Expose through API](public-cloud/data-platform/getting-started-expose-api){label=5. Expose through API}
+            + [6. Visualize data](public-cloud/data-platform/getting-started-visualize-data){label=6. Visualize data}
+        + [Tutorials](public-cloud-data-platform-tutorials){landing=public-cloud/data-platform/landing-page-tutorials}
+            + [Your project checklist](public-cloud/data-platform/tutorials-project-checklist){label=Your project checklist}
+            + [Project setup & configuration](public-cloud-data-platform-project-setup-and-configuration){landing=public-cloud/data-platform/landing-page-tutorials-project-setup}
+                + [Customize your first app](public-cloud/data-platform/tutorials-customize-first-app){label=Customize your first app}
+                + [Develop your own app](public-cloud-data-platform-develop-your-own-app){landing=public-cloud/data-platform/tutorials-app-development}
+                    + [1. Build with an external repo](public-cloud/data-platform/tutorials-app-development-build){label=1. Build with an external repo}
+                    + [2. Discover the config files](public-cloud/data-platform/tutorials-app-development-config){label=2. Discover the config files}
+                    + [3. Create and edit components](public-cloud/data-platform/tutorials-app-development-components){label=3. Create and edit components}
+                    + [4. Add custom components](public-cloud/data-platform/tutorials-app-development-custom-components){label=4. Add custom components}
+                    + [5. React Shadcn Vite template](public-cloud/data-platform/tutorials-app-development-react-shadcn){label=5. React Shadcn Vite template}
+                + [Export / import a configuration](public-cloud/data-platform/tutorials-export-import-config){label=Export / import a configuration}
+                + [Generate API keys for external access](public-cloud/data-platform/tutorials-generate-api-keys){label=Generate API keys for external access}
+                + [Learn versioning basics](public-cloud/data-platform/tutorials-versioning-basics){label=Learn versioning basics}
+            + [Data ingestion & transformation](public-cloud-data-platform-data-ingestion-and-transformation){landing=public-cloud/data-platform/landing-page-tutorials-data-engineering}
+                + [Stream data from Apache Kafka](public-cloud/data-platform/tutorials-kafka){label=Stream data from Apache Kafka}
+                + [Build an IoT fleet-monitoring pipeline](public-cloud-data-platform-build-an-iot-fleet-monitoring-pipeline){landing=public-cloud/data-platform/tutorials-iot-fleet-monitoring}
+                    + [Build the Superset dashboards](public-cloud/data-platform/tutorials-iot-fleet-monitoring-superset-dashboards)
+                + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
+                + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
+                + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
+                + [Apply segmentation to your jobs](public-cloud-data-platform-apply-segmentation-to-your-jobs){landing=public-cloud/data-platform/tutorials-segmentation}
+                    + [Project table attribute](public-cloud/data-platform/tutorials-segmentation-table-attribute){label=Project table attribute}
+                    + [Workflow dates perimeter](public-cloud/data-platform/tutorials-segmentation-workflow-dates){label=Workflow dates perimeter}
+                    + [Predefined values](public-cloud/data-platform/tutorials-segmentation-predefined-values){label=Predefined values}
+                    + [Source rows chunks](public-cloud/data-platform/tutorials-segmentation-source-chunks){label=Source rows chunks}
+                    + [Set of files](public-cloud/data-platform/tutorials-segmentation-files){label=Set of files}
+                    + [Source accounts](public-cloud/data-platform/tutorials-segmentation-source-accounts){label=Source accounts}
+            + [Analytics & BI](public-cloud-data-platform-analytics-and-bi){landing=public-cloud/data-platform/landing-page-tutorials-analytics-bi}
+                + [Extract project data with Trino](public-cloud/data-platform/tutorials-trino-connector)
+                + [Integrating Trino with External Tools](public-cloud/data-platform/tutorials-trino-external-tools){label=Integrating Trino with External Tools}
+                + [Trino data types and casts](public-cloud/data-platform/tutorials-trino-types-and-casts)
+                + [Using Metabase with Trino](public-cloud/data-platform/tutorials-metabase-trino){label=Using Metabase with Trino}
+                + [NYC Taxi Data Analysis with PySpark](public-cloud-data-platform-nyc-taxi-data-analysis-with-pyspark){landing=public-cloud/data-platform/tutorials-pyspark}
+                    + [Single Dataset Deep Dive (Yellow Taxi)](public-cloud/data-platform/tutorials-pyspark-single-dataset){label=Single Dataset Deep Dive (Yellow Taxi)}
+                    + [Multi-Dataset Comparative Analysis](public-cloud/data-platform/tutorials-pyspark-multi-dataset){label=Multi-Dataset Comparative Analysis}
+                    + [PySpark Cheat Sheet](public-cloud/data-platform/tutorials-pyspark-cheat-sheet){label=PySpark Cheat Sheet}
+                + [Data Analysis with AI Endpoints](public-cloud/data-platform/tutorials-ai-endpoints){label=Data Analysis with AI Endpoints}
+                + [OVHcloud Billing Data Analysis](public-cloud/data-platform/tutorials-billing-analysis){label=OVHcloud Billing Data Analysis}
+                + [Deploy Apache Superset](public-cloud/data-platform/tutorials-install-apache-superset){label=Deploy Apache Superset}
+                + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
+            + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
+                + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
+                + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
+                + [Custom event handling action](public-cloud/data-platform/tutorials-custom-event-handling){label=Custom event handling action}
+                + [Access your buckets with S3-compatible tools](public-cloud/data-platform/tutorials-bucket-s3-access)
+        + [Services](public-cloud-data-platform-services){landing=public-cloud/data-platform/landing-page-services}
+            + [Connectors](public-cloud-data-platform-connectors){landing=public-cloud/data-platform/landing-page-connectors}
+                + [Discover key concepts](public-cloud/data-platform/connectors-key-concepts){label=Discover key concepts}
+                + [Sources](public-cloud-data-platform-sources){landing=public-cloud/data-platform/landing-page-connectors-sources}
+                    + [Configure your connector](public-cloud/data-platform/connectors-sources-configure)
+                    + [OVHCloud API](public-cloud/data-platform/connectors-sources-ovhcloud-api){label=OVHcloud API}
+                    + [Apache Kafka](public-cloud/data-platform/connectors-sources-kafka){label=Apache Kafka}
+                    + [Dropbox](public-cloud/data-platform/connectors-sources-dropbox){label=Dropbox}
+                    + [Facebook](public-cloud/data-platform/connectors-sources-facebook){label=Facebook}
+                    + [File Upload](public-cloud/data-platform/connectors-sources-upload-files){label=File Upload}
+                    + [Data Platform Buckets](public-cloud/data-platform/connectors-sources-dataplatform-buckets)
+                    + [FTP](public-cloud/data-platform/connectors-sources-ftp){label=FTP}
+                    + [Google Analytics](public-cloud/data-platform/connectors-sources-google-analytics){label=Google Analytics}
+                    + [HTTP Files](public-cloud/data-platform/connectors-sources-http){label=HTTP Files}
+                    + [HTTP REST](public-cloud/data-platform/connectors-sources-rest){label=HTTP REST}
+                    + [HubSpot](public-cloud-data-platform-hubspot){landing=public-cloud/data-platform/connectors-sources-hubspot}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-hubspot-technical-reference){label=Technical Reference}
+                    + [Microsoft Azure Blob Storage](public-cloud/data-platform/connectors-sources-blob-storage)
+                    + [MySQL](public-cloud/data-platform/connectors-sources-mysql){label=MySQL}
+                    + [Odoo](public-cloud-data-platform-odoo){landing=public-cloud/data-platform/connectors-sources-odoo}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-odoo-technical-reference){label=Technical Reference}
+                    + [Salesforce](public-cloud-data-platform-salesforce){landing=public-cloud/data-platform/connectors-sources-salesforce}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-salesforce-technical-reference){label=Technical Reference}
+                    + [SFTP](public-cloud/data-platform/connectors-sources-sftp){label=SFTP}
+                    + [Shopify](public-cloud-data-platform-shopify){landing=public-cloud/data-platform/connectors-sources-shopify}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-shopify-technical-reference){label=Technical Reference}
+                    + [SQL Server](public-cloud/data-platform/connectors-sources-sql-server){label=SQL Server}
+                    + [Stripe](public-cloud-data-platform-stripe){landing=public-cloud/data-platform/connectors-sources-stripe}
+                        + [Technical Reference](public-cloud/data-platform/connectors-sources-stripe-technical-reference){label=Technical Reference}
+                    + [Trino](public-cloud/data-platform/connectors-sources-trino){label=Trino}
+                    + [Twitter](public-cloud/data-platform/connectors-sources-twitter){label=Twitter}
+                    + [FHIR](public-cloud/data-platform/connectors-sources-fhir){label=FHIR}
+                + [Analyzer](public-cloud-data-platform-analyzer){landing=public-cloud/data-platform/landing-page-connectors-analyzer}
+                    + [Extract the metadata](public-cloud/data-platform/connectors-analyzer-extract-metadata){label=Extract the metadata}
+                    + [Blueprint rules](public-cloud/data-platform/connectors-analyzer-blueprint-rules){label=Blueprint rules}
+                + [Consumers](public-cloud-data-platform-consumers){landing=public-cloud/data-platform/landing-page-connectors-consumers}
+                    + [PowerBI](public-cloud/data-platform/connectors-consumers-power-bi){label=PowerBI}
+                    + [OpenLineage](public-cloud/data-platform/connectors-consumers-openlineage){label=OpenLineage}
+                    + [Trino](public-cloud/data-platform/connectors-consumers-trino){label=Trino}
+            + [Lakehouse Manager](public-cloud-data-platform-lakehouse-manager){landing=public-cloud/data-platform/landing-page-lakehouse-manager}
+                + [Discover key concepts](public-cloud/data-platform/lakehouse-manager-key-concepts){label=Discover key concepts}
+                + [Datasets](public-cloud/data-platform/lakehouse-manager-datasets){label=Datasets}
+                + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
+                    + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
+                    + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel){label=Time Travel}
+                + [Views](public-cloud/data-platform/lakehouse-manager-views){label=Views}
+                + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes){label=Attributes}
+                + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets){label=Buckets}
+                + [Explorer](public-cloud/data-platform/lakehouse-manager-explorer){label=Explorer}
+                + [Lineage](public-cloud/data-platform/lakehouse-manager-lineage){label=Lineage}
+                + [Policy Tags](public-cloud-data-platform-policy-tags){landing=public-cloud/data-platform/lakehouse-manager-policy-tags}
+                    + [CEL Conditions](public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions){label=CEL Conditions}
+                    + [Testing & Troubleshooting](public-cloud/data-platform/lakehouse-manager-policy-tags-testing)
+                    + [Example: Team Access with Groups](public-cloud/data-platform/lakehouse-manager-policy-tags-groups-example)
+                + [Row Filters](public-cloud/data-platform/lakehouse-manager-row-filters){label=Row Filters}
+            + [Data Processing Engine](public-cloud-data-platform-data-processing-engine){landing=public-cloud/data-platform/landing-page-dpe}
+                + [Actions](public-cloud-data-platform-actions){landing=public-cloud/data-platform/landing-page-dpe-actions}
+                    + [Create and manage actions](public-cloud/data-platform/dpe-actions-manage)
+                    + [Load](public-cloud-data-platform-load){landing=public-cloud/data-platform/dpe-actions-load}
+                        + [Advanced Mode](public-cloud/data-platform/dpe-actions-load-advanced-mode){label=Advanced Mode}
+                    + [Load PySpark](public-cloud/data-platform/dpe-actions-load-pyspark){label=Load PySpark}
+                    + [Aggregate](public-cloud-data-platform-aggregate){landing=public-cloud/data-platform/dpe-actions-aggregate}
+                        + [Advanced Mode](public-cloud/data-platform/dpe-actions-aggregate-advanced-mode){label=Advanced Mode}
+                    + [Aggregate PySpark](public-cloud/data-platform/dpe-actions-aggregate-pyspark){label=Aggregate PySpark}
+                    + [SQL](public-cloud/data-platform/dpe-actions-sql){label=SQL}
+                    + [Custom](public-cloud-data-platform-custom){landing=public-cloud/data-platform/dpe-actions-custom}
+                        + [Default Packages](public-cloud/data-platform/dpe-actions-custom-default-packages){label=Default Packages}
+                    + [Custom PySpark](public-cloud/data-platform/dpe-actions-custom-pyspark){label=Custom PySpark}
+                    + [File Transfer](public-cloud/data-platform/dpe-actions-file-transfer){label=File Transfer}
+                    + [Load to Bucket](public-cloud/data-platform/dpe-actions-load-to-bucket){label=Load to Bucket}
+                    + [Export Table to Source](public-cloud/data-platform/dpe-actions-export-table-to-source){label=Export Table to Source}
+                    + [CSV to PostgreSQL](public-cloud/data-platform/dpe-actions-csv-to-postgresql){label=CSV to PostgreSQL}
+                    + [MySQL to Parquet](public-cloud/data-platform/dpe-actions-mysql-to-parquet){label=MySQL to Parquet}
+                    + [PostgreSQL to CSV](public-cloud/data-platform/dpe-actions-postgresql-to-csv){label=PostgreSQL to CSV}
+                    + [PostgreSQL to Parquet](public-cloud/data-platform/dpe-actions-postgresql-to-parquet){label=PostgreSQL to Parquet}
+                    + [Diff](public-cloud/data-platform/dpe-actions-diff){label=Diff}
+                    + [Delete](public-cloud/data-platform/dpe-actions-delete){label=Delete}
+                    + [Delete Diff](public-cloud/data-platform/dpe-actions-delete-diff){label=Delete Diff}
+                    + [Delete Bucket](public-cloud/data-platform/dpe-actions-delete-bucket){label=Delete Bucket}
+                    + [Rebuild](public-cloud/data-platform/dpe-actions-rebuild){label=Rebuild}
+                    + [Deduplicate](public-cloud/data-platform/dpe-actions-deduplicate){label=Deduplicate}
+                    + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance){label=Maintenance actions}
+                    + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
+                + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
+                    + [Advanced Mode](public-cloud/data-platform/dpe-workflows-advanced-mode){label=Advanced Mode}
+                + [Notebooks](public-cloud-data-platform-notebooks){landing=public-cloud/data-platform/dpe-notebooks}
+                    + [Data Platform Extension](public-cloud/data-platform/dpe-notebooks-data-platform-extension)
+                    + [Jupyter AI Extension](public-cloud/data-platform/dpe-notebooks-jupyter-ai-extension){label=Jupyter AI Extension}
+                + [Environments](public-cloud/data-platform/dpe-environments){label=Environments}
+                + [Jobs](public-cloud-data-platform-jobs){landing=public-cloud/data-platform/landing-page-dpe-jobs}
+                    + [Execution preferences](public-cloud-data-platform-execution-preferences){landing=public-cloud/data-platform/dpe-jobs-preferences}
+                        + [Resources](public-cloud/data-platform/dpe-jobs-resources){label=Resources}
+                        + [Segmentation](public-cloud/data-platform/dpe-jobs-segmentation){label=Segmentation}
+                        + [Perimeter](public-cloud/data-platform/dpe-jobs-perimeter){label=Perimeter}
+                + [Spark History Server](public-cloud/data-platform/dpe-spark-history-server)
+                + [Settings](public-cloud/data-platform/dpe-settings){label=Settings}
+            + [Analytics Manager](public-cloud-data-platform-analytics-manager){landing=public-cloud/data-platform/landing-page-analytics-manager}
+                + [Queries](public-cloud-data-platform-queries){landing=public-cloud/data-platform/analytics-manager-queries}
+                    + [Use the visual builder](public-cloud/data-platform/analytics-manager-queries-visual-builder)
+                    + [Use the SQL editor](public-cloud/data-platform/analytics-manager-queries-sql-editor)
+                    + [Visualize a query as a chart](public-cloud/data-platform/analytics-manager-queries-charts)
+                + [Dashboards](public-cloud-data-platform-dashboards){landing=public-cloud/data-platform/analytics-manager-dashboards}
+                    + [Add content to a dashboard](public-cloud/data-platform/analytics-manager-dashboards-edit)
+                    + [Publish a dashboard](public-cloud/data-platform/analytics-manager-dashboards-publish)
+                + [History](public-cloud/data-platform/analytics-manager-history){label=History}
+                + [Settings](public-cloud/data-platform/analytics-manager-settings){label=Settings}
+                + [Resources](public-cloud/data-platform/analytics-manager-resources){label=Resources}
+            + [Application Services](public-cloud-data-platform-application-services){landing=public-cloud/data-platform/landing-page-app-services}
+                + [APIs](public-cloud-data-platform-apis){landing=public-cloud/data-platform/landing-page-app-services-apis}
+                    + [Create and deploy an API](public-cloud/data-platform/app-services-apis-deploy)
+                    + [API management interface](public-cloud/data-platform/app-services-apis-interface)
+                    + [API extensions list](public-cloud/data-platform/app-services-apis-extensions-list)
+                + [Apps](public-cloud-data-platform-apps){landing=public-cloud/data-platform/landing-page-app-services-apps}
+                    + [Create and deploy an app](public-cloud/data-platform/app-services-apps-deploy)
+                    + [Dashboards](public-cloud/data-platform/app-services-apps-dashboards){label=Dashboards}
+                    + [Style](public-cloud/data-platform/app-services-apps-style){label=Style}
+                    + [Extensions](public-cloud/data-platform/app-services-apps-extensions){label=Extensions}
+                    + [Menus](public-cloud/data-platform/app-services-apps-menus){label=Menus}
+                    + [Translations](public-cloud/data-platform/app-services-apps-translations){label=Translations}
+                    + [Formatter](public-cloud/data-platform/app-services-apps-formatter){label=Formatter}
+                    + [Git Integration](public-cloud/data-platform/app-services-apps-git-integration){label=Git Integration}
+                    + [Custom Domain](public-cloud/data-platform/app-services-apps-custom-domain){label=Custom Domain}
+            + [Control Center](public-cloud-data-platform-control-center){landing=public-cloud/data-platform/landing-page-control-center}
+                + [Monitoring](public-cloud/data-platform/control-center-monitoring){label=Monitoring}
+                + [Alerting](public-cloud-data-platform-alerting){landing=public-cloud/data-platform/landing-page-control-center-alerting}
+                    + [Configure job execution alerts](public-cloud/data-platform/control-center-alerting-job-execution){label=Configure job execution alerts}
+                    + [Configure health check alerts](public-cloud/data-platform/control-center-alerting-health-checks){label=Configure health check alerts}
+                    + [Add subscribers to an alert](public-cloud/data-platform/control-center-alerting-subscribers)
+                + [Jobs Central](public-cloud/data-platform/control-center-jobs-central){label=Jobs Central}
+                + [Logs Explorer](public-cloud/data-platform/control-center-logs-explorer){label=Logs Explorer}
+                + [Auditing](public-cloud/data-platform/control-center-auditing){label=Auditing}
+            + [Identity Access Manager](public-cloud-data-platform-identity-access-manager){landing=public-cloud/data-platform/landing-page-iam}
+                + [Organization IAM](public-cloud-data-platform-organization-iam){landing=public-cloud/data-platform/iam-organization}
+                    + [Authentication Methods](public-cloud/data-platform/iam-organization-authentication){label=Authentication Methods}
+                    + [MFA setup guide](public-cloud/data-platform/iam-organization-mfa-setup){label=MFA setup guide}
+                + [Project IAM](public-cloud-data-platform-project-iam){landing=public-cloud/data-platform/landing-page-iam-project}
+                    + [Application authentication](public-cloud/data-platform/iam-application-authentication){label=Application authentication}
+                    + [Auth. Providers](public-cloud-data-platform-auth-providers){landing=public-cloud/data-platform/iam-auth-providers}
+                        + [Set up custom mappings](public-cloud/data-platform/iam-auth-providers-custom-mapping){label=Set up custom mappings}
+                        + [Set up Azure AD](public-cloud/data-platform/iam-auth-providers-azure-ad){label=Set up Azure AD}
+                        + [Set up Okta](public-cloud/data-platform/iam-auth-providers-okta){label=Set up Okta}
+                        + [Set up Auth0](public-cloud/data-platform/iam-auth-providers-auth0){label=Set up Auth0}
+                + [Users, Roles & Groups](public-cloud-data-platform-users-roles-and-groups){landing=public-cloud/data-platform/landing-page-iam-users}
+                    + [Users](public-cloud/data-platform/iam-users){label=Users}
+                    + [Service Accounts](public-cloud/data-platform/iam-service-accounts){label=Service Accounts}
+                    + [Roles and conditions](public-cloud/data-platform/iam-roles-conditions)
+                    + [Groups](public-cloud/data-platform/iam-groups){label=Groups}
+        + [Developer Documentation](public-cloud-data-platform-developer-documentation){landing=public-cloud/data-platform/landing-page-developers}
+            + [Data Platform APIs](public-cloud-data-platform-data-platform-apis){landing=public-cloud/data-platform/landing-page-developers-apis}
+                + [Authentication](public-cloud/data-platform/developers-api-authentication){label=Authentication}
+            + [Custom Actions SDK](public-cloud-data-platform-custom-actions-sdk){landing=public-cloud/data-platform/landing-page-developers-python-sdk}
+                + [Quick starts](public-cloud-data-platform-quick-starts)
+                    + [Quick start: dataset](public-cloud/data-platform/developers-python-sdk-quick-start-dataset){label=Quick start: dataset}
+                    + [Quick start: bucket](public-cloud/data-platform/developers-python-sdk-quick-start-bucket){label=Quick start: bucket}
+                    + [Quick start: source](public-cloud/data-platform/developers-python-sdk-quick-start-source){label=Quick start: source}
+                    + [Quick start: PySpark](public-cloud/data-platform/developers-python-sdk-quick-start-spark){label=Quick start: PySpark}
+                + [Connect to project data](public-cloud-data-platform-connect-to-project-data)
+                    + [Connectors and connection strings](public-cloud/data-platform/developers-python-sdk-connectors)
+                    + [Connect to a dataset](public-cloud/data-platform/developers-python-sdk-connect-dataset){label=Connect to a dataset}
+                    + [Connect to a bucket](public-cloud/data-platform/developers-python-sdk-connect-bucket){label=Connect to a bucket}
+                    + [PySpark support](public-cloud/data-platform/developers-python-sdk-connect-spark){label=PySpark Support}
+                    + [SDK reference: connect and bulk_insert](public-cloud/data-platform/developers-python-sdk-reference)
+                + [Advanced](public-cloud-data-platform-advanced)
+                    + [Use environment variables](public-cloud/data-platform/developers-python-sdk-use-environment-variables){label=Use environment variables}
+                    + [Use segmentation in a Custom action](public-cloud/data-platform/developers-python-sdk-segmentation){label=Use segmentation in a Custom action}
+                    + [Override a Load action](public-cloud/data-platform/developers-python-sdk-load-override)
+                    + [Use custom Python modules via Git](public-cloud/data-platform/developers-python-sdk-git){label=Use custom Python modules via Git}
+                    + [Track data lineage](public-cloud/data-platform/developers-python-sdk-lineage){label=Track data lineage}
+            + [Front App and API SDKs](public-cloud/data-platform/developers-front-sdks)
+        + [Manage your platform](public-cloud-data-platform-manage-your-platform){landing=public-cloud/data-platform/landing-page-manage}
+            + [Navigate the platform](public-cloud/data-platform/manage-navigation)
+            + [Understanding Data Platform pricing](public-cloud/data-platform/manage-pricing)
+            + [Organizations and user profiles](public-cloud-data-platform-organizations-and-user-profiles){landing=public-cloud/data-platform/manage-organizations}
+                + [Sign up and sign in](public-cloud/data-platform/manage-organizations-signin-signup){label=Sign up and sign in}
+                + [Organization settings](public-cloud/data-platform/manage-organizations-settings){label=Organization settings}
+                + [Edit your Data Platform profile](public-cloud/data-platform/manage-organizations-profile){label=Edit your Data Platform profile}
+                + [Delete an organization](public-cloud/data-platform/manage-organizations-delete)
+            + [Projects](public-cloud-data-platform-projects){landing=public-cloud/data-platform/manage-projects}
+                + [Project Home](public-cloud/data-platform/manage-projects-home){label=Project Home}
+                + [Create a Project](public-cloud/data-platform/manage-projects-create)
+                + [Config Variables](public-cloud/data-platform/manage-projects-config-variables){label=Config Variables}
+                + [Delete a Project](public-cloud/data-platform/manage-projects-delete)
+        + [Release notes](public-cloud/data-platform/release-notes)
 + Web Cloud
     + [Domains](products/web-cloud-domains)
         + [Overview](web-cloud/domains/overview)
@@ -1709,10 +1977,12 @@
                 + [How to get information about a domain name with WHOIS](web-cloud/domains/domain-whois)
                 + [How do I configure the WHOIS display for a domain name?](web-cloud/domains/domain-configure-whois-listing)
                 + [How to export the list of your domain names in CSV](web-cloud/domains/domain-csv-list)
+                + [Getting started with the MCP server for domain names](web-cloud/domains/mcp-domain-getting-started)
             + [Configuration](web-cloud-domains-domain-names-configuration)
                 + [Domain names contacts management](web-cloud-domains-domain-names-configuration-changing-a-domain-name-owner-trade)
-                    + [Changing the owner of a domain name](web-cloud/domains/trade-domain)
                     + [Domain name holder contact management](web-cloud/domains/domain-verify-holder)
+                    + [Changing the owner of a domain name](web-cloud/domains/trade-domain)
+                    + [Confirming a change of holder or an outgoing transfer](web-cloud/domains/confirm-holder-change-or-transfer)
                     + [Changer le propriétaire d’un domaine avec une Demande d'Opération AFNIC (DOA)](web-cloud/domains/trade-doa)
             + [Troubleshooting](web-cloud-domains-domain-names-troubleshooting)
                 + [Troubleshooting a domain name error](web-cloud/domains/domain-errors)
@@ -1724,7 +1994,9 @@
                     + [Transferring a .pl domain name to OVHcloud](web-cloud/domains/transfer-pl)
                     + [Transferring a domain name from Hostinger to OVHcloud](web-cloud/domains/transfer-incoming-hostinger)
                     + [Transferring a domain name from GoDaddy to OVHcloud](web-cloud/domains/transfer-incoming-godaddy)
+                    + [Transferring a domain name from Home.pl to OVHcloud](web-cloud/domains/transfer-incoming-homepl)
                     + [Transferring a domain name from Ionos to OVHcloud](web-cloud/domains/transfer-incoming-ionos)
+                    + [Transferring a domain name from o2switch to OVHcloud](web-cloud/domains/transfer-incoming-o2switch)
                     + [Transferring a domain name from Gandi to OVHcloud](web-cloud/domains/transfer-incoming-gandi)
                     + [Transferring a domain name from Wix to OVHcloud](web-cloud/domains/transfer-incoming-wix)
                 + [Outgoing transfer from OVHcloud](web-cloud-domains-domain-names-outgoing-transfer-from-ovhcloud)
@@ -1761,6 +2033,7 @@
                     + [Add an MX record to your domain name’s configuration](web-cloud/domains/dns-zone-mx)
                 + [DNS options](web-cloud-domains-dns-configuration-dns-options)
                     + [How to enable Anycast DNS for your domain name](web-cloud/domains/dns-anycast-enable)
+                    + [How to disable Anycast DNS for your domain name](web-cloud/domains/dns-anycast-disable)
                     + [Customising the DNS servers for an OVHcloud domain name](web-cloud/domains/glue-registry)
                     + [Configuring a dynamic DNS for a domain name](web-cloud/domains/dns-dynhost)
             + [Security](web-cloud-domains-dns-security)
@@ -1785,6 +2058,10 @@
             + [How to find the name of your web hosting offer](web-cloud/web-hosting/retrieve-web-hosting-name-offer)
         + [Configuration](products/web-cloud-hosting-configuration){landing=web-cloud/web-hosting/landing-page-configuration}
             + [Hosting multiple websites on your Web Hosting plan](web-cloud/web-hosting/multisites-configure-multisite)
+            + [How to associate a domain name with an existing website?](web-cloud/web-hosting/my-websites-add-domain-existing-website)
+            + [How to detach a domain name from an existing website](web-cloud/web-hosting/my-websites-detach-domain-existing-website)
+            + [How to check the domain name / website association](web-cloud/web-hosting/my-websites-diagnosis)
+            + [How to modify the root folder of an existing website?](web-cloud/web-hosting/my-websites-modify-root-folder)
             + [Configuring and using Git with an OVHcloud web hosting plan](web-cloud/web-hosting/git-integration-webhosting)
             + [Web Hosting - Modifying a domain name already associated to a hosting plan](web-cloud/web-hosting/multisites-modify-domain)
             + [Web Hosting - Environment, PHP version, ".ovhconfig"](web-cloud/web-hosting/configure-your-web-hosting)
@@ -1797,12 +2074,12 @@
             + [How to view CDN statistics and logs on a Web Hosting plan](web-cloud/web-hosting/cdn-statistics-and-logs)
             + [Web Hosting - How to enable and manage logs](web-cloud/web-hosting/enable-ldp-web-hosting)
             + [Geolocating your website](web-cloud/web-hosting/multisites-geolocation)
-            + [Optimising your website’s performance](web-cloud/web-hosting/optimise-your-website-performance)
+            + [Optimising your website's performance](web-cloud/web-hosting/optimise-your-website-performance)
             + [Using automated tasks on a Web Hosting plan](web-cloud/web-hosting/cron-tasks)*
             + [How to create and manage a Web application via the OVHcloud public API](web-cloud/web-hosting/api-webhosting)
             + [Databases](web-cloud-hosting-configuration-databases){landing=web-cloud/web-hosting/landing-page-databases}
                 + [Creating and managing a database in your Web Hosting plan](web-cloud/web-hosting/sql-create-database)
-                + [Changing the password for a Web Hosting plan’s database](web-cloud/web-hosting/sql-change-password)
+                + [Changing the password for a Web Hosting plan's database](web-cloud/web-hosting/sql-change-password)
                 + [Duplicating the contents of one database to another](web-cloud/web-hosting/copy-database)
                 + [Retrieving the backup of a Web Hosting plan’s database](web-cloud/web-hosting/sql-database-export)
                 + [Recovering a deleted database backup](web-cloud/web-hosting/sql-recovering-deleted-db-backup)
@@ -1810,12 +2087,12 @@
             + [FTP and SSH](web-cloud-hosting-configuration-ftp-and-ssh){landing=web-cloud/web-hosting/landing-page-ftp-ssh}
                 + [Tutorial - Using FileZilla with your OVHcloud hosting](web-cloud/web-hosting/ftp-filezilla-user-guide)
                 + [Web Hosting - How to manage FTP users](web-cloud/web-hosting/ftp-manage-users)
-                + [Logging in to your Web Hosting plan’s storage space](web-cloud/web-hosting/ftp-connection)
+                + [Logging in to your Web Hosting plan's storage space](web-cloud/web-hosting/ftp-connection)
                 + [Web hosting - How to enable SFTP access](web-cloud/web-hosting/enable-sftp)
                 + [Changing a FTP user password](web-cloud/web-hosting/ftp-change-password)
                 + [Managing your web hosting with Visual Studio Code via SFTP](web-cloud/web-hosting/handle-sftp-connexion-vscode)
                 + [Using Cyberduck (on Mac)](web-cloud/web-hosting/ftp-cyberduck-user-guide-on-mac)
-                + [Restoring your Web Hosting plan’s storage space](web-cloud/web-hosting/ftp-save-and-backup)
+                + [Restoring your Web Hosting plan's storage space](web-cloud/web-hosting/ftp-save-and-backup)
                 + [Accessing a web hosting plan via SSH](web-cloud/web-hosting/ssh-on-webhosting)
                 + [Tutorial - How to use PuTTY for SSH connections and authentication](web-cloud/web-hosting/ssh-using-putty-on-windows)
                 + [Using SVN](web-cloud/web-hosting/svn)
@@ -1884,12 +2161,12 @@
             + [Resolving the most common 1-click module errors](web-cloud/web-hosting/diagnostic-errors-module1clic)
             + [What to do if you get a "Your connection is not private" error?](web-cloud/web-hosting/diagnostic-not-secured)
             + [Troubleshooting common database errors](web-cloud/web-hosting/diagnosis-database-errors)
-            + [Resolving a “Site not installed” error](web-cloud/web-hosting/multisites-website-not-installed)
+            + [Resolving a "Site not installed" error](web-cloud/web-hosting/multisites-website-not-installed)
             + [Fixing the 500 Internal Server Error](web-cloud/web-hosting/diagnostic-fix-500-internal-server-error)
             + [Troubleshooting an "Index of" page](web-cloud/web-hosting/diagnostic-index-of)
             + [What do I do if I have a 403 forbidden page?](web-cloud/web-hosting/diagnostic-403-forbidden)
-            + [What should I do if the page “Your IP has been banned” appears?](web-cloud/web-hosting/ip-has-been-banned-diagnosis)
-            + [What should I do if the page “Your request has been blocked” appears?](web-cloud/web-hosting/request-has-been-blocked-diagnosis)
+            + [What should I do if the page "Your IP has been banned" appears?](web-cloud/web-hosting/ip-has-been-banned-diagnosis)
+            + [What should I do if the page "Your request has been blocked" appears?](web-cloud/web-hosting/request-has-been-blocked-diagnosis)
             + [Monitoring and managing automated emails in your Web Hosting plan](web-cloud/web-hosting/mail-function-script-records)
             + [Web Hosting - Email sending best practices](web-cloud/web-hosting/email-sending-best-practices)
             + [How to react to abnormal activity detected on your web hosting](web-cloud/web-hosting/resolve-anomalous-activity)
@@ -1921,6 +2198,7 @@
             + [Getting started with the Web Cloud Databases service](web-cloud/databases/db-getting-started)
             + [Getting started with MySQL and MariaDB](web-cloud/databases/db-getting-started-mysql-mariadb)
             + [Getting started with PostgreSQL](web-cloud/databases/db-getting-started-postgresql)
+            + [Getting started with Valkey on Web Cloud Databases](web-cloud/databases/db-getting-started-valkey){label=Getting started with Valkey}
         + [Configuration](web-cloud-clouddb-configuration)
             + [Web Cloud Databases - How to authorize an IP address?](web-cloud/databases/db-authorise-ip-mask)
             + [Creating databases and users on your database server](web-cloud/databases/db-create-databases-users)
@@ -2031,9 +2309,11 @@
                 + [Configuring two-factor authentication on an Exchange account](web-cloud/email-and-collaborative-solutions/microsoft-exchange/manage-2fa-exchange)
                 + [Using resource accounts](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-resources)
                 + [Creating and using a shared account](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-shared-account)
+                + [Exporting an Exchange mailbox to a PST file](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-export-pst)
                 + [Creating automatic signatures](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-footers)
                 + [How to obtain an Outlook licence for Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/office-outlook-license)
                 + [Creating send connector for Private and Trusted Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
+                + [Signing and encrypting Exchange emails with S/MIME](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-smime)
             + [Setting up an email application on your computer](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-computer)
                 + [Configuring your Exchange account in Outlook for Windows](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-2016)
                 + [Configuring your Exchange account in Outlook 2016 for Mac](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-2016-mac)
@@ -2257,7 +2537,7 @@
 + Storage and Backup
     + [Object Storage](products/storage-object-storage)
         + [Overview](storage-and-backup/object-storage/overview)
-        + [S3 compatible](products/storage-object-storage-s3)
+        + [S3 compatible](products/storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
             + [Key Concepts](products/storage-object-storage-s3-key-concepts)
                 + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
                 + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
@@ -2408,6 +2688,8 @@
                 + [Creating a volume from a backup](public-cloud/compute/storage-create-volume-from-backup)
                 + [Increasing the size of an additional disk](public-cloud/compute/increase-the-size-of-an-additional-disk)
                 + [Test disk speed](public-cloud/compute/test-disk-speed)
+                + [Configure Classic Multi-Attach Block Storage with OCFS2](public-cloud/compute/storage-classic-multi-attach-ocfs2)
+                + [Encrypting a Block Storage volume with LUKS](public-cloud/compute/encrypting-a-block-storage-volume-with-luks)
             + [Migration](storage-block-storage-block-volume-migration)
                 + [Migrating a Block Storage volume to an encrypted LUKS volume](public-cloud/compute/migrating-non-encrypted-to-encrypted-volume)
                 + [Change your Block Storage volume type](public-cloud/compute/switch-volume-type)
@@ -2452,6 +2734,16 @@
                 + [Backup Agent - Service updates](storage-and-backup/backup-agent/update)
                 + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion)
                 + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant)
+        + [Backup Licenses](products/storage-backup-and-disaster-recovery-solution-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}
+            + [Getting started](storage-backup-and-disaster-recovery-solution-backup-licenses-getting-started)
+                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration)
+                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise)
+            + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-licenses-key-concepts)
+                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault)
+            + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-licenses-troubleshooting)
+                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting)
+            + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-licenses-additional-resources)
+                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
         + [Veeam Enterprise Plus](products/storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus)
             + [Overview](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview)
             + [Getting started](storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus-getting-started)
@@ -2564,6 +2856,7 @@
         + [Getting started](network-ovhcloud-connect-getting-started)
             + [Installation of OVHcloud Connect Direct from the OVHcloud Control Panel](network/ovhcloud-connect/occ-direct-control-panel)
             + [Installation of OVHcloud Connect Provider from the OVHcloud Control Panel](network/ovhcloud-connect/occ-provider-control-panel)
+            + [Set up OVHcloud Connect Cross Cloud with GCP](network/ovhcloud-connect/occ-cross-cloud-gcp)
             + [How to initiate a diagnostic for OVHcloud Connect from the OVHcloud Control Panel](network/ovhcloud-connect/occ-diagnostics)
             + [OVHcloud Connect Logs Forwarding](network/ovhcloud-connect/logs-to-customers)
             + [FAQ](network/ovhcloud-connect/faq)
@@ -2667,8 +2960,7 @@
     + [CLI](manage-operate-cli)
         + [Getting Started with OVHcloud CLI](manage-and-operate/cli/getting-started)
     + [Observability](products/manage-operate-observability)
-        + [Logs Data Platform](products/observability-logs-data-platform)
-            + [Overview](manage-and-operate/observability/logs-data-platform/overview)
+        + [Logs Data Platform](products/observability-logs-data-platform){landing=manage-and-operate/observability/logs-data-platform/landing-page-logs-data-platform}
             + [Getting started](observability-logs-data-platform-getting-started)
                 + [Introduction to Logs Data Platform](manage-and-operate/observability/logs-data-platform/introduction)
                 + [Quick start for Logs Data Platform](manage-and-operate/observability/logs-data-platform/getting-started-quick-start)
@@ -2686,6 +2978,7 @@
                 + [Managed Kubernetes Service Audit Logs Forwarding](public-cloud/containers-orchestration/managed-kubernetes/forwarding-audit-logs)
                 + [Pushing logs from OVHcloud KMS to Logs Data Platform](manage-and-operate/kms/logs)
                 + [OVHcloud Connect Logs Forwarding](network/ovhcloud-connect/logs-to-customers)
+                + [OVHcloud Dedicated Servers Logs Forwarding](bare-metal-cloud/dedicated-servers/dedicated-servers-logs-to-customers)
             + [IAM](observability-logs-data-platform-iam)
                 + [IAM Presentation & FAQ](manage-and-operate/observability/logs-data-platform/iam-presentation-faq)
                 + [IAM Access Management](manage-and-operate/observability/logs-data-platform/iam-access-management)
@@ -2725,7 +3018,6 @@
                 + [Tracking slow MySQL queries with Logs Data Platform](manage-and-operate/observability/logs-data-platform/usecase-mysql-slow-queries)
                 + [Supervising your HAProxy deployment with Logs Data Platform](manage-and-operate/observability/logs-data-platform/haproxy)
                 + [Pushing logs from a Kubernetes cluster to Logs Data Platform using Fluent Bit](manage-and-operate/observability/logs-data-platform/kubernetes-fluent-bit)
-                + [Handling roles and permissions when IAM is not enabled](manage-and-operate/observability/logs-data-platform/getting-started-roles-permission)
                 + [SAP logs on OVHcloud Logs Data Platform - Solution Setup](hosted-private-cloud/sap-on-ovhcloud/cookbook-sap-logs-on-ovhcloud-logs-data-platform-solution-setup)
                 + [Extracting logs from Logs Data Platform](manage-and-operate/observability/logs-data-platform/extract-logs)
     + [Key Management Service (KMS)](manage-operate-kms)
@@ -2734,11 +3026,13 @@
         + [Getting started with OVHcloud Key Management Service (KMS)](manage-and-operate/kms/quick-start)
         + [OKMS authentication methods](manage-and-operate/kms/okms-authentication-methods)
         + [Using the OVHcloud Key Management Service (KMS) with your data](manage-and-operate/kms/kms-usage)
+        + [Import and export keys on OVHcloud KMS using BYOK](manage-and-operate/kms/import-export-keys-byok)
         + [Manage your OKMS access certificate](manage-and-operate/kms/okms-certificate-management)
         + [OKMS Architecture overview](manage-and-operate/kms/architecture-overview)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
         + [How to connect a compatible product using KMIP protocol with OVHcloud KMS](manage-and-operate/kms/kms-kmip)
         + [How to encrypt Kubernetes ETCD with OVHcloud KMS](manage-and-operate/kms/kms-etcd)
+        + [Encrypting a Block Storage volume with LUKS](public-cloud/compute/encrypting-a-block-storage-volume-with-luks)
         + [Pushing logs from OVHcloud KMS to Logs Data Platform](manage-and-operate/kms/logs)
     + [Secret Manager](manage-operate-secret-manager)
         + [Getting started with Secret Manager](manage-and-operate/secret-manager/secret-manager-ui)

@@ -46,8 +46,11 @@ for (const loc of LOCALES) {
   if (!fs.existsSync(dir)) continue;
   for (const f of walk(dir)) {
     if (!isResolvable(f)) continue;
-    const rel = f
-      .replace(`${path.join(ROOT, 'docs', loc)}/`, '')
+    // path.relative, not a string replace: path.join yields `\` on Windows.
+    const rel = path
+      .relative(path.join(ROOT, 'docs', loc), f)
+      .split(path.sep)
+      .join('/')
       .replace(/\.mdx$/, '');
     perLocale[loc].add(rel);
     union.add(rel);

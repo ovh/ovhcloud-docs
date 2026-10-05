@@ -1,0 +1,256 @@
+---
+title: Mode avancé pour l'action Aggregate
+description: Personnalisez davantage une action Aggregate en travaillant directement sur sa configuration JSON en mode avancé
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Passer en mode avancé sur l'en-tête de votre éditeur d'action (DPE > Actions > New Action > Aggregate) dans le DPE vous permet d'**aller plus loin dans la personnalisation de l'action Aggregate**, en affichant et en travaillant directement dans un fichier de configuration JSON. Les fichiers JSON offrent davantage de flexibilité et un accès à toutes les options pour les actions Aggregate.
+
+Le fichier de configuration JSON d'une action Aggregate est composé d'objets de plus haut niveau qui sont obligatoires. Cela inclut :
+
+- [**Sources**](#sources) : définit les tables sources utilisées pour charger les données.
+- [**Grouping**](#grouping) : définit selon quelle dimension les données seront regroupées, en fonction des clés primaires de la table de destination.
+- [**Schema**](#schema) : définit la correspondance individuelle entre la table de destination et les tables sources.
+- [**Join**](#join) : définit les conditions de jointure envisagées dans le cas où il y a plusieurs sources.
+- [**Destination**](#destination) : définit dans quelle table les données de sortie de l'action Aggregate seront chargées.
+
+D'autres paramètres optionnels peuvent également être ajoutés, nous les aborderons dans la section spécifique [**Other optional parameters**](#other-optional-parameters) qui inclut par exemple la segmentation, le périmètre ou les règles de transformation.
+
+## Sources
+
+**Format** : le JSON contient une valeur de chaîne qui pointe vers la source et des paramètres additionnels optionnels. Le chemin de la source ressemble à ceci : `dwh/database_name/table_name`, où `database_name` est le nom de l'emplacement de la source (source ou provenant du Lakehouse Manager) et `table_name` le nom de l'objet source ou de l'objet dans le schéma du Lakehouse Manager.
+
+**Clé JSON** : `params.load_from[0].source` ou `params.load_from.source`
+
+Exemple :
+```json
+"load_from" : [
+    {
+        "source" : "dwh/default_dataset/prim_calendar",
+        "force_utf8" : true
+    }
+]
+
+load_from" : {
+        "source" : "dwh/default_dataset/prim_calendar",
+        "force_utf8" : true
+}
+```
+ 
+:::tip
+Vous pouvez créer un alias de table en ajoutant un espace après le table_name, puis le ou les caractères pour l'alias de la table. Par exemple : "source": "dwh/source_facebook/lifetime_insights fb_i". Cela créera un alias `fb_i` pour la table `lifetime_insights`. Vous pouvez ainsi réutiliser cet alias dans les jointures et le schema.
+:::
+
+## Grouping
+
+Le scaling détermine le niveau de granularité selon lequel les données seront agrégées. Cela aide en particulier à la constitution des données à insérer dans les tables d'agrégation.
+
+**Format** : il s'agit d'une liste JSON d'attributs ou de règles SQL pour déterminer la granularité du regroupement.
+
+**Clé JSON** : `params.scale`
+
+Exemple :
+```json
+{
+"load_from": {
+  "source": "dwh/default_dataset/prim_facebook"
+},
+"scale": ["date","page_id"],
+…
+```
+
+Cela agrégera le nombre de `fb_fans` par `date` et `page_id`
+
+:::info
+La mise en œuvre d'un scale générera une opération GROUP BY dans la requête d'extraction SQL. Dans cet exemple : GROUP BY `page_id`, date.
+:::
+
+## Schema
+
+Le schema détermine le renommage entre le nom des champs tel qu'il est présent dans la source, et le nom que ces champs doivent avoir dans la destination.
+
+**Format** : l'objet schema contient une série d'objets JSON, dans lesquels chaque clé est le nom d'un attribut de la destination, et la valeur contient les paramètres associés à l'attribut.
+
+**Clé JSON** : `params.schema`
+
+Exemple :
+```json
+{
+"schema": {
+    "month": {
+      "table": "ref_month",
+      "operation": "SELECT",
+      "type": "default",
+      "attribute": "month"
+    },
+    "vegetables": {
+      "type": "sql",
+      "sql": "CONCAT(\"HELLO : \", prim_calendar.legumes)"
+    },
+    "season": {
+      "type": "replace",
+      "value": "hello"
+    }
+}
+```
+
+Il existe 3 types de correspondance différents :
+
+- type:`default` : pour faire correspondre un attribut à un autre sans aucune transformation
+- * `table` l'objet source d'origine de l'attribut
+- * `attribute`  attribut source à partir duquel effectuer la correspondance
+- * `operation`  représente les types d'opération SQL mentionnés dans la section des opérations SQL. (uniquement pour les sources de type SQL).
+- type:`replace` : placera une valeur codée en dur dans toutes les lignes de destination.
+- * `value`: cet attribut sera rempli avec la valeur pour toutes les lignes de destination en cours d'insertion/de mise à jour
+- `type`:"sql" : la formule SQL suivante sera appliquée (uniquement pour les sources de type SQL).
+- * `sql`  la valeur est une instruction SQL.
+
+## Join
+
+Les jointures ne sont possibles qu'entre des tables présentes dans la même base de données ou dans la même instance de base de données (par exemple, uniquement les tables de `default_dataset`).
+
+**Format** : une liste d'objets JSON, chacun représentant une instruction JOIN. L'ordre des objets correspond à l'ordre de la séquence des actions JOIN.
+
+**Clé JSON** : `params.joins`
+
+Exemple :
+```json
+"joins": [
+    {
+      "table": "ref_month",
+      "type": "LEFT",
+      "condition": "prim_calendar.month_number = ref_month.month_number"
+    },
+    {
+      "table": "ref_saison",
+      "type": "LEFT",
+      "condition": "prim_calendar.month_number = ref_season.season_number"
+    }
+  ]
+```
+
+- `table` : la table à joindre à la source
+- `type` : type de jointure mentionné dans la section join
+- `condition` : la condition de jointure, qui suit le mot-clé ON dans l'instruction SQL
+
+## Destination
+
+Destination représente l'emplacement où les données de l'action seront injectées.
+
+**Format** : son chemin ressemble à ceci : `dwh/database_name/table_name`. Où database_name est le nom de la base de données de destination (généralement `default_dataset`) et table_name le nom de la table de destination dans le schema du Lakehouse Manager.
+
+**Clé JSON** : `params.load_to[source]`
+
+Exemple :
+
+```json
+"load_to": {
+    "source": "dwh/default_dataset/tmp_calendar",
+    "force_utf8": true
+  }
+```
+
+Notez que vous pouvez renseigner plusieurs destinations à la fois :
+
+```json
+"load_to": [
+    {"source": "dwh/default_dataset/prim_facebook"},
+    {"source": "dwh/default_dataset/tmp_facebook"},
+  ]
+```
+
+## Other optional parameters
+
+### Extract_chunk_size
+
+`extract_chunk_size` est une valeur entière qui représente la taille maximale autorisée à la fois pour l'extraction des données.
+
+Exemple :
+
+```json
+"extract_chunk_size": 5000
+```
+
+Cela permettra au worker d'extraire les données par lots de 5000 lignes.
+
+**Clé JSON** : `params.load_from[0].extract_chunk_size`
+
+#### Source_rules
+
+`source_rules` représente la règle pour une préparation de données simple. Ce paramètre remplacera les règles existantes synchronisées depuis le DWH. Elles seront appliquées aux attributs de la source. Par exemple, supposons que nous souhaitions appliquer des règles de transformation à l'attribut `date_source`.
+
+**Format** : une liste contient des objets JSON, où chacun représente une règle appliquée à un attribut.
+
+**Clé JSON** : `params.load_from[source_rules]`
+
+Exemple :
+```json
+  "source_rules": [
+  {
+    "action": "date_replace",
+    "action_values": [
+    "%d/%m/%Y %H:%i:%s",
+    "%Y-%m-%d %H:%M:%S"
+    ],
+    "attribute_name": "date_source",
+    "name": "correct date format"
+  }
+]
+```
+
+Pour une documentation de configuration détaillée, veuillez vous référer à l'article sur les [règles de blueprint](/guides/public-cloud/data-platform/connectors-analyzer-blueprint-rules)
+
+#### Rules
+
+Les rules sont similaires aux source_rules, à la différence qu'elles seront appliquées à l'attribut de destination plutôt qu'à l'attribut d'extraction. Cela vous permet de faire correspondre différents attributs de destination au même attribut source tout en leur assignant des règles différentes.
+
+**Format** : une liste contient des objets JSON, où chacun représente une règle appliquée à un attribut.
+
+**Clé JSON** : `params.rules`
+
+Exemple :
+```json
+"rules": [
+  {
+    "action": "date_replace",
+    "action_values": [
+    "%d/%m/%Y %H:%i:%s",
+    "%Y-%m-%d %H:%M:%S"
+    ],
+    "attribute_name": "date_dest",
+    "name": "correct date format"
+  }
+]
+```
+
+#### SQL conditions
+
+Afin de filtrer avec des conditions SQL complexes, vous pouvez les ajouter via l'option « condition ».
+
+**Clé JSON** : `params.load_from[0].condition`
+**Format** : une chaîne qui contient la clause « WHERE » de l'extraction de la requête SQL qui sera générée sur la source. (à l'exclusion du « WHERE »).
+
+Exemple :
+```json
+{
+"params": 
+  {
+    "load_from": [{
+      "condition": " (attribute1 > 1 OR attribute2 BETWEEN 2019 and 2021) ",
+      ...
+    }]
+  }
+}
+```
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

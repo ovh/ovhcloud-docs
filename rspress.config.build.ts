@@ -10,18 +10,23 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
+import pluginMermaid from 'rspress-plugin-mermaid';
+import { generateCpNavRules } from './config/cpnav-rules';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import type { Locale } from './config/shared';
 import { locales } from './config/shared';
 import { sidebar } from './config/sidebar';
-import { pluginLastUpdatedFromCache } from './plugins/lastUpdatedFromCache';
+import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
+import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
+import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
 const locale = process.env.LOCALE || 'fr';
 const BASE_DIR = process.cwd();
@@ -77,6 +82,14 @@ const CMP_CONFIG = {
 export default defineConfig({
   root: path.join(BASE_DIR, 'docs', locale),
   base: `/${locale}/`,
+  // Absolute origin used by Rspress to emit fully-qualified URLs. Without it,
+  // llms.txt / llms-full.txt and the per-page `.md` links are relative
+  // (`/en/guides/….md`), which is useless for the external LLM crawlers those
+  // files exist for. It also makes the AI-agent hint injected below the H1
+  // (LlmsHint, active because `llms: true`) point at absolute URLs.
+  // Keep in sync with SITE_URL in scripts/combine-builds.ts and the same
+  // constant in theme/components/SEOHead.
+  siteOrigin: 'https://docs.ovhcloud.com',
   outDir: path.join(BASE_DIR, 'dist', locale),
   publicDir: path.join(BASE_DIR, 'docs', 'public'),
 
@@ -84,8 +97,14 @@ export default defineConfig({
   locales: [...locales],
   lang: locale,
 
-  // Use cached lastUpdated plugin instead of built-in (avoids 80k+ git calls)
-  plugins: [pluginLastUpdatedFromCache()],
+  // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
+    // the plugin's `loose` default: diagrams are contributor-written, so no
+    // click callbacks or raw HTML in labels.
+    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
+  ],
 
   builderConfig: {
     logLevel: 'error',
@@ -205,6 +224,9 @@ export default defineConfig({
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
+      remarkNoUnresolvedCpnav,
+      remarkNoUnresolvedTerm,
+      remarkNoDatelessGuide,
       remarkCpNavGate,
     ],
     rehypePlugins: [rehypeLazyImages],
@@ -246,6 +268,7 @@ export default defineConfig({
   // inside fragment bodies resolve in the same pass.
   replaceRules: [
     ...generateFragmentRules(locale as Locale),
+    ...generateCpNavRules(locale as Locale),
     ...generateLinkRules(locale as Locale),
   ],
 
@@ -259,7 +282,7 @@ export default defineConfig({
     outline: { level: [2, 5] },
     enableScrollToTop: true,
     hideNavbar: 'auto',
-    lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromCache
+    lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // Disable Rspress's auto-redirect based on navigator.language.
     // It assumes a single-build multi-locale setup; in our per-locale-build
     // setup `siteData.lang` equals the current build's locale, which makes the

@@ -1,0 +1,282 @@
+---
+title: Pierwsze kroki z serwerem MCP dla nazw domen
+description: Podłącz agenta AI do serwera MCP OVHcloud, aby zarządzać nazwami domen, rekordami DNS i przekierowaniami w języku naturalnym
+lastUpdated: 2026-08-27
+availableIn: [eu, ca, apac]
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+:::info
+Serwer MCP OVHcloud jest aktywnie rozwijany. Lista dostępnych narzędzi jest regularnie rozszerzana: funkcja, której dziś brakuje, może być dostępna już wkrótce. Aktualny wykaz znajdziesz w [hubie MCP OVHcloud](https://mcp.eu.ovhcloud.com/index.html).
+:::
+
+## Wprowadzenie
+
+**Model Context Protocol** (MCP) to otwarty standard, który pozwala asystentowi AI korzystać z zewnętrznych narzędzi. Serwer MCP OVHcloud udostępnia Twoje usługi OVHcloud w postaci takich narzędzi, dzięki czemu asystent może odczytywać i zmieniać konfigurację w Twoim imieniu.
+
+W praktyce oznacza to, że nie musisz już klikać w interfejsach ani pisać wywołań API — wystarczy, że poprosisz:
+
+```text
+Wypisz moje domeny i powiedz mi, które wygasają w ciągu najbliższych 60 dni.
+```
+
+**Niniejszy przewodnik wyjaśnia, jak podłączyć agenta AI do serwera MCP OVHcloud i używać go do zarządzania nazwami domen, rekordami DNS i przekierowaniami.**
+
+## Wymagania początkowe
+
+- Dostęp do <ManagerLink to="/">Panelu klienta OVHcloud</ManagerLink>
+- Zainstalowany zgodny klient MCP (patrz [Podłączenie agenta](#3--podłączenie-agenta-do-mcp))
+- Przeglądarka, aby przeprowadzić uwierzytelnianie OAuth2
+
+## W praktyce
+
+### 1 — Jak działa MCP
+
+W procesie biorą udział trzy elementy:
+
+| Element | Rola |
+|---------|------|
+| **Twój agent AI** | Asystent, z którym rozmawiasz (agent w terminalu, czat w IDE, Twoja własna aplikacja) |
+| **Serwer MCP OVHcloud** | Publikuje dostępne *narzędzia* i wykonuje je na Twoim koncie |
+| **Twoje konto OVHcloud** | Uprawnienia weryfikowane przy każdym wywołaniu, które decydują o tym, co agent może zrobić |
+
+Nigdy nie wywołujesz narzędzia po nazwie. Opisujesz, czego oczekujesz, agent wybiera odpowiednie narzędzie i prosi Cię o potwierdzenie, zanim cokolwiek zmieni.
+
+:::warning
+Agent AI podłączony do MCP działa z **Twoimi** uprawnieniami. Przeczytaj każdą prośbę o potwierdzenie, zanim ją zaakceptujesz, zwłaszcza w przypadku operacji usuwających rekordy lub zmieniających serwery DNS.
+:::
+
+### 2 — Hub MCP OVHcloud
+
+[Hub MCP OVHcloud](https://mcp.eu.ovhcloud.com/index.html) zawiera wykaz usług udostępnionych w postaci narzędzi MCP. To źródło informacji o tym, co jest dostępne.
+
+Wybierz adres URL odpowiadający regionowi Twojego konta OVHcloud:
+
+| Region | Adres URL serwera MCP |
+|--------|-----------------------|
+| Europa | `https://mcp.eu.ovhcloud.com/mcp/{section}` |
+| Kanada | `https://mcp.ca.ovhcloud.com/mcp/{section}` |
+
+Zastąp `{section}` nazwą sekcji, z którą chcesz się połączyć, w postaci widocznej na kartach huba. Zawsze łączysz się z konkretną sekcją: nie istnieje jeden globalny adres URL udostępniający wszystkie narzędzia naraz.
+
+#### Sekcje dotyczące nazw domen
+
+Nazwy domen obsługiwane są przez dwie sekcje, po jednej na każdą wersję API:
+
+| Sekcja | Udostępniana zawartość |
+|--------|------------------------|
+| `v1_domain` | Narzędzia domenowe API v1 |
+| `v2_domain` | Narzędzia domenowe API v2 |
+
+Dla konta europejskiego korzystającego z API v1 adres URL to zatem `https://mcp.eu.ovhcloud.com/mcp/v1_domain`.
+
+Obecnie API v1 pozostaje najbogatsze funkcjonalnie: sekcja `v1_domain` udostępnia więc szerszy zestaw narzędzi niż `v2_domain`. API v2 jest stopniowo rozwijane.
+
+Aby zrozumieć, czym API v2 różni się od API v1, zapoznaj się z przewodnikiem [OVHcloud API v2 - Principles of operation](/guides/manage-and-operate/api/apiv2#as-code-design).
+
+Możesz dodać jedną, drugą albo obie jednocześnie. Sama sekcja `v1_domain` wystarczy do wykonania wszystkich operacji opisanych w tym przewodniku.
+
+### 3 — Podłączenie agenta do MCP
+
+Uwierzytelnianie odbywa się przez **OAuth2**: przy pierwszym kontakcie agenta z serwerem otworzy się okno przeglądarki ze stroną logowania OVHcloud. Po zalogowaniu agent wykorzystuje tę sesję do swoich wywołań MCP.
+
+:::info
+Nie jest wymagany żaden własny nagłówek HTTP: dane uwierzytelniające dostarcza mechanizm OAuth2. Instrukcje konfiguracji OVHcloud zalecają, aby sekcję nagłówków w konfiguracji Twojego klienta MCP pozostawić **pustą**.
+:::
+
+<Tabs>
+<Tab label="SHAI">
+
+[SHAI](https://github.com/ovh/shai) to agent terminalowy OVHcloud. Wymagana jest wersja **0.1.5 lub nowsza**.
+
+Utwórz następujący plik konfiguracyjny na podstawie [szablonu `.ovh.config`](https://github.com/ovh/shai/blob/main/.ovh.config) z repozytorium SHAI:
+
+```bash
+$HOME/.config/shai/agents/ovh.config
+```
+
+Zadeklaruj w `tools.mcp` po jednym wpisie na każdą sekcję, z której chcesz korzystać. Poniższy przykład włącza obie wersje API:
+
+```json
+{
+  "name": "ovh",
+  "description": "OVH agent with OVH MCP server for cloud management and API calls",
+  "tools": {
+    "builtin": ["*"],
+    "builtin_excluded": [],
+    "mcp": {
+      "v1_domain": {
+        "config": {
+          "type": "http",
+          "url": "https://mcp.eu.ovhcloud.com/mcp/v1_domain"
+        },
+        "enabled_tools": ["*"]
+      },
+      "v2_domain": {
+        "config": {
+          "type": "http",
+          "url": "https://mcp.eu.ovhcloud.com/mcp/v2_domain"
+        },
+        "enabled_tools": ["*"]
+      }
+    }
+  },
+  "system_prompt": "{{CODER_BASE_PROMPT}}",
+  "max_tokens": 4096,
+  "temperature": 0.3
+}
+```
+
+Zastąp punkty końcowe adresami właściwymi dla Twojego regionu.
+
+:::info
+Nie wpisuj ręcznie żadnych danych uwierzytelniających do tego pliku. Po zalogowaniu SHAI sam zapisuje `access_token` oraz `expires_at` w bloku `config` każdego serwera. Wartości te są osobistymi danymi poufnymi: nigdy nie umieszczaj tego pliku w repozytorium ani nie udostępniaj go w niezmienionej postaci.
+:::
+
+Następnie uruchom agenta. Otworzy się okno przeglądarki ze stroną logowania OVHcloud; zaloguj się, aby zakończyć nawiązywanie połączenia.
+
+</Tab>
+<Tab label="Goose">
+
+Najszybsza droga wiedzie przez [hub MCP OVHcloud](https://mcp.eu.ovhcloud.com/index.html): odszukaj kartę **V1 Domain** (lub **V2 Domain**) i kliknij przycisk **Add in Goose**. Goose otworzy się z już wypełnionym rozszerzeniem — nazwa, punkt końcowy i transport — pozostaje tylko potwierdzić.
+
+Przycisk używa punktu końcowego huba, który właśnie przeglądasz. Z huba europejskiego skonfiguruje więc rozszerzenie pod adresem `https://mcp.eu.ovhcloud.com`: w przypadku konta w Kanadzie otwórz hub swojego regionu albo skorzystaj z konfiguracji ręcznej opisanej poniżej.
+
+**Konfiguracja ręczna.** W Goose dodaj nowe rozszerzenie typu **HTTP**, a następnie podaj:
+
+- **URL**: adres URL Twojego regionu wraz z wybraną sekcją, `https://mcp.eu.ovhcloud.com/mcp/v1_domain` lub `https://mcp.eu.ovhcloud.com/mcp/v2_domain`
+- **Headers**: pozostaw puste
+
+Zapisz rozszerzenie. Goose otworzy przeglądarkę w celu zalogowania się do OVHcloud.
+
+Aby korzystać z obu wersji API, utwórz drugie rozszerzenie dla pozostałej sekcji.
+
+</Tab>
+<Tab label="Claude Code">
+
+Dodaj po jednym serwerze na sekcję, podając adres URL swojego regionu:
+
+```bash
+claude mcp add --transport http v1_domain https://mcp.eu.ovhcloud.com/mcp/v1_domain
+claude mcp add --transport http v2_domain https://mcp.eu.ovhcloud.com/mcp/v2_domain
+```
+
+Samo pierwsze polecenie wystarczy do wykonania wszystkich operacji opisanych w tym przewodniku. Dodaj `--scope user`, aby serwer był dostępny we wszystkich Twoich projektach, a nie tylko w bieżącym. Nie używaj opcji `--header`.
+
+Następnie, z poziomu Claude Code, rozpocznij logowanie OAuth2:
+
+```text
+/mcp
+```
+
+Zaloguj się do OVHcloud w oknie przeglądarki, które się otworzy. Polecenie `claude mcp list` wyświetli wówczas `✔ Connected` obok każdego dodanego serwera.
+
+</Tab>
+</Tabs>
+
+Aby sprawdzić, czy połączenie działa, zadaj agentowi pytanie, które wymaga jedynie odczytu danych:
+
+```text
+Wypisz moje domeny w OVHcloud.
+```
+
+### 4 — Wyświetlenie informacji o nazwie domeny
+
+Zacznij od wypisania swoich domen, a następnie poproś o szczegóły jednej z nich.
+
+Przykładowe polecenie:
+
+```text
+Pokaż mi szczegóły mydomain.ovh: datę wygaśnięcia, serwery DNS i stan blokady transferu.
+```
+
+### 5 — Zamówienie nazwy domeny
+
+Zamówienie nazwy domeny realizuje narzędzie `order-new-domain-name`, dostępne w sekcji `v1_domain`.
+
+Przykładowe polecenie:
+
+```text
+Zamów mydomain.ovh na rok.
+```
+
+Zanim cokolwiek kupisz, poproś o **symulację**. Narzędzie przyjmuje parametr `dryRun`: ustawienie go na `true` powoduje sprawdzenie dostępności nazwy i wyliczenie ceny, **bez składania zamówienia i bez naliczania jakichkolwiek opłat**.
+
+```text
+Zasymuluj zamówienie mydomain.ovh na rok.
+```
+
+Agent wyświetli wówczas wycenę — cenę, okres i konfigurację, która zostanie zastosowana do domeny — i poczeka na Twoją zgodę, zanim przejdzie dalej.
+
+Po zatwierdzeniu wyceny agent ponawia wywołanie z parametrem `dryRun` ustawionym na `false`. Zamówienie staje się wiążące: API zwraca **adres URL zamówienia**. Agent przekazuje Ci ten adres bezpośrednio w swojej odpowiedzi: otwórz go w przeglądarce, aby opłacić zamówienie. To zamówienie znajdziesz również w Panelu klienta OVHcloud, na stronie <ManagerLink to="/#/billing/orders">Moje zamówienia</ManagerLink>.
+
+:::info
+Zamówienie musi zostać **opłacone**, aby rejestracja została przekazana do rejestru. Agent nie może zapłacić za Ciebie: otwórz zwrócony przez niego adres URL zamówienia, aby dokonać płatności. Dopóki płatność nie zostanie zaksięgowana, nazwa domeny pozostaje dostępna dla osób trzecich.
+:::
+
+:::warning
+Zatwierdzenie zamówienia tworzy na Twoim koncie OVHcloud rzeczywiste, płatne zamówienie. Przeczytaj prośbę o potwierdzenie wysłaną przez agenta, zanim ją zaakceptujesz, i sprawdź nazwę domeny oraz okres: rejestracji nie da się cofnąć tak jak zmiany konfiguracji.
+:::
+
+### 6 — Modyfikacja rekordu DNS
+
+Powiązane narzędzia: `create-domain-zone-record` do dodania rekordu, `delete-domain-zone-record` do usunięcia rekordu oraz `get-domain-zone-details` do sprawdzenia strefy.
+
+Przykładowe polecenia:
+
+```text
+Zmień rekord A dla www.mydomain.ovh na 203.0.113.42.
+```
+
+Nie musisz wiedzieć, jaki typ rekordu należy zmienić. Opisz oczekiwany rezultat: agent ustali, o który rekord chodzi, wyjaśni, co zamierza zmienić, i poczeka na Twoją zgodę przed wprowadzeniem zmiany.
+
+```text
+Moja strona WWW jest teraz hostowana na serwerze o adresie IP 203.0.113.42.
+Skieruj www.mydomain.ovh na ten adres.
+```
+
+:::warning
+Zmodyfikowany rekord DNS staje się aktywny dopiero po odświeżeniu strefy. Jeśli pominiesz ten etap, zmiana zostanie zapisana, ale nigdy nie zostanie zastosowana. Wyraźnie poproś agenta o odświeżenie strefy albo sprawdź, czy to zrobił.
+:::
+
+Propagacja w internecie może następnie potrwać do 24 godzin, w zależności od wartości TTL rekordu.
+
+### 7 — Utworzenie przekierowania
+
+Przekierowanie kieruje odwiedzających Twoją domenę pod inny adres.
+
+Przykładowe polecenie:
+
+```text
+Przekieruj blog.mydomain.ovh na https://mydomain.ovh/aktualnosci, tak aby adres pozostał widoczny w przeglądarce.
+```
+
+### 8 — Pozostałe obsługiwane operacje
+
+Sekcje `v1_domain` i `v2_domain` udostępniają odpowiadające im ścieżki API OVHcloud w postaci narzędzi: **każdą operację, którą można wykonać na nazwach domen przez API, można wykonać również przez MCP**. Poza opisanymi wyżej zadaniami obejmuje to na przykład:
+
+- DNSSEC: włączanie, wyłączanie i zarządzanie rekordami DS
+- Blokada transferu: włączanie i wyłączanie
+- Zarządzanie kontaktami: właściciel, kontakt administracyjny, techniczny i księgowy
+- Serwery DNS i rekordy GLUE
+- Identyfikatory i rekordy DynHost (dynamiczny DNS)
+- Kopia zapasowa, przywracanie, import i eksport strefy
+- Zarządzanie zadaniami: przyspieszanie, anulowanie, ponawianie
+- Pobieranie kodu AuthInfo i zatwierdzanie transferów wychodzących
+
+Jeśli nie masz pewności, czy dana operacja jest możliwa, poproś agenta, aby wyjaśnił, co potrafi zrobić z Twoimi nazwami domen.
+
+## Sprawdź również
+
+[Order a Domain Name](/guides/web-cloud/domains/api-domain-order)
+
+[Configure the DNS of your Domain Name](/guides/web-cloud/domains/api-domain-dns)
+
+[Przekierowanie nazwy domeny zarządzanej w OVHcloud](/guides/web-cloud/domains/redirect-domain-name)
+
+[AI Endpoints - Model Context Protocol (MCP) with LangChain4j](/guides/public-cloud/ai-machine-learning/ai-endpoints-mcp-langchain4j)
+
+[[fragment:support-scope]]
+
+Dołącz do [grona naszych użytkowników](/links/community).

@@ -23,9 +23,9 @@ const PdfIcon = () => (
       strokeLinejoin="round"
     />
     <path
-      d="M5 9h2.5a1 1 0 0 0 0-2H5v4m4-4h2m-1 0v4"
+      d="M8 8v4m0 0 1.75-1.75M8 12l-1.75-1.75"
       stroke="currentColor"
-      strokeWidth="1.1"
+      strokeWidth="1.2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />

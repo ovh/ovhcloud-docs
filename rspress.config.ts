@@ -11,17 +11,22 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import pluginMermaid from 'rspress-plugin-mermaid';
+import { generateCpNavRules } from './config/cpnav-rules';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import type { Locale } from './config/shared';
 import { sidebar } from './config/sidebar';
-import { pluginLastUpdatedFromCache } from './plugins/lastUpdatedFromCache';
+import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
+import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
+import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
+import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -111,7 +116,13 @@ const pathExcludes = devPath
 
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
-  plugins: [pluginLastUpdatedFromCache()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
+    // the plugin's `loose` default: diagrams are contributor-written, so no
+    // click callbacks or raw HTML in labels.
+    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
+  ],
   builderConfig: {
     plugins: [pluginSass()],
     html: {
@@ -185,6 +196,21 @@ export default defineConfig({
         imports: true,
       },
     },
+    tools: {
+      rspack: {
+        // react-router guards a code path with Vite's `import.meta.hot`. Rspack
+        // implements HMR through `import.meta.webpackHot`, so it reports `hot`
+        // as an unknown `import.meta` property and substitutes `undefined` —
+        // which is exactly what the guard wants (the branch is dead outside
+        // Vite, and it is additionally gated on `isSpaMode`, never set here).
+        // Harmless, but printed on every dev start, so filter it out.
+        //
+        // Not needed in rspress.config.build.ts: that config sets
+        // `logLevel: 'error'`, which already hides build warnings.
+        // Remove once react-router stops shipping the Vite-only guard.
+        ignoreWarnings: [/Accessing unknown `import\.meta` property 'hot'/],
+      },
+    },
   },
   globalStyles: path.join(__dirname, 'styles/index.css'),
   // Default zoom applies to every `.rspress-doc img`. Let images opt out with
@@ -204,6 +230,11 @@ export default defineConfig({
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
+      remarkNoUnresolvedCpnav,
+      remarkNoUnresolvedTerm,
+      remarkNoDatelessGuide,
+      // Must stay AFTER remarkNoUnresolvedCpnav: the gate reads the CP-NAV markers that
+      // cpnav-rules.ts emits, and there is no point gating a block whose token is broken.
       remarkCpNavGate,
     ],
     rehypePlugins: [rehypeLazyImages],
@@ -244,6 +275,7 @@ export default defineConfig({
   // inside fragment bodies resolve in the same pass.
   replaceRules: [
     ...generateFragmentRules((activeLocales[0]?.lang || 'fr') as Locale),
+    ...generateCpNavRules((activeLocales[0]?.lang || 'fr') as Locale),
     ...generateLinkRules((activeLocales[0]?.lang || 'fr') as Locale),
   ],
 
@@ -257,7 +289,7 @@ export default defineConfig({
     outline: { level: [2, 5] },
     enableScrollToTop: true,
     hideNavbar: 'auto',
-    lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromCache
+    lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // See rspress.config.build.ts for rationale — disabled here too for dev parity
     localeRedirect: 'never',
     editLink: {

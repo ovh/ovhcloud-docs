@@ -1,0 +1,647 @@
+---
+title: "HubSpot : référence technique"
+description: Ceci est le complément technique à la documentation principale du connecteur HubSpot
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Ceci est le complément technique à la documentation principale du [connecteur HubSpot](/guides/public-cloud/data-platform/connectors-sources-hubspot). Il couvre les internes de l'authentification, la référence complète des endpoints, les scopes, la pagination, le format de sortie et les limitations, tout ce qui est nécessaire pour intégrer le connecteur dans un pipeline de données.
+
+## Authentification
+
+### Méthodes prises en charge
+
+| Méthode | Format | Cas d'usage |
+|--------|--------|----------|
+| **Private App Token** (recommandé) | `pat-na1-xxx` ou `pat-eu1-xxx` | Intégrations côté serveur |
+| **OAuth2 Access Token** | Token bearer OAuth standard | Applications publiques distribuées |
+
+Toutes les méthodes utilisent le même en-tête Bearer :
+
+```http
+Authorization: Bearer {token}
+```
+
+### Méthodes d'authentification obsolètes
+
+| Méthode | Pourquoi |
+|--------|-----|
+| Clé API (`hapikey`) | Obsolète depuis novembre 2022 |
+| Personal Access Key | CLI uniquement, renvoie 401 sur les appels API REST |
+
+### Format des identifiants
+
+```json
+{
+  "token": "pat-eu1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+## Architecture
+
+Le connecteur renvoie du JSON brut depuis l'API HubSpot. La platform prend le relais à partir de là. Elle détecte automatiquement le schéma à partir du payload JSON, aplatit les objets imbriqués en colonnes en notation pointée (converties en minuscules avec underscores), et stocke le résultat dans le lakehouse, interrogeable via Trino. Tout nouveau champ ajouté par HubSpot à un objet apparaît automatiquement à l'extraction suivante ; vous ne définissez aucun schéma, ne listez aucune colonne, et n'écrivez aucun code de transformation.
+
+Le connecteur lui-même est responsable de l'authentification (Bearer token), du routage des endpoints, de la pagination (curseur ou décalage selon l'endpoint), et des nouvelles tentatives sur limite de débit.
+
+## Types d'objets CRM
+
+### 27 objets standards
+
+Le connecteur expose les 27 types d'objets CRM standards de HubSpot. Chacun est accessible via `/crm/v3/objects/{object_type}` (sauf owners, voir ci-dessous).
+
+#### CRM principal
+
+| Type d'objet | Chemin API |
+|-------------|----------|
+| `contacts` | `/crm/v3/objects/contacts` |
+| `companies` | `/crm/v3/objects/companies` |
+| `deals` | `/crm/v3/objects/deals` |
+| `tickets` | `/crm/v3/objects/tickets` |
+
+#### Interactions
+
+| Type d'objet | Chemin API |
+|-------------|----------|
+| `calls` | `/crm/v3/objects/calls` |
+| `emails` | `/crm/v3/objects/emails` |
+| `meetings` | `/crm/v3/objects/meetings` |
+| `notes` | `/crm/v3/objects/notes` |
+| `tasks` | `/crm/v3/objects/tasks` |
+| `communications` | `/crm/v3/objects/communications` |
+| `postal_mail` | `/crm/v3/objects/postal_mail` |
+
+#### E-commerce & ventes
+
+| Type d'objet | Chemin API |
+|-------------|----------|
+| `products` | `/crm/v3/objects/products` |
+| `line_items` | `/crm/v3/objects/line_items` |
+| `quotes` | `/crm/v3/objects/quotes` |
+
+#### Commerce
+
+| Type d'objet | Chemin API |
+|-------------|----------|
+| `invoices` | `/crm/v3/objects/invoices` |
+| `subscriptions` | `/crm/v3/objects/subscriptions` |
+| `orders` | `/crm/v3/objects/orders` |
+| `payments` | `/crm/v3/objects/payments` |
+
+#### Commerce Hub
+
+| Type d'objet | Chemin API |
+|-------------|----------|
+| `carts` | `/crm/v3/objects/carts` |
+| `discounts` | `/crm/v3/objects/discounts` |
+| `fees` | `/crm/v3/objects/fees` |
+| `taxes` | `/crm/v3/objects/taxes` |
+
+#### Sales Hub
+
+| Type d'objet | Chemin API | Remarques |
+|-------------|----------|-------|
+| `leads` | `/crm/v3/objects/leads` | Sales Hub Pro+ |
+| `goals` | `/crm/v3/objects/goals` | |
+
+#### Service & planification
+
+| Type d'objet | Chemin API | Remarques |
+|-------------|----------|-------|
+| `feedback_submissions` | `/crm/v3/objects/feedback_submissions` | Service Hub |
+| `appointments` | `/crm/v3/objects/appointments` | Scheduling |
+| `services` | `/crm/v3/objects/services` | |
+
+### Cas particulier : Owners
+
+Owners utilise un endpoint dédié (`GET /crm/v3/owners`) au lieu de `/crm/v3/objects/owners`. Le connecteur gère cela automatiquement lorsque `object_type=owners` est sélectionné.
+
+## Référence des endpoints
+
+### crm_objects
+
+Extrait des enregistrements de n'importe quel type d'objet CRM.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `object_type` | select | Oui | L'un des 27 types CRM + `owners` |
+| `max_items` | number | Non | Nombre maximum d'enregistrements à extraire (vide = tous) |
+| `properties_filter` | tags | Non | Propriétés spécifiques à récupérer (vide = ensemble par défaut de HubSpot) |
+
+**API** : `GET /crm/v3/objects/{object_type}?properties={props}&limit=100&after={cursor}`
+
+**Pagination** : basée sur un curseur (`paging.next.after`)
+
+**Sortie** : JSON brut. Chaque enregistrement a `id`, `createdAt`, `updatedAt`, `archived`, et un dictionnaire `properties` imbriqué contenant toutes les valeurs de propriétés demandées.
+
+**Comportement des propriétés** :
+
+- Filtre vide : récupère TOUTES les propriétés via `GET /crm/v3/properties/{type}` d'abord, puis les demande toutes
+- Avec filtre : demande uniquement les propriétés spécifiées
+- HubSpot renvoie toutes les valeurs de propriétés sous forme de chaînes (même les nombres et les dates)
+
+| Type d'objet | Propriétés par défaut approximatives |
+|------------|---------------------------|
+| Contacts | ~370+ propriétés |
+| Companies | ~250+ propriétés |
+| Deals | ~200+ propriétés |
+
+### associations
+
+Extrait les relations entre objets CRM.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `from_type` | select | Oui | Type d'objet source (14 options) |
+| `to_type` | select | Oui | Type d'objet cible (14 options) |
+| `max_items` | number | Non | Nombre maximum d'enregistrements source à traiter |
+
+**API** : `POST /crm/v4/associations/{from_type}/{to_type}/batch/read`
+
+**Pagination** : basée sur un curseur sur les objets source, POST en lot pour la recherche d'associations (max 1000 ID par requête)
+
+**Sortie** : JSON brut. Chaque résultat contient des objets `from` et `to` avec les ID et les métadonnées d'association.
+
+### association_definitions
+
+Récupère les types d'association disponibles entre deux types d'objets.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `from_type` | select | Oui | Type d'objet source |
+| `to_type` | select | Oui | Type d'objet cible |
+
+**API** : `GET /crm/v4/associations/{from_type}/{to_type}/labels`
+
+**Pagination** : aucune (GET unique)
+
+**Sortie** : JSON brut, définitions des types d'association avec catégorie, ID de type, et libellé.
+
+### pipelines
+
+Extrait les définitions de pipeline avec leurs étapes.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `pipeline_object_type` | select | Oui | `deals` ou `tickets` |
+
+**API** : `GET /crm/v3/pipelines/{pipeline_object_type}`
+
+**Pagination** : aucune (GET unique, renvoie tous les pipelines)
+
+**Sortie** : JSON brut. Chaque pipeline contient `id`, `label`, `displayOrder`, `createdAt`, `updatedAt`, et un tableau `stages` imbriqué. La platform aplatit automatiquement les étapes en lignes séparées.
+
+### pipeline_audit
+
+Journal d'audit pour un pipeline spécifique.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `pipeline_object_type` | select | Oui | `deals` ou `tickets` |
+| `pipeline_id` | text | Oui | ID du pipeline (utilisez l'endpoint `pipelines` pour trouver les ID) |
+
+**API** : `GET /crm/v3/pipelines/{object_type}/{pipeline_id}/audit`
+
+**Pagination** : aucune (GET unique)
+
+**Sortie** : JSON brut, entrées d'audit telles que renvoyées par l'API.
+
+### properties_meta
+
+Extrait le dictionnaire de données (schéma de propriétés) pour un type d'objet.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `property_object_type` | select | Oui | Type d'objet (12 options) |
+
+**API** : `GET /crm/v3/properties/{property_object_type}`
+
+**Pagination** : aucune (GET unique)
+
+**Sortie** : JSON brut. Chaque propriété a `name`, `label`, `type`, `fieldType`, `groupName`, `description`, et plus encore.
+
+### property_groups
+
+Extrait les groupes de propriétés pour un type d'objet.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `property_object_type` | select | Oui | Type d'objet (12 options) |
+
+**API** : `GET /crm/v3/properties/{property_object_type}/groups`
+
+**Pagination** : aucune (GET unique)
+
+**Sortie** : JSON brut, définitions de groupes telles que renvoyées par l'API.
+
+### lists
+
+Extrait les définitions de listes et de segments.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de listes à extraire |
+
+**API** : `GET /crm/v3/lists`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, définitions de listes telles que renvoyées par l'API.
+
+### list_memberships
+
+Récupère les ID des enregistrements membres d'une liste spécifique.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `list_id` | text | Oui | ID de liste HubSpot (numéro ILS, trouvé dans Contacts > Lists) |
+| `max_items` | number | Non | Nombre maximum de membres à extraire |
+
+**API** : `GET /crm/v3/lists/{list_id}/memberships`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, enregistrements d'adhésion tels que renvoyés par l'API.
+
+### marketing_emails
+
+Extrait les définitions d'e-mails marketing avec leurs statistiques.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum d'e-mails à extraire |
+
+**API** : `GET /marketing/v3/emails`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données de campagne e-mail avec des statistiques imbriquées, aplaties par la platform.
+
+### forms
+
+Extrait les définitions de formulaires.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de formulaires à extraire |
+
+**API** : `GET /marketing/v3/forms`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, définitions de formulaires telles que renvoyées par l'API.
+
+### form_submissions
+
+Extrait les soumissions pour un formulaire spécifique.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `form_id` | text | Oui | ID du formulaire (à trouver dans Marketing > Forms > URL des détails du formulaire) |
+| `max_items` | number | Non | Nombre maximum de soumissions à extraire |
+
+**API** : `GET /form-integrations/v1/submissions/forms/{form_id}`
+
+**Pagination** : **basée sur un décalage** (API v1, utilise `offset` + `hasMore`, PAS basée sur un curseur)
+
+**Sortie** : JSON brut, données de soumission telles que renvoyées par l'API.
+
+### conversations
+
+Extrait les fils de conversation (chat, e-mail, bot).
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de fils à extraire |
+
+**API** : `GET /conversations/v3/conversations/threads`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données de fil telles que renvoyées par l'API.
+
+**Requiert** : scope Conversations + plan HubSpot approprié
+
+### campaigns
+
+Extrait les définitions de campagnes marketing.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de campagnes à extraire |
+
+**API** : `GET /marketing/v3/campaigns`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données de campagne telles que renvoyées par l'API.
+
+### blog_posts
+
+Extrait les articles de blog CMS.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum d'articles à extraire |
+
+**API** : `GET /cms/v3/blogs/posts`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données d'article de blog (titre, contenu, auteur, date de publication, etc.).
+
+### site_pages
+
+Extrait les pages de site web CMS.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de pages à extraire |
+
+**API** : `GET /cms/v3/pages/site-pages`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données de page telles que renvoyées par l'API.
+
+### landing_pages
+
+Extrait les pages d'atterrissage CMS.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de pages à extraire |
+
+**API** : `GET /cms/v3/pages/landing-pages`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données de page telles que renvoyées par l'API.
+
+### workflows
+
+Extrait les définitions de workflows d'automatisation.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de workflows à extraire |
+
+**API** : `GET /automation/v3/workflows`
+
+**Pagination** : aucune (GET unique, la clé de données est `workflows`, pas `results`)
+
+**Sortie** : JSON brut, définitions de workflows telles que renvoyées par l'API.
+
+### sequences
+
+Extrait les définitions de séquences commerciales.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de séquences à extraire |
+
+**API** : `GET /automation/v4/sequences`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données de séquence telles que renvoyées par l'API.
+
+**Requiert** : Sales Hub Pro+
+
+### users
+
+Extrait les utilisateurs du compte.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum d'utilisateurs à extraire |
+
+**API** : `GET /settings/v3/users`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, données utilisateur telles que renvoyées par l'API.
+
+### imports
+
+Extrait l'historique des imports CRM.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum d'enregistrements d'import à extraire |
+
+**API** : `GET /crm/v3/imports`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, enregistrements d'import tels que renvoyés par l'API.
+
+### crm_schemas
+
+Extrait les définitions de schéma d'objets personnalisés.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de schémas à extraire |
+
+**API** : `GET /crm/v3/schemas`
+
+**Pagination** : aucune (GET unique)
+
+**Sortie** : JSON brut, définitions de schéma telles que renvoyées par l'API.
+
+### custom_events
+
+Extrait les événements comportementaux pour un enregistrement CRM spécifique.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `event_object_type` | select | Oui | Type d'objet CRM (contacts, companies, deals, tickets) |
+| `event_object_id` | text | Oui | ID d'enregistrement HubSpot |
+| `max_items` | number | Non | Nombre maximum d'événements à extraire |
+
+**API** : `GET /events/v3/events?objectType={type}&objectId={id}`
+
+**Pagination** : basée sur un curseur (avec `extra_params`)
+
+**Sortie** : JSON brut, données d'événement telles que renvoyées par l'API.
+
+**Requiert** : Marketing Hub Enterprise
+
+### timeline_events
+
+Extrait les modèles d'événements de timeline pour une application d'intégration.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `app_id` | text | Oui | ID d'application HubSpot (trouvé dans le compte développeur) |
+
+**API** : `GET /crm/v3/timeline/{app_id}/event-templates`
+
+**Pagination** : aucune (GET unique)
+
+**Sortie** : JSON brut, données de modèle d'événement telles que renvoyées par l'API.
+
+### hubdb_tables
+
+Extrait les définitions de tables HubDB.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `max_items` | number | Non | Nombre maximum de tables à extraire |
+
+**API** : `GET /cms/v3/hubdb/tables`
+
+**Pagination** : basée sur un curseur
+
+**Sortie** : JSON brut, définitions de tables telles que renvoyées par l'API.
+
+## Scopes par endpoint
+
+### Objets CRM
+
+| Type d'objet | Scope requis |
+|-------------|---------------|
+| contacts | `crm.objects.contacts.read` |
+| companies | `crm.objects.companies.read` |
+| deals | `crm.objects.deals.read` |
+| tickets | `tickets` |
+| products | `e-commerce` |
+| line_items | `crm.objects.line_items.read` |
+| quotes | `crm.objects.quotes.read` |
+| calls, emails, meetings, notes, tasks | `crm.objects.contacts.read` |
+| communications | `crm.objects.contacts.read` |
+| feedback_submissions | `crm.objects.feedback_submissions.read` |
+| leads | `crm.objects.leads.read` |
+| invoices | `crm.objects.invoices.read` |
+| subscriptions | `crm.objects.subscriptions.read` |
+| goals | `crm.objects.goals.read` |
+| orders | `crm.objects.orders.read` |
+| payments | `crm.objects.payments.read` |
+| owners | `crm.objects.owners.read` |
+
+### Autres endpoints
+
+| Endpoint | Scope requis |
+|----------|---------------|
+| pipelines, pipeline_audit | `crm.objects.deals.read` ou `tickets` (selon pipeline_object_type) |
+| properties_meta, property_groups | Même scope que le type d'objet cible |
+| lists, list_memberships | `crm.lists.read` |
+| marketing_emails | `content` |
+| forms, form_submissions | `forms` |
+| associations, association_definitions | Scopes pour les types d'objet source et cible |
+| campaigns | `content` |
+| blog_posts, site_pages, landing_pages | `content` |
+
+Pour les endpoints non listés ci-dessus (workflows, sequences, users, imports, crm_schemas, conversations, custom_events, hubdb_tables, timeline_events), consultez la [référence des scopes de HubSpot](https://developers.hubspot.com/docs/api/working-with-oauth#scopes) pour le nom de scope faisant autorité.
+
+## Pagination
+
+Le connecteur utilise trois stratégies de pagination selon l'endpoint :
+
+### Basée sur un curseur (la plupart des endpoints)
+
+```http
+GET /crm/v3/objects/contacts?limit=100&after=NTI1Cg==
+```
+
+Réponse :
+```json
+{
+  "results": [...],
+  "paging": {
+    "next": { "after": "NTI1Cg==" }
+  }
+}
+```
+
+Lorsque `paging.next.after` est absent, toutes les données ont été récupérées.
+
+### Basée sur un décalage (soumissions de formulaires uniquement)
+
+```http
+GET /form-integrations/v1/submissions/forms/{id}?limit=50&offset=0
+```
+
+Réponse :
+```json
+{
+  "results": [...],
+  "hasMore": true,
+  "offset": 50
+}
+```
+
+Lorsque `hasMore` est faux, toutes les données ont été récupérées.
+
+### Aucune pagination (GET unique)
+
+Certains endpoints renvoient toutes les données en une seule réponse : `pipelines`, `pipeline_audit`, `properties_meta`, `property_groups`, `association_definitions`, `workflows`, `timeline_events`, `crm_schemas`.
+
+## Limites de débit
+
+### Limites par plan
+
+Consultez la [documentation officielle de HubSpot sur les limites de débit](https://developers.hubspot.com/docs/api/usage-details) pour les limites actuelles. Les limites varient selon le plan et l'endpoint de l'API.
+
+### Gestion des limites de débit
+
+Le connecteur gère automatiquement les réponses `429 Too Many Requests` :
+
+1. Lit l'en-tête `Retry-After` (secondes à attendre)
+2. Se rabat sur 10 secondes si l'en-tête est absent
+3. Relance la requête après l'attente
+
+## Format de sortie
+
+### JSON brut (sortie du connecteur)
+
+Le connecteur renvoie du **JSON brut** depuis l'API HubSpot via `handle_api_extraction(data, limit, return_type)`. Les données sont une liste de dictionnaires, exactement comme renvoyées par l'API.
+
+Exemple d'objet CRM (contacts) :
+```json
+{
+  "id": "123",
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "updatedAt": "2024-03-20T14:22:00.000Z",
+  "archived": false,
+  "properties": {
+    "email": "john@example.com",
+    "firstname": "John",
+    "lastname": "Doe",
+    "createdate": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### Sortie aplatie (lakehouse)
+
+La platform aplatit automatiquement le JSON brut en une table plate. Les clés imbriquées deviennent des noms de colonnes avec des underscores :
+
+| Chemin JSON brut | Colonne du lakehouse |
+|--------------|-----------------|
+| `id` | `id` |
+| `createdAt` | `createdat` |
+| `properties.email` | `properties_email` |
+| `properties.firstname` | `properties_firstname` |
+
+Les noms de colonnes sont **convertis** : minuscules, points/caractères spéciaux remplacés par des underscores, doivent commencer par une lettre ou un underscore.
+
+## Limitations
+
+- **Les valeurs de propriétés sont toujours des chaînes**, même les nombres et les dates. Convertissez-les dans votre traitement en aval.
+- **Les objets personnalisés ne sont pas pris en charge** : le paramètre `object_type` est une liste de sélection fixe de 27 types CRM standards + owners. Les types d'objets personnalisés ne peuvent pas être extraits avec ce connecteur.
+- **Certains types d'objets nécessitent des plans payants** : invoices, subscriptions et goals peuvent nécessiter Sales Hub ou Commerce Hub. Leads nécessite Sales Hub Professional+. Les objets Commerce (carts, discounts, fees, taxes) nécessitent Commerce Hub. L'API renvoie 403 si indisponible.
+- **Les soumissions de formulaires utilisent l'API v1** : le seul endpoint encore sur l'ancienne API v1. Utilise la pagination par décalage au lieu d'une pagination basée sur un curseur.
+- **Événements comportementaux** : nécessitent Marketing Hub Enterprise et un ID d'enregistrement spécifique (impossible d'extraire tous les événements en masse).
+- **Les noms de colonnes dans le lakehouse sont convertis** : `properties.email` devient `properties_email`. Ceci est géré par la platform, pas par le connecteur.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
