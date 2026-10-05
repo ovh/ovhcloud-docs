@@ -94,8 +94,9 @@ def online_retail_cleaning(event):
                 f"{int((harmonized != df['description']).sum())} rows updated")
     df["description"] = harmonized
 
-    df["is_cancellation"] = df["invoice"].str.upper().str.startswith("C")
-    logger.info(f"Cancellations kept: {int(df['is_cancellation'].sum())}")
+    # Count the cancellations without adding a column: the target table keeps the 8 original attributes
+    cancellations = df["invoice"].str.upper().str.startswith("C")
+    logger.info(f"Cancellations kept: {int(cancellations.sum())}")
     logger.info(f"Rows kept without a customer: {int(df['customer_id'].isna().sum())}")
 
     stats, err = bulk_insert(connector, TARGET_TABLE, df)
