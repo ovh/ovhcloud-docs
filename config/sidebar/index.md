@@ -1231,6 +1231,8 @@
             + [Security](public-cloud-databases-postgresql-security)
                 + [Security Overview for Public Cloud Databases](public-cloud/databases/concepts-security-overview)
                 + [Responsibility model for Public Cloud Databases](public-cloud/databases/responsibility-model)
+                + [Secure the TLS connection to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-secure-connection-tls)
+                + [Manage users, roles and privileges of Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-users-roles-grants)
             + [Troubleshooting](public-cloud-databases-postgresql-troubleshooting)
                 + [Troubleshoot your Public Cloud Databases](public-cloud/databases/troubleshooting)
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)

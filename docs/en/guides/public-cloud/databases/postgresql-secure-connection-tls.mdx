@@ -1,0 +1,236 @@
+---
+title: Secure the TLS connection to Public Cloud Databases for PostgreSQL
+description: Find out how to use your service's CA certificate to establish a verified TLS connection (verify-full) to Public Cloud Databases for PostgreSQL
+lastUpdated: 2026-10-05
+---
+
+import Api from '@components/Api';
+
+## Objective
+
+Public Cloud Databases allow you to focus on building and deploying cloud applications while OVHcloud takes care of the database infrastructure and maintenance in operational conditions.
+
+All connections to your PostgreSQL service are encrypted with TLS: the service rejects unencrypted connections. Encryption alone, however, does not guarantee that you are talking to the right server: for that, your client must verify the certificate presented by the service.
+
+**This guide explains how to retrieve your service's CA certificate and configure your PostgreSQL client to establish a verified TLS connection.**
+
+## Requirements
+
+- An active [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account
+- Access to the <ManagerLink to="/">OVHcloud Control Panel</ManagerLink>
+- A PostgreSQL database running on your OVHcloud Public Cloud Databases ([this guide](/guides/public-cloud/databases/getting-started) can help you to meet this requirement)
+- [Configure your PostgreSQL instance](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) to accept incoming connections
+- A PostgreSQL client installed on your machine ([this guide](/guides/public-cloud/databases/postgresql-connect-cli) can help you to meet this requirement)
+
+[[cpnav:publiccloud-databases|en]]
+
+## Concept
+
+### What encryption does, and does not, do
+
+When a PostgreSQL client connects to your service, two distinct guarantees are involved:
+
+- **Confidentiality**: the traffic between your application and the database is encrypted and cannot be read by a third party observing the network.
+- **Authenticity**: your application is certain that the server it is talking to is really your service, and not an intermediary impersonating it.
+
+The `sslmode` parameter of the PostgreSQL client (libpq) determines which of these guarantees you get. Since the service enforces TLS, the `disable`, `allow` and `prefer` modes are of no use: `disable` is rejected by the service, and `allow` / `prefer` result in an encrypted but unverified connection.
+
+| `sslmode` value | Encrypted connection | Server certificate verified | Hostname verified |
+| --- | --- | --- | --- |
+| `require` | Yes | No (see the note below) | No |
+| `verify-ca` | Yes | Yes | No |
+| `verify-full` | Yes | Yes | Yes |
+
+The connection URI provided in the Control Panel uses `sslmode=require`. Your traffic is therefore encrypted, but your client does not verify the server's identity: it would accept a certificate presented by anyone.
+
+:::info
+With libpq, if a CA file is present in the default location (`~/.postgresql/root.crt`) or set with `sslrootcert`, the `require` mode behaves like `verify-ca`. For an explicit and predictable configuration, set `verify-full` directly.
+:::
+
+:::tip
+For a production environment, we recommend `verify-full`. It is the only mode that protects against both passive eavesdropping and server impersonation.
+:::
+
+### Your service's CA certificate
+
+The certificate presented by your service is signed by a certificate authority (CA) specific to your Public Cloud project ("Project CA"), not by a public authority. This CA certificate is shared by all the Public Cloud Databases services of your project. Your client therefore needs this CA certificate to verify the server: your system's certificate store is not enough (libpq 16+'s `sslrootcert=system` option will not work).
+
+The CA certificate can be downloaded from the OVHcloud Control Panel and via the OVHcloud API.
+
+## Instructions
+
+### Step 1: Retrieve the CA certificate
+
+Click on <code className="action">Databases</code> in the left-hand navigation bar and select your PostgreSQL service.
+
+In the <code className="action">Dashboard</code> tab, locate the `Connection information` block. The **Certificate** field lets you display the certificate, copy it to the clipboard or download it.
+
+Download the certificate and save it as `ca.pem` in a directory your application can read.
+
+You can also retrieve this certificate using the following API call:
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/postgresql/\{clusterId\}/certificates"} />
+
+The `ca` field of the response contains the certificate in PEM format.
+
+### Step 2: Connect in `verify-full` mode
+
+Take the connection URI displayed in the Control Panel, replace `sslmode=require` with `sslmode=verify-full`, and add the `sslrootcert` parameter pointing to the downloaded file:
+
+```console
+$ psql "postgres://<username>:<password>@<hostname>:<port>/defaultdb?sslmode=verify-full&sslrootcert=/path/to/ca.pem"
+```
+
+The hostname and port are specific to your service: use the ones displayed in the Control Panel. In our example, it will look like this:
+
+```console
+$ psql "postgres://avnadmin:Mysup3rs3cur3p4ssw0rd@postgresql-ab123456-cd7891011.database.cloud.ovh.net:20184/defaultdb?sslmode=verify-full&sslrootcert=/home/user/ca.pem"
+```
+
+:::warning
+Always use the hostname provided in the Control Panel. In `verify-full` mode, connecting by IP address or through a DNS alias of your own fails, because that name is not in the server certificate.
+:::
+
+:::info
+You can avoid repeating the `sslrootcert` parameter by placing the file in the default location expected by libpq: `~/.postgresql/root.crt` on Linux and macOS, `%APPDATA%\postgresql\root.crt` on Windows. The `PGSSLMODE` and `PGSSLROOTCERT` environment variables also let you set these parameters without writing them in the URI.
+:::
+
+### Step 3: Check the connection
+
+Once connected, the `\conninfo` command confirms that the session is encrypted:
+
+```console
+defaultdb=> \conninfo
+You are connected to database "defaultdb" as user "avnadmin" on host "postgresql-ab123456-cd7891011.database.cloud.ovh.net" at port "20184".
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, compression: off)
+```
+
+You can also check it from the database itself:
+
+```sql
+defaultdb=> SELECT ssl, version, cipher FROM pg_stat_ssl WHERE pid = pg_backend_pid();
+ ssl | version |          cipher
+-----+---------+--------------------------
+ t   | TLSv1.3 | TLS_AES_256_GCM_SHA384
+(1 row)
+```
+
+If the certificate cannot be verified, the connection fails before authentication, with a message such as:
+
+```console
+psql: error: connection to server at "..." failed: root certificate file "/path/to/ca.pem" does not exist
+```
+
+or
+
+```console
+psql: error: connection to server at "..." failed: SSL error: certificate verify failed
+```
+
+In the first case, check the file path. In the second, make sure the `ca.pem` file comes from the Public Cloud project hosting the service you are connecting to, and that you are using the hostname provided in the Control Panel.
+
+### Step 4: Configure your applications
+
+The principle is the same whatever the language: set the verification mode and the path to the CA certificate.
+
+**Python (psycopg 3)**
+
+```python
+import psycopg
+
+conn = psycopg.connect(
+    host="postgresql-ab123456-cd7891011.database.cloud.ovh.net",
+    port=20184,
+    dbname="defaultdb",
+    user="avnadmin",
+    password="Mysup3rs3cur3p4ssw0rd",
+    sslmode="verify-full",
+    sslrootcert="/path/to/ca.pem",
+)
+```
+
+**Java (JDBC)**
+
+```java
+String url = "jdbc:postgresql://postgresql-ab123456-cd7891011.database.cloud.ovh.net:20184/defaultdb"
+           + "?sslmode=verify-full&sslrootcert=/path/to/ca.pem";
+Connection conn = DriverManager.getConnection(url, "avnadmin", "Mysup3rs3cur3p4ssw0rd");
+```
+
+**Node.js (node-postgres)**
+
+```javascript
+const fs = require('fs');
+const { Client } = require('pg');
+
+const client = new Client({
+  host: 'postgresql-ab123456-cd7891011.database.cloud.ovh.net',
+  port: 20184,
+  database: 'defaultdb',
+  user: 'avnadmin',
+  password: 'Mysup3rs3cur3p4ssw0rd',
+  ssl: {
+    rejectUnauthorized: true,
+    ca: fs.readFileSync('/path/to/ca.pem').toString(),
+  },
+});
+```
+
+:::warning
+With node-postgres, do not combine an `ssl` object with a `connectionString` containing `sslmode`: the connection string parameters can override those of the `ssl` object.
+:::
+
+**Go (pgx)**
+
+```go
+connString := "postgres://avnadmin:Mysup3rs3cur3p4ssw0rd@postgresql-ab123456-cd7891011.database.cloud.ovh.net:20184/defaultdb" +
+    "?sslmode=verify-full&sslrootcert=/path/to/ca.pem"
+conn, err := pgx.Connect(context.Background(), connString)
+```
+
+:::info
+These examples use **avnadmin** for readability. In production, connect your applications with a dedicated user holding only the privileges it needs (see the guide [Manage users, roles and privileges](/guides/public-cloud/databases/postgresql-users-roles-grants)), and do not store passwords in your code.
+:::
+
+Not all drivers support every `sslmode` value, nor use the same vocabulary. Refer to your driver's documentation if its behaviour differs from what is described here.
+
+### Manage the certificate lifecycle
+
+The server certificate is issued by your project's CA certificate. As long as your application trusts this CA certificate, it keeps connecting when the server certificate is renewed: you never have to distribute the server certificate itself.
+
+The CA certificate does, however, have an expiry date. Two good practices help you avoid a service interruption:
+
+- **Retrieve the certificate at deployment time.** Query the OVHcloud API during your application's build or start-up, and write the certificate to a secret or a mounted volume rather than committing it to your repository.
+- **Monitor the expiry date.** If you keep a static copy, check its expiry date and schedule its replacement before it expires:
+
+```console
+$ openssl x509 -in ca.pem -noout -subject -enddate
+```
+
+### Connection pools
+
+If your application connects through a [connection pool](/guides/public-cloud/databases/postgresql-pool), the TLS connection is established with the pooler, on the port dedicated to the pool. The hostname and CA certificate are the same: only the port and the database name (the pool name) differ from a direct connection. The `verify-full` mode is therefore used in the same way.
+
+## Go further
+
+[Connect using the CLI for Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-connect-cli)
+
+[Configure incoming connections of a Public Cloud Databases for PostgreSQL service](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections)
+
+[Manage users, roles and privileges of Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-users-roles-grants)
+
+[Create and use connection pools in Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-pool)
+
+[Security Overview for Public Cloud Databases](/guides/public-cloud/databases/concepts-security-overview)
+
+Official PostgreSQL documentation on TLS protection: [https://www.postgresql.org/docs/current/libpq-ssl.html](https://www.postgresql.org/docs/current/libpq-ssl.html)
+
+Visit the [GitHub examples repository](https://github.com/ovh/public-cloud-databases-examples/tree/main/databases/postgresql) to find out how to connect to your database with several languages.
+
+## We want your feedback!
+
+We would love to help answer questions and appreciate any feedback you may have.
+
+[[fragment:professional-services|en]]
+
+Are you on Discord? Connect to our channel at [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) and interact directly with the team that builds our databases service!
