@@ -12,11 +12,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
+import YAML from 'yaml';
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static']);
 
 /**
- * Extract frontmatter fields from an MDX file.
+ * Extract the top-level scalar frontmatter fields of an MDX file, as
+ * single-line strings. A real YAML parse: the previous line-based regex read a
+ * block scalar (`description: >-` + indented lines) as the literal ">-".
  */
 function readMdxFrontmatter(mdxPath: string): Record<string, string> | null {
   try {
@@ -24,16 +27,35 @@ function readMdxFrontmatter(mdxPath: string): Record<string, string> | null {
     const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
     if (!match) return null;
 
+    const data = YAML.parse(match[1]) as Record<string, unknown> | null;
     const fields: Record<string, string> = {};
-    for (const line of match[1].split('\n')) {
-      const kv = line.match(/^(\w+):\s*"?(.+?)"?\s*$/);
-      if (kv) {
-        fields[kv[1]] = kv[2];
+    for (const [key, value] of Object.entries(data ?? {})) {
+      if (typeof value === 'string' || typeof value === 'number') {
+        fields[key] = String(value).replace(/\s+/g, ' ').trim();
       }
     }
     return fields;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Locale the source is actually written in. A language fallback is a locale's
+ * `.mdx` symlinked to another locale's file (usually `en`); its `.md` must not
+ * claim the locale it is merely served under.
+ */
+function contentLocale(
+  mdxPath: string,
+  docsDir: string,
+  locale: string,
+): string {
+  try {
+    if (!fs.lstatSync(mdxPath).isSymbolicLink()) return locale;
+    const real = path.relative(docsDir, fs.realpathSync(mdxPath));
+    return real.split(path.sep)[0] || locale;
+  } catch {
+    return locale;
   }
 }
 
@@ -290,11 +312,12 @@ function processDir(
       const url = `${siteUrl}${basePath}/${slug}`;
 
       const lines = ['---'];
-      if (title) lines.push(`title: "${title.replace(/"/g, '\\"')}"`);
+      // JSON strings are valid YAML double-quoted scalars (escapes included).
+      if (title) lines.push(`title: ${JSON.stringify(title)}`);
       if (description)
-        lines.push(`description: "${description.replace(/"/g, '\\"')}"`);
+        lines.push(`description: ${JSON.stringify(description)}`);
       lines.push(`url: ${url}`);
-      lines.push(`lang: ${locale}`);
+      lines.push(`lang: ${contentLocale(mdxPath, docsDir, locale)}`);
       if (lastUpdated) lines.push(`lastUpdated: ${lastUpdated}`);
       lines.push('---', '');
 
