@@ -1,7 +1,7 @@
 ---
 title: Migrate to OVHcloud Public Cloud Databases for MySQL
-description: This guide explains how to migrate an external MySQL database to an OVHcloud managed MySQL database
-lastUpdated: 2025-12-12
+description: This guide explains how to migrate an external MySQL database to an OVHcloud managed MySQL database with minimal downtime
+lastUpdated: 2026-10-05
 ---
 
 import Api from '@components/Api';
@@ -9,80 +9,209 @@ import Api from '@components/Api';
 
 ## Objective
 
-This guide explains how to migrate an external MySQL database to an OVHcloud MySQL Public Cloud Databases service.
+This guide explains how to migrate an external MySQL database — hosted on your own servers, on a virtual machine or with another provider — to an OVHcloud Public Cloud Databases for MySQL service.
+
+The migration first copies your data, then keeps replicating the changes made on the source until you stop it. You can therefore switch your application over to the new service at the moment you choose, with minimal downtime.
+
+The migration is driven through the OVHcloud API. The OVHcloud Control Panel does not offer it.
 
 ## Requirements
 
-- A [Public Cloud project](https://www.ovhcloud.com/en-gb/public-cloud/) in your OVHcloud account.
-- A database running on your OVHcloud Public Cloud Databases ([this guide](/guides/public-cloud/databases/getting-started) can help you to meet this requirement).
+- A [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account.
+- A Public Cloud Databases for MySQL service ([this guide](/guides/public-cloud/databases/getting-started) can help you to meet this requirement).
 - Access to the <ManagerLink to="/">OVHcloud Control Panel</ManagerLink> and to the <ApiLink>OVHcloud API</ApiLink>.
+- Administrator access to the source server: you need to change its configuration, its firewall rules, and create a user on it.
 
 ## Instructions
 
-### Prerequisites
+### Step 1 - Check that your source database is compatible
 
-- The source database should be in >= 5.7 and \<= 8.0.
-- gtid_mode is ON on both the source and the target (ON by default on Public Cloud MySQL database).
-- A user with read and replication data permission can be created on the source database.
+The source database must run MySQL 5.7 or 8.0. A source in 8.0 can be migrated to a service in a more recent version: the version upgrade happens during the migration.
 
-### Set up
+The migration relies on MySQL replication. The source server must use the following settings:
 
-- Create a managed MySQL database in your Public Cloud project.
-- Create a user on the source database with replication and read data permissions.
+| Setting | Required value | Purpose |
+|---|---|---|
+| `gtid_mode` | `ON` | Replication is based on global transaction identifiers |
+| `enforce_gtid_consistency` | `ON` | Required to enable `gtid_mode` |
+| `log_bin` | enabled | Without a binary log, changes cannot be replicated |
+| `binlog_format` | `ROW` | Replication format used by the migration |
+| `binlog_row_image` | `FULL` | Full row images in the binary log |
+| `server_id` | any value other than `0` | Identifies the server in the replication |
 
-### Using the OVHcloud API
+TLS must also be enabled on the source server, as the migration connects to it over an encrypted connection.
 
-- First, create a task to check if the migration is possible.
+Run the following query on the source to check the current values:
+
+```sql
+SELECT @@gtid_mode, @@enforce_gtid_consistency, @@log_bin, @@binlog_format, @@binlog_row_image, @@server_id;
+```
+
+If a value differs, set it in the server configuration file (`my.cnf`, in the `[mysqld]` section), for example:
+
+```ini
+[mysqld]
+server_id = 1
+log_bin = mysql-bin
+binlog_format = ROW
+binlog_row_image = FULL
+gtid_mode = ON
+enforce_gtid_consistency = ON
+```
+
+:::warning
+Changing these settings usually requires restarting the MySQL server. Plan a maintenance window. To enable GTIDs without stopping a server already in production, follow the [MySQL procedure for enabling GTIDs online](https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-enable-gtids.html).
+:::
+
+### Step 2 - Allow your OVHcloud service to reach the source
+
+The migration works in the opposite direction from your applications: it is **your OVHcloud service that connects to your source database**, on its MySQL port. The source must therefore accept connections coming from the address of your service.
+
+To find this address, open your service in the <ManagerLink to="/">OVHcloud Control Panel</ManagerLink>. In the <code className="action">Dashboard</code> tab, copy the host shown in the `Connection information` block, then resolve it:
+
+```bash
+dig +short <service-host>
+```
+
+If several addresses are returned, allow all of them.
+
+On the source side, allow inbound TCP connections on the MySQL port (3306 by default) **from this address only**. You will remove this rule once the migration is over.
+
+:::info
+The migration check of step 4 tests this connection: if the source cannot be reached, the check fails and tells you why.
+:::
+
+### Step 3 - Create a dedicated migration user on the source
+
+:::warning
+The password of this user is sent **in clear text** in the body of the API calls of steps 4 and 5. It can therefore appear in your scripts, your shell history or the logs of your tools. Create a user dedicated to the migration, with a strong password used nowhere else.
+
+This user is only needed for the duration of the migration: you delete it in step 8, once the switchover is done. Its password then becomes useless, even if a copy of it was kept somewhere.
+:::
+
+Create the user on the source, restricted to the address of your OVHcloud service found in step 2, and grant it the privileges the migration needs:
+
+```sql
+CREATE USER 'migration'@'<service-address>' IDENTIFIED BY '<strong-password>';
+
+GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT,
+      SHOW VIEW, TRIGGER, EVENT, LOCK TABLES, PROCESS
+      ON *.* TO 'migration'@'<service-address>';
+```
+
+### Step 4 - Check that the migration is possible
+
+Create a task that checks whether the migration is possible:
 
 <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/database/mysql/\\{clusterId\\}/migration/check"} />
 
-```console
-body : {
-   "sourceHost": <hostname>,
-   "sourcePassword": <replication user password>,
-   "sourcePort": 3306,
-   "sourceSsl": true,
-   "sourceUsername": <replication user name>
+```json
+{
+  "sourceHost": "<source-host>",
+  "sourcePort": 3306,
+  "sourceUsername": "migration",
+  "sourcePassword": "<strong-password>",
+  "sourceSsl": true
 }
 ```
 
-- Then get the result of the migration check task with the following API call:
+The task starts in the `running` status. Get its result with the following API call:
 
 <Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\\{serviceName\\}/database/mysql/\\{clusterId\\}/migration/check"} />
 
-If the Success field is `true` you can continue.
-If not, you can see the reason in the result field.
+When the check is over, the `status` field is `done`. If the `success` field is `true`, you can continue. The `result` field also tells you which migration method will be used:
 
-- Create a task to migrate the external database to the managed database:
-
-<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/database/mysql/\\{clusterId\\}/migration"} />
-
-```console
-body : {
-   "sourceHost": <hostname>,
-   "sourcePassword": <replication user password>,
-   "sourcePort": 3306,
-   "sourceSsl": true,
-   "sourceUsername": <replication user name>
+```json
+{
+  "status": "done",
+  "result": "All pre-checks passed successfully, preferred migration method will be [Replication]",
+  "success": true
 }
 ```
 
-- Get the result of the migration:
+If `success` is `false`, the `result` field explains what is missing — for example a source setting from step 1 or the network access from step 2. Fix it, then run the check again.
+
+### Step 5 - Start the migration
+
+:::warning
+**Do not write to your OVHcloud service while the migration is running.** The service remains writable during the migration, and any data written to it directly would diverge from the source without any error being reported.
+:::
+
+Create the migration task, with the same body as the check:
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/database/mysql/\\{clusterId\\}/migration"} />
+
+The API confirms that the migration has started:
+
+```json
+{
+  "status": "running",
+  "error": "",
+  "method": "replication",
+  "message": "The migration process is running"
+}
+```
+
+Follow its progress with the following API call:
 
 <Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\\{serviceName\\}/database/mysql/\\{clusterId\\}/migration"} />
 
-When the migration is finished, the task continues to replicate the source database.
-You need to stop it with the following request to fully finish the process.
-Be careful, if you do not do it and delete data in the source database, these updates will be replicated to the target database.
+Once the data has been copied, the migration keeps replicating the changes made on the source, and the `message` field reads `Take care, the replication still synchronise your source database, feel free to stop the replication whenever you want`.
+
+You can also check the replication from your OVHcloud service, connected as `avnadmin`. While the migration replicates, the following query returns `ON`:
+
+```sql
+SELECT SERVICE_STATE FROM performance_schema.replication_connection_status;
+```
+
+### Step 6 - Check the migrated data
+
+Before switching your application over, compare the source and the service:
+
+- the number of rows of your main tables;
+- their checksums, which must be identical on both sides:
+
+```sql
+CHECKSUM TABLE <database>.<table>;
+```
+
+- a test write: insert or update a row on the source, then check that it appears on your OVHcloud service a few moments later.
+
+Tables, views and generated columns are migrated. **Users and their privileges are not**: you recreate them in step 7.
+
+### Step 7 - Switch your application over
+
+1. Stop the writes of your application on the source database.
+2. Check that the last changes have reached your OVHcloud service, by comparing the checksums of step 6 again.
+3. Stop the migration:
 
 <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/database/mysql/\\{clusterId\\}/migration/stop"} />
 
+4. Check the migration status with the `GET .../migration` call of step 5. The `status` field becomes `done`.
 
-### Users
+:::warning
+After the migration is stopped, the `message` field may still read `the replication still synchronise your source database`. Rely on the `status` field, not on the message. To be sure, the query of step 5 on `performance_schema.replication_connection_status` no longer returns `ON`, and a write made on the source no longer reaches your service.
+:::
 
-Currently the users are not migrated in this process and need to be recreated in the managed database manually.
+5. Recreate the users of your application on your OVHcloud service, from the <code className="action">Users</code> tab of the Control Panel or in SQL, and grant them the privileges they need.
+6. Point your application to the host and port of your OVHcloud service, and authorise its IP addresses on the service ([this guide](/guides/public-cloud/databases/mysql-prepare-for-incoming-connections) explains how).
+
+:::warning
+If you do not stop the migration, it keeps replicating the source: data deleted on the source would also be deleted on your OVHcloud service.
+:::
+
+### Step 8 - Clean up the source
+
+Once your application runs on your OVHcloud service:
+
+- delete the migration user on the source: `DROP USER 'migration'@'<service-address>';`
+- remove the firewall rule that allows your OVHcloud service to reach the source.
 
 ## Go further
+
+[Capabilities and Limitations of Public Cloud Databases for MySQL](/guides/public-cloud/databases/mysql-capabilities)
+
+[Configure incoming connections of a Public Cloud Databases for MySQL service](/guides/public-cloud/databases/mysql-prepare-for-incoming-connections)
 
 Visit our dedicated Discord channel: [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud). Ask questions, provide feedback and interact directly with the team that builds our databases services.
 
