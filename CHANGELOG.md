@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.05
+
+### Maintenance
+- **banner:** remove SIRET banner from FR guides and home page (#923)
+
+### Documentation
+- 54 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.10.02
 
 ### Fixes
