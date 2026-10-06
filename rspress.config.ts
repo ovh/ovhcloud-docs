@@ -155,41 +155,48 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
-        {
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
-        },
-        // OVHcloud CMP — mirrors rspress.config.build.ts (early <head> consent
-        // gate). Intentional divergences from prod: (1) dev serves multiple
-        // locales from one instance, so we omit `locale` and let the CMP fall
-        // back to navigator.language / en-GB; (2) environment is 'preproduction'
-        // so local dev never writes test consents to the production API.
-        {
-          tag: 'script',
-          head: true,
-          append: true,
-          children:
-            "window.__cmpConfig={region:'EU',environment:'preproduction'," +
-            "scripts:['https://analytics.ovh.com/ovh/ovh_delta.js','https://analytics.ovh.com/ovh/ovh_tags.js']};",
-        },
-        {
-          // Absolute URL — the bundle is served by the OVHcloud server farms.
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: {
-            src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
-            defer: true,
-          },
-        },
+        // Consent manager + analytics, only where the region runs them.
+        ...(regionConfig.consentManager
+          ? [
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              // OVHcloud CMP — mirrors rspress.config.build.ts (early <head> consent
+              // gate). Intentional divergences from prod: (1) dev serves multiple
+              // locales from one instance, so we omit `locale` and let the CMP fall
+              // back to navigator.language / en-GB; (2) environment is 'preproduction'
+              // so local dev never writes test consents to the production API.
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                children:
+                  "window.__cmpConfig={region:'EU',environment:'preproduction'," +
+                  "scripts:['https://analytics.ovh.com/ovh/ovh_delta.js','https://analytics.ovh.com/ovh/ovh_tags.js']};",
+              },
+              {
+                // Absolute URL — the bundle is served by the OVHcloud server farms.
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
+                  defer: true,
+                },
+              },
+            ]
+          : []),
       ],
     },
     source: {
       define: {
         // Whether to render the in-page AI assistant (see config/regions.ts).
         __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
+        // Whether the CMP and its analytics run (see config/regions.ts).
+        __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),

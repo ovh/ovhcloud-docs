@@ -73,6 +73,14 @@ export interface RegionConfig {
    * someone else's product with a link to the page, and need no service here.
    */
   aiAssistant: boolean;
+  /**
+   * Whether the OVHcloud consent manager (CMP) runs, and with it everything
+   * that hangs off it: the analytics it injects (ovh_delta.js / ovh_tags.js,
+   * plus the jQuery they need), the tc_vars data layer and page-load tracking,
+   * and the footer's "Privacy center" button that opens it. The CMP is built
+   * for the EU; a region without it loads none of these.
+   */
+  consentManager: boolean;
   /** Canonical site origin, used for sitemaps and canonical URLs. */
   siteUrl: string;
   /** OVHcloud API console URL used by the "API Reference" sidebar header item. */
@@ -92,8 +100,9 @@ export interface RegionConfig {
   legalNotice?: string;
   /**
    * Legal and commercial links shown in the footer, after the copyright. The
-   * privacy-centre trigger is added by the footer itself and is not listed
-   * here, because it opens the consent manager rather than a page.
+   * privacy-centre trigger is added by the footer itself (when
+   * `consentManager` is on) and is not listed here, because it opens the
+   * consent manager rather than a page.
    */
   footerLinks?: ReadonlyArray<{ text: string; link: string }>;
 }
@@ -136,6 +145,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     includeSupplements: true,
     routePrefix: '/guides/',
     aiAssistant: true,
+    consentManager: true,
     siteUrl: 'https://docs.ovhcloud.com',
     apiConsoleUrl: 'https://api.eu.ovhcloud.com/console/',
     corporateUrl: 'https://www.ovhcloud.com/',
@@ -153,6 +163,9 @@ export const REGIONS: Record<Region, RegionConfig> = {
     routePrefix: '/',
     // The US does not run the assistant service.
     aiAssistant: false,
+    // The OVHcloud CMP is not implemented for the US: no consent manager, so
+    // no analytics either.
+    consentManager: false,
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',

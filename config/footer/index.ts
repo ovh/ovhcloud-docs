@@ -10,8 +10,9 @@ import { regionConfig } from '../regions';
  *
  * What each region gets is the region's own business:
  *   - EU: the copyright line and the privacy-centre trigger.
- *   - US: the same, plus the trademark notice and the legal/commercial links
- *     the US subsidiary is required to display on every page.
+ *   - US: the copyright line, the trademark notice and the legal/commercial
+ *     links the US subsidiary is required to display on every page. No
+ *     privacy-centre trigger: the US runs no consent manager.
  */
 
 function escapeHtml(text: string): string {
@@ -23,7 +24,8 @@ function escapeHtml(text: string): string {
 }
 
 export function buildFooterMessage(): string {
-  const { corporateUrl, copyright, legalNotice, footerLinks } = regionConfig;
+  const { corporateUrl, copyright, legalNotice, footerLinks, consentManager } =
+    regionConfig;
 
   // The copyright text links to the corporate site, as it does today.
   const copyrightLine =
@@ -37,17 +39,21 @@ export function buildFooterMessage(): string {
   }
 
   // The privacy centre opens the consent manager rather than navigating, so it
-  // is not a footerLinks entry — it belongs to every region regardless, and it
-  // is a button rather than an anchor to nowhere.
+  // is not a footerLinks entry — it follows `consentManager`, and it is a
+  // button rather than an anchor to nowhere.
   const trailing = [
     ...(footerLinks ?? []).map(
       ({ text, link }) =>
         `<a href="${escapeHtml(link)}" target="_blank" rel="nofollow">${escapeHtml(text)}</a>`,
     ),
-    '<button type="button" data-cmp-trigger="show-preferences">Privacy center</button>',
+    ...(consentManager
+      ? [
+          '<button type="button" data-cmp-trigger="show-preferences">Privacy center</button>',
+        ]
+      : []),
   ];
 
-  lines.push(`<div>${trailing.join(' · ')}</div>`);
+  if (trailing.length > 0) lines.push(`<div>${trailing.join(' · ')}</div>`);
 
   return lines.join('');
 }

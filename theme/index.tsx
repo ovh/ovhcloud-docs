@@ -45,6 +45,10 @@ import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
 
+// Whether the region runs the consent manager and its analytics (see
+// config/regions.ts). Without it there is no TMS to feed.
+declare const __CONSENT_MANAGER__: boolean;
+
 // Custom DocLayout that handles overview pages and respects frontmatter
 const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
   const { frontmatter } = useFrontmatter();
@@ -130,7 +134,7 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
     <ZoneProvider>
       <RegionProvider>
         <AIChatbotDrawerProvider>
-          <AnalyticsBootstrap />
+          {__CONSENT_MANAGER__ && <AnalyticsBootstrap />}
           <SEOHead />
           <BasicLayout
             {...props}

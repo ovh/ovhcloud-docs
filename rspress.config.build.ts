@@ -77,8 +77,9 @@ const CMP_SCRIPTS = [
 ];
 
 // Single init global read by the CMP at module-init (must be set before the
-// loader runs). region 'EU' — the docs site is global; US is unsupported and CA
-// is a separate subsidiary.
+// loader runs). region 'EU' — the CMP is built for the EU; regions it does not
+// cover (US) do not load it at all (`consentManager: false`), and CA is a
+// separate subsidiary.
 const CMP_CONFIG = {
   locale: CMP_LOCALE[locale] ?? 'en-GB',
   region: 'EU',
@@ -182,39 +183,45 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
-        {
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
-        },
-        // OVHcloud CMP (Consent Management Platform). Loaded statically in
-        // <head> — unlike ovh_delta.js, this is an early consent gate that must
-        // run as soon as possible to block non-essential scripts until consent.
-        // It renders its own vanilla-DOM banner (not into React's root), so the
-        // React-19 hydration timing that affects ovh_delta.js does not apply.
-        // Consumers should wait for the `cmp:ready` event before calling
-        // window.__cmp (two-stage loader → versioned bundle, async).
-        {
-          // window.__cmpConfig MUST be set before the loader runs (region,
-          // environment and scripts are read once at module-init; locale is
-          // re-read on each modal open). locale is baked from the per-locale
-          // build (LOCALE).
-          tag: 'script',
-          head: true,
-          append: true,
-          children: `window.__cmpConfig=${JSON.stringify(CMP_CONFIG)};`,
-        },
-        {
-          // Absolute URL — the bundle is served by the OVHcloud server farms.
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: {
-            src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
-            defer: true,
-          },
-        },
+        // The consent manager and the analytics it injects only exist in
+        // regions that run them (config/regions.ts `consentManager`).
+        ...(regionConfig.consentManager
+          ? [
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              // OVHcloud CMP (Consent Management Platform). Loaded statically in
+              // <head> — unlike ovh_delta.js, this is an early consent gate that must
+              // run as soon as possible to block non-essential scripts until consent.
+              // It renders its own vanilla-DOM banner (not into React's root), so the
+              // React-19 hydration timing that affects ovh_delta.js does not apply.
+              // Consumers should wait for the `cmp:ready` event before calling
+              // window.__cmp (two-stage loader → versioned bundle, async).
+              {
+                // window.__cmpConfig MUST be set before the loader runs (region,
+                // environment and scripts are read once at module-init; locale is
+                // re-read on each modal open). locale is baked from the per-locale
+                // build (LOCALE).
+                tag: 'script',
+                head: true,
+                append: true,
+                children: `window.__cmpConfig=${JSON.stringify(CMP_CONFIG)};`,
+              },
+              {
+                // Absolute URL — the bundle is served by the OVHcloud server farms.
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
+                  defer: true,
+                },
+              },
+            ]
+          : []),
       ],
     },
     source: {
@@ -242,6 +249,8 @@ export default defineConfig({
         __PEER_HTML_LANG__: JSON.stringify(peerRegion(REGION)?.htmlLang ?? {}),
         // Whether to render the in-page AI assistant (see config/regions.ts).
         __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
+        // Whether the CMP and its analytics run (see config/regions.ts).
+        __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
