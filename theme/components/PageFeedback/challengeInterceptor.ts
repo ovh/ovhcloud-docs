@@ -1,4 +1,8 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import type {
+  AxiosError,
+  AxiosInstance,
+  InternalAxiosRequestConfig,
+} from 'axios';
 
 interface ChallengeAxiosRequestConfig extends InternalAxiosRequestConfig {
   _challengeRetry?: boolean;
@@ -80,9 +84,12 @@ function handleChallenge(payload: string): Promise<string> {
  * When a request receives a 400 error with 'ChallengeRequired' message,
  * it creates an iframe to complete the challenge and retries the request
  * with the challenge response headers.
+ *
+ * Attached to the given instance only, never to the global axios: any other
+ * axios user on the page keeps its own error handling.
  */
-export function setupChallengeInterceptor() {
-  axios.interceptors.response.use(
+export function setupChallengeInterceptor(client: AxiosInstance) {
+  client.interceptors.response.use(
     (response) => response,
     async (error: AxiosError<ChallengeErrorResponse>) => {
       const { response, config } = error;
@@ -109,7 +116,7 @@ export function setupChallengeInterceptor() {
         challengeConfig.headers['X-Challenge-Payload'] = body.payload;
         challengeConfig.headers['X-Challenge-Response'] = challengeResponse;
 
-        return axios.request(challengeConfig);
+        return client.request(challengeConfig);
       }
 
       return Promise.reject(error);
