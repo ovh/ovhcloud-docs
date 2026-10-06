@@ -1,0 +1,1 @@
+W celu uzyskania szkolenia lub pomocy technicznej przy wdrażaniu naszych rozwiązań skontaktuj się z przedstawicielem handlowym lub odwiedź stronę [Professional Services](/links/professional-services), aby otrzymać wycenę i zlecić naszym ekspertom analizę Twojego projektu.

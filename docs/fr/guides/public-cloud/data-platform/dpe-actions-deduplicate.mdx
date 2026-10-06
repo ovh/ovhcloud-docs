@@ -1,0 +1,187 @@
+---
+title: Supprimer les lignes en double avec l'action Deduplicate
+description: L'action Deduplicate supprime les lignes en double d'une table, sur place, en conservant exactement une ligne par clé de déduplication
+lastUpdated: 2026-09-14
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objectif
+
+L'*action Deduplicate* supprime les lignes en double d'une table, **sur place**, en conservant exactement une ligne par **clé de déduplication**. Le cas d'usage typique est une table qui a été chargée en mode *append* alors qu'un *upsert* était prévu : dédupliquer sur les champs identifiants de la table produit exactement la table qu'un upsert aurait produite. Comme toute autre action, elle peut être exécutée à la demande, planifiée avec un déclencheur cron, ou orchestrée au sein d'un [workflow](/guides/public-cloud/data-platform/dpe-workflows).
+
+L'action fonctionne sur les tables stockées dans les datasets **lakehouse (Iceberg)** et **PostgreSQL**.
+
+<img className="thumbnail" alt="Vue d'ensemble de l'action Deduplicate" src="/images/public-cloud/data-platform/product/dpe/actions/deduplicate/picts/deduplicate-action-overview.png" loading="lazy" />
+
+:::warning
+Deduplicate modifie la table cible elle-même. Sur les tables lakehouse, l'état précédent reste disponible sous forme de snapshot, une exécution peut donc être annulée avec le time travel. Sur les tables PostgreSQL, la suppression est **définitive** : activez l'option de sauvegarde avant de dédupliquer toute donnée que vous n'êtes pas prêt à perdre.
+:::
+
+## Configurer une action Deduplicate
+
+<img className="thumbnail" alt="Configurer une action Deduplicate — Deduplicate action config" src="/images/public-cloud/data-platform/product/dpe/actions/deduplicate/picts/deduplicate-action-config.png" loading="lazy" />
+
+L'écran de configuration comporte deux panneaux : **Table configuration** à gauche, où vous choisissez la table, la clé de déduplication et la ligne à conserver, et **Backup & scan** à droite, où vous protégez l'exécution et prévisualisez son effet avant de créer l'action.
+
+### Choisir la table
+
+Sélectionnez la table cible dans le **sélecteur de table**. Chaque entrée affiche le nom de la table ainsi que le dataset auquel elle appartient. Le nom de l'action est prérempli à partir de la table sélectionnée, par exemple *Deduplicate - orders*.
+
+### Choisir la clé de déduplication
+
+La clé de déduplication est l'ensemble des colonnes qui définit une ligne unique : après l'exécution, la table contient exactement une ligne par combinaison distincte de ces colonnes.
+
+Lorsque la table déclare des **champs identifiants**, ceux-ci s'affichent au-dessus du sélecteur de clé et la clé en est préremplie. Il s'agit de la clé recommandée : elle déduplique la table exactement comme l'aurait fait un chargement *upsert* à l'ingestion.
+
+<img className="thumbnail" alt="Choisir la clé de déduplication — Deduplicate action key" src="/images/public-cloud/data-platform/product/dpe/actions/deduplicate/picts/deduplicate-action-key.png" loading="lazy" />
+
+Vous pouvez à la place sélectionner tout autre ensemble de colonnes existantes. Si votre sélection diffère des champs identifiants déclarés de la table, un avertissement vous rappelle que des lignes qui ne sont pas des doublons selon la propre définition de la table pourraient être supprimées. Si la table ne déclare aucun champ identifiant, choisissez la ou les colonnes qui définissent une ligne unique pour vos données.
+
+:::info
+Les lignes dont les colonnes de clé sont vides sont regroupées ensemble, selon la sémantique SQL standard `GROUP BY` : deux lignes avec NULL dans la même colonne de clé sont considérées comme des doublons l'une de l'autre.
+:::
+
+### Choisir la ligne à conserver
+
+Lorsque plusieurs lignes partagent la même clé, le paramètre **Row to keep** décide laquelle est conservée :
+
+- **Any remaining row** (par défaut) : la ligne conservée est arbitraire. C'est le bon choix lorsque les lignes en double sont des copies identiques. Si les lignes en double diffèrent en dehors de la clé, la ligne conservée est arbitraire.
+- **Most recent / oldest entry** : déterministe. Choisissez **Most recent** ou **Oldest**, puis sélectionnez la colonne **Order by column** : une colonne de date, d'horodatage ou numérique qui reflète la récence, comme un horodatage de mise à jour, un numéro de version ou un identifiant à incrémentation automatique. Les lignes dont la colonne de tri est vide sont classées en dernier : une ligne avec une valeur l'emporte toujours sur une ligne sans valeur.
+
+<img className="thumbnail" alt="Choisir la ligne à conserver — Deduplicate action survivor" src="/images/public-cloud/data-platform/product/dpe/actions/deduplicate/picts/deduplicate-action-survivor.png" loading="lazy" />
+
+### Conserver une sauvegarde
+
+Activez **Keep a backup of this table** pour créer une copie complète de la table avant que quoi que ce soit ne soit supprimé. La copie est nommée `<table>_backup_<id>` et enregistrée dans le [Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-tables) comme n'importe quelle autre table.
+
+La sauvegarde n'est créée que lorsque l'exécution a effectivement des doublons à supprimer, et son nombre de lignes est vérifié avant que la table cible ne soit modifiée : si la sauvegarde ne peut être créée ou vérifiée, l'exécution s'arrête et la table reste intacte. La table de sauvegarde n'est jamais supprimée automatiquement, même en cas d'échec d'une exécution ; supprimez-la vous-même une fois que vous n'en avez plus besoin.
+
+Sur les tables lakehouse, un snapshot de l'état actuel est conservé dans tous les cas, la sauvegarde constitue donc une sécurité supplémentaire. Sur les tables PostgreSQL, la sauvegarde est le seul moyen de récupérer les lignes supprimées.
+
+### Scanner les doublons
+
+Avant de créer l'action, cliquez sur **Scan** pour obtenir une estimation en lecture seule de ce que la configuration actuelle supprimerait. Le scan ne modifie jamais la table. Il nécessite une table sélectionnée et au moins une colonne de clé.
+
+<img className="thumbnail" alt="Scanner les doublons — Deduplicate action scan" src="/images/public-cloud/data-platform/product/dpe/actions/deduplicate/picts/deduplicate-action-scan.png" loading="lazy" />
+
+La carte de résultat affiche :
+
+- le nombre de lignes qui seraient supprimées, et la règle de survie qui s'appliquerait ;
+- le nombre de clés ayant plus d'une ligne, et le pire nombre de copies par clé ;
+- si l'état précédent restera disponible (snapshot lakehouse) ou si la suppression est définitive (PostgreSQL).
+
+Si le scan ne trouve aucun doublon pour la clé, la carte confirme qu'il n'y a rien à supprimer. Si plus de la moitié de la table serait supprimée, un avertissement supplémentaire vous invite à vérifier que la clé définit réellement une ligne unique : supprimer la majeure partie d'une table signifie généralement que la clé est incorrecte, par exemple une seule colonne de date sur une table comportant de nombreuses lignes par jour.
+
+Le résultat du scan est abandonné dès que vous changez la table, la clé ou la règle de survie : relancez-le pour obtenir une nouvelle estimation. Les mêmes statistiques sont recalculées au début de chaque exécution, de sorte que l'exécution confirme ce que le scan avait prévisualisé.
+
+## Déroulement de la déduplication
+
+Le mécanisme dépend du moteur du dataset qui contient la table :
+
+| Moteur | Mécanisme | Annulation |
+| ------ | --------- | ---- |
+| **Lakehouse (Iceberg)** | Les lignes conservées sont écrites dans une table temporaire, puis la table cible est vidée et remplie de nouveau à partir de celle-ci. Si un échec survient en cours d'exécution, la table est automatiquement restaurée à son snapshot d'avant exécution. | L'état d'avant exécution reste disponible sous forme de snapshot : restaurez-le avec le [time travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel). |
+| **PostgreSQL** | Une seule instruction `DELETE` atomique supprime les lignes en double. | Aucune : la suppression est définitive. Utilisez l'option de sauvegarde. |
+
+Chaque exécution commence par un scan de la table. Lorsque le scan ne trouve aucun doublon pour la clé, l'exécution se termine immédiatement et la table n'est pas touchée.
+
+L'action supprime uniquement des lignes : elle ne modifie jamais le schéma, le partitionnement ou les champs identifiants de la table.
+
+:::info
+Sur les tables lakehouse, une table transitoire `<table>_dedup_tmp` peut apparaître dans le dataset pendant l'exécution de l'action. Elle est supprimée automatiquement à la fin de l'exécution, et un reliquat laissé par un échec critique est nettoyé au début de l'exécution suivante.
+:::
+
+:::warning
+N'écrivez pas dans la table cible pendant l'exécution de l'action : les écritures concurrentes ne sont pas prises en charge. Sur les tables lakehouse, le commit en conflit échoue et le rollback automatique restaure l'état d'avant exécution.
+:::
+
+## Vérifier le résultat d'une exécution
+
+Chaque exécution écrit un résumé dans les logs d'exécution de l'action : le nombre de lignes avant et après, le nombre de lignes supprimées, le nombre de clés ayant des doublons, la clé utilisée, et comment annuler l'exécution. Lorsque l'option de sauvegarde est activée, le résumé nomme également la table de sauvegarde. Par exemple :
+
+```text
+Removed 42 duplicate rows across 17 keys from 'orders' (1042 rows before, 1000 after),
+key: (order_id). Previous state: snapshot 4632019173921515424 (restore via time travel
+within the snapshot retention period, 14 days by default, see
+https://docs.dataplatform.ovh.net/#/en/product/lakehouse-manager/tables/time-travel).
+Backup kept: orders_backup_a1b2c3d4.
+```
+
+## Annuler une déduplication
+
+- **Tables lakehouse** : l'id du snapshot d'avant exécution est affiché dans les logs de l'exécution. Restaurez la table à ce snapshot avec le [time travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel), dans la période de rétention des snapshots (14 jours par défaut).
+- **Tables PostgreSQL** : il n'existe pas de snapshots, la suppression elle-même ne peut donc pas être annulée. Si l'exécution a été créée avec l'option de sauvegarde, la copie `<table>_backup_<id>` contient le contenu exact de la table avant exécution.
+
+## Exemples
+
+Sélectionnez un onglet ci-dessous pour voir une configuration type, présentée sous forme de JSON tel que vous le verriez en [mode avancé](/guides/public-cloud/data-platform/dpe-actions-deduplicate#utiliser-le-mode-avancé) :
+
+<Tabs>
+<Tab label="Fix an append">
+
+Un chargement s'est exécuté deux fois en mode *append*, si bien que chaque ligne d'`orders` existe deux fois. Les lignes sont des copies identiques, donc n'importe quelle ligne survivante convient. Dédupliquer sur le champ identifiant de la table `order_id` produit la table que l'upsert aurait produite :
+
+```json
+{
+  "table": "dwh/sales/orders",
+  "keys": ["order_id"],
+  "survivor": { "mode": "any" }
+}
+```
+
+</Tab>
+<Tab label="Keep the latest version">
+
+La table `customers` a accumulé plusieurs versions de chaque client au fil du temps. Ne conservez que la ligne la plus récente par `customer_id`, en vous basant sur la colonne `updated_at`, avec une sauvegarde de la table au cas où :
+
+```json
+{
+  "table": "dwh/crm/customers",
+  "keys": ["customer_id"],
+  "survivor": { "mode": "latest", "order_by": "updated_at" },
+  "backup": true
+}
+```
+
+</Tab>
+<Tab label="Composite key on PostgreSQL">
+
+Une table PostgreSQL de mesures de capteurs devrait comporter une ligne par capteur et par instant de mesure ; lorsque plusieurs lignes existent, la première ingérée est la fiable. La suppression est définitive sur PostgreSQL, la sauvegarde est donc activée :
+
+```json
+{
+  "table": "dwh/telemetry/measurements",
+  "keys": ["sensor_id", "measured_at"],
+  "survivor": { "mode": "earliest", "order_by": "ingested_at" },
+  "backup": true
+}
+```
+
+</Tab>
+</Tabs>
+
+## Utiliser le mode avancé
+
+Si vous devez accéder au fichier de configuration JSON de l'action, activez le mode Advanced en cliquant sur **Advanced** en haut de la page.
+
+L'action accepte les paramètres suivants :
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `table` | string | oui | Table cible, sous la forme `dwh/<database>/<table>`. L'éditeur graphique construit ce chemin pour vous. |
+| `keys` | array of strings | oui | La clé de déduplication : une ou plusieurs colonnes existantes de la table. |
+| `survivor` | object | non | Quelle ligne survit par clé. Par défaut `{"mode": "any"}`. |
+| `survivor.mode` | string | non | `any` (ligne survivante arbitraire), `latest` ou `earliest` (déterministe, trié par `survivor.order_by`). |
+| `survivor.order_by` | string | avec `latest` / `earliest` | La colonne de tri : une colonne de date, d'horodatage ou numérique. Doit être omise lorsque `mode` vaut `any`. |
+| `backup` | boolean | non | Crée et enregistre une copie de sauvegarde de la table avant la déduplication. Par défaut `false`. |
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

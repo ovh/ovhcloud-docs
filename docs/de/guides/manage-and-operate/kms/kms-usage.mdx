@@ -1,7 +1,7 @@
 ---
 title: OVHcloud Key Management Service (KMS) verwenden
 description: Verschlüsseln oder signieren Sie Ihre Daten mit der regionalen REST-API des OVHcloud Key Management Service (KMS)
-lastUpdated: 2026-08-27
+lastUpdated: 2026-09-16
 ---
 
 import Api from '@components/Api';
@@ -202,13 +202,44 @@ Zur Verwaltung der Verschlüsselungsschlüssel stehen mehrere APIs zur Verfügun
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/activate|Aktiviert einen Verschlüsselungsschlüssel|
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/deactivate|Deaktiviert einen Verschlüsselungsschlüssel|
 
-Die Deaktivierung eines Verschlüsselungsschlüssels bedeutet, dass dieser nicht mehr verwendbar ist, obwohl der Schlüssel im KMS erhalten bleibt.
+Schlüssel werden direkt im Zustand `active` erstellt oder importiert. Die Deaktivierung eines Schlüssels blockiert die kryptografische Nutzung, der Schlüssel bleibt jedoch im KMS erhalten. Nur ein Schlüssel im Zustand `deactivated` oder `compromised` kann gelöscht werden.
 
-Das Löschen eines Verschlüsselungsschlüssels ist nur bei einem zuvor deaktivierten Schlüssel möglich.
+Zu den in jedem Zustand zulässigen Operationen siehe [Zustände von Serviceschlüsseln und zulässige Operationen](#zustände-von-serviceschlüsseln-und-zulässige-operationen).
 
 :::warning
 Das Löschen eines Verschlüsselungsschlüssels ist endgültig. Alle damit verschlüsselten Daten werden dauerhaft unzugänglich.
+:::
 
+#### Zustände von Serviceschlüsseln und zulässige Operationen
+
+Der Zustand eines Serviceschlüssels bestimmt, welche Operationen das KMS akzeptiert, entsprechend den Lebenszyklusmodellen für Schlüssel von [KMIP 2.1](https://docs.oasis-open.org/kmip/kmip-spec/v2.1/os/kmip-spec-v2.1-os.html) und [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final):
+
+- Ein Schlüssel im Zustand `active` kann für jede kryptografische Operation verwendet werden, die in seinem Feld `operations` aufgeführt ist.
+- Ein Schlüssel im Zustand `deactivated` oder `compromised` akzeptiert keine kryptografischen Operationen. Er kann Daten nicht mehr schützen (`encrypt`, `sign`, umschließen, Data Keys erzeugen), sie nicht mehr wiederherstellen (`decrypt`, die Umschließung von Data Keys aufheben) und Signaturen nicht mehr prüfen. Verwaltungsoperationen (Lesen, Auflisten, Patchen, Aktivieren, Deaktivieren, Löschen) bleiben verfügbar.
+- Nach einem `DELETE` ist der Schlüssel dauerhaft entfernt: Jede nachfolgende Anfrage, die auf diese Schlüssel-ID verweist, gibt `404 Not Found` zurück.
+
+Zustandsänderungen werden sofort wirksam, ohne Propagationsverzögerung: Jede Anfrage, die nach einem erfolgreichen `activate`, `deactivate` oder `DELETE` eingeht, wird anhand des neuen Zustands bewertet.
+
+| Operation | `active` | `deactivated` | `compromised` | nach `DELETE` |
+| --- | --- | --- | --- | --- |
+| `GET /servicekey/{keyId}` | Ja | Ja | Ja | 404 |
+| `GET /servicekey` | Ja | Ja<br />Erfordert `state=deactivated`<br />oder `state=all` | Ja<br />Erfordert `state=compromised`<br />oder `state=all` | Nicht aufgeführt |
+| `PATCH /servicekey/{keyId}` | Ja | Ja | Ja | 404 |
+| `POST /servicekey/{keyId}/activate` | no-op<br />204 | Ja<br />Kehrt zu `active` zurück | Ja<br />Kehrt zu `active` zurück | 404 |
+| `POST /servicekey/{keyId}/deactivate` | Ja | no-op bei gleichem Grund<br />Sonst wird der Grund aktualisiert<br />(und ggf. der Zustand) | no-op bei gleichem Grund<br />Sonst wird der Grund aktualisiert<br />(und ggf. der Zustand) | 404 |
+| `DELETE /servicekey/{keyId}` | **Nein**<br />400 | Ja | Ja | 404 |
+| `POST /servicekey/{keyId}/encrypt` | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `POST /servicekey/{keyId}/decrypt` | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey` | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey/decrypt` | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `POST /servicekey/{keyId}/sign` | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `POST /servicekey/{keyId}/verify` | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Export eines umschlossenen Schlüssels, Zustand des **exportierten** Schlüssels | Ja | Ja | Ja | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Export eines umschlossenen Schlüssels, Zustand des **Wrapping**-Schlüssels | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+| `POST /servicekey` + `wrappedKeys`<br />Import eines umschlossenen Schlüssels, Zustand des **Wrapping**-Schlüssels | Ja | **Nein**<br />400 | **Nein**<br />400 | 404 |
+
+:::warning
+Die Deaktivierung verhindert sofort die Wiederherstellung von Daten, die durch den Schlüssel geschützt sind. Bei der Envelope-Verschlüsselung (Envelope Encryption) kann die Umschließung von Data Keys, die mit einem deaktivierten Serviceschlüssel umschlossen wurden, erst nach dessen Reaktivierung wieder aufgehoben werden. Stellen Sie sicher, dass Anwendungen den Schlüssel nicht mehr benötigen, bevor Sie ihn deaktivieren, oder behalten Sie über `POST /servicekey/{keyId}/activate` eine Möglichkeit zur Reaktivierung bei.
 :::
 
 #### Sensitivitätsattribute von Serviceschlüsseln

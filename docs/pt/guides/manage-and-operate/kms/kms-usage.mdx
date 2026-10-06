@@ -1,7 +1,7 @@
 ---
 title: Utilizar o seu OVHcloud Key Management Service (KMS)
 description: Encripte ou assine os seus dados com a API REST regional do Key Management Service (KMS) da OVHcloud
-lastUpdated: 2026-08-27
+lastUpdated: 2026-09-16
 ---
 
 import Api from '@components/Api';
@@ -202,13 +202,44 @@ Para gerir as chaves de encriptação, estão disponíveis várias API:
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/activate|Ativa uma chave de encriptação|
 |POST|/api/&#123;okmsId&#125;/v1/servicekey/&#123;keyId&#125;/deactivate|Desativa uma chave de encriptação|
 
-A desativação de uma chave de encriptação implica que esta deixará de poder ser utilizada, embora a chave permaneça presente no KMS.
+As chaves são criadas ou importadas diretamente no estado `active`. A desativação de uma chave impede qualquer utilização criptográfica, mas mantém a chave no KMS. Só pode ser eliminada uma chave que já esteja `deactivated` ou `compromised`.
 
-A eliminação de uma chave de encriptação só é possível numa chave previamente desativada.
+Para as operações permitidas em cada estado, consulte [Estados das chaves de serviço e operações permitidas](#estados-das-chaves-de-serviço-e-operações-permitidas).
 
 :::warning
-A eliminação de uma chave de encriptação é definitiva. Todos os dados encriptados com ela ficarão definitivamente inacessíveis.
+A eliminação de uma chave de encriptação é definitiva. Todos os dados encriptados com essa chave ficam definitivamente inacessíveis.
+:::
 
+#### Estados das chaves de serviço e operações permitidas
+
+O estado de uma chave de serviço determina as operações aceites pelo KMS, em conformidade com os modelos de ciclo de vida das chaves definidos por [KMIP 2.1](https://docs.oasis-open.org/kmip/kmip-spec/v2.1/os/kmip-spec-v2.1-os.html) e [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final):
+
+- Uma chave `active` pode ser utilizada para todas as operações criptográficas listadas no seu campo `operations`.
+- Uma chave `deactivated` ou `compromised` não aceita operações criptográficas. Deixa de poder proteger dados (`encrypt`, `sign`, encapsular, gerar Data Keys), recuperá-los (`decrypt`, desencapsular Data Keys) ou verificar assinaturas. As operações de gestão (leitura, listagem, patch, ativação, desativação, eliminação) permanecem disponíveis.
+- Após um `DELETE`, a chave é removida de forma definitiva: qualquer pedido posterior dirigido a esse identificador de chave devolve `404 Not Found`.
+
+As alterações de estado produzem efeito imediato, sem atraso de propagação: qualquer pedido recebido após um `activate`, um `deactivate` ou um `DELETE` bem-sucedido é avaliado face ao novo estado.
+
+| Operação | `active` | `deactivated` | `compromised` | após `DELETE` |
+| --- | --- | --- | --- | --- |
+| `GET /servicekey/{keyId}` | Sim | Sim | Sim | 404 |
+| `GET /servicekey` | Sim | Sim<br />Requer `state=deactivated`<br />ou `state=all` | Sim<br />Requer `state=compromised`<br />ou `state=all` | Não listada |
+| `PATCH /servicekey/{keyId}` | Sim | Sim | Sim | 404 |
+| `POST /servicekey/{keyId}/activate` | no-op<br />204 | Sim<br />Volta a `active` | Sim<br />Volta a `active` | 404 |
+| `POST /servicekey/{keyId}/deactivate` | Sim | no-op se o motivo for o mesmo<br />Caso contrário, atualiza o motivo<br />(e eventualmente o estado) | no-op se o motivo for o mesmo<br />Caso contrário, atualiza o motivo<br />(e eventualmente o estado) | 404 |
+| `DELETE /servicekey/{keyId}` | **Não**<br />400 | Sim | Sim | 404 |
+| `POST /servicekey/{keyId}/encrypt` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/decrypt` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/datakey/decrypt` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/sign` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey/{keyId}/verify` | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Exportação de chave encapsulada, estado da chave **exportada** | Sim | Sim | Sim | 404 |
+| `GET /servicekey/{keyId}?wrappingKeyId=...`<br />Exportação de chave encapsulada, estado da chave de **encapsulamento** | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+| `POST /servicekey` + `wrappedKeys`<br />Importação de chave encapsulada, estado da chave de **encapsulamento** | Sim | **Não**<br />400 | **Não**<br />400 | 404 |
+
+:::warning
+A desativação impede imediatamente a recuperação dos dados protegidos pela chave. Quando é utilizada a encriptação por envelope (envelope encryption), as Data Keys encapsuladas por uma chave de serviço desativada não podem ser desencapsuladas enquanto a chave não for reativada. Certifique-se de que as aplicações já não necessitam da chave antes de a desativar, ou conserve um caminho de restabelecimento através de `POST /servicekey/{keyId}/activate`.
 :::
 
 #### Atributos de sensibilidade das chaves de serviço
