@@ -1352,7 +1352,6 @@
                 + [Connect using the CLI for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-cli)
                 + [Connect using PHP for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-php)
                 + [Connect using Python for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-python)
-                + [Connect using RedisInsight for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-redisinsight)
             + [Configuration](public-cloud-databases-valkey-configuration)
                 + [Maintenance operations for Public Cloud Databases](public-cloud/databases/maintenance)
                 + [Configure the private network for Public Cloud Databases](public-cloud/databases/configure-vrack)
