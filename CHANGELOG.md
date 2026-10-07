@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.07
+
+### Features
+- **veeam:** update guides with the canadas ip (#909)
+
+### Documentation
+- 114 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.10.05
 
 ### Maintenance
