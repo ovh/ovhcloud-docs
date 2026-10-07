@@ -594,7 +594,7 @@
             + [Using Terraform with SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform)
             + [Managing Glance images](hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management)
             + [Managing public IPs](hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management)
-            + [Creating a Windows Server VM](hosted-private-cloud/cloud-platform/snc-cloud-platform-create-windows-server-vm)
+
     + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
