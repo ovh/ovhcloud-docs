@@ -1,0 +1,182 @@
+---
+title: ClickHouse - Query files stored in OVHcloud Object Storage
+description: Learn how to read, write and join Parquet or CSV files stored in an OVHcloud Object Storage bucket directly from a ClickHouse cluster, without exposing your S3 credentials
+lastUpdated: 2026-10-07
+---
+
+## Objective
+
+ClickHouse can query files stored in an S3-compatible bucket without loading them first: you can read them, write query results to them, join them with your tables or load them into a table. Your data stays in your own OVHcloud Object Storage bucket.
+
+**This guide explains how to query files stored in OVHcloud Object Storage from a Public Cloud Analytics with ClickHouse cluster, and how to give other users access to these files without sharing your S3 credentials.**
+
+## Requirements
+
+- A [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account.
+- A ClickHouse cluster running on OVHcloud Public Cloud and accepting incoming connections. See [How to create a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-create-cluster) and [How to connect to a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+- The password of the `avnadmin` user of the cluster, or of a user with the privileges described in this guide.
+- An OVHcloud Object Storage bucket and an S3 user with read and write access to it, with its access key and secret key. See [Object Storage - Getting started](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) and [Object Storage - Identity and access management](/guides/storage-and-backup/object-storage/s3-identity-and-access-management).
+
+## Instructions
+
+:::info
+The examples of this guide are SQL queries. You can run them with `clickhouse-client` or over HTTPS, as described in [How to connect to a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+:::
+
+### Step 1 - Build the URL of your files
+
+ClickHouse addresses a file with the URL of the bucket endpoint, followed by the bucket name and the path of the file (path-style URL):
+
+```text
+https://s3.<region>.io.cloud.ovh.net/<bucket>/<path>/<file>
+```
+
+- `<region>` is the region of your bucket in lowercase, for example `gra` or `eu-west-par`. The endpoint of each region is listed in [Object Storage - Endpoints and geoavailability](/guides/storage-and-backup/object-storage/s3-location).
+- `<bucket>` is the name of your bucket.
+- `<path>/<file>` is the key of the object, for example `sales/2026/orders.parquet`.
+
+:::warning
+The URL must start with `https://`. Without it, ClickHouse returns the error `Host is empty in S3 URI`.
+:::
+
+### Step 2 - Store your S3 credentials in a named collection
+
+You could write your access key and secret key in each query, but they would then appear in your scripts and in the query history. Store them once in a **named collection** instead: ClickHouse keeps them encrypted and never displays them.
+
+Connected as `avnadmin`, run:
+
+```sql
+CREATE NAMED COLLECTION ovh_bucket AS
+    url = 'https://s3.<region>.io.cloud.ovh.net/<bucket>/',
+    access_key_id = '<access_key>',
+    secret_access_key = '<secret_key>';
+```
+
+The values are hidden when you list the named collections:
+
+```sql
+SELECT name, collection FROM system.named_collections;
+```
+
+```text
+ovh_bucket   {'access_key_id':'[HIDDEN]','secret_access_key':'[HIDDEN]','url':'[HIDDEN]'}
+```
+
+In the next steps, `filename` is the path of the file relative to the `url` of the collection.
+
+:::tip
+A named collection that is used by a table cannot be dropped. Drop or modify the table first.
+:::
+
+### Step 3 - Read files
+
+Read a Parquet file with the `s3` table function:
+
+```sql
+SELECT count(), sum(id)
+FROM s3(ovh_bucket, filename = 'numbers.parquet', format = 'Parquet');
+```
+
+The structure of Parquet files is detected automatically. For CSV files with a header line, use the `CSVWithNames` format:
+
+```sql
+SELECT *
+FROM s3(ovh_bucket, filename = 'exports/customers.csv', format = 'CSVWithNames')
+LIMIT 10;
+```
+
+To read several files at once, use wildcards (`*`, `?`, `{a,b}`) in the path. The virtual column `_file` gives the name of the file each row comes from:
+
+```sql
+SELECT _file, count()
+FROM s3(ovh_bucket, filename = 'sales/2026/*.parquet', format = 'Parquet')
+GROUP BY _file;
+```
+
+ClickHouse supports many other formats (`JSONEachRow`, `TSV`, `ORC`, etc.). See the [list of input and output formats](https://clickhouse.com/docs/interfaces/formats).
+
+### Step 4 - Create a table on your files
+
+To query the same files regularly, create a table with the `S3` engine. The data stays in your bucket and is read at each query:
+
+```sql
+CREATE TABLE sales_2026 (id UInt64, label String)
+ENGINE = S3(ovh_bucket, filename = 'sales/2026/*.parquet', format = 'Parquet');
+
+SELECT count() FROM sales_2026;
+```
+
+### Step 5 - Join files with your tables, or load them
+
+You can join files with the tables of your cluster in the same query:
+
+```sql
+SELECT o.customer_id, sum(o.amount)
+FROM orders AS o
+INNER JOIN s3(ovh_bucket, filename = 'referential/customers.parquet', format = 'Parquet') AS c
+    ON o.customer_id = c.id
+GROUP BY o.customer_id;
+```
+
+To load the content of files into a table of your cluster, use `INSERT … SELECT`:
+
+```sql
+INSERT INTO orders_history
+SELECT * FROM s3(ovh_bucket, filename = 'archive/*.parquet', format = 'Parquet');
+```
+
+:::tip
+Reading files at each query is convenient for occasional queries. For data you query often, loading it into a `MergeTree` table gives better performance.
+:::
+
+### Step 6 - Export query results to your bucket
+
+Write the result of a query to a file with `INSERT INTO FUNCTION`:
+
+```sql
+INSERT INTO FUNCTION s3(ovh_bucket, filename = 'exports/orders_2026.parquet', format = 'Parquet')
+SELECT * FROM orders WHERE toYear(order_date) = 2026;
+```
+
+To replace a file that already exists, add `SETTINGS s3_truncate_on_insert = 1` at the end of the query.
+
+### Step 7 - Give other users access to the files
+
+Connected as `avnadmin`, grant other users the rights they need with SQL. For a user who only reads the files through the `ovh_bucket` named collection, without knowing the S3 credentials:
+
+```sql
+GRANT READ ON S3 TO <user>;
+GRANT NAMED COLLECTION ON ovh_bucket TO <user>;
+GRANT CREATE TEMPORARY TABLE ON *.* TO <user>;
+GRANT SELECT ON <database>.* TO <user>;
+```
+
+- `READ ON S3` allows reading from S3 (use `WRITE ON S3` to allow exports).
+- `NAMED COLLECTION ON ovh_bucket` allows using the named collection, without seeing its values.
+- `CREATE TEMPORARY TABLE` is required to use the `s3` table function.
+- `SELECT` on the database is required to query tables created with the `S3` engine.
+
+### Troubleshooting
+
+| Error | Cause and solution |
+|---|---|
+| `HTTP response code: 403 … Please check your AWS credentials and permissions` | The access key or the secret key is wrong, or the S3 user has no access to the bucket. Check the credentials of the S3 user and its permissions on the bucket. |
+| `Host is empty in S3 URI` | The URL does not start with `https://`. See Step 1 above. |
+| `Not enough privileges. … necessary to have the grant READ ON S3` | The user is not allowed to read from S3. See Step 7 above. |
+| `Not enough privileges. … necessary to have the grant CREATE TEMPORARY TABLE ON *.*` | The user can use the named collection but not the `s3` table function. Grant `CREATE TEMPORARY TABLE ON *.*`. |
+| `A named collection … already exists` | Choose another name, or drop the existing collection with `DROP NAMED COLLECTION`. |
+
+## Go further
+
+- [ClickHouse documentation - s3 table function](https://clickhouse.com/docs/sql-reference/table-functions/s3)
+- [ClickHouse documentation - S3 table engine](https://clickhouse.com/docs/engines/table-engines/integrations/s3)
+- [ClickHouse documentation - Named collections](https://clickhouse.com/docs/operations/named-collections)
+- [Capabilities and Limitations of Public Cloud Analytics with ClickHouse](/guides/public-cloud/data-analytics/analytics/clickhouse-capabilities-limitations)
+
+We would love to help answer questions and appreciate any feedback you may have.
+
+[[fragment:professional-services|en]]
+
+Are you on Discord? Connect to our channel at [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) and interact directly with the team that builds our Analytics service!
+
+Join our [community of users](/links/community).

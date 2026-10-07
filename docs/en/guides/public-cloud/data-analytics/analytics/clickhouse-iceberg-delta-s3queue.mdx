@@ -1,0 +1,151 @@
+---
+title: ClickHouse - Query Iceberg and Delta Lake tables and ingest files continuously
+description: Learn how to query Apache Iceberg and Delta Lake tables stored in OVHcloud Object Storage from a ClickHouse cluster, and how to load new files of a bucket automatically
+lastUpdated: 2026-10-07
+---
+
+## Objective
+
+If your data platform stores tables in open formats such as Apache Iceberg or Delta Lake in an OVHcloud Object Storage bucket, ClickHouse can query them in place, without copying them. ClickHouse can also watch a bucket and load every new file into a table automatically.
+
+**This guide explains how to query Iceberg and Delta Lake tables, and how to ingest files continuously with the S3Queue engine, from a Public Cloud Analytics with ClickHouse cluster.**
+
+## Requirements
+
+- A [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account.
+- A ClickHouse cluster running on OVHcloud Public Cloud and accepting incoming connections. See [How to connect to a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+- The password of the `avnadmin` user of the ClickHouse cluster.
+- An OVHcloud Object Storage bucket created with the **S3 API**, and an S3 user with access to it. See [Object Storage - Getting started](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage).
+- To follow the examples, read [ClickHouse - Query files stored in OVHcloud Object Storage](/guides/public-cloud/data-analytics/analytics/clickhouse-query-object-storage) first: it explains the URL of the files and how to store your S3 credentials in a named collection.
+
+## Instructions
+
+### Before you begin - Bucket and S3 user
+
+- Create the bucket with the **S3 API**. ClickHouse uses the S3 protocol: containers created with the Swift API cannot be used.
+- Server-side encryption with OVHcloud-managed keys (SSE-OMK) can be enabled on the bucket: it is transparent for ClickHouse and for the tools that write your tables.
+- If **Object Lock** is enabled on the bucket, files cannot be overwritten or deleted during their retention period. Keep this in mind for the tables and files you manage in it.
+- Give the S3 user access to the bucket. The tools that **write** Iceberg and Delta Lake tables (Spark, PyIceberg, delta-rs…) need more than reading and writing objects, for example multipart uploads. If they fail with `Access Denied`, give the S3 user all actions on this bucket only:
+
+```json
+{
+  "Statement": [
+    {
+      "Sid": "LakehouseBucket",
+      "Effect": "Allow",
+      "Action": ["s3:*"],
+      "Resource": [
+        "arn:aws:s3:::<bucket>",
+        "arn:aws:s3:::<bucket>/*"
+      ]
+    }
+  ]
+}
+```
+
+In the examples below, `lake_s3` is a named collection that points to a folder of your bucket:
+
+```sql
+CREATE NAMED COLLECTION lake_s3 AS
+    url = 'https://s3.<region>.io.cloud.ovh.net/<bucket>/lakehouse/',
+    access_key_id = '<access_key>',
+    secret_access_key = '<secret_key>';
+```
+
+### Query an Iceberg table
+
+Pass the folder of the Iceberg table (the folder that contains its `metadata` and `data` folders) to the `icebergS3` table function. ClickHouse reads the latest version of the table and detects its schema:
+
+```sql
+SELECT city, count(), sum(amount)
+FROM icebergS3(lake_s3, filename = 'warehouse/demo/sales/')
+GROUP BY city;
+```
+
+To query the table regularly, create a table with the `IcebergS3` engine:
+
+```sql
+CREATE TABLE sales_iceberg
+ENGINE = IcebergS3(lake_s3, filename = 'warehouse/demo/sales/');
+
+SELECT count() FROM sales_iceberg;
+```
+
+:::warning
+Use Iceberg tables in **read-only** mode from ClickHouse. Writing into an Iceberg table from ClickHouse is a beta feature: it is refused by default and must not be enabled. Keep writing your Iceberg tables with the tools of your data platform.
+:::
+
+ClickHouse reads the table directly from its folder in the bucket. Connecting ClickHouse to an Iceberg catalog (`DataLakeCatalog` database engine) is not available.
+
+### Query a Delta Lake table
+
+Pass the folder of the Delta Lake table (the folder that contains its `_delta_log` folder) to the `deltaLakeS3` table function, or create a table with the `DeltaLake` engine:
+
+```sql
+SELECT day, round(sum(amount), 1)
+FROM deltaLakeS3(lake_s3, filename = 'delta/sales/')
+GROUP BY day
+ORDER BY day;
+
+CREATE TABLE sales_delta
+ENGINE = DeltaLake(lake_s3, filename = 'delta/sales/');
+```
+
+### Ingest new files continuously with S3Queue
+
+The `S3Queue` engine watches a folder of your bucket and processes each new file once. Combined with a materialized view, it loads every file dropped in the folder into a ClickHouse table, without any external job.
+
+1. Create the table that receives the data:
+
+```sql
+CREATE TABLE events (id UInt64, kind String)
+ENGINE = MergeTree
+ORDER BY id;
+```
+
+2. Create the queue on the folder to watch. `mode = 'unordered'` processes the files in any order, each file once:
+
+```sql
+CREATE TABLE events_queue (id UInt64, kind String)
+ENGINE = S3Queue('https://s3.<region>.io.cloud.ovh.net/<bucket>/queue/*.csv', '<access_key>', '<secret_key>', 'CSVWithNames')
+SETTINGS mode = 'unordered';
+```
+
+3. Create a materialized view that moves the rows of the queue into the table:
+
+```sql
+CREATE MATERIALIZED VIEW events_mv TO events
+AS SELECT * FROM events_queue;
+```
+
+From now on, each CSV file written in the `queue` folder is loaded into `events` a few seconds after it arrives:
+
+```sql
+SELECT kind, count() FROM events GROUP BY kind;
+```
+
+To stop the ingestion, drop the materialized view (`DROP VIEW events_mv`).
+
+### Troubleshooting
+
+| Error | Cause and solution |
+|---|---|
+| `Access Denied` when your data platform writes the table | The S3 user does not have all the actions the writer needs. See *Before you begin* above. |
+| `Insert into iceberg is in beta` | Writing into Iceberg tables from ClickHouse is not supported. Write the table with your data platform. |
+| `Only Replicated database can be created through SQL` | Database engines such as `DataLakeCatalog` are not available. Use the `icebergS3` and `deltaLakeS3` table functions or table engines. |
+| `HTTP response code: 403 … Please check your AWS credentials and permissions` | Wrong access key or secret key, or the S3 user has no access to the bucket. |
+
+## Go further
+
+- [ClickHouse documentation - iceberg table functions](https://clickhouse.com/docs/sql-reference/table-functions/iceberg)
+- [ClickHouse documentation - deltaLake table functions](https://clickhouse.com/docs/sql-reference/table-functions/deltalake)
+- [ClickHouse documentation - S3Queue table engine](https://clickhouse.com/docs/engines/table-engines/integrations/s3queue)
+- [ClickHouse - Query files stored in OVHcloud Object Storage](/guides/public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
+
+We would love to help answer questions and appreciate any feedback you may have.
+
+[[fragment:professional-services|en]]
+
+Are you on Discord? Connect to our channel at [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) and interact directly with the team that builds our Analytics service!
+
+Join our [community of users](/links/community).

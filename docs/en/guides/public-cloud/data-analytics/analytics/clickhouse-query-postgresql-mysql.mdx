@@ -1,0 +1,159 @@
+---
+title: ClickHouse - Query PostgreSQL and MySQL databases
+description: Learn how to query, join and copy tables of PostgreSQL and MySQL databases, such as OVHcloud Public Cloud Databases services, directly from a ClickHouse cluster
+lastUpdated: 2026-10-07
+---
+
+## Objective
+
+ClickHouse can query tables of a PostgreSQL or MySQL database without copying them first. You can read them, join them with your ClickHouse tables or with each other in the same query, copy them into ClickHouse, or write data back to PostgreSQL.
+
+**This guide explains how to query PostgreSQL and MySQL databases, such as Public Cloud Databases for PostgreSQL and MySQL services, from a Public Cloud Analytics with ClickHouse cluster.**
+
+## Requirements
+
+- A [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account.
+- A ClickHouse cluster running on OVHcloud Public Cloud and accepting incoming connections. See [How to create a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-create-cluster) and [How to connect to a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+- The password of the `avnadmin` user of the ClickHouse cluster.
+- A PostgreSQL or MySQL database reachable from the ClickHouse cluster, for example a [Public Cloud Databases](/guides/public-cloud/databases/getting-started) for PostgreSQL or MySQL service, and a user allowed to create users on it.
+
+## Instructions
+
+:::info
+The ClickHouse examples of this guide are SQL queries. You can run them with `clickhouse-client` or over HTTPS, as described in [How to connect to a ClickHouse cluster](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+:::
+
+### Step 1 - Allow the ClickHouse cluster on the source database
+
+The source database must accept connections coming from your ClickHouse cluster. For a Public Cloud Databases service, add the outgoing IP address of the ClickHouse cluster to the authorised IPs of the source service (see how to configure incoming connections for [PostgreSQL](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) or [MySQL](/guides/public-cloud/databases/mysql-prepare-for-incoming-connections)).
+
+To find the outgoing IP address of your ClickHouse cluster, run this query on it:
+
+```sql
+SELECT * FROM url('https://checkip.amazonaws.com', 'RawBLOB');
+```
+
+The query returns the public IPv4 address the cluster uses for outgoing connections. Add it as a `/32` block, for example `203.0.113.25/32`.
+
+:::warning
+This address can change, for example when a node of the ClickHouse cluster is replaced during a maintenance or a plan change. If the queries of this guide start failing with a timeout, check the address again.
+:::
+
+### Step 2 - Create a dedicated user on the source database
+
+Use a user that has only the rights ClickHouse needs. For read-only access:
+
+- On PostgreSQL:
+
+```sql
+CREATE ROLE clickhouse_reader LOGIN PASSWORD '<password>';
+GRANT SELECT ON customers TO clickhouse_reader;
+```
+
+- On MySQL:
+
+```sql
+CREATE USER 'clickhouse_reader'@'%' IDENTIFIED BY '<password>';
+GRANT SELECT ON defaultdb.orders TO 'clickhouse_reader'@'%';
+```
+
+You find the host and port of each Public Cloud Databases service in the <code className="action">Dashboard</code> tab of the service, in the <code className="action">Connection information</code> section.
+
+### Step 3 - Query a table
+
+Use the `postgresql` and `mysql` table functions. They take the address of the server (`host:port`), the database, the table, the user and its password:
+
+```sql
+SELECT count(), uniqExact(country)
+FROM postgresql('<pg_host>:<pg_port>', 'defaultdb', 'customers', 'clickhouse_reader', '<password>');
+
+SELECT count(), sum(amount)
+FROM mysql('<mysql_host>:<mysql_port>', 'defaultdb', 'orders', 'clickhouse_reader', '<password>');
+```
+
+The source table is read at each query.
+
+### Step 4 - Store the connection in a named collection
+
+To avoid writing the password in each query, store the connection in a **named collection**. ClickHouse keeps it encrypted and never displays its values:
+
+```sql
+CREATE NAMED COLLECTION pg_source AS
+    host = '<pg_host>',
+    port = <pg_port>,
+    database = 'defaultdb',
+    user = 'clickhouse_reader',
+    password = '<password>';
+```
+
+You can then create a table that points to the remote table, and query it like a ClickHouse table:
+
+```sql
+CREATE TABLE customers_pg (id Int32, name String, country String)
+ENGINE = PostgreSQL(pg_source, table = 'customers');
+
+SELECT count() FROM customers_pg;
+```
+
+To give other ClickHouse users access to this table without sharing the password, grant them `SELECT` on the table only.
+
+### Step 5 - Join several sources in one query
+
+You can join PostgreSQL tables, MySQL tables and ClickHouse tables in the same query. In this example, orders stored in MySQL are joined with customers stored in PostgreSQL:
+
+```sql
+SELECT c.country, count() AS orders, round(sum(o.amount), 2) AS revenue
+FROM mysql('<mysql_host>:<mysql_port>', 'defaultdb', 'orders', 'clickhouse_reader', '<password>') AS o
+INNER JOIN customers_pg AS c ON o.customer_id = c.id
+GROUP BY c.country
+ORDER BY c.country;
+```
+
+### Step 6 - Copy a table into ClickHouse
+
+Querying the source at each query is convenient for occasional analyses. For data you analyse often, copy it into a `MergeTree` table of your cluster:
+
+```sql
+CREATE TABLE orders_local
+ENGINE = MergeTree
+ORDER BY id
+AS SELECT * FROM mysql('<mysql_host>:<mysql_port>', 'defaultdb', 'orders', 'clickhouse_reader', '<password>');
+```
+
+### Step 7 - Write data to PostgreSQL
+
+You can also send results from ClickHouse to a PostgreSQL table, with a user that is allowed to write in it:
+
+```sql
+INSERT INTO FUNCTION postgresql('<pg_host>:<pg_port>', 'defaultdb', 'customers', '<writer_user>', '<password>')
+VALUES (99999, 'from-clickhouse', 'FR', now());
+```
+
+### Limitations
+
+- Access is at table level only: creating a ClickHouse database that mirrors a whole PostgreSQL or MySQL database (`ENGINE = PostgreSQL` or `ENGINE = MySQL` on `CREATE DATABASE`) is not available and returns `Only Replicated database can be created through SQL`.
+- Each query reads the source database: large or frequent queries add load on it. Prefer a copy into ClickHouse (step 6) for heavy analyses.
+
+### Troubleshooting
+
+| Error | Cause and solution |
+|---|---|
+| `Connection to … failed with error: … timeout expired` (PostgreSQL) or `The read operation timed out` | The source database does not accept connections from the ClickHouse cluster. Check that the outgoing IP of the cluster is in the authorised IPs of the source (step 1). |
+| Authentication error | Check the user and password, and that the user exists on the source database. |
+| `std::exception` on an `INSERT INTO FUNCTION postgresql(…)` | The user is not allowed to write in the PostgreSQL table. Use a user with `INSERT` rights on it. |
+| `Only Replicated database can be created through SQL` | Database engines are not available. Use the table functions or table engines of this guide. |
+
+## Go further
+
+- [ClickHouse documentation - postgresql table function](https://clickhouse.com/docs/sql-reference/table-functions/postgresql)
+- [ClickHouse documentation - mysql table function](https://clickhouse.com/docs/sql-reference/table-functions/mysql)
+- [ClickHouse documentation - PostgreSQL table engine](https://clickhouse.com/docs/engines/table-engines/integrations/postgresql)
+- [ClickHouse - Query files stored in OVHcloud Object Storage](/guides/public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
+
+We would love to help answer questions and appreciate any feedback you may have.
+
+[[fragment:professional-services|en]]
+
+Are you on Discord? Connect to our channel at [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) and interact directly with the team that builds our Analytics service!
+
+Join our [community of users](/links/community).

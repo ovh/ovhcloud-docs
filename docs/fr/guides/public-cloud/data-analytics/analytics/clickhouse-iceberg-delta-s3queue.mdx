@@ -1,0 +1,151 @@
+---
+title: ClickHouse - Interroger des tables Iceberg et Delta Lake et ingérer des fichiers en continu
+description: Découvrez comment interroger des tables Apache Iceberg et Delta Lake stockées dans OVHcloud Object Storage depuis un cluster ClickHouse, et comment charger automatiquement les nouveaux fichiers d'un bucket
+lastUpdated: 2026-10-07
+---
+
+## Objectif
+
+Si votre plateforme de données stocke des tables dans des formats ouverts comme Apache Iceberg ou Delta Lake dans un bucket OVHcloud Object Storage, ClickHouse peut les interroger sur place, sans les copier. ClickHouse peut aussi surveiller un bucket et charger automatiquement chaque nouveau fichier dans une table.
+
+**Ce guide explique comment interroger des tables Iceberg et Delta Lake, et comment ingérer des fichiers en continu avec le moteur S3Queue, depuis un cluster Public Cloud Analytics avec ClickHouse.**
+
+## Prérequis
+
+- Un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud.
+- Un cluster ClickHouse en cours d'exécution sur OVHcloud Public Cloud et acceptant les connexions entrantes. Consultez le guide [Comment se connecter à un cluster ClickHouse](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+- Le mot de passe de l'utilisateur `avnadmin` du cluster ClickHouse.
+- Un bucket OVHcloud Object Storage créé avec l'**API S3**, et un utilisateur S3 ayant accès à ce bucket. Consultez le guide [Object Storage - Premiers pas](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage).
+- Pour suivre les exemples, lisez d'abord le guide [ClickHouse - Interroger des fichiers stockés dans OVHcloud Object Storage](/guides/public-cloud/data-analytics/analytics/clickhouse-query-object-storage) : il explique l'URL des fichiers et comment enregistrer vos identifiants S3 dans une named collection.
+
+## En pratique
+
+### Avant de commencer - Bucket et utilisateur S3
+
+- Créez le bucket avec l'**API S3**. ClickHouse utilise le protocole S3 : les conteneurs créés avec l'API Swift ne peuvent pas être utilisés.
+- Le chiffrement côté serveur avec des clés gérées par OVHcloud (SSE-OMK) peut être activé sur le bucket : il est transparent pour ClickHouse et pour les outils qui écrivent vos tables.
+- Si l'**Object Lock** est activé sur le bucket, les fichiers ne peuvent être ni remplacés ni supprimés pendant leur période de rétention. Tenez-en compte pour les tables et fichiers que vous y gérez.
+- Donnez à l'utilisateur S3 l'accès au bucket. Les outils qui **écrivent** des tables Iceberg et Delta Lake (Spark, PyIceberg, delta-rs…) ont besoin de plus que la lecture et l'écriture d'objets, par exemple des envois en plusieurs parties. S'ils échouent avec `Access Denied`, donnez à l'utilisateur S3 toutes les actions sur ce seul bucket :
+
+```json
+{
+  "Statement": [
+    {
+      "Sid": "LakehouseBucket",
+      "Effect": "Allow",
+      "Action": ["s3:*"],
+      "Resource": [
+        "arn:aws:s3:::<bucket>",
+        "arn:aws:s3:::<bucket>/*"
+      ]
+    }
+  ]
+}
+```
+
+Dans les exemples suivants, `lake_s3` est une named collection qui pointe vers un dossier de votre bucket :
+
+```sql
+CREATE NAMED COLLECTION lake_s3 AS
+    url = 'https://s3.<region>.io.cloud.ovh.net/<bucket>/lakehouse/',
+    access_key_id = '<cle_acces>',
+    secret_access_key = '<cle_secrete>';
+```
+
+### Interroger une table Iceberg
+
+Indiquez le dossier de la table Iceberg (celui qui contient ses dossiers `metadata` et `data`) à la fonction de table `icebergS3`. ClickHouse lit la dernière version de la table et détecte son schéma :
+
+```sql
+SELECT city, count(), sum(amount)
+FROM icebergS3(lake_s3, filename = 'warehouse/demo/sales/')
+GROUP BY city;
+```
+
+Pour interroger la table régulièrement, créez une table avec le moteur `IcebergS3` :
+
+```sql
+CREATE TABLE sales_iceberg
+ENGINE = IcebergS3(lake_s3, filename = 'warehouse/demo/sales/');
+
+SELECT count() FROM sales_iceberg;
+```
+
+:::warning
+Utilisez les tables Iceberg en **lecture seule** depuis ClickHouse. L'écriture dans une table Iceberg depuis ClickHouse est une fonctionnalité bêta : elle est refusée par défaut et ne doit pas être activée. Continuez à écrire vos tables Iceberg avec les outils de votre plateforme de données.
+:::
+
+ClickHouse lit la table directement dans son dossier du bucket. La connexion de ClickHouse à un catalogue Iceberg (moteur de base `DataLakeCatalog`) n'est pas disponible.
+
+### Interroger une table Delta Lake
+
+Indiquez le dossier de la table Delta Lake (celui qui contient son dossier `_delta_log`) à la fonction de table `deltaLakeS3`, ou créez une table avec le moteur `DeltaLake` :
+
+```sql
+SELECT day, round(sum(amount), 1)
+FROM deltaLakeS3(lake_s3, filename = 'delta/sales/')
+GROUP BY day
+ORDER BY day;
+
+CREATE TABLE sales_delta
+ENGINE = DeltaLake(lake_s3, filename = 'delta/sales/');
+```
+
+### Ingérer de nouveaux fichiers en continu avec S3Queue
+
+Le moteur `S3Queue` surveille un dossier de votre bucket et traite chaque nouveau fichier une seule fois. Associé à une vue matérialisée, il charge dans une table ClickHouse chaque fichier déposé dans le dossier, sans tâche externe.
+
+1. Créez la table qui reçoit les données :
+
+```sql
+CREATE TABLE events (id UInt64, kind String)
+ENGINE = MergeTree
+ORDER BY id;
+```
+
+2. Créez la file d'attente sur le dossier à surveiller. `mode = 'unordered'` traite les fichiers dans n'importe quel ordre, chacun une seule fois :
+
+```sql
+CREATE TABLE events_queue (id UInt64, kind String)
+ENGINE = S3Queue('https://s3.<region>.io.cloud.ovh.net/<bucket>/queue/*.csv', '<cle_acces>', '<cle_secrete>', 'CSVWithNames')
+SETTINGS mode = 'unordered';
+```
+
+3. Créez une vue matérialisée qui déplace les lignes de la file d'attente vers la table :
+
+```sql
+CREATE MATERIALIZED VIEW events_mv TO events
+AS SELECT * FROM events_queue;
+```
+
+Désormais, chaque fichier CSV écrit dans le dossier `queue` est chargé dans `events` quelques secondes après son arrivée :
+
+```sql
+SELECT kind, count() FROM events GROUP BY kind;
+```
+
+Pour arrêter l'ingestion, supprimez la vue matérialisée (`DROP VIEW events_mv`).
+
+### Résolution des problèmes
+
+| Erreur | Cause et solution |
+|---|---|
+| `Access Denied` lorsque votre plateforme de données écrit la table | L'utilisateur S3 ne dispose pas de toutes les actions nécessaires à l'outil d'écriture. Consultez la section *Avant de commencer* ci-dessus. |
+| `Insert into iceberg is in beta` | L'écriture dans des tables Iceberg depuis ClickHouse n'est pas prise en charge. Écrivez la table avec votre plateforme de données. |
+| `Only Replicated database can be created through SQL` | Les moteurs de base comme `DataLakeCatalog` ne sont pas disponibles. Utilisez les fonctions de table ou les moteurs de table `icebergS3` et `deltaLakeS3`. |
+| `HTTP response code: 403 … Please check your AWS credentials and permissions` | Clé d'accès ou clé secrète incorrecte, ou l'utilisateur S3 n'a pas accès au bucket. |
+
+## Aller plus loin
+
+- [Documentation ClickHouse - fonctions de table iceberg](https://clickhouse.com/docs/sql-reference/table-functions/iceberg) (EN)
+- [Documentation ClickHouse - fonctions de table deltaLake](https://clickhouse.com/docs/sql-reference/table-functions/deltalake) (EN)
+- [Documentation ClickHouse - moteur de table S3Queue](https://clickhouse.com/docs/engines/table-engines/integrations/s3queue) (EN)
+- [ClickHouse - Interroger des fichiers stockés dans OVHcloud Object Storage](/guides/public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
+
+Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+
+[[fragment:professional-services]]
+
+Vous êtes sur Discord ? Rejoignez notre chaîne via [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) et interagissez directement avec l’équipe qui développe notre service Analytics !
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
