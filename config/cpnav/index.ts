@@ -61,6 +61,8 @@ import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry'
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjects } from './keys/publiccloud-projects';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
+import { publiccloudQuantumEmulators } from './keys/publiccloud-quantum-emulators';
+import { publiccloudQuantumQpus } from './keys/publiccloud-quantum-qpus';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
@@ -139,6 +141,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-ai-training': publiccloudAiTraining,
   'publiccloud-ai-deploy': publiccloudAiDeploy,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
+  'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
+  'publiccloud-quantum-qpus': publiccloudQuantumQpus,
   'publiccloud-users-roles': publiccloudUsersRoles,
   'publiccloud-instances': publiccloudInstances,
   'publiccloud-instance-backup': publiccloudInstanceBackup,
