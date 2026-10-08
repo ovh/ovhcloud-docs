@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.08
+
+### Maintenance
+- **docs:** tokenization clean-up & fixes (#959)
+
+### Documentation
+- 201 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.10.07
 
 ### Features
