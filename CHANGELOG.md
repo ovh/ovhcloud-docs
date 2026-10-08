@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.10.08
+
+### Features
+
+#### US
+- **region:** add the US documentation site (docs.us.ovhcloud.com) (#960)
+
+### Maintenance
+
+#### EU
+- **docs:** tokenization clean-up & fixes (#959)
+
+### Documentation
+- EU: 210 guides across de, en, es, fr, it, pl, pt
+- US: 778 guides across en
+
 ## 2026.10.07
 
 ### Features
