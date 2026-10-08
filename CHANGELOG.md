@@ -13,7 +13,7 @@
 - **docs:** tokenization clean-up & fixes (#959)
 
 ### Documentation
-- EU: 201 guides across de, en, es, fr, it, pl, pt
+- EU: 210 guides across de, en, es, fr, it, pl, pt
 - US: 778 guides across en
 
 ## 2026.10.07
