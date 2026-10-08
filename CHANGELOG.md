@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026.10.07
+
+### Features
+- **veeam:** update guides with the canadas ip (#909)
+
+### Documentation
+- 114 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.05
+
+### Maintenance
+- **banner:** remove SIRET banner from FR guides and home page (#923)
+
+### Documentation
+- 54 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.02
+
+### Fixes
+- **docs:** repoint dead anchors of the Public Cloud prices page (#914)
+- improve llms.txt generation
+
+### Maintenance
+- **docs:** Add nav tokens to leftover pages (#912)
+
+### Documentation
+- 856 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.01.1
+
+### Maintenance
+- **docs:** Fix tokenized pages (#903)
+
+### Documentation
+- 510 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.01
+
+### Fixes
+- **scripts:** improve validators for symlink functions (#888)
+
+### Maintenance
+- **docs:** delete leftover bullets from tokenized pages (#895)
+- **docs:** link fixes for LDP pages (#894)
+- **docs:** delete obsolete LDP guide (#889)
+
+### Documentation
+- 398 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.28
 
 ### Features

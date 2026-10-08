@@ -12,7 +12,8 @@
  *   - a <locale>.md that exists but is empty
  *   - a body containing an unresolved [[fragment:…]] token (no nesting)
  *   - a `[[fragment:key]]` used in docs/ whose key does not exist
- *   - a token carrying a modifier other than `|en`
+ *   - a token carrying a modifier other than `|en` or `|n=<digits>`
+ *   - a `|n=` modifier on a key whose body carries no `<sup>1</sup>` note number
  *   - an unpinned token on an UNTRANSLATED page, in either shape: an EN guide a locale
  *     reaches through a symlink, or a real locale file carrying English content. The
  *     body would otherwise render in the reader's locale under English prose
@@ -175,8 +176,10 @@ function scan(file: string): void {
   const modifiers = new Set<string>();
   for (const m of text.matchAll(TOKEN)) {
     const [key, ...mods] = m[1].split('|');
-    modifiers.add(mods.join('|'));
-    const bad = mods.filter((mod) => mod !== 'en');
+    // The one-language-decision check below cares about the PIN only: |n=3 and a
+    // bare token agree on language, so only the |en presence is tracked.
+    modifiers.add(mods.includes('en') ? 'en' : '');
+    const bad = mods.filter((mod) => mod !== 'en' && !/^n=\d+$/.test(mod));
     if (bad.length) {
       unknown.push(
         `${rel}: unsupported modifier(s) ${bad.join(', ')} in [[fragment:${m[1]}]]`,
@@ -187,6 +190,18 @@ function scan(file: string): void {
     if (!u) {
       unknown.push(`${rel}: unknown key "${key}"`);
       continue;
+    }
+    if (mods.some((mod) => /^n=\d+$/.test(mod))) {
+      const en =
+        textFragments[key]?.en ??
+        Object.values(textFragments[key] ?? {})[0] ??
+        '';
+      if (!en.includes('<sup>1</sup>')) {
+        unknown.push(
+          `${rel}: |n= on "${key}", whose body carries no <sup>1</sup> note number — ` +
+            'no rule is generated for it, so the token ships to readers as literal text',
+        );
+      }
     }
     u.total += 1;
     u.universes[universe] = (u.universes[universe] ?? 0) + 1;

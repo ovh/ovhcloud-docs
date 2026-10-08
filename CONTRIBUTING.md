@@ -32,8 +32,8 @@ pages/public_cloud/compute/getting_started/
 ```
 
 New:
-- [docs/en/guides/public-cloud/compute/compute-getting-started.mdx](docs/en/guides/public-cloud/compute/compute-getting-started.mdx)
-- [docs/fr/guides/public-cloud/compute/compute-getting-started.mdx](docs/fr/guides/public-cloud/compute/compute-getting-started.mdx)
+- [docs/en/guides/public-cloud/compute/getting-started.mdx](docs/en/guides/public-cloud/compute/getting-started.mdx)
+- [docs/fr/guides/public-cloud/compute/getting-started.mdx](docs/fr/guides/public-cloud/compute/getting-started.mdx)
 
 Locales under [docs/](docs/): `de`, `en`, `es`, `fr`, `it`, `pl`, `pt`.
 
