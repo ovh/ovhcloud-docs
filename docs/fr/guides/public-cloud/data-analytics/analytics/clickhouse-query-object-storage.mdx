@@ -1,0 +1,177 @@
+---
+title: ClickHouse - Interroger des fichiers stockés dans OVHcloud Object Storage
+description: Découvrez comment lire, écrire et joindre des fichiers Parquet ou CSV stockés dans un bucket OVHcloud Object Storage directement depuis un cluster ClickHouse, sans exposer vos identifiants S3
+lastUpdated: 2026-10-07
+---
+
+## Objectif
+
+ClickHouse peut interroger des fichiers stockés dans un bucket compatible S3 sans les charger au préalable : vous pouvez les lire, y écrire le résultat d'une requête, les joindre à vos tables ou les charger dans une table. Vos données restent dans votre propre bucket OVHcloud Object Storage.
+
+**Ce guide explique comment interroger des fichiers stockés dans OVHcloud Object Storage depuis un cluster Public Cloud Analytics avec ClickHouse, et comment donner accès à ces fichiers à d'autres utilisateurs sans partager vos identifiants S3.**
+
+## Prérequis
+
+- Un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud.
+- Un cluster ClickHouse en cours d'exécution sur OVHcloud Public Cloud et acceptant les connexions entrantes. Consultez les guides [Comment créer un cluster ClickHouse](/guides/public-cloud/data-analytics/analytics/clickhouse-create-cluster) et [Comment se connecter à un cluster ClickHouse](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+- Le mot de passe de l'utilisateur `avnadmin` du cluster, ou d'un utilisateur disposant des privilèges décrits dans ce guide.
+- Un bucket OVHcloud Object Storage et un utilisateur S3 disposant d'un accès en lecture et en écriture à ce bucket, avec sa clé d'accès et sa clé secrète. Consultez les guides [Object Storage - Premiers pas](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) et [Object Storage - Gestion des identités et des accès](/guides/storage-and-backup/object-storage/s3-identity-and-access-management).
+
+## En pratique
+
+:::info
+Les exemples de ce guide sont des requêtes SQL. Vous pouvez les exécuter avec `clickhouse-client` ou en HTTPS, comme décrit dans le guide [Comment se connecter à un cluster ClickHouse](/guides/public-cloud/data-analytics/analytics/clickhouse-connect-cluster-cli).
+:::
+
+### Étape 1 - Construire l'URL de vos fichiers
+
+ClickHouse désigne un fichier par l'URL du point de terminaison du bucket, suivie du nom du bucket et du chemin du fichier (URL de type *path-style*) :
+
+```text
+https://s3.<region>.io.cloud.ovh.net/<bucket>/<chemin>/<fichier>
+```
+
+- `<region>` est la région de votre bucket en minuscules, par exemple `gra` ou `eu-west-par`. Le point de terminaison de chaque région est indiqué dans le guide [Object Storage - Endpoints et géo-disponibilité](/guides/storage-and-backup/object-storage/s3-location).
+- `<bucket>` est le nom de votre bucket.
+- `<chemin>/<fichier>` est la clé de l'objet, par exemple `ventes/2026/commandes.parquet`.
+
+:::warning
+L'URL doit commencer par `https://`. Sans ce préfixe, ClickHouse renvoie l'erreur `Host is empty in S3 URI`.
+:::
+
+### Étape 2 - Enregistrer vos identifiants S3 dans une named collection
+
+Vous pourriez écrire votre clé d'accès et votre clé secrète dans chaque requête, mais elles apparaîtraient alors dans vos scripts et dans l'historique des requêtes. Enregistrez-les plutôt une fois dans une **named collection** : ClickHouse les conserve chiffrées et ne les affiche jamais.
+
+Connecté en tant que `avnadmin`, exécutez :
+
+```sql
+CREATE NAMED COLLECTION ovh_bucket AS
+    url = 'https://s3.<region>.io.cloud.ovh.net/<bucket>/',
+    access_key_id = '<cle_acces>',
+    secret_access_key = '<cle_secrete>';
+```
+
+Les valeurs sont masquées lorsque vous listez les named collections :
+
+```sql
+SELECT name, collection FROM system.named_collections;
+```
+
+```text
+ovh_bucket   {'access_key_id':'[HIDDEN]','secret_access_key':'[HIDDEN]','url':'[HIDDEN]'}
+```
+
+Dans les étapes suivantes, `filename` est le chemin du fichier relatif à l'`url` de la collection.
+
+:::tip
+Une named collection utilisée par une table ne peut pas être supprimée. Supprimez ou modifiez d'abord la table.
+:::
+
+### Étape 3 - Lire des fichiers
+
+Lisez un fichier Parquet avec la fonction de table `s3` :
+
+```sql
+SELECT count(), sum(id)
+FROM s3(ovh_bucket, filename = 'numbers.parquet', format = 'Parquet');
+```
+
+La structure des fichiers Parquet est détectée automatiquement.
+
+La fonction de table `s3` accepte aussi l'URL complète du fichier, la clé d'accès, la clé secrète et le format. Pour les fichiers CSV avec une ligne d'en-tête, utilisez le format `CSVWithNames` :
+
+```sql
+SELECT *
+FROM s3('https://s3.<region>.io.cloud.ovh.net/<bucket>/exports/clients.csv', '<cle_acces>', '<cle_secrete>', 'CSVWithNames');
+```
+
+Pour lire plusieurs fichiers à la fois, utilisez un caractère générique (`*`) dans le chemin. La colonne virtuelle `_file` indique le fichier d'où provient chaque ligne :
+
+```sql
+SELECT _file, count()
+FROM s3('https://s3.<region>.io.cloud.ovh.net/<bucket>/ventes/*.parquet', '<cle_acces>', '<cle_secrete>', 'Parquet')
+GROUP BY _file;
+```
+
+### Étape 4 - Créer une table sur vos fichiers
+
+Pour interroger régulièrement les mêmes fichiers, créez une table avec le moteur `S3`. Les données restent dans votre bucket et sont lues à chaque requête :
+
+```sql
+CREATE TABLE numbers_s3 (id UInt64, label String)
+ENGINE = S3(ovh_bucket, filename = 'numbers.parquet', format = 'Parquet');
+
+SELECT count() FROM numbers_s3;
+```
+
+### Étape 5 - Joindre des fichiers à vos tables, ou les charger
+
+Vous pouvez joindre des fichiers aux tables de votre cluster dans une même requête :
+
+```sql
+SELECT c.client_id, sum(c.montant)
+FROM commandes AS c
+INNER JOIN s3(ovh_bucket, filename = 'referentiel/clients.parquet', format = 'Parquet') AS r
+    ON c.client_id = r.id
+GROUP BY c.client_id;
+```
+
+Pour charger le contenu de fichiers dans une table de votre cluster, utilisez `INSERT … SELECT` :
+
+```sql
+INSERT INTO commandes_historique
+SELECT * FROM s3(ovh_bucket, filename = 'archive/commandes_2025.parquet', format = 'Parquet');
+```
+
+### Étape 6 - Exporter le résultat d'une requête vers votre bucket
+
+Écrivez le résultat d'une requête dans un fichier avec `INSERT INTO FUNCTION`, en indiquant l'URL complète du fichier et les clés :
+
+```sql
+INSERT INTO FUNCTION s3('https://s3.<region>.io.cloud.ovh.net/<bucket>/exports/commandes_2026.parquet', '<cle_acces>', '<cle_secrete>', 'Parquet')
+SELECT * FROM commandes WHERE toYear(date_commande) = 2026;
+```
+
+Pour remplacer un fichier qui existe déjà, ajoutez `SETTINGS s3_truncate_on_insert = 1` à la fin de la requête.
+
+### Étape 7 - Donner accès aux fichiers à d'autres utilisateurs
+
+Connecté en tant que `avnadmin`, accordez aux autres utilisateurs les droits nécessaires en SQL. Pour un utilisateur qui lit seulement les fichiers via la named collection `ovh_bucket`, sans connaître les identifiants S3 :
+
+```sql
+GRANT READ ON S3 TO <utilisateur>;
+GRANT NAMED COLLECTION ON ovh_bucket TO <utilisateur>;
+GRANT CREATE TEMPORARY TABLE ON *.* TO <utilisateur>;
+GRANT SELECT ON <base>.* TO <utilisateur>;
+```
+
+- `READ ON S3` autorise la lecture depuis S3.
+- `NAMED COLLECTION ON ovh_bucket` autorise l'utilisation de la named collection, sans en voir les valeurs.
+- `CREATE TEMPORARY TABLE` est nécessaire pour utiliser la fonction de table `s3`.
+- `SELECT` sur la base est nécessaire pour interroger les tables créées avec le moteur `S3`.
+
+### Résolution des problèmes
+
+| Erreur | Cause et solution |
+|---|---|
+| `HTTP response code: 403 … Please check your AWS credentials and permissions` | La clé d'accès ou la clé secrète est incorrecte, ou l'utilisateur S3 n'a pas accès au bucket. Vérifiez les identifiants de l'utilisateur S3 et ses droits sur le bucket. |
+| `Host is empty in S3 URI` | L'URL ne commence pas par `https://`. Consultez l'étape 1 ci-dessus. |
+| `Not enough privileges. … necessary to have the grant READ ON S3` | L'utilisateur n'est pas autorisé à lire depuis S3. Consultez l'étape 7 ci-dessus. |
+| `Not enough privileges. … necessary to have the grant CREATE TEMPORARY TABLE ON *.*` | L'utilisateur peut utiliser la named collection mais pas la fonction de table `s3`. Accordez-lui `CREATE TEMPORARY TABLE ON *.*`. |
+| `A named collection … already exists` | Choisissez un autre nom, ou supprimez la collection existante avec `DROP NAMED COLLECTION`. |
+
+## Aller plus loin
+
+- [Documentation ClickHouse - fonction de table s3](https://clickhouse.com/docs/sql-reference/table-functions/s3) (EN)
+- [Documentation ClickHouse - moteur de table S3](https://clickhouse.com/docs/engines/table-engines/integrations/s3) (EN)
+- [Documentation ClickHouse - Named collections](https://clickhouse.com/docs/operations/named-collections) (EN)
+- [Capacités et limitations de Public Cloud Analytics avec ClickHouse](/guides/public-cloud/data-analytics/analytics/clickhouse-capabilities-limitations)
+
+Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+
+[[fragment:professional-services]]
+
+Vous êtes sur Discord ? Rejoignez notre chaîne via [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) et interagissez directement avec l’équipe qui développe notre service Analytics !
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
