@@ -12,9 +12,16 @@ import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
 import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
+import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
+import {
+  htmlLangFor,
+  peerRegion,
+  REGION,
+  regionConfig,
+} from './config/regions';
 import type { Locale } from './config/shared';
 import { locales } from './config/shared';
 import { sidebar } from './config/sidebar';
@@ -28,7 +35,7 @@ import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
 
-const locale = process.env.LOCALE || 'fr';
+const locale = process.env.LOCALE || regionConfig.defaultLocale;
 const BASE_DIR = process.cwd();
 
 // Map the 2-letter site locale → the CMP's BCP-47 locale (window.__cmpConfig.locale).
@@ -70,8 +77,9 @@ const CMP_SCRIPTS = [
 ];
 
 // Single init global read by the CMP at module-init (must be set before the
-// loader runs). region 'EU' — the docs site is global; US is unsupported and CA
-// is a separate subsidiary.
+// loader runs). region 'EU' — the CMP is built for the EU; regions it does not
+// cover (US) do not load it at all (`consentManager: false`), and CA is a
+// separate subsidiary.
 const CMP_CONFIG = {
   locale: CMP_LOCALE[locale] ?? 'en-GB',
   region: 'EU',
@@ -79,22 +87,42 @@ const CMP_CONFIG = {
   scripts: CMP_SCRIPTS,
 };
 
+// Single-locale regions (e.g. US) are served at the domain root (no /{locale}/
+// prefix) and built straight into dist/; multi-locale regions keep the
+// /{locale}/ prefix and the dist/{locale}/ layout.
+const base = regionConfig.localePrefix ? `/${locale}/` : '/';
+const outDir = regionConfig.localePrefix
+  ? path.join(BASE_DIR, 'dist', locale)
+  : path.join(BASE_DIR, 'dist');
+// Only expose this region's locales to the language switcher.
+const regionLocales = locales.filter((l) =>
+  (regionConfig.locales as readonly string[]).includes(l.lang),
+);
+
 export default defineConfig({
-  root: path.join(BASE_DIR, 'docs', locale),
-  base: `/${locale}/`,
+  root: path.join(BASE_DIR, regionConfig.contentDir, locale),
+  base,
   // Absolute origin used by Rspress to emit fully-qualified URLs. Without it,
   // llms.txt / llms-full.txt and the per-page `.md` links are relative
   // (`/en/guides/….md`), which is useless for the external LLM crawlers those
   // files exist for. It also makes the AI-agent hint injected below the H1
   // (LlmsHint, active because `llms: true`) point at absolute URLs.
-  // Keep in sync with SITE_URL in scripts/combine-builds.ts and the same
-  // constant in theme/components/SEOHead.
-  siteOrigin: 'https://docs.ovhcloud.com',
-  outDir: path.join(BASE_DIR, 'dist', locale),
-  publicDir: path.join(BASE_DIR, 'docs', 'public'),
+  // Region-scoped: `scripts/combine-builds.ts` reads the same
+  // `regionConfig.siteUrl` for its sitemaps. `theme/components/SEOHead` still
+  // hardcodes the EU origin — it runs in the browser and cannot read
+  // `config/regions`, so it needs a `source.define` to follow (see below).
+  siteOrigin: regionConfig.siteUrl,
+  outDir,
+  // Region-scoped. Both regions currently resolve to the same assets:
+  // `docs-us/public` is a symlink to `../docs/public`.
+  publicDir: path.join(BASE_DIR, regionConfig.contentDir, 'public'),
 
-  // All locales included for language switcher functionality
-  locales: [...locales],
+  // Locales included for language switcher functionality (region-scoped)
+  locales: [...regionLocales],
+  // NOTE: this is Rspress's i18n lookup key, not just the `<html lang>` value —
+  // setting a BCP 47 tag here ("en-us") makes every themeText lookup fail at
+  // SSG time. The regional tag is applied to <html lang> by a small script in
+  // `html.tags` below instead.
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
@@ -118,6 +146,25 @@ export default defineConfig({
       // not-fully-hydrated DOM and silently fails to inject. Dynamic
       // injection from useEffect guarantees React has hydrated first.
       tags: [
+        ...(htmlLangFor(regionConfig, locale) !== locale
+          ? [
+              {
+                // Rspress writes <html lang="{locale}"> and also uses `lang`
+                // as its i18n lookup key, so the regional BCP 47 tag cannot be
+                // set through config (it would break every themeText lookup).
+                // Patch the attribute in <head>, before paint: the US site
+                // serves US-specific content and must declare `en-us` so search
+                // engines treat it as the US regional variant rather than a
+                // duplicate of the worldwide English pages.
+                tag: 'script',
+                head: true,
+                append: false,
+                children: `document.documentElement.lang=${JSON.stringify(
+                  htmlLangFor(regionConfig, locale),
+                )};`,
+              },
+            ]
+          : []),
         {
           // Trailing-slash normalization (runs before paint, no flash).
           // Rspress cleanUrls emits flat files (foo.html), so the static
@@ -136,39 +183,45 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
-        {
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
-        },
-        // OVHcloud CMP (Consent Management Platform). Loaded statically in
-        // <head> — unlike ovh_delta.js, this is an early consent gate that must
-        // run as soon as possible to block non-essential scripts until consent.
-        // It renders its own vanilla-DOM banner (not into React's root), so the
-        // React-19 hydration timing that affects ovh_delta.js does not apply.
-        // Consumers should wait for the `cmp:ready` event before calling
-        // window.__cmp (two-stage loader → versioned bundle, async).
-        {
-          // window.__cmpConfig MUST be set before the loader runs (region,
-          // environment and scripts are read once at module-init; locale is
-          // re-read on each modal open). locale is baked from the per-locale
-          // build (LOCALE).
-          tag: 'script',
-          head: true,
-          append: true,
-          children: `window.__cmpConfig=${JSON.stringify(CMP_CONFIG)};`,
-        },
-        {
-          // Absolute URL — the bundle is served by the OVHcloud server farms.
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: {
-            src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
-            defer: true,
-          },
-        },
+        // The consent manager and the analytics it injects only exist in
+        // regions that run them (config/regions.ts `consentManager`).
+        ...(regionConfig.consentManager
+          ? [
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              // OVHcloud CMP (Consent Management Platform). Loaded statically in
+              // <head> — unlike ovh_delta.js, this is an early consent gate that must
+              // run as soon as possible to block non-essential scripts until consent.
+              // It renders its own vanilla-DOM banner (not into React's root), so the
+              // React-19 hydration timing that affects ovh_delta.js does not apply.
+              // Consumers should wait for the `cmp:ready` event before calling
+              // window.__cmp (two-stage loader → versioned bundle, async).
+              {
+                // window.__cmpConfig MUST be set before the loader runs (region,
+                // environment and scripts are read once at module-init; locale is
+                // re-read on each modal open). locale is baked from the per-locale
+                // build (LOCALE).
+                tag: 'script',
+                head: true,
+                append: true,
+                children: `window.__cmpConfig=${JSON.stringify(CMP_CONFIG)};`,
+              },
+              {
+                // Absolute URL — the bundle is served by the OVHcloud server farms.
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
+                  defer: true,
+                },
+              },
+            ]
+          : []),
       ],
     },
     source: {
@@ -178,6 +231,32 @@ export default defineConfig({
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
+        // Hide the language switcher on single-locale regions (e.g. US).
+        __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
+        // Region values consumed by theme/components/SEOHead, which runs in the
+        // browser and cannot import config/regions. Without these, the US build
+        // would emit canonical/hreflang pointing at the EU origin.
+        __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
+        __LOCALES__: JSON.stringify(regionConfig.locales),
+        __HTML_LANG__: JSON.stringify(htmlLangFor(regionConfig, locale)),
+        // The sibling site, so each region's pages can advertise the other in
+        // their hreflang cluster (see theme/components/SEOHead).
+        __PEER_SITE_URL__: JSON.stringify(peerRegion(REGION)?.siteUrl ?? ''),
+        __PEER_LOCALES__: JSON.stringify(peerRegion(REGION)?.locales ?? []),
+        __PEER_LOCALE_PREFIX__: JSON.stringify(
+          peerRegion(REGION)?.localePrefix ?? false,
+        ),
+        __PEER_HTML_LANG__: JSON.stringify(peerRegion(REGION)?.htmlLang ?? {}),
+        // Whether to render the in-page AI assistant (see config/regions.ts).
+        __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
+        // Whether the CMP and its analytics run (see config/regions.ts).
+        __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
+        // Legal footer values, consumed by theme/components/SiteFooter. It
+        // renders in the browser and cannot import config/regions.
+        __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
+        __FOOTER_CORPORATE_URL__: JSON.stringify(regionConfig.corporateUrl),
+        __FOOTER_LEGAL_NOTICE__: JSON.stringify(regionConfig.legalNotice ?? ''),
+        __FOOTER_LINKS__: JSON.stringify(regionConfig.footerLinks ?? []),
       },
     },
     resolve: {
@@ -291,7 +370,7 @@ export default defineConfig({
     // See node_modules/@rspress/core/dist/theme/logic/useRedirect4FirstVisit.js
     localeRedirect: 'never',
     editLink: {
-      docRepoBaseUrl: `https://github.com/ovh/ovhcloud-docs/tree/develop/docs/${locale}`,
+      docRepoBaseUrl: `https://github.com/ovh/ovhcloud-docs/tree/develop/${regionConfig.repoSubdir}/${locale}`,
     },
     nav: nav as Parameters<typeof defineConfig>[0]['themeConfig']['nav'],
     sidebar,
@@ -303,8 +382,7 @@ export default defineConfig({
       },
     ],
     footer: {
-      message:
-        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>',
+      message: buildFooterMessage(),
     },
   },
 });
