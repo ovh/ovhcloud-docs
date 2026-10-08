@@ -1,0 +1,262 @@
+---
+title: Enterprise File Storage - Migrer un volume vers vRack
+description: "Migrez un volume Enterprise File Storage vers une offre vRack grâce à la réplication de partages, depuis l'espace client ou l'API"
+lastUpdated: 2026-09-22
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+
+## Objectif
+
+Ce guide explique comment migrer un volume hébergé sur une offre OVHcloud Enterprise File Storage en réseau public vers une seconde offre Enterprise File Storage disposant d'un réseau privé <Tooltip term="vrack">vRack</Tooltip>, grâce à la fonctionnalité de réplication de partages (*share replication*) — pilotable depuis l'espace client OVHcloud ou via l'API OVHcloud.
+
+:::warning
+La fonctionnalité de réplication de partages est en statut **BETA**.
+:::
+
+
+## Prérequis
+
+- Une offre OVHcloud [Enterprise File Storage](/links/storage/enterprise-file-storage) en réseau public (souscrite avant janvier 2025), avec un volume à migrer
+- Une offre OVHcloud Enterprise File Storage en réseau privé vRack, dans la **même région** que l'offre source
+- Un accès à l'<ManagerLink to="/">espace client OVHcloud</ManagerLink> ou à l'<ApiLink>API OVHcloud</ApiLink>
+
+[[cpnav:storage-enterprise-file-storage]]
+
+## Principe de fonctionnement
+
+La migration, réalisable **depuis l'espace client OVHcloud ou via l'API**, se déroule en trois phases :
+
+1. **Réplication** — création d'un lien de réplication entre le partage source et le service de destination
+2. **Synchronisation** — copie des données entre les deux volumes *(automatique, sans intervention)*
+3. **Cutover** — coupure du lien de réplication, qui rend le volume de destination autonome
+
+## Limites de la fonctionnalité
+
+La réplication de partages permet uniquement de migrer un volume Enterprise File Storage en réseau public vers une offre Enterprise File Storage en réseau privé vRack, au sein de la **même région**.
+
+## En pratique
+
+### Étape 1 — Vérifier la compatibilité des services
+
+<Tabs>
+<Tab label="API">
+
+Vérifiez que votre offre Enterprise File Storage en réseau privé vRack est éligible comme destination de la migration :
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplicationServicesCompatibility"} />
+
+**Paramètres :**
+
+- `serviceName` : identifiant unique du service source, portant le volume à migrer
+- `compatibleOnly` *(facultatif)* : si `true`, ne retourne que les services compatibles
+
+Cette route renvoie les services compatibles avec la migration, avec l'identifiant à utiliser comme service de destination :
+
+```json
+[
+  {
+    "service": {
+      "id": "{destinationServiceId}",
+      "name": "MyDestinationService"
+    },
+    "compatible": true,
+    "reason": null
+  }
+]
+```
+
+:::info
+Si la liste est vide ou qu'aucun service n'est marqué `compatible: true`, vous ne disposez d'aucune offre Enterprise File Storage en réseau privé vRack dans la même région que votre service source. [Commandez une offre Enterprise File Storage](/links/storage/enterprise-file-storage) avec réseau privé vRack pour poursuivre.
+:::
+
+</Tab>
+<Tab label="Manager">
+
+1. Sur le service **source**, ouvrez l'onglet <code className="action">Volumes</code>.
+2. Cochez la case du ou des volumes à migrer, puis cliquez sur <code className="action">Répliquer volume(s)</code> — ou, depuis le menu `...` d'une ligne, sur <code className="action">Répliquer ce volume</code>.
+3. Dans la fenêtre **Sync volume(s) sur un autre service Enterprise File Storage** qui s'ouvre, le champ <code className="action">Enterprise File Storage cible</code> ne liste que les services compatibles : c'est l'équivalent Manager de cette vérification.
+
+:::info
+Si aucun service cible n'est proposé, l'espace client affiche directement un bouton <code className="action">Commander</code> pour souscrire une offre Enterprise File Storage compatible (réseau privé vRack, même région).
+:::
+
+</Tab>
+</Tabs>
+
+### Étape 2 — Créer la réplication
+
+<Tabs>
+<Tab label="API">
+
+Depuis le service source, initiez la réplication :
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+
+**Paramètres :**
+
+- `serviceName` : identifiant unique du service source
+- `destinationServiceId` : identifiant du service de destination, récupéré à l'étape précédente
+- `sourceShareId` : identifiant du volume à migrer
+- `description` *(facultatif)* : description de la réplication
+
+Récupérez ensuite l'identifiant du replicat créé :
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+
+```json
+[
+  {
+    "id": "{shareReplicationId}",
+    "description": "",
+    "status": "pending",
+    "source": {
+      "serviceID": "{sourceServiceId}",
+      "shareID": "{sourceShareId}"
+    },
+    "destination": {
+      "serviceID": "{destinationServiceId}",
+      "shareID": null
+    }
+  }
+]
+```
+
+</Tab>
+<Tab label="Manager">
+
+Dans la même fenêtre, sélectionnez le service cible dans le champ <code className="action">Enterprise File Storage cible</code>, puis cliquez sur <code className="action">Synchroniser</code> pour lancer la réplication.
+
+</Tab>
+</Tabs>
+
+### Étape 3 — Accepter la réplication depuis le service de destination
+
+<Tabs>
+<Tab label="API">
+
+Depuis le service de destination, acceptez la réplication : cette action crée le volume qui accueillera le replicat.
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/accept"} />
+
+**Paramètres :**
+
+- `serviceName` : identifiant unique du service de destination
+- `shareReplicationId` : identifiant de la réplication, récupéré à l'étape précédente
+- `share.name` : nom du volume de destination
+- `share.protocol` : protocole du volume (`NFS`)
+- `share.size` : taille du volume, en Go — **doit être supérieure ou égale** à la taille du volume source
+- `share.description` *(facultatif)* : description du volume
+- `share.mountPointName` *(facultatif)* : nom du point de montage
+
+Le détail de la réplication permet ensuite de récupérer l'identifiant du volume de destination créé :
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
+
+```json
+{
+  "id": "{shareReplicationId}",
+  "description": "",
+  "status": "accepted",
+  "replicaState": "out_of_sync",
+  "createdAt": "2025-12-05T13:18:00Z",
+  "source": {
+    "serviceID": "{sourceServiceId}",
+    "shareID": "{sourceShareId}"
+  },
+  "destination": {
+    "serviceID": "{destinationServiceId}",
+    "shareID": "{destinationShareId}"
+  }
+}
+```
+
+</Tab>
+<Tab label="Manager">
+
+1. Sur le service de **destination**, ouvrez l'onglet <code className="action">Réplications</code>. La réplication entrante apparaît avec le statut **En attente d'approbation**.
+2. Depuis le menu `...` de la ligne, cliquez sur <code className="action">Accepter réplication</code>.
+3. Confirmez en cliquant sur <code className="action">Synchroniser</code>.
+
+:::info
+L'espace client crée automatiquement le volume de destination avec le protocole NFS et la taille du volume source — aucun paramètre supplémentaire n'est demandé.
+:::
+
+</Tab>
+</Tabs>
+
+### Étape 4 — Suivre la synchronisation
+
+<Tabs>
+<Tab label="API">
+
+Interrogez à nouveau la même route pour suivre l'avancement de la copie des données :
+
+- `replicaState: out_of_sync` — la synchronisation est en cours ; le champ `progress` indique son avancement
+- `replicaState: in_sync` — les deux volumes sont synchronisés
+
+:::info
+Tant que la réplication est active, toute nouvelle écriture sur le volume source fait temporairement repasser `replicaState` à `out_of_sync`, le temps de répliquer les nouvelles données.
+:::
+
+</Tab>
+<Tab label="Manager">
+
+Depuis l'onglet <code className="action">Réplications</code> du service de destination, le statut de la ligne évolue automatiquement :
+
+- **En cours de synchronisation** — la copie des données est en cours (équivalent à `replicaState: out_of_sync`)
+- **Synchronisé** — les deux volumes sont synchronisés (équivalent à `replicaState: in_sync`)
+
+</Tab>
+</Tabs>
+
+### Étape 5 — Finaliser la migration (cutover)
+
+<Tabs>
+<Tab label="API">
+
+Une fois `replicaState` à `in_sync`, finalisez la migration en coupant le lien de réplication depuis le service de destination :
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/cutover"} />
+
+**Paramètres :**
+
+- `serviceName` : identifiant unique du service de destination
+- `shareReplicationId` : identifiant de la réplication à finaliser
+
+Cette action met fin à la réplication (`status: cutover`) et rend le volume de destination autonome.
+
+</Tab>
+<Tab label="Manager">
+
+1. Une fois le statut **Synchronisé** atteint, depuis le menu `...` de la ligne de l'onglet <code className="action">Réplications</code>, cliquez sur <code className="action">Promouvoir</code>.
+2. Une fenêtre d'avertissement rappelle que cette action coupe la réplication avec le volume source et rend le volume promu indépendant — **action irréversible**. Cliquez sur <code className="action">Confirmer</code>.
+
+Le statut de la ligne passe alors à **Migré**.
+
+</Tab>
+</Tabs>
+
+## Résultat attendu
+
+- Le volume est désormais disponible sur l'offre Enterprise File Storage en réseau privé vRack, avec l'intégralité des données du volume source.
+- Le lien de réplication est terminé ; les deux volumes évoluent désormais indépendamment.
+- Le volume source d'origine reste inchangé et peut être supprimé une fois la migration validée.
+
+## Aller plus loin
+
+[Enterprise File Storage - Gestion depuis l'espace client OVHcloud](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
+
+[Enterprise File Storage - Cloner un volume](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume)
+
+[Enterprise File Storage - Configuration du réseau privé](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
+
+[Enterprise File Storage - Connecter une instance Public Cloud à un volume EFS via le réseau privé vRack](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack)
+
+[Enterprise File Storage - Gérer vos volumes](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-volumes)
+
+Si vous avez besoin d'une formation ou d'une assistance technique pour la mise en oeuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
