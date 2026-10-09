@@ -81,9 +81,8 @@ const allLocales = [
 const regionLocales = allLocales.filter((l) =>
   (regionConfig.locales as readonly string[]).includes(l.lang),
 );
-const devLocaleDefault = regionConfig.localePrefix
-  ? 'fr,en'
-  : regionConfig.defaultLocale;
+const devLocaleDefault =
+  regionConfig.locales.length > 1 ? 'fr,en' : regionConfig.defaultLocale;
 const devLocales = (process.env.DEV_LOCALES || devLocaleDefault).split(',');
 const activeLocales = regionLocales.filter((l) => devLocales.includes(l.lang));
 const excludedLocales = regionLocales
@@ -208,13 +207,14 @@ export default defineConfig({
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
-        // Hide the language switcher on single-locale regions (e.g. US).
+        // Regions served without a /{locale}/ URL segment (none today).
         __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
         // Mirrors rspress.config.build.ts — consumed by
         // theme/components/SEOHead. Uses the region's full locale list, not the
         // DEV_LOCALES subset, so dev matches the production markup.
         __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
         __LOCALES__: JSON.stringify(regionConfig.locales),
+        __HTML_LANG_MAP__: JSON.stringify(regionConfig.htmlLang ?? {}),
       },
     },
     resolve: {

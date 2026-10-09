@@ -1,4 +1,4 @@
-import { regionConfig } from '../regions';
+import { REGION, regionConfig } from '../regions';
 
 // Supported locales
 export const locales = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
@@ -80,6 +80,4 @@ const usNavItems: NavItemConfig[] = [
 ];
 
 // Export nav config for rspress.config.ts - contains full localized data
-export const nav: NavItemConfig[] = regionConfig.localePrefix
-  ? euNavItems
-  : usNavItems;
+export const nav: NavItemConfig[] = REGION === 'us' ? usNavItems : euNavItems;
