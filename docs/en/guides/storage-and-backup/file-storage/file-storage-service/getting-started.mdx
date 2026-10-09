@@ -12,7 +12,7 @@ import { Tab, Tabs } from '@rspress/core/theme';
 
 OVHcloud provides a File Storage Service powered by OpenStack Manila. This service offers managed NFS shares on private networks, supporting ReadWriteMany (RWX) access across multiple instances or Kubernetes pods.
 
-It can be accessed via OVHcloud API, OVHcloud CLI, OpenStack CLI and API, Manila CSI, OVHcloud Control Panel, and Terraform.
+It can be accessed via OVHcloud Control Panel, OVHcloud API, OVHcloud CLI, Terraform, OpenStack CLI and API, and Manila CSI.
 
 ## Requirements
 
@@ -39,7 +39,7 @@ No performance impact has been observed on encrypted File Storage shares so far.
 ## Instructions
 
 <Tabs>
-  <Tab label="Via the OVHcloud Control Panel">
+  <Tab label="OVHcloud Control Panel">
     :::info
     Some features of the File Storage service, such as snapshots, are not yet available in the OVHcloud Control Panel. You can use the OVHcloud APIs, OpenStack CLI, or Manila CSI for these features.
     :::
@@ -103,7 +103,7 @@ No performance impact has been observed on encrypted File Storage shares so far.
     
     This lets you remount the NFS share after a reboot with the `mount /mnt/share` command.
   </Tab>
-  <Tab label="Via the OVHcloud API">
+  <Tab label="OVHcloud API">
     **1\. Create a share**
     
     Identify your private network and subnet
@@ -326,7 +326,7 @@ No performance impact has been observed on encrypted File Storage shares so far.
     
     **Note:** Use this to monitor the storage capacity and usage of your NFS share.
   </Tab>
-  <Tab label="Via the OVHcloud CLI">
+  <Tab label="OVHcloud CLI">
     **Additional requirements**
     
     - The [OVHcloud CLI](https://github.com/ovh/ovhcloud-cli) must be installed and configured.
@@ -496,7 +496,201 @@ No performance impact has been observed on encrypted File Storage shares so far.
     ovhcloud cloud storage file share delete <SHARE_ID> --cloud-project <PROJECT_ID> --region <REGION_NAME>
     ```
   </Tab>
-  <Tab label="Via the OpenStack CLI with the Manila plugin">
+  <Tab label="Terraform">
+    **1\. Additional requirements**
+    
+    - You already have a working [Terraform environment](/guides/public-cloud/cross-functional/how-to-use-terraform).
+    
+    **2\. Declare the OVHcloud provider**
+    
+    Add the following configuration to your `main.tf` to specify the required Terraform provider:
+    
+    ```bash
+    vim main.tf
+    
+    terraform {
+      required_providers {
+        ovh = {
+          source  = "ovh/ovh"
+          version = ">= 2.20.0"
+        }
+      }
+    }
+    ```
+    
+    This block ensures that Terraform uses the OVHcloud provider, with a minimum version that supports File Storage encryption (OMK).
+    
+    **3\. Retrieve information about your private network**
+    
+    Add the following blocks to your `main.tf` file to fetch details about your private network and subnet:
+    
+    ```bash
+    data "ovh_cloud_network_private_vrack" "private_network" {
+      service_name = "<YOUR_PROJECT_ID>"
+      id           = "<YOUR_PRIVATE_NETWORK_ID>"
+    }
+    
+    data "ovh_cloud_network_private_vrack_subnets" "private_subnets" {
+      service_name = "<YOUR_PROJECT_ID>"
+      network_id   = "<YOUR_PRIVATE_NETWORK_ID>"
+    }
+    ```
+    
+    :::info
+    Replace `<YOUR_PRIVATE_NETWORK_ID>` with your private network ID. You can retrieve it via the OVHcloud API or CLI, as shown in the previous tabs.
+    :::
+
+    
+    These data blocks allow Terraform to query the OVHcloud API and retrieve the necessary details of your private network and subnet, which are required for configuring the File Storage service.
+    
+    **4\. Create a share network**
+    
+    Add the following resource to your `main.tf` to create a share network for your File Storage service:
+    
+    ```bash
+    resource "ovh_cloud_storage_file_share_network" "sharenetwork" {
+      service_name = "<YOUR_PROJECT_ID>"
+      name         = "<YOUR_SHARE_NETWORK_NAME>"
+      region       = "<YOUR_REGION_NAME>"
+      network_id   = data.ovh_cloud_network_private_vrack.private_network.id
+      subnet_id    = data.ovh_cloud_network_private_vrack_subnets.private_subnets.subnets[0].id
+    }
+    ```
+    
+    This resource binds your existing private network and subnet to a share network. It is required to provision and manage File Storage shares.
+    
+    :::info
+    If your private network has several subnets, replace `subnets[0]` with the index (or a filtered expression) matching the subnet for your target region.
+    :::
+
+    
+    **5\. Create an NFS share**
+    
+    Add the following resource to your `main.tf` to create an NFS share on your File Storage service:
+    
+    ```bash
+    resource "ovh_cloud_storage_file_share" "share" {
+      service_name     = "<YOUR_PROJECT_ID>"
+      name             = "<YOUR_SHARE_NAME>"
+      region           = "<YOUR_REGION_NAME>"
+      protocol         = "NFS"
+      share_type       = "STANDARD_1AZ"
+      size             = 150
+      share_network_id = ovh_cloud_storage_file_share_network.sharenetwork.id
+    }
+    ```
+    
+    This resource provisions an NFS share attached to the previously created share network. Adjust the `size` according to your requirements.
+    
+    :::info
+    To create an encrypted share (OMK), add an `encryption` block:
+    
+    ```bash
+    resource "ovh_cloud_storage_file_share" "share" {
+      # ...
+      encryption = {
+        enabled = true
+      }
+    }
+    ```
+    
+    This automatically encrypts the share at rest with LUKS and generates a dedicated encryption key. Encryption can only be set at creation — changing it afterwards recreates the share. Requires `terraform-provider-ovh >= 2.20.0`.
+    :::
+
+    
+    **6\. Authorize a client VM**
+    
+    Ensure that your client VM is connected to the same private network as your share.
+    
+    Retrieve the VM's private IP address:
+    
+    ```bash
+    openstack server show --os-region-name `<YOUR_REGION_NAME>` `<YOUR_CLIENT_VM_NAME>` -c addresses -f value
+    ```
+    
+    Example output:
+    
+    ```bash
+    {'my-private-net': ['10.1.0.123', '57.123.88.111']}
+    ```
+    
+    Use the private IP (e.g., `10.1.0.123`) to grant access to the NFS share:
+    
+    ```bash
+    resource "ovh_cloud_storage_file_share_acl" "share_access" {
+      service_name = ovh_cloud_storage_file_share.share.service_name
+      share_id     = ovh_cloud_storage_file_share.share.id
+      access_to    = "10.1.0.123"
+      access_level = "READ_WRITE"
+    }
+    ```
+    
+    This resource authorizes the specified client IP to access the NFS share with read/write permissions (`access_level` also accepts `READ_ONLY`).
+    
+    **7\. Retrieve the export path**
+    
+    Add the following output block to your `main.tf` to retrieve the NFS share export path:
+    
+    ```bash
+    output "export_path" {
+      value = ovh_cloud_storage_file_share.share.current_state.export_locations[0].path
+    }
+    ```
+    
+    This output provides the NFS export path, which can be used by client VMs to mount the share.
+    
+    **8\. Mount the share on your client VM**
+    
+    Connect to your client VM and install the NFS utilities required to mount the share:
+    
+    ```bash
+    sudo apt update && sudo apt install -y nfs-common
+    ```
+    
+    Create a mount point and mount the share:
+    
+    ```bash
+    sudo mkdir -p /mnt/share
+    sudo mount -t nfs4 `<NFS_EXPORT_PATH>` /mnt/share
+    ```
+    
+    :::info
+    Replace `<NFS_EXPORT_PATH>` with the export path retrieved from Terraform (e.g., `10.1.0.12:/shares/share-abc12345-def6-4abc-8def-123456abcdef`).
+    :::
+
+    
+    Verify the mount:
+    
+    ```bash
+    df -h /mnt/share
+    ```
+    
+    Save the mount configuration in fstab for easy remounting:
+    
+    ```bash
+    echo "<NFS_EXPORT_PATH> /mnt/share nfs nfsvers=4 defaults,noauto 0 0" | sudo tee -a /etc/fstab
+    ```
+    
+    This lets you remount the NFS share after a reboot with the `mount /mnt/share` command.
+    
+    **9\. Check capacity and usage**
+    
+    Once the NFS share is mounted, verify its available space and usage:
+    
+    ```bash
+    df -h /mnt/share
+    ```
+    
+    Example output:
+    
+    ```bash
+    Filesystem                          Size  Used  Avail Use% Mounted on
+    10.1.0.12:/shares/share-abc1...     150G  100M   150G   1% /mnt/share
+    ```
+    
+    This command shows the total size, used space, and available space on your mounted NFS share.
+  </Tab>
+  <Tab label="OpenStack CLI with the Manila plugin">
     **Additional requirements**
     
     - Make sure your OpenStack user has the `Administrator` or `Share operator` role.
@@ -758,7 +952,7 @@ No performance impact has been observed on encrypted File Storage shares so far.
     | Cannot mount NFS            | IP not authorized or wrong network | Ensure VM is in the same private subnet and access rule is created |
     | Share stuck in creating     | Invalid network ID or subnet       | Check `NETWORK_ID` and `SUBNET_ID`                                 |
   </Tab>
-  <Tab label="Via Manila CSI in Kubernetes environment">
+  <Tab label="Manila CSI in Kubernetes environment">
     **1\. Additional requirements**
     
     - Helm CLI installed on your local machine.
@@ -1321,200 +1515,6 @@ No performance impact has been observed on encrypted File Storage shares so far.
     [Manila/Concepts](https://wiki.openstack.org/wiki/Manila/Concepts#share_type)
     [Generic approach for share provisioning](https://docs.openstack.org/manila/latest/admin/generic_driver.html)
     [Official Manila CSI Plugin on GitHub](https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/manila-csi-plugin)
-  </Tab>
-  <Tab label="Via Terraform">
-    **1\. Additional requirements**
-    
-    - You already have a working [Terraform environment](/guides/public-cloud/cross-functional/how-to-use-terraform).
-    
-    **2\. Declare the OVHcloud provider**
-    
-    Add the following configuration to your `main.tf` to specify the required Terraform provider:
-    
-    ```bash
-    vim main.tf
-    
-    terraform {
-      required_providers {
-        ovh = {
-          source  = "ovh/ovh"
-          version = ">= 2.20.0"
-        }
-      }
-    }
-    ```
-    
-    This block ensures that Terraform uses the OVHcloud provider, with a minimum version that supports File Storage encryption (OMK).
-    
-    **3\. Retrieve information about your private network**
-    
-    Add the following blocks to your `main.tf` file to fetch details about your private network and subnet:
-    
-    ```bash
-    data "ovh_cloud_network_private_vrack" "private_network" {
-      service_name = "<YOUR_PROJECT_ID>"
-      id           = "<YOUR_PRIVATE_NETWORK_ID>"
-    }
-    
-    data "ovh_cloud_network_private_vrack_subnets" "private_subnets" {
-      service_name = "<YOUR_PROJECT_ID>"
-      network_id   = "<YOUR_PRIVATE_NETWORK_ID>"
-    }
-    ```
-    
-    :::info
-    Replace `<YOUR_PRIVATE_NETWORK_ID>` with your private network ID. You can retrieve it via the OVHcloud API or CLI, as shown in the previous tabs.
-    :::
-
-    
-    These data blocks allow Terraform to query the OVHcloud API and retrieve the necessary details of your private network and subnet, which are required for configuring the File Storage service.
-    
-    **4\. Create a share network**
-    
-    Add the following resource to your `main.tf` to create a share network for your File Storage service:
-    
-    ```bash
-    resource "ovh_cloud_storage_file_share_network" "sharenetwork" {
-      service_name = "<YOUR_PROJECT_ID>"
-      name         = "<YOUR_SHARE_NETWORK_NAME>"
-      region       = "<YOUR_REGION_NAME>"
-      network_id   = data.ovh_cloud_network_private_vrack.private_network.id
-      subnet_id    = data.ovh_cloud_network_private_vrack_subnets.private_subnets.subnets[0].id
-    }
-    ```
-    
-    This resource binds your existing private network and subnet to a share network. It is required to provision and manage File Storage shares.
-    
-    :::info
-    If your private network has several subnets, replace `subnets[0]` with the index (or a filtered expression) matching the subnet for your target region.
-    :::
-
-    
-    **5\. Create an NFS share**
-    
-    Add the following resource to your `main.tf` to create an NFS share on your File Storage service:
-    
-    ```bash
-    resource "ovh_cloud_storage_file_share" "share" {
-      service_name     = "<YOUR_PROJECT_ID>"
-      name             = "<YOUR_SHARE_NAME>"
-      region           = "<YOUR_REGION_NAME>"
-      protocol         = "NFS"
-      share_type       = "STANDARD_1AZ"
-      size             = 150
-      share_network_id = ovh_cloud_storage_file_share_network.sharenetwork.id
-    }
-    ```
-    
-    This resource provisions an NFS share attached to the previously created share network. Adjust the `size` according to your requirements.
-    
-    :::info
-    To create an encrypted share (OMK), add an `encryption` block:
-    
-    ```bash
-    resource "ovh_cloud_storage_file_share" "share" {
-      # ...
-      encryption = {
-        enabled = true
-      }
-    }
-    ```
-    
-    This automatically encrypts the share at rest with LUKS and generates a dedicated encryption key. Encryption can only be set at creation — changing it afterwards recreates the share. Requires `terraform-provider-ovh >= 2.20.0`.
-    :::
-
-    
-    **6\. Authorize a client VM**
-    
-    Ensure that your client VM is connected to the same private network as your share.
-    
-    Retrieve the VM's private IP address:
-    
-    ```bash
-    openstack server show --os-region-name `<YOUR_REGION_NAME>` `<YOUR_CLIENT_VM_NAME>` -c addresses -f value
-    ```
-    
-    Example output:
-    
-    ```bash
-    {'my-private-net': ['10.1.0.123', '57.123.88.111']}
-    ```
-    
-    Use the private IP (e.g., `10.1.0.123`) to grant access to the NFS share:
-    
-    ```bash
-    resource "ovh_cloud_storage_file_share_acl" "share_access" {
-      service_name = ovh_cloud_storage_file_share.share.service_name
-      share_id     = ovh_cloud_storage_file_share.share.id
-      access_to    = "10.1.0.123"
-      access_level = "READ_WRITE"
-    }
-    ```
-    
-    This resource authorizes the specified client IP to access the NFS share with read/write permissions (`access_level` also accepts `READ_ONLY`).
-    
-    **7\. Retrieve the export path**
-    
-    Add the following output block to your `main.tf` to retrieve the NFS share export path:
-    
-    ```bash
-    output "export_path" {
-      value = ovh_cloud_storage_file_share.share.current_state.export_locations[0].path
-    }
-    ```
-    
-    This output provides the NFS export path, which can be used by client VMs to mount the share.
-    
-    **8\. Mount the share on your client VM**
-    
-    Connect to your client VM and install the NFS utilities required to mount the share:
-    
-    ```bash
-    sudo apt update && sudo apt install -y nfs-common
-    ```
-    
-    Create a mount point and mount the share:
-    
-    ```bash
-    sudo mkdir -p /mnt/share
-    sudo mount -t nfs4 `<NFS_EXPORT_PATH>` /mnt/share
-    ```
-    
-    :::info
-    Replace `<NFS_EXPORT_PATH>` with the export path retrieved from Terraform (e.g., `10.1.0.12:/shares/share-abc12345-def6-4abc-8def-123456abcdef`).
-    :::
-
-    
-    Verify the mount:
-    
-    ```bash
-    df -h /mnt/share
-    ```
-    
-    Save the mount configuration in fstab for easy remounting:
-    
-    ```bash
-    echo "<NFS_EXPORT_PATH> /mnt/share nfs nfsvers=4 defaults,noauto 0 0" | sudo tee -a /etc/fstab
-    ```
-    
-    This lets you remount the NFS share after a reboot with the `mount /mnt/share` command.
-    
-    **9\. Check capacity and usage**
-    
-    Once the NFS share is mounted, verify its available space and usage:
-    
-    ```bash
-    df -h /mnt/share
-    ```
-    
-    Example output:
-    
-    ```bash
-    Filesystem                          Size  Used  Avail Use% Mounted on
-    10.1.0.12:/shares/share-abc1...     150G  100M   150G   1% /mnt/share
-    ```
-    
-    This command shows the total size, used space, and available space on your mounted NFS share.
   </Tab>
 </Tabs>
 

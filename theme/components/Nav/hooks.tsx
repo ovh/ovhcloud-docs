@@ -10,11 +10,7 @@ import {
   useVersion,
 } from '@rspress/core/runtime';
 import { useMemo } from 'react';
-import {
-  defaultLocale,
-  type Locale,
-  type NavItemConfig,
-} from '../../../config/nav';
+import type { Locale, NavItemConfig } from '../../../config/nav';
 
 function replaceLang(
   rawUrl: string,
@@ -206,13 +202,21 @@ export function useLocalizedNav() {
   const t = useI18n<Record<string, string>>();
 
   return useMemo(() => {
-    const locale = (lang as Locale) || defaultLocale;
+    // Fallback locale comes from the runtime site data, never from a build-time
+    // constant: importing one as a VALUE would pull config/nav — and through it
+    // config/regions, which reads process.env — into the browser bundle.
+    // `site.lang` is this build's own default locale, which is exactly what the
+    // fallback should be.
+    const fallback = (site.lang as Locale) || 'en';
+    const locale = (lang as Locale) || fallback;
     const navItems = (site.themeConfig.nav || []) as unknown as NavItemConfig[];
 
-    return navItems.map((item) => ({
-      // Use i18n translation for text
-      text: t(item.text),
-      link: item.links[locale] || item.links[defaultLocale],
-    }));
-  }, [site.themeConfig.nav, lang, t]);
+    // `links` is partial: a single-locale region (US) only fills in its own
+    // locale. Drop an item that resolves to nothing rather than render a dead
+    // entry — and it keeps `link` a plain string for NavItem.
+    return navItems.flatMap((item) => {
+      const link = item.links[locale] ?? item.links[fallback];
+      return link ? [{ text: t(item.text), link }] : [];
+    });
+  }, [site.themeConfig.nav, site.lang, lang, t]);
 }

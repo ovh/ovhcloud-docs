@@ -1,0 +1,249 @@
+---
+title: Gérer les utilisateurs, rôles et privilèges de Public Cloud Databases pour PostgreSQL
+description: Découvrez comment créer des utilisateurs via l'espace client ou SQL, puis gérer leurs rôles et privilèges en SQL sur Public Cloud Databases pour PostgreSQL
+lastUpdated: 2026-10-06
+---
+
+## Objectif
+
+Public Cloud Databases vous permet de vous concentrer sur la création et le déploiement de vos applications cloud, pendant qu'OVHcloud prend en charge l'infrastructure de base de données et son maintien en conditions opérationnelles.
+
+L'espace client OVHcloud et l'API OVHcloud permettent de créer des utilisateurs, mais pas de leur attribuer des privilèges sur vos données : les droits sur les bases, les schémas et les tables se déclarent en SQL, avec les instructions standard de PostgreSQL.
+
+**Ce guide explique le partage des responsabilités entre l'espace client OVHcloud et PostgreSQL, et fournit les commandes usuelles pour créer des utilisateurs applicatifs et leur attribuer des privilèges.**
+
+## Prérequis
+
+- Disposer d'un [projet Public Cloud](/links/public-cloud/public-cloud) actif sur votre compte OVHcloud
+- Disposer d'un accès à l'<ManagerLink to="/">espace client OVHcloud</ManagerLink>
+- Disposer d'une base de données PostgreSQL fonctionnant sur votre service Public Cloud Databases OVHcloud (le guide « [Premiers pas avec les bases de données Public Cloud](/guides/public-cloud/databases/getting-started) » peut vous aider à remplir cette condition)
+- Disposer d'un accès en ligne de commande à votre service avec l'utilisateur **avnadmin** (le guide « [Se connecter avec la CLI au service Public Cloud Databases pour PostgreSQL](/guides/public-cloud/databases/postgresql-connect-cli) » peut vous aider à remplir cette condition)
+
+[[cpnav:publiccloud-databases]]
+
+## Concept
+
+### Gestion des utilisateurs dans l'espace client OVHcloud
+
+Depuis l'onglet <code className="action">Utilisateurs</code> de votre service (ou via l'API OVHcloud), vous pouvez :
+
+- créer un utilisateur, dont le mot de passe est généré par le service ;
+- lui attribuer le rôle `replication`, seul rôle proposé ;
+- régénérer son mot de passe ;
+- le supprimer.
+
+:::warning
+Lorsque vous régénérez un mot de passe via l'API OVHcloud, le nouveau mot de passe est renvoyé en clair dans la réponse. Traitez cette réponse comme un secret : ne la journalisez pas et stockez le mot de passe directement dans votre gestionnaire de secrets.
+:::
+
+### Gestion des rôles et privilèges en SQL
+
+Tout le reste relève des rôles et privilèges standard de PostgreSQL, que vous administrez vous-même via la CLI ou depuis votre code : création d'utilisateurs aux privilèges spécifiques, appartenance aux rôles, droits sur les bases, les schémas, les tables, les séquences et les fonctions, privilèges par défaut, ainsi que les paramètres par rôle (`statement_timeout`, limite de connexions, etc.).
+
+La gestion des droits et privilèges des utilisateurs n'est pas prise en charge via l'espace client OVHcloud ou l'API OVHcloud. Nous nous appuyons sur les rôles et privilèges officiels de PostgreSQL, sans les modifier.
+
+:::warning
+Les utilisateurs et rôles créés en SQL **n'apparaissent pas** dans la liste des utilisateurs de l'espace client ni dans celle de l'API OVHcloud. Vous ne pouvez donc ni régénérer leur mot de passe ni les supprimer depuis l'espace client : ces opérations se font en SQL (`ALTER ROLE`, `DROP ROLE`). Pour obtenir la liste complète des rôles, utilisez la commande `\du` dans psql.
+:::
+
+### L'utilisateur avnadmin
+
+Le premier utilisateur, **avnadmin**, est créé avec le service. Il dispose des attributs suivants :
+
+```console
+  LOGIN
+  NOSUPERUSER
+  INHERIT
+  CREATEDB
+  CREATEROLE
+  REPLICATION
+```
+
+C'est votre utilisateur d'administration : il peut créer des bases, créer des rôles et attribuer des privilèges sur les objets dont il est propriétaire. Il n'est **pas** superutilisateur : l'attribut `SUPERUSER` est réservé à l'exploitation du service par OVHcloud.
+
+:::warning
+Nous vous recommandons de ne pas utiliser **avnadmin** comme compte applicatif. Créez un utilisateur dédié par application, avec les seuls privilèges dont elle a besoin. Cela limite la portée d'une fuite d'identifiants et évite qu'une application puisse supprimer des objets qu'elle n'a pas créés.
+:::
+
+### Le rôle `replication`
+
+Le rôle `replication` proposé dans l'espace client correspond à l'attribut `REPLICATION` de PostgreSQL. Il autorise l'utilisateur à ouvrir une connexion de réplication vers le service et à créer ou consommer des slots de réplication : c'est ce dont ont besoin les outils de réplication logique et de Change Data Capture (CDC).
+
+Il ne confère **aucun** droit de lecture ou d'écriture sur vos tables. Un utilisateur destiné à un usage CDC a donc besoin à la fois de cet attribut et des `GRANT` correspondants (au minimum `SELECT`) sur les objets à répliquer.
+
+### Comportement par défaut d'un nouvel utilisateur
+
+Un utilisateur nouvellement créé peut se connecter aux bases, car le privilège `CONNECT` est accordé à `PUBLIC` par défaut. Il hérite également des privilèges accordés au pseudo-rôle `PUBLIC` et aux rôles dont il est membre. Concrètement, il peut se connecter et lire les catalogues système, mais pas accéder aux tables qui ne lui appartiennent pas tant qu'aucun privilège ne lui a été accordé.
+
+:::info
+À partir de PostgreSQL 15, le pseudo-rôle `PUBLIC` ne dispose plus du privilège `CREATE` sur le schéma `public`. Un utilisateur qui doit créer des tables dans ce schéma a donc besoin d'un `GRANT CREATE` explicite, ou d'être propriétaire du schéma. C'est la source la plus fréquente d'erreurs `permission denied for schema public` lors d'une migration depuis une version antérieure.
+:::
+
+## En pratique
+
+Exécutez les commandes SQL ci-dessous avec l'utilisateur **avnadmin**, connecté à la base concernée : les privilèges sur les schémas et les tables sont propres à chaque base.
+
+### Créer un utilisateur applicatif en SQL
+
+Pour un utilisateur applicatif aux privilèges spécifiques, créez-le directement en SQL :
+
+```sql
+CREATE ROLE "app" LOGIN;
+```
+
+Définissez ensuite son mot de passe avec la méta-commande `\password` de psql, qui le chiffre côté client et évite qu'il apparaisse en clair dans l'historique ou dans les journaux :
+
+```console
+defaultdb=> \password app
+Enter new password for user "app":
+Enter it again:
+```
+
+Vous pouvez également fixer des garde-fous propres à cet utilisateur :
+
+```sql
+-- Interrompre automatiquement les requêtes de plus de 30 secondes
+ALTER ROLE "app" SET statement_timeout = '30s';
+
+-- Limiter le nombre de connexions simultanées de cet utilisateur
+ALTER ROLE "app" CONNECTION LIMIT 20;
+```
+
+:::info
+Pour un utilisateur qui n'a besoin que du rôle `replication`, vous pouvez aussi passer par l'onglet <code className="action">Utilisateurs</code> de l'espace client : cliquez sur <code className="action">Ajouter un utilisateur</code>, saisissez un nom d'utilisateur, ajoutez le rôle `replication`, puis validez avec <code className="action">Créer un utilisateur</code>. Relevez le mot de passe affiché et attendez que le statut de l'utilisateur passe à `READY`. Les privilèges sur les tables s'accordent ensuite en SQL, comme ci-dessous.
+:::
+
+### Accorder un accès en lecture seule
+
+Cas d'usage typique : un outil de reporting ou un tableau de bord qui interroge vos données sans jamais les modifier.
+
+```sql
+-- Autoriser l'accès au schéma
+GRANT USAGE ON SCHEMA public TO "reporting";
+
+-- Lecture sur les tables existantes
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "reporting";
+
+-- Lecture sur les tables créées ultérieurement par avnadmin
+ALTER DEFAULT PRIVILEGES FOR ROLE "avnadmin" IN SCHEMA public
+  GRANT SELECT ON TABLES TO "reporting";
+```
+
+:::warning
+`GRANT ... ON ALL TABLES` ne s'applique qu'aux tables existant au moment de son exécution. Sans l'instruction `ALTER DEFAULT PRIVILEGES`, toute table créée par la suite sera inaccessible à l'utilisateur, et vous devrez rejouer le `GRANT`. Les privilèges par défaut ne s'appliquent qu'aux objets créés par le rôle cité après `FOR ROLE` : si vos tables sont créées par un autre utilisateur (par exemple `app`), déclarez aussi `ALTER DEFAULT PRIVILEGES FOR ROLE "app" ...`.
+:::
+
+:::danger
+Ne vous reposez pas sur le paramètre `default_transaction_read_only` pour rendre un utilisateur « lecture seule » : il ne fixe qu'une valeur par défaut, que l'utilisateur peut désactiver dans sa session avec `SET default_transaction_read_only = off`. Seule l'absence de privilèges d'écriture (`INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `CREATE`) empêche réellement les écritures. Vous pouvez combiner les deux, mais les `GRANT` restent la seule protection effective.
+:::
+
+### Accorder un accès en lecture et écriture
+
+Cas d'usage typique : le compte utilisé par votre application en production.
+
+```sql
+GRANT USAGE ON SCHEMA public TO "app";
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "app";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "app";
+
+ALTER DEFAULT PRIVILEGES FOR ROLE "avnadmin" IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "app";
+ALTER DEFAULT PRIVILEGES FOR ROLE "avnadmin" IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO "app";
+```
+
+N'oubliez pas les séquences : sans privilège sur celles-ci, les insertions dans une table dotée d'une colonne `serial` échoueront.
+
+### Confier un schéma à une application
+
+Si votre application gère elle-même son schéma, par exemple à l'aide d'un outil de migration, il est plus simple de la rendre propriétaire d'un schéma dédié plutôt que de multiplier les `GRANT` :
+
+```sql
+CREATE SCHEMA "monapp" AUTHORIZATION "app";
+```
+
+L'utilisateur `app` peut alors créer, modifier et supprimer librement les objets de ce schéma, sans toucher au reste de la base.
+
+### Mutualiser les privilèges avec un rôle de groupe
+
+Lorsque plusieurs utilisateurs doivent partager les mêmes privilèges, définissez-les une seule fois sur un rôle sans droit de connexion, puis rattachez-y vos utilisateurs :
+
+```sql
+CREATE ROLE "lecteurs" NOLOGIN;
+GRANT USAGE ON SCHEMA public TO "lecteurs";
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "lecteurs";
+ALTER DEFAULT PRIVILEGES FOR ROLE "avnadmin" IN SCHEMA public
+  GRANT SELECT ON TABLES TO "lecteurs";
+
+GRANT "lecteurs" TO "reporting";
+GRANT "lecteurs" TO "analytics";
+```
+
+Comme les rôles disposent par défaut de l'attribut `INHERIT`, les membres bénéficient automatiquement des privilèges du rôle de groupe.
+
+### Vérifier les privilèges attribués
+
+Pour lister tous les rôles et leurs attributs, y compris ceux créés en SQL :
+
+```sql
+defaultdb=> \du
+```
+
+Pour afficher les privilèges accordés sur les tables d'un schéma :
+
+```sql
+defaultdb=> \dp public.*
+```
+
+Pour afficher les privilèges par défaut déclarés :
+
+```sql
+defaultdb=> \ddp
+```
+
+Pour vérifier un privilège précis :
+
+```sql
+defaultdb=> SELECT has_table_privilege('reporting', 'public.commandes', 'SELECT');
+```
+
+### Supprimer un utilisateur
+
+Un utilisateur ne peut pas être supprimé tant qu'il possède des objets ou détient des privilèges. Transférez d'abord ses objets et révoquez ses privilèges, **dans chaque base** où il en possède :
+
+```sql
+-- avnadmin dispose automatiquement des privilèges des utilisateurs créés depuis l'espace client
+-- ou par avnadmin lui-même. Si le rôle a été créé par un autre rôle, exécutez d'abord :
+-- GRANT "app" TO "avnadmin";
+
+REASSIGN OWNED BY "app" TO "avnadmin";
+DROP OWNED BY "app";
+```
+
+Supprimez ensuite l'utilisateur :
+
+- s'il a été créé en SQL, avec `DROP ROLE "app";` (il n'apparaît pas dans l'espace client) ;
+- s'il a été créé depuis l'espace client, dans l'onglet <code className="action">Utilisateurs</code>, en cliquant sur <code className="action">...</code> à droite de la ligne puis sur <code className="action">Supprimer</code>.
+
+## Aller plus loin
+
+[Configurer les connexions entrantes d'un service Public Cloud Databases pour PostgreSQL](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections)
+
+[Se connecter avec la CLI au service Public Cloud Databases pour PostgreSQL](/guides/public-cloud/databases/postgresql-connect-cli)
+
+[Sécuriser la connexion TLS à Public Cloud Databases pour PostgreSQL](/guides/public-cloud/databases/postgresql-secure-connection-tls)
+
+[Capacités et limitations de Public Cloud Databases pour PostgreSQL](/guides/public-cloud/databases/postgresql-capabilities)
+
+Documentation officielle de PostgreSQL sur les rôles : [https://www.postgresql.org/docs/current/user-manag.html](https://www.postgresql.org/docs/current/user-manag.html) et sur les privilèges : [https://www.postgresql.org/docs/current/ddl-priv.html](https://www.postgresql.org/docs/current/ddl-priv.html)
+
+[[fragment:professional-services]]
+
+## Votre avis nous intéresse !
+
+Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+
+Vous êtes sur Discord ? Rejoignez notre chaîne via [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) et interagissez directement avec l'équipe qui développe notre service de bases de données !
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
