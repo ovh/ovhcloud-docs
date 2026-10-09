@@ -639,6 +639,7 @@
             + [Getting started](public-cloud-data-analytics-common-getting-started)
                 + [Databases & Analytics - Getting started](public-cloud/data-analytics/getting-started)
                 + [Databases & Analytics - Getting started with Terraform](public-cloud/data-analytics/getting-started-terraform)
+                + [Databases & Analytics - Getting started with APIs](public-cloud/data-analytics/getting-started-apis)
             + [Configuration](public-cloud-data-analytics-common-configuration)
                 + [Databases & Analytics - Advanced configuration](public-cloud/data-analytics/advanced-configuration)
                 + [Databases & Analytics - Restore a backup](public-cloud/data-analytics/restore-backup)
