@@ -1,0 +1,472 @@
+---
+title: Construire un dashboard des ventes d'une boutique en ligne dans Superset
+description: Ce guide vous accompagne dans la transformation des lignes de commande nettoyées d'une boutique en ligne en dashboard Superset
+lastUpdated: 2026-10-05
+---
+
+## Objectif
+
+Ce guide vous accompagne dans la transformation des lignes de commande nettoyées d'une boutique en ligne en dashboard Superset : chiffres clés, chiffre d'affaires dans le temps, produits les plus vendus, ventes par pays et fidélité des clients.
+
+C'est la deuxième partie de [Préparer les commandes d'une boutique en ligne pour un dashboard des ventes](/guides/public-cloud/data-platform/tutorials-ecommerce-sales). Superset interroge le Lakehouse via [Trino](/guides/public-cloud/data-platform/connectors-consumers-trino) : tout le SQL de cette page est donc en **dialecte Trino**.
+
+## Prérequis
+
+Pour suivre ce guide, vous avez besoin de :
+
+- La table `online_retail_ii_clean` dans le dataset `default_dataset` de votre projet, produite par l'action Custom de nettoyage de [la première partie](/guides/public-cloud/data-platform/tutorials-ecommerce-sales#étape-5--nettoyer-les-commandes).
+- Une application Apache Superset connectée à votre projet. Si vous ne l'avez pas encore déployée, suivez [Déployer Apache Superset](/guides/public-cloud/data-platform/tutorials-install-apache-superset).
+- Le dataset Superset `online_retail_ii_clean`, créé à l'[étape 6 de la première partie](/guides/public-cloud/data-platform/tutorials-ecommerce-sales#étape-6--connecter-superset).
+
+## Ce que vous allez construire
+
+À la fin de cette partie, votre dashboard ressemble à ceci :
+
+<img className="thumbnail" alt="Le dashboard Online store sales terminé dans Superset, avec la ligne des chiffres clés et l'onglet Customers ouvert" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-dashboard.png" loading="lazy" />
+
+| Section | Contenu |
+|---|---|
+| Chiffres clés | 4 tuiles : chiffre d'affaires net, commandes, panier moyen, clients |
+| Onglet *Time* | Chiffre d'affaires net par mois, saisonnalité par année |
+| Onglet *Products* | Top 10 des produits par chiffre d'affaires, top 10 des produits par unités vendues |
+| Onglet *Geography* | Royaume-Uni face au reste du monde, top 10 des pays hors Royaume-Uni, carte du monde |
+| Onglet *Customers* | 3 tuiles de fidélité, fréquence d'achat, segments de récence, jours entre deux achats |
+
+Chaque graphique suit le même parcours dans Superset : **Charts** > **+ Chart**, choisissez le dataset et le type de graphique, renseignez les paramètres, cliquez sur **Create chart**, puis sur **Save** avec le nom du graphique. Laissez **Add to dashboard** vide : vous créez le dashboard et y ajoutez les graphiques à l'[étape 8](#étape-8--créer-et-assembler-le-dashboard).
+
+:::info
+**Remarque :** les montants sont en livres sterling. Pour chaque montant, dans l'onglet *Customize*, réglez **Currency format** sur `GBP` avec la position `Prefix`, pour que les valeurs s'affichent `£18.9M` et non `18.9M £`.
+:::
+
+## Instructions
+
+### Étape 1 : créer les datasets clients dans SQL Lab
+
+Les graphiques clients ont besoin d'une ligne par client ou par retour d'un client, ce qu'un graphique ne peut pas calculer à partir des lignes de commande. Vous préparez ces lignes une seule fois, avec deux requêtes enregistrées comme datasets virtuels.
+
+#### Créer le dataset virtuel customer_summary
+
+1. Ouvrez **SQL** > **SQL Lab**.
+2. Sélectionnez votre base de données et le schéma `default_dataset`.
+3. Collez la requête ci-dessous et cliquez sur **Run**.
+4. Dans la barre d'outils de la requête, cliquez sur l'icône **Save or Overwrite Dataset** et enregistrez le dataset sous le nom `customer_summary`.
+
+```sql
+WITH purchase_days AS (
+    SELECT DISTINCT customer_id, CAST(invoicedate AS DATE) AS purchase_day
+    FROM default_dataset.online_retail_ii_clean
+    WHERE customer_id IS NOT NULL
+      AND invoice NOT LIKE 'C%'
+),
+customers AS (
+    SELECT
+        customer_id,
+        COUNT(*)          AS purchase_days,
+        MIN(purchase_day) AS first_purchase,
+        MAX(purchase_day) AS last_purchase
+    FROM purchase_days
+    GROUP BY customer_id
+)
+SELECT
+    customer_id,
+    purchase_days,
+    LEAST(purchase_days, 10)                                   AS purchase_days_capped,
+    CASE WHEN purchase_days >= 2 THEN 1 ELSE 0 END             AS is_repeat,
+    first_purchase,
+    last_purchase,
+    date_diff('day', last_purchase, DATE '2011-12-09')         AS days_since_last_purchase,
+    CASE
+        WHEN date_diff('day', last_purchase, DATE '2011-12-09') <= 90  THEN '1. Active (90 days)'
+        WHEN date_diff('day', last_purchase, DATE '2011-12-09') <= 180 THEN '2. At risk (91 to 180 days)'
+        WHEN date_diff('day', last_purchase, DATE '2011-12-09') <= 365 THEN '3. Lapsed (181 to 365 days)'
+        ELSE '4. Lost (over a year)'
+    END                                                        AS recency_segment
+FROM customers
+```
+
+Le résultat compte une ligne par client identifié : **5 852 lignes**.
+
+<img className="thumbnail" alt="SQL Lab avec la requête customer_summary, l'icône Save or Overwrite Dataset dans la barre d'outils de la requête et les premières des 5,85k lignes de résultat" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-sql-lab-customer-summary.png" loading="lazy" />
+
+#### Créer le dataset virtuel purchase_intervals
+
+Recommencez les mêmes étapes avec la requête ci-dessous, et enregistrez-la sous le nom `purchase_intervals`.
+
+```sql
+WITH purchase_days AS (
+    SELECT DISTINCT customer_id, CAST(invoicedate AS DATE) AS purchase_day
+    FROM default_dataset.online_retail_ii_clean
+    WHERE customer_id IS NOT NULL
+      AND invoice NOT LIKE 'C%'
+),
+with_previous AS (
+    SELECT
+        customer_id,
+        purchase_day,
+        lag(purchase_day) OVER (PARTITION BY customer_id ORDER BY purchase_day) AS previous_purchase
+    FROM purchase_days
+)
+SELECT
+    customer_id,
+    purchase_day,
+    date_diff('day', previous_purchase, purchase_day) AS days_since_previous_purchase
+FROM with_previous
+WHERE previous_purchase IS NOT NULL
+```
+
+Le résultat compte une ligne par retour d'un client : **27 026 lignes**.
+
+:::info
+**Remarque :** dans SQL Lab, sélectionnez d'abord le schéma. Sans lui, Trino renvoie `Schema must be specified when session schema is not set`. Vous pouvez aussi préfixer la table, comme dans les requêtes ci-dessus : `default_dataset.online_retail_ii_clean`.
+:::
+
+### Étape 2 : ajouter des colonnes calculées à online_retail_ii_clean
+
+Ouvrez **Datasets**, modifiez `online_retail_ii_clean`, puis allez dans l'onglet *Calculated columns*. Pour chaque colonne ci-dessous, cliquez sur **Add item**, puis renseignez son nom et son expression SQL. Commencez par `revenue`, la plus simple. Cliquez sur **Save** une fois les deux colonnes ajoutées.
+
+<img className="thumbnail" alt="La liste des datasets Superset avec online_retail_ii_clean, les deux datasets virtuels et l'icône Edit sur online_retail_ii_clean" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-datasets-list.png" loading="lazy" />
+
+#### Ajouter revenue
+
+| Paramètre | Valeur |
+|---|---|
+| Column name | `revenue` |
+| SQL expression | `quantity * price` |
+
+`revenue` est le montant de chaque ligne de commande. Une annulation a une quantité négative, donc un montant négatif : une simple somme donne le chiffre d'affaires net. Tous les montants du dashboard reposent sur cette colonne.
+
+<img className="thumbnail" alt="L'onglet Calculated columns de online_retail_ii_clean avec la colonne revenue et son expression SQL quantity * price" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-calculated-column-revenue.png" loading="lazy" />
+
+#### Ajouter country_code
+
+| Paramètre | Valeur |
+|---|---|
+| Column name | `country_code` |
+| SQL expression | l'expression ci-dessous |
+
+`country_code` convertit le nom du pays en code ISO 3166-1 alpha-3, pour la carte du monde :
+
+```sql
+CASE country
+    WHEN 'United Kingdom'       THEN 'GBR'
+    WHEN 'EIRE'                 THEN 'IRL'
+    WHEN 'Germany'              THEN 'DEU'
+    WHEN 'France'               THEN 'FRA'
+    WHEN 'Netherlands'          THEN 'NLD'
+    WHEN 'Spain'                THEN 'ESP'
+    WHEN 'Switzerland'          THEN 'CHE'
+    WHEN 'Belgium'              THEN 'BEL'
+    WHEN 'Portugal'             THEN 'PRT'
+    WHEN 'Australia'            THEN 'AUS'
+    WHEN 'Italy'                THEN 'ITA'
+    WHEN 'Norway'               THEN 'NOR'
+    WHEN 'Sweden'               THEN 'SWE'
+    WHEN 'Cyprus'               THEN 'CYP'
+    WHEN 'Finland'              THEN 'FIN'
+    WHEN 'Austria'              THEN 'AUT'
+    WHEN 'Denmark'              THEN 'DNK'
+    WHEN 'Greece'               THEN 'GRC'
+    WHEN 'Japan'                THEN 'JPN'
+    WHEN 'USA'                  THEN 'USA'
+    WHEN 'Poland'               THEN 'POL'
+    WHEN 'United Arab Emirates' THEN 'ARE'
+    WHEN 'Israel'               THEN 'ISR'
+    WHEN 'Hong Kong'            THEN 'HKG'
+    WHEN 'Singapore'            THEN 'SGP'
+    WHEN 'Malta'                THEN 'MLT'
+    WHEN 'Iceland'              THEN 'ISL'
+    WHEN 'Canada'               THEN 'CAN'
+    WHEN 'Lithuania'            THEN 'LTU'
+    WHEN 'RSA'                  THEN 'ZAF'
+    WHEN 'Bahrain'              THEN 'BHR'
+    WHEN 'Brazil'               THEN 'BRA'
+    WHEN 'Thailand'             THEN 'THA'
+    WHEN 'Korea'                THEN 'KOR'
+    WHEN 'Lebanon'              THEN 'LBN'
+    WHEN 'Bermuda'              THEN 'BMU'
+    WHEN 'Nigeria'              THEN 'NGA'
+    WHEN 'Czech Republic'       THEN 'CZE'
+    WHEN 'Saudi Arabia'         THEN 'SAU'
+    ELSE NULL
+END
+```
+
+### Étape 3 : construire les chiffres clés
+
+Les quatre tuiles utilisent le dataset `online_retail_ii_clean` et le type de graphique *Big Number*.
+
+#### Chiffre d'affaires net
+
+| Paramètre | Valeur |
+|---|---|
+| Metric | `SUM(revenue)` |
+| Number format | `SMART_NUMBER` |
+| Currency format | `GBP`, préfixe |
+| Subheader | `after cancellations` |
+
+Valeur attendue : **£18.9M**.
+
+<img className="thumbnail" alt="Le graphique Big Number du chiffre d'affaires net avec la métrique SUM(revenue), qui affiche £18.9M" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-net-revenue.png" loading="lazy" />
+
+#### Commandes
+
+| Paramètre | Valeur |
+|---|---|
+| Metric | onglet *Simple* : colonne `invoice`, agrégat `COUNT_DISTINCT` |
+| Filters | *Custom SQL* : `invoice NOT LIKE 'C%'` |
+| Number format | `SMART_NUMBER` |
+
+Valeur attendue : **39.5k**.
+
+<img className="thumbnail" alt="Le graphique Big Number des commandes avec la métrique COUNT_DISTINCT(invoice) et le filtre invoice NOT LIKE 'C%', qui affiche 39.5k" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-orders.png" loading="lazy" />
+
+#### Panier moyen
+
+| Paramètre | Valeur |
+|---|---|
+| Metric | *Custom SQL* : `SUM(revenue) / COUNT(DISTINCT invoice)` |
+| Filters | *Custom SQL* : `invoice NOT LIKE 'C%'` |
+| Number format | `,.2f` |
+| Currency format | `GBP`, préfixe |
+| Subheader | `sale invoices, before cancellations` |
+
+Valeur attendue : **£497.08**.
+
+<img className="thumbnail" alt="Le graphique Big Number du panier moyen avec sa métrique Custom SQL et le filtre sur les factures de vente, qui affiche £497.08" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-average-order-value.png" loading="lazy" />
+
+:::warning
+N'utilisez pas `AVG(revenue)` pour le panier moyen. Cette métrique renvoie le montant moyen d'une ligne de commande, environ £18.53, et non celui d'une commande.
+:::
+
+#### Clients
+
+| Paramètre | Valeur |
+|---|---|
+| Metric | onglet *Simple* : colonne `customer_id`, agrégat `COUNT_DISTINCT` |
+| Number format | `SMART_NUMBER` |
+| Subheader | `identified customers` |
+
+Valeur attendue : **5.88k**.
+
+<img className="thumbnail" alt="Le graphique Big Number des clients avec la métrique COUNT_DISTINCT(customer_id), qui affiche 5.88k" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-customers.png" loading="lazy" />
+
+### Étape 4 : construire l'onglet Time
+
+#### Chiffre d'affaires net par mois
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `online_retail_ii_clean` |
+| Chart type | *Line Chart*, ou *Area Chart* |
+| X-axis | `invoicedate` |
+| Time grain | `Month` |
+| Metric | `SUM(revenue)` |
+| Currency format | `GBP`, préfixe |
+
+<img className="thumbnail" alt="Le graphique en courbe du chiffre d'affaires net par mois, de décembre 2009 à décembre 2011, avec un pic chaque mois de novembre" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-net-revenue-by-month.png" loading="lazy" />
+
+#### Saisonnalité par année
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `online_retail_ii_clean` |
+| Chart type | *Area Chart* |
+| X-axis | *Custom SQL* : `date_format(invoicedate, '%m - %M')`, libellé `month` |
+| Dimensions | *Custom SQL* : `CAST(year(invoicedate) AS VARCHAR)`, libellé `YEAR` |
+| Metric | `SUM(revenue)` |
+| Currency format | `GBP`, préfixe |
+
+Vous obtenez une aire par année. Le numéro du mois en tête de chaque libellé garde les mois dans l'ordre, de janvier à décembre.
+
+<img className="thumbnail" alt="Le graphique de saisonnalité par année avec une série par année, de janvier à décembre" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-seasonality-by-year.png" loading="lazy" />
+
+### Étape 5 : construire l'onglet Products
+
+Les deux graphiques utilisent le dataset `online_retail_ii_clean` et le type de graphique *Table*. L'action de nettoyage attribue une seule description à chaque code produit : un produit n'apparaît donc jamais deux fois.
+
+#### Top 10 des produits par chiffre d'affaires
+
+| Paramètre | Valeur |
+|---|---|
+| Dimensions | `stockcode`, `description` |
+| Metric | `SUM(revenue)`, renommée `total` |
+| Row limit | `10` |
+| Sort by | `total`, décroissant |
+
+Dans l'onglet *Customize*, sous **Conditional formatting**, ajoutez une règle :
+
+| Paramètre | Valeur |
+|---|---|
+| Column | `total` |
+| Color scheme | `success` |
+| Color type | couleur de fond |
+| Use gradient | oui |
+
+<img className="thumbnail" alt="Le tableau du top 10 des produits par chiffre d'affaires, avec un dégradé vert sur la colonne total" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-top-products-revenue.png" loading="lazy" />
+
+#### Top 10 des produits par unités vendues
+
+| Paramètre | Valeur |
+|---|---|
+| Dimensions | `stockcode`, `description` |
+| Metric | `SUM(quantity)`, renommée `quantity` |
+| Row limit | `10` |
+| Sort by | `quantity`, décroissant |
+
+Appliquez la même mise en forme conditionnelle que pour le tableau précédent, sur la colonne `quantity`. Placés côte à côte, les deux tableaux montrent que les produits vendus en plus grand volume ne sont pas ceux qui rapportent le plus.
+
+<img className="thumbnail" alt="Le tableau du top 10 des produits par unités vendues, avec un dégradé vert sur la colonne quantity" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-top-products-units.png" loading="lazy" />
+
+### Étape 6 : construire l'onglet Geography
+
+#### Royaume-Uni face au reste du monde
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `online_retail_ii_clean` |
+| Chart type | *Pie Chart*, avec **Donut** activé |
+| Dimensions | *Custom SQL* : `CASE WHEN country = 'United Kingdom' THEN 'United Kingdom' ELSE 'Rest of world' END` |
+| Metric | `SUM(revenue)` |
+| Label type | `Category and Percentage` |
+
+<img className="thumbnail" alt="Le graphique en anneau Royaume-Uni face au reste du monde, avec le Royaume-Uni à 85,43 % du chiffre d'affaires" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-uk-vs-rest-of-world.png" loading="lazy" />
+
+#### Top 10 des pays hors Royaume-Uni
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `online_retail_ii_clean` |
+| Chart type | *Pie Chart* |
+| Dimensions | `country` |
+| Metric | `SUM(revenue)` |
+| Filters | *Custom SQL* : `country <> 'United Kingdom'` |
+| Row limit | `10` |
+| Label type | `Category and Percentage` |
+
+<img className="thumbnail" alt="Le graphique circulaire du top 10 des pays hors Royaume-Uni, mené par EIRE, les Pays-Bas et l'Allemagne" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-top-countries-outside-uk.png" loading="lazy" />
+
+#### Chiffre d'affaires par pays
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `online_retail_ii_clean` |
+| Chart type | *World Map* |
+| Country column | `country_code` |
+| Country field type | `ISO 3166-1 alpha-3 (cca3)` |
+| Metric | `SUM(revenue)` |
+
+<img className="thumbnail" alt="La carte du monde du chiffre d'affaires par pays, avec les pays des clients de la boutique colorés" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-revenue-by-country.png" loading="lazy" />
+
+### Étape 7 : construire l'onglet Customers
+
+Ces graphiques couvrent les clients identifiés et les factures de vente, de décembre 2009 à décembre 2011. La récence se mesure à partir du 9 décembre 2011, le dernier jour des données. Un client revient quand il achète un autre jour : plusieurs factures le même jour comptent pour un seul achat.
+
+#### Taux de clients récurrents
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `customer_summary` |
+| Chart type | *Big Number* |
+| Metric | *Custom SQL* : `AVG(is_repeat)` |
+| Number format | `.1%` |
+| Subheader | `customers with two purchases or more` |
+
+Valeur attendue : **71.4%**.
+
+<img className="thumbnail" alt="Le graphique Big Number du taux de clients récurrents avec la métrique AVG(is_repeat), qui affiche 71.4%" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-repeat-customer-rate.png" loading="lazy" />
+
+#### Nombre médian d'achats par client
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `customer_summary` |
+| Chart type | *Big Number* |
+| Metric | *Custom SQL* : `approx_percentile(purchase_days, 0.5)` |
+| Number format | `.0f` |
+| Subheader | `purchases per customer` |
+
+Valeur attendue : **3**.
+
+<img className="thumbnail" alt="Le graphique Big Number du nombre médian d'achats par client, qui affiche 3" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-median-purchase-days.png" loading="lazy" />
+
+#### Nombre médian de jours entre deux achats
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `purchase_intervals` |
+| Chart type | *Big Number* |
+| Metric | *Custom SQL* : `approx_percentile(days_since_previous_purchase, 0.5)` |
+| Number format | `.0f` |
+| Subheader | `days, across all return visits` |
+
+Valeur attendue : **32**.
+
+<img className="thumbnail" alt="Le graphique Big Number du nombre médian de jours entre deux achats, qui affiche 32" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-median-days-between-purchases.png" loading="lazy" />
+
+#### Clients par nombre d'achats
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `customer_summary` |
+| Chart type | *Bar Chart* |
+| X-axis | `purchase_days_capped` |
+| Metric | `COUNT(*)` |
+| X-axis title | `Purchases (10 = 10 or more)` |
+| Y-axis title | `Customers` |
+
+Si les barres sont espacées de façon irrégulière, activez **Force categorical** sur l'axe X.
+
+<img className="thumbnail" alt="Le graphique en barres des clients par nombre d'achats, de 1 à 10 achats" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-customers-by-purchase-days.png" loading="lazy" />
+
+#### Clients par récence
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `customer_summary` |
+| Chart type | *Bar Chart* |
+| X-axis | `recency_segment` |
+| Metric | `COUNT(*)` |
+
+Les quatre barres totalisent 5 852 clients. Le numéro en tête de chaque segment les garde dans l'ordre, du plus actif au plus perdu.
+
+<img className="thumbnail" alt="Le graphique en barres des clients par récence avec ses quatre segments, du plus actif au plus perdu" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-customers-by-recency.png" loading="lazy" />
+
+#### Jours entre deux achats
+
+| Paramètre | Valeur |
+|---|---|
+| Dataset | `purchase_intervals` |
+| Chart type | *Histogram* |
+| Column | `days_since_previous_purchase` |
+| Filters | `days_since_previous_purchase <= 365` |
+| Bins | `10` |
+| Normalize | activé |
+
+Le filtre écarte les rares retours après plus d'un an, qui étireraient l'axe et tasseraient toutes les autres barres à gauche.
+
+<img className="thumbnail" alt="L'histogramme normalisé des jours entre deux achats, avec 10 intervalles jusqu'à 365 jours" src="/images/public-cloud/data-platform/getting-further/ecommerce-sales/picts/superset-days-between-purchases.png" loading="lazy" />
+
+### Étape 8 : créer et assembler le dashboard
+
+1. Ouvrez **Dashboards** et cliquez sur **+ Dashboard**. Le nouveau dashboard s'ouvre en mode édition.
+2. Cliquez sur son titre et renommez-le `Online store sales`.
+3. Ajoutez un en-tête `Key figures`, faites glisser les quatre tuiles des chiffres clés depuis le panneau de droite et placez-les sur une même ligne.
+4. Ajoutez un en-tête `Trends and breakdowns`, puis un composant d'onglets avec quatre onglets : `Customers`, `Time`, `Products` et `Geography`.
+5. Faites glisser chacun des autres graphiques depuis le panneau de droite dans son onglet. Dans l'onglet *Customers*, placez les trois tuiles sur une même ligne, les deux graphiques en barres côte à côte et l'histogramme sur toute la largeur.
+6. Cliquez sur **Save**.
+
+## Ce que vous avez construit
+
+Vous disposez d'un dashboard qui répond aux questions du responsable d'une boutique en ligne : combien la boutique vend et à combien de clients, comment les ventes évoluent au fil de l'année, quels produits et quels pays comptent, et à quelle fréquence les clients reviennent.
+
+À partir de là, vous pouvez ajouter des filtres de dashboard sur `country` ou sur une période, ou appliquer le même pipeline à vos propres données de commandes. Pour un autre dashboard Superset construit sur la Data Platform, consultez le [cas d'usage FOCUS et Apache Superset](/guides/public-cloud/data-platform/tutorials-finops-focus-superset).
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
