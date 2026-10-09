@@ -622,6 +622,7 @@
             + [How to back up the OPCP controller data](hosted-private-cloud/opcp/how-to-create-a-backup)
             + [How to upgrade OPCP](hosted-private-cloud/opcp/how-to-upgrade-opcp)
             + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
+            + [How to restore OPCP from backup](hosted-private-cloud/opcp/how-to-restore-opcp)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
