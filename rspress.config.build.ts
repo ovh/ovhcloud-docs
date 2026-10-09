@@ -257,6 +257,10 @@ export default defineConfig({
         __FOOTER_CORPORATE_URL__: JSON.stringify(regionConfig.corporateUrl),
         __FOOTER_LEGAL_NOTICE__: JSON.stringify(regionConfig.legalNotice ?? ''),
         __FOOTER_LINKS__: JSON.stringify(regionConfig.footerLinks ?? []),
+        // Fixed language label for single-locale regions (see config/regions.ts).
+        __LOCALE_INDICATOR__: JSON.stringify(
+          regionConfig.localeIndicator ?? null,
+        ),
       },
     },
     resolve: {

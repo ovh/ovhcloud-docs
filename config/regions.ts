@@ -109,6 +109,20 @@ export interface RegionConfig {
    * consent manager rather than a page.
    */
   footerLinks?: ReadonlyArray<{ text: string; link: string }>;
+  /**
+   * Language shown in the navbar's language slot while the region serves a
+   * single locale. It looks like the language dropdown but cannot be opened:
+   * readers see which language and market they are on. Once a second locale is
+   * added, the real dropdown takes over and this is ignored.
+   */
+  localeIndicator?: {
+    /** Flag drawn before the label (inline SVG, see theme/components/Nav). */
+    flag: 'us';
+    /** Visible label, e.g. `English`. */
+    label: string;
+    /** Tooltip, e.g. `Language: English (United States)`. */
+    tooltip: string;
+  };
 }
 
 // Footer copyright end year, resolved when the config module loads (i.e. at
@@ -179,6 +193,11 @@ export const REGIONS: Record<Region, RegionConfig> = {
       'registered trademarks of OVH SAS.',
     legalNotice:
       'All other marks contained herein are the property of their respective owners.',
+    localeIndicator: {
+      flag: 'us',
+      label: 'English',
+      tooltip: 'Language: English (United States)',
+    },
     footerLinks: [
       {
         text: 'Terms of Service',
