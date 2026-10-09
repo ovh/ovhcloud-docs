@@ -1,6 +1,6 @@
 -----
 ## Contents (US)
-+ Bare Metal Cloud
++ Bare Metal Cloud{landing=bare-metal-cloud}
     + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers){landing=bare-metal-cloud/dedicated-servers/landing-page-dedicated-servers}
         + [Key concepts](bare-metal-cloud-dedicated-servers-key-concepts)
             + [Dedicated servers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/get-know-ovhcloud-control-panel)
@@ -161,7 +161,7 @@
         + [Additional resources](bare-metal-cloud-vps-additional-resources)
             + [End of Plesk and cPanel support for VPS - Ensuring continuity of your services](bare-metal-cloud/vps/eos-cpanel-plesk)
             + [Public Cloud & VPS - Image and OS lifecycle and end of life/support announcements](bare-metal-cloud/vps/public-cloud-image-os-lifecycle-end-life-support-announcements)
-+ Hosted Private Cloud
++ Hosted Private Cloud{landing=hosted-private-cloud}
     + [Public VCF as-a-Service](products/hosted-private-cloud-public-vcf-aas){landing=hosted-private-cloud/public-vcf-aas/landing-page-public-vcf-aas}
         + [Key concepts](hosted-private-cloud-public-vcf-aas-key-concepts)
             + [Public VCF as-a-Service - The fundamentals of Public VCF as-a-Service](hosted-private-cloud/public-vcf-aas/get-concepts)
@@ -325,7 +325,7 @@
             + [How to Add a Public IP Address to a New VM](hosted-private-cloud/nutanix-on-ovhcloud/add-public-ip-address-new-vm)
             + [How to Upgrade Your Nutanix Cluster](hosted-private-cloud/nutanix-on-ovhcloud/upgrade-nutanix-cluster)
             + [How to Update Your Nutanix Cluster Firmware](hosted-private-cloud/nutanix-on-ovhcloud/update-nutanix-cluster-firmware)
-+ Public Cloud
++ Public Cloud{landing=public-cloud}
     + [Public Cloud - General information](products/public-cloud-cross-functional){landing=public-cloud/cross-functional/landing-page-cross-functional}
         + [Key concepts](public-cloud-cross-functional-key-concepts)
             + [Public Cloud Glossary](public-cloud/cross-functional/introduction-about-instances)
@@ -764,7 +764,7 @@
                 + [AI Deploy - Troubleshooting](public-cloud/ai-machine-learning/ai-deploy-debug-apps)
             + [Additional resources](public-cloud-ai-machine-learning-ai-deploy-additional-resources)
                 + [AI Deploy - Billing and lifecycle](public-cloud/ai-machine-learning/ai-deploy-billing)
-+ Storage and Backup
++ Storage and Backup{landing=storage-and-backup}
     + [Object Storage](products/storage-and-backup-object-storage){landing=storage-and-backup/object-storage/landing-page-object-storage}
         + [S3™-compatible](storage-and-backup-object-storage-s3-compatible)
             + [Key concepts](storage-and-backup-object-storage-s3-compatible-key-concepts)
@@ -856,7 +856,7 @@
         + [Veeam Enterprise Plus](storage-and-backup-backup-and-disaster-recovery-solutions-veeam-enterprise-plus)
             + [Getting started](storage-and-backup-backup-and-disaster-recovery-solutions-veeam-enterprise-plus-getting-started)
                 + [Setting up Veeam Backup & Replication](storage-and-backup/veeam/veeam-backup-replication)
-+ Network
++ Network{landing=network}
     + [Additional IP](products/network-additional-ip){landing=network/additional-ip/landing-page-additional-ip}
         + [Key concepts](network-additional-ip-key-concepts)
             + [Concepts - Primary IP and Additional IP](network/additional-ip/primary-concepts)
@@ -924,7 +924,7 @@
     + [Troubleshooting](network-troubleshooting)
         + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
         + [Using networking tools available to OVHcloud customers](network/network-tools)
-+ Manage and Operate
++ Manage and Operate{landing=manage-and-operate}
     + [API](products/manage-and-operate-api){landing=manage-and-operate/api/landing-page-api}
         + [Getting started](manage-and-operate-api-getting-started)
             + [First steps with the OVHcloud API](manage-and-operate/api/first-steps)
@@ -1014,7 +1014,7 @@
             + [Using the Secret Manager with the REST API](manage-and-operate/secret-manager/rest-api)
             + [Using the Secret Manager with the HashiCorp Vault KV2-compliant API](manage-and-operate/secret-manager/kv2-api)
             + [Using the Secret Manager in the OVHcloud Control Panel](manage-and-operate/secret-manager/use-in-control-panel)
-+ Account and Service Management
++ Account and Service Management{landing=account}
     + [Account information](products/account-account-information){landing=account/account-information/landing-page-account-information}
         + [Getting started](account-account-information-getting-started)
             + [How to manage messages in your OVHcloud Control Panel](account/account-information/manage-messages)
