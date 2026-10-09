@@ -18,9 +18,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 // In dev mode, only generate sidebar for active locales (perf optimization).
 // EU defaults to fr+en for speed; a single-locale region defaults to its locale.
-const devLocaleDefault = regionConfig.localePrefix
-  ? 'fr,en'
-  : regionConfig.defaultLocale;
+const devLocaleDefault =
+  regionConfig.locales.length > 1 ? 'fr,en' : regionConfig.defaultLocale;
 const devLocaleList = isDev
   ? (process.env.DEV_LOCALES || devLocaleDefault)
       .split(',')

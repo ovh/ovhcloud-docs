@@ -10,8 +10,9 @@
  * - `eu` (default): the historical multi-locale site on docs.ovhcloud.com.
  *   When the REGION env var is absent, everything behaves exactly as before.
  * - `us`: an English-only site on docs.us.ovhcloud.com with its own product
- *   tree (`docs-us/`) and its own sidebar source (`index-us.md`), served at the
- *   domain root (no `/en/` URL prefix since there is a single locale).
+ *   tree (`docs-us/`) and its own sidebar source (`index-us.md`), served under
+ *   `/en/` like the worldwide site so a second locale (`/es/`) can be added
+ *   without moving any URL.
  *
  * The REGION env var selects the active region for a build/dev run. It composes
  * with the existing LOCALE env var (e.g. `REGION=us LOCALE=en rspress build`).
@@ -40,6 +41,9 @@ export interface RegionConfig {
    * When true, content is served under a `/{locale}/` URL prefix and built into
    * `dist/{locale}/` (multi-locale site). When false, the single locale is
    * served at the domain root and built into `dist/` directly.
+   *
+   * This is a URL-shape flag only. Code that needs to know which site it is
+   * building tests `REGION`, not this flag.
    */
   localePrefix: boolean;
   /**
@@ -105,6 +109,20 @@ export interface RegionConfig {
    * consent manager rather than a page.
    */
   footerLinks?: ReadonlyArray<{ text: string; link: string }>;
+  /**
+   * Language shown in the navbar's language slot while the region serves a
+   * single locale. It looks like the language dropdown but cannot be opened:
+   * readers see which language and market they are on. Once a second locale is
+   * added, the real dropdown takes over and this is ignored.
+   */
+  localeIndicator?: {
+    /** Flag drawn before the label (inline SVG, see theme/components/Nav). */
+    flag: 'us';
+    /** Visible label, e.g. `English`. */
+    label: string;
+    /** Tooltip, e.g. `Language: English (United States)`. */
+    tooltip: string;
+  };
 }
 
 // Footer copyright end year, resolved when the config module loads (i.e. at
@@ -157,7 +175,7 @@ export const REGIONS: Record<Region, RegionConfig> = {
     contentDir: 'docs-us',
     sidebarIndex: 'index-us.md',
     repoSubdir: 'docs-us',
-    localePrefix: false,
+    localePrefix: true,
     includeSupplements: false,
     htmlLang: { en: 'en-us' },
     routePrefix: '/',
@@ -175,6 +193,11 @@ export const REGIONS: Record<Region, RegionConfig> = {
       'registered trademarks of OVH SAS.',
     legalNotice:
       'All other marks contained herein are the property of their respective owners.',
+    localeIndicator: {
+      flag: 'us',
+      label: 'English',
+      tooltip: 'Language: English (United States)',
+    },
     footerLinks: [
       {
         text: 'Terms of Service',

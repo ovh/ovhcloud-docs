@@ -92,14 +92,14 @@ It creates the `.mdx` files for every selected locale, wires the entry into [con
 ### Renaming an existing slug
 
 > :::danger
-> **Avoid renaming slugs.** A published slug is a public URL. Renaming it breaks every external link, bookmark, and search engine result pointing at the guide, and requires redirections to be added (in CDN config, in [config/links.ts](config/links.ts), and potentially in legacy `ovh/docs` redirects). Treat a rename as a **last resort** — only when the existing slug is wrong (typo, misleading, or actively harmful for SEO). For everything else (clarity, style, personal preference), leave the slug alone.
+> **Avoid renaming slugs.** A published slug is a public URL. Renaming it breaks every external link, bookmark, and search engine result pointing at the guide, and requires redirections to be added (in [docs/public/301.map](docs/public/301.map), or [docs-us/public/301.map](docs-us/public/301.map) for the US site: `source destination;`, one line per locale, no trailing slash — and potentially in the legacy Puppet redirects). Treat a rename as a **last resort** — only when the existing slug is wrong (typo, misleading, or actively harmful for SEO). For everything else (clarity, style, personal preference), leave the slug alone.
 
 If you have confirmed with the docs team that a rename is genuinely necessary:
 
 1. `git mv` the `.mdx` file under each of the 7 locales.
 2. Update its entry in [config/sidebar/index.md](config/sidebar/index.md).
 3. Search-and-replace every occurrence of `/guides/.../old-slug` in the repo.
-4. Add a redirect from the old path to the new one so external links don't 404.
+4. Add a redirect from the old path to the new one in `301.map` so external links don't 404.
 5. Run `pnpm sidebar:check` to confirm nothing is dangling.
 
 There is no one-shot CLI for arbitrary single renames; [scripts/rename-slugs.ts](scripts/rename-slugs.ts) only performs bulk renames driven by an SEO report.
