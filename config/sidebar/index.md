@@ -2212,7 +2212,6 @@
         + [Getting started](web-cloud-managed-hosting-for-wordpress-getting-started)
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
-            + [Managing WordPress websites with MainWP on Managed Hosting](web-cloud/managed-hosting/mainwp-site-management)
             + [Retrieving and analysing your Managed Hosting for WordPress logs](web-cloud/managed-hosting/wordpress-logs)
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)

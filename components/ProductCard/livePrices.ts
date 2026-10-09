@@ -87,10 +87,14 @@ export function resolvePrices(
     currency: catalog.locale.currencyCode,
     currencyDisplay: market.currencyDisplay ?? 'symbol',
   });
+  // A paid setup fee (Eco servers) shows as the page shows its prices: incl.
+  // VAT where only incl. VAT is shown (de), excl. VAT everywhere else.
+  const setupAmount =
+    setup &&
+    (market.tax === 'included' ? setup.price + setup.tax : setup.price);
   return {
     exclVat: money.format(monthly.price / UNIT),
     inclVat: money.format((monthly.price + monthly.tax) / UNIT),
-    setupFee:
-      setup && setup.price > 0 ? money.format(setup.price / UNIT) : null,
+    setupFee: setupAmount ? money.format(setupAmount / UNIT) : null,
   };
 }
