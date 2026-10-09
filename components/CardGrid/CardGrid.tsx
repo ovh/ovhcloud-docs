@@ -17,13 +17,16 @@ interface CardGridProps {
 /**
  * Responsive multi-column grid for landing/overview pages. Drop a few
  * <LinkCard> children inside it to replicate the previous front-end's
- * two-column index layout. Available globally in MDX (no import needed) —
+ * two-column index layout. Three or four <ProductCard> children go on one
+ * row when the column is wide enough (components/ProductCard/ProductCard.css). Available globally in MDX (no import needed) —
  * see `markdown.globalComponents` in rspress.config(.build).ts.
  */
 export function CardGrid({ children, columns = 2, style }: CardGridProps) {
   return (
-    <div className="card-grid" data-columns={columns} style={style}>
-      {children}
+    <div className="card-grid-container">
+      <div className="card-grid" data-columns={columns} style={style}>
+        {children}
+      </div>
     </div>
   );
 }
