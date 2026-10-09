@@ -8,6 +8,8 @@ import { PdfDownloadButton } from 'theme/components/PdfDownloadButton';
 import '@rspress/core/dist/theme/components/Llms/index.css';
 import './index.scss';
 
+declare const __AI_ASSISTANT__: boolean;
+
 const ArrowIcon = () => (
   <svg
     aria-hidden="true"
@@ -166,16 +168,23 @@ export function LlmsViewOptions() {
 
   const options: MenuOption[] = useMemo(
     () => [
-      {
-        title: t('aiAssistantTitle'),
-        description: t('aiAssistantDesc'),
-        icon: <AIAssistantIcon />,
-        onClick: () => {
-          trackClick('cta-open-component-chatbot');
-          toggleChatbot();
-          setIsOpen(false);
-        },
-      },
+      // The in-page assistant only where the region runs it (config/regions.ts).
+      // The entries below open someone else's product with a link to this page,
+      // so they need no service of ours and stay in every region.
+      ...(__AI_ASSISTANT__
+        ? [
+            {
+              title: t('aiAssistantTitle'),
+              description: t('aiAssistantDesc'),
+              icon: <AIAssistantIcon />,
+              onClick: () => {
+                trackClick('cta-open-component-chatbot');
+                toggleChatbot();
+                setIsOpen(false);
+              },
+            },
+          ]
+        : []),
       {
         title: t('openInText', { name: 'ChatGPT' }),
         description: t('analyzePageText', { name: 'ChatGPT' }),

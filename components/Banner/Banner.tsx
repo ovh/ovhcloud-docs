@@ -15,7 +15,7 @@ import './Banner.css';
  * placing the tag in its MDX (typically right under the H1).
  *
  * @example
- *   <Banner kind="siret-fr" />
+ *   <Banner kind="<kind>" />
  */
 interface BannerProps {
   /** Which predefined banner to render (a key of the ./registry BANNERS map). */
@@ -60,10 +60,9 @@ export function Banner({ kind }: BannerProps) {
             target="_blank"
             rel="noopener noreferrer"
             // Report the CTA click to the OVH TMS. The label carries the banner
-            // `kind` so each banner's CTA is distinguishable (e.g. the SIRET
-            // banner deep-links to the Control Panel profile page). The link
-            // opens in a new tab, so the page isn't torn down and the spa_click
-            // beacon fires reliably.
+            // `kind` so each banner's CTA is distinguishable. The link opens in
+            // a new tab, so the page isn't torn down and the spa_click beacon
+            // fires reliably.
             onClick={(e) => trackClick(`cta-banner-${kind}`, e.currentTarget)}
           >
             {banner.cta.label}
