@@ -1,115 +1,164 @@
 ---
 title: Migrer vers OVHcloud Public Cloud Databases pour MongoDB
-description: Bonnes pratiques pour migrer d'une instance MongoDB existante vers un MongoDB managé OVHcloud
-lastUpdated: 2025-01-06
+description: Découvrez comment migrer un replica set MongoDB existant vers Public Cloud Databases pour MongoDB avec mongodump et mongorestore, ou avec mongosync
+lastUpdated: 2026-10-07
 ---
 
 ## Objectif
 
-Cette documentation vise à fournir une approche complète de la migration de base de données MongoDB, garantissant l'intégrité des données, un temps d'indisponibilité minimal et des performances optimales. Que vous migriez :
+Ce guide explique comment transférer les données d'un replica set MongoDB existant vers un service Public Cloud Databases pour MongoDB. Il couvre deux méthodes :
 
-- d'une instance MongoDB vers une nouvelle instance MongoDB OVHcloud.
-- de n'importe quelle base de données de type Document DB vers une instance MongoDB OVHcloud.
+- **mongodump et mongorestore** : une copie ponctuelle. Les écritures sur la source doivent être arrêtées pendant la copie, ce qui implique une interruption de service.
+- **mongosync** : une synchronisation continue, suivie d'une bascule lorsque la cible a rattrapé la source. L'interruption se limite à la bascule.
 
-Ce guide couvre les outils et processus essentiels nécessaires à la réussite d'une migration.
+**Ce guide explique comment préparer le service cible, exécuter chaque méthode et vérifier le résultat.**
 
-## Avant-propos
+## Prérequis
 
-Migrer vers MongoDB peut être un processus complexe, mais des services professionnels sont disponibles pour garantir une transition fluide, avec formation ou assistance technique. Nos experts peuvent vous accompagner à chaque étape de la migration, de l'évaluation de votre architecture de base de données actuelle à la conception d'un schéma optimisé pour MongoDB. Ils fournissent des conseils sur l'extraction, la transformation et le chargement des données, garantissant l'intégrité des données et un temps d'indisponibilité minimal. De plus, les services professionnels proposent des solutions personnalisées, une optimisation des performances et des formations pour doter votre équipe des compétences nécessaires à une gestion efficace de MongoDB. Faire appel à leur expertise permet de gagner du temps, de réduire les risques et de maximiser les bénéfices de la migration vers MongoDB.
+- Un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud
+- Un [service Public Cloud Databases pour MongoDB](/guides/public-cloud/databases/getting-started) dont la version de MongoDB est égale ou supérieure à celle de la source
+- Un déploiement MongoDB source fonctionnant en replica set
+- Une machine pouvant joindre la source et la cible, pour exécuter les outils de migration
 
-[[fragment:professional-services]]
+## En pratique
 
-## Outils de migration
+### Avant de commencer
 
-### Outils avec temps d'indisponibilité prévu
+#### Les utilisateurs ne sont pas migrés
 
-Ces outils sont utilisés lors de processus de migration impliquant un certain temps d'indisponibilité prévu.
+Sur Public Cloud Databases pour MongoDB, les utilisateurs se gèrent uniquement depuis l'espace client OVHcloud ou l'API OVHcloud. Un utilisateur créé autrement, par exemple avec `createUser` ou restauré par `mongorestore --restoreDbUsersAndRoles`, est accepté par MongoDB, puis supprimé automatiquement quelques minutes plus tard.
 
-#### 1. mongodump
+Avant de basculer vos applications, créez leurs utilisateurs sur le service cible depuis l'onglet <code className="action">Utilisateurs</code>, avec les rôles dont ils ont besoin. N'utilisez pas les options `--dumpDbUsersAndRoles` et `--restoreDbUsersAndRoles`, et ne restaurez pas la base `admin`.
 
-[mongodump](https://www.mongodb.com/docs/database-tools/mongodump/) est un utilitaire permettant de créer un export binaire du contenu d'une base de données MongoDB. Il est particulièrement utile pour sauvegarder des bases de données et migrer des données entre instances MongoDB.
+#### Autoriser la machine de migration
 
-Utilisez l'option [--dumpDbUsersAndRoles](https://www.mongodb.com/docs/database-tools/mongodump/#std-option-mongodump.--dumpDbUsersAndRoles) pour inclure les définitions d'utilisateurs et de rôles dans le répertoire de dump de la base de données lors de l'exécution de mongodump sur une base de données spécifique. Cette option ne s'applique que lorsque vous spécifiez une base de données via l'option --db.
+Dans l'espace client OVHcloud, ouvrez votre service, puis l'onglet <code className="action">Configuration</code>. Dans la section `IPs`, ajoutez l'adresse IP publique de la machine qui exécute les outils de migration, puis cliquez sur <code className="action">Sauvegarder les modifications</code>.
 
-#### 2. mongorestore
+#### Créer un utilisateur de migration
 
-[mongorestore](https://www.mongodb.com/docs/database-tools/mongorestore/) complète mongodump en vous permettant de restaurer un dump binaire créé par mongodump. Cet outil est essentiel pour restaurer des données sur une instance MongoDB.
+Dans l'onglet <code className="action">Utilisateurs</code>, cliquez sur <code className="action">Ajouter un utilisateur</code>, saisissez un nom d'utilisateur, ajoutez les rôles ci-dessous, puis cliquez sur <code className="action">Créer un utilisateur</code>. Notez le mot de passe affiché : il ne pourra pas être récupéré par la suite.
 
-Utilisez l'option [restoreDbUsersAndRole](https://www.mongodb.com/docs/database-tools/mongorestore/#std-option-mongorestore.--restoreDbUsersAndRoles) pour restaurer les définitions d'utilisateurs et de rôles de la base de données concernée. Restaurer la base de données admin en spécifiant `--db admin` à mongorestore restaure déjà tous les utilisateurs et rôles.
+| Méthode | Rôles de l'utilisateur de migration |
+|---|---|
+| mongodump et mongorestore | `readWriteAnyDatabase@admin`, `restore@admin` |
+| mongosync | `backup@admin`, `clusterManager@admin`, `clusterMonitor@admin`, `readWriteAnyDatabase@admin`, `restore@admin` |
 
-### Outils avec temps d'indisponibilité minimal
+Supprimez cet utilisateur une fois la migration terminée.
 
-Ces outils sont conçus pour minimiser le temps d'indisponibilité pendant le processus de migration.
+#### Construire la chaîne de connexion cible
 
-#### 1. mongosync
+Copiez l'URI `mongodb+srv://` depuis la section `Informations de connection` de l'onglet <code className="action">Dashboard</code>. Pour les outils de migration, remplacez le chemin `/admin` par un paramètre `authSource=admin` :
 
-Le binaire [mongosync](https://www.mongodb.com/docs/cluster-to-cluster-sync/current/reference/mongosync/) est le processus principal utilisé pour la synchronisation cluster à cluster. Il fournit une synchronisation de données continue et unidirectionnelle entre des clusters MongoDB situés dans le même environnement ou dans des environnements différents. Consultez les [limitations](https://www.mongodb.com/docs/cluster-to-cluster-sync/current/reference/limitations/) de mongosync avant de démarrer la migration.
+```bash
+mongodb+srv://<username>:<password>@<srv-hostname>/?authSource=admin&tls=true
+```
 
-#### 2. MongoDB Kafka Connector
+:::warning
+Si vous conservez `/admin` dans le chemin, `mongorestore` considère `admin` comme base cible et ignore vos autres bases.
+:::
 
-[MongoDB Kafka Connector](https://www.mongodb.com/docs/kafka-connector/current/) vous permet d'intégrer MongoDB avec Apache Kafka, permettant une synchronisation des données en temps réel et minimisant le temps d'indisponibilité pendant les migrations en diffusant directement les modifications de données vers MongoDB.
+### Méthode 1 : mongodump et mongorestore
 
-## Stratégie de migration
+Installez les [MongoDB Database Tools](https://www.mongodb.com/docs/database-tools/installation/) sur la machine de migration.
 
-<img className="thumbnail" alt="Schéma de la stratégie de migration" src="/images/public-cloud/databases/mongodb-19-migrate-to-ovhcloud/diagram_migration_strategy.png" loading="lazy" />
+1. Arrêtez les écritures de vos applications sur la source.
 
-## 1. Préparation
+2. Exportez les bases de la source :
 
-### Évaluer l'environnement actuel
+    ```bash
+    mongodump --uri "<source-uri>" --out dump
+    ```
 
-- **Collecte de métriques** : collectez les métriques actuelles telles que l'utilisation du CPU, la RAM, les IOPS, l'espace disque et l'utilisation du réseau. Cela vous aidera à choisir la taille de cluster OVHcloud appropriée.
-- **Sauvegarde** : créez une sauvegarde complète de votre instance MongoDB actuelle.
+    Le dossier `dump` contient un sous-dossier par base, y compris `admin`.
 
-### Sélectionner un plan OVHcloud
+3. Importez-les dans la cible, en excluant la base `admin` :
 
-- En fonction des métriques collectées (CPU, RAM, IOPS disque, espace disque, etc.), choisissez un plan OVHcloud qui répond ou est supérieur aux spécifications actuelles de votre instance MongoDB.
-- Tenez compte des besoins futurs en matière de croissance et d'évolutivité. Vous pouvez consulter notre guide sur [comment dimensionner un cluster MongoDB](/guides/public-cloud/databases/mongodb-cluster-sizing).
+    ```bash
+    mongorestore --uri "mongodb+srv://<username>:<password>@<srv-hostname>/?authSource=admin&tls=true" \
+      --nsExclude 'admin.*' \
+      dump
+    ```
 
-## 2. Configurer le cluster OVHcloud
+    Les collections et leurs index sont recréés sur la cible. La dernière ligne de la sortie indique le nombre de documents restaurés et le nombre de documents en échec.
 
-- **Créer le cluster** : [configurez le nouveau cluster MongoDB managé OVHcloud](/guides/public-cloud/databases/mongodb-getting-started).
-- **Configuration** : configurez les paramètres du cluster OVHcloud pour qu'ils correspondent le plus fidèlement possible à la configuration de votre cluster MongoDB actuel.
+4. Si vous relancez l'import, les documents déjà présents sur la cible ne sont pas écrasés : ils sont comptés en échec. Ajoutez l'option `--drop` pour supprimer chaque collection avant de la restaurer :
 
-## 3. Outils de migration de données
+    ```bash
+    mongorestore --uri "mongodb+srv://<username>:<password>@<srv-hostname>/?authSource=admin&tls=true" \
+      --nsExclude 'admin.*' \
+      --drop \
+      dump
+    ```
 
-Utilisez l'un des outils mentionnés dans la section précédente.
+5. [Vérifiez le résultat](#vérifier-les-données-migrées), puis faites pointer vos applications vers la cible.
 
-## 4. Exécution de la migration
+### Méthode 2 : mongosync
 
-### Planifier la migration
+[mongosync](https://www.mongodb.com/docs/cluster-to-cluster-sync/current/reference/mongosync/) copie les données, puis applique les modifications faites sur la source jusqu'à ce que vous validiez la migration. Consultez ses [limitations](https://www.mongodb.com/docs/cluster-to-cluster-sync/current/reference/limitations/) et sa [compatibilité de versions](https://www.mongodb.com/docs/cluster-to-cluster-sync/current/reference/supported-server-version/) avant de commencer.
 
-- Planifiez la migration pendant une fenêtre de maintenance afin de minimiser l'impact.
-- Informez les parties prenantes d'un éventuel temps d'indisponibilité.
+Sur la source, mongosync a besoin d'un utilisateur, avec l'authentification activée, disposant des privilèges listés dans la [documentation de mongosync](https://www.mongodb.com/docs/cluster-to-cluster-sync/current/connecting/onprem-to-onprem/). Si la source n'a pas d'authentification, la demande de démarrage échoue avec `Missing privileges: Source: AnyDB: [changeStream]`.
 
-### Migrer les données
+1. Téléchargez [mongosync](https://www.mongodb.com/try/download/mongosync) sur la machine de migration, puis démarrez-le :
 
-- Exécutez la méthode de migration choisie.
-- Surveillez le processus pour vous assurer que les données sont transférées correctement.
+    ```bash
+    mongosync \
+      --cluster0 "<source-uri>" \
+      --cluster1 "mongodb+srv://<username>:<password>@<srv-hostname>/?authSource=admin&tls=true"
+    ```
 
-### Processus de bascule
+    mongosync écoute sur le port `27182` de la machine locale et attend des instructions.
 
-- **Synchronisation continue** : si vous utilisez `mongosync` mentionné dans la section précédente, qui offre une synchronisation continue, surveillez les journaux de synchronisation.
-- **Identifier le retard de synchronisation** : attendez que les journaux indiquent que le cluster cible n'a que quelques secondes de retard (par exemple, 2 secondes) sur le cluster source.
-- **Arrêter les écritures sur le cluster source** : à ce stade, arrêtez toutes les opérations d'écriture sur le cluster source afin d'éviter toute perte de données.
-- **Mettre à jour la configuration de l'application** : modifiez la configuration de l'application pour qu'elle pointe vers le nouveau cluster OVHcloud.
-- **Déployer les modifications** : déployez la configuration mise à jour sur votre application.
-- **Redémarrer l'application** : redémarrez l'application pour commencer à utiliser le nouveau cluster cible OVHcloud.
+2. Dans un autre terminal, démarrez la synchronisation :
 
-## 5. Tâches post-migration
+    ```bash
+    curl -X POST localhost:27182/api/v1/start \
+      --data '{"source":"cluster0","destination":"cluster1"}'
+    ```
 
-### Vérifier les données
+    La réponse est `{"success":true}`.
 
-- Vérifiez que toutes les données ont été transférées et sont accessibles.
-- Recherchez d'éventuelles incohérences ou données manquantes.
+3. Suivez la progression :
 
-### Surveiller les performances
+    ```bash
+    curl localhost:27182/api/v1/progress
+    ```
 
-- Surveillez en continu le nouveau cluster OVHcloud pour vous assurer qu'il répond aux attentes de performance.
-- Ajustez les configurations si nécessaire en fonction des métriques de performance.
+    Une fois la copie initiale terminée, `state` vaut `RUNNING` et `canCommit` vaut `true`. À partir de là, les insertions, mises à jour et nouvelles collections créées sur la source sont appliquées à la cible. Le champ `lag` indique, en secondes, le retard de la cible sur la source.
 
-## Votre avis nous intéresse !
+4. Lorsque vous êtes prêt à basculer, arrêtez les écritures de vos applications sur la source, attendez que `lagTimeSeconds` vaille `0`, puis validez :
 
-Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+    ```bash
+    curl -X POST localhost:27182/api/v1/commit --data '{}'
+    ```
+
+5. Interrogez de nouveau la progression. Lorsque `state` vaut `COMMITTED` et `canWrite` vaut `true`, la cible est prête : arrêtez mongosync avec `Ctrl+C`, puis faites pointer vos applications vers la cible.
+
+6. mongosync laisse ses métadonnées dans une base `__mdb_internal_mongosync` sur la cible. Supprimez ses collections avec l'utilisateur de migration, par exemple avec mongosh :
+
+    ```javascript
+    const meta = db.getSiblingDB("__mdb_internal_mongosync");
+    meta.getCollectionNames().forEach((name) => meta.getCollection(name).drop());
+    ```
+
+### Vérifier les données migrées
+
+Connectez-vous à la cible avec [mongosh](/guides/public-cloud/databases/mongodb-connect-cli) et comparez avec la source, pour chaque collection, le nombre de documents et les index :
+
+```javascript
+use <database>
+db.<collection>.countDocuments({})
+db.<collection>.getIndexes()
+```
+
+Vérifiez ensuite que les utilisateurs de vos applications existent sur la cible, avec les bons rôles, et supprimez l'utilisateur de migration.
+
+## Aller plus loin
+
+[Configurer les connexions entrantes d'un service Public Cloud Databases pour MongoDB](/guides/public-cloud/databases/mongodb-manage-control-panel)
+
+[Capacités et limitations de Public Cloud Databases pour MongoDB](/guides/public-cloud/databases/mongodb-concept-capabilities)
+
+Documentation de [mongodump](https://www.mongodb.com/docs/database-tools/mongodump/) et de [mongorestore](https://www.mongodb.com/docs/database-tools/mongorestore/)
 
 [[fragment:professional-services]]
 
