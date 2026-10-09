@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.10.09
+
+### Features
+
+#### All regions
+- **theme:** wire page feedback and allow a comment on positive votes
+
 ## 2026.10.08
 
 ### Features
