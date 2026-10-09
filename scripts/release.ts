@@ -7,6 +7,44 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { REGIONS, type Region } from '../config/regions';
+
+/**
+ * A changelog entry belongs to one region, or to all of them.
+ *
+ * `all` covers two cases that are equivalent while there are exactly two
+ * regions: a commit touching BOTH content trees, and a commit touching no
+ * content at all (theme, config, scripts). Revisit if a third region appears —
+ * "EU + US" would no longer mean "every region".
+ */
+type RegionBucket = Region | 'all';
+
+/** Derived from config/regions.ts, never hardcoded. */
+const REGION_KEYS = Object.keys(REGIONS) as Region[];
+const BUCKET_ORDER: RegionBucket[] = [...REGION_KEYS, 'all'];
+
+const bucketLabel = (bucket: RegionBucket): string =>
+  bucket === 'all' ? 'All regions' : bucket.toUpperCase();
+
+/**
+ * Classify a commit from the paths it touches.
+ *
+ * Matched against the LOCALE subtrees (`docs/fr/…`, `docs-us/en/…`), not the
+ * content root: `docs/public/` holds assets shared by every region, and one
+ * shared file was enough to mislabel the whole US import as "All regions".
+ *
+ * No prefix collision to worry about: `docs-us/…` does not start with `docs/`.
+ */
+export function regionOf(files: string[]): RegionBucket {
+  const touched = REGION_KEYS.filter((region) =>
+    files.some((f) =>
+      REGIONS[region].locales.some((locale) =>
+        f.startsWith(`${REGIONS[region].contentDir}/${locale}/`),
+      ),
+    ),
+  );
+  return touched.length === 1 ? touched[0] : 'all';
+}
 
 function git(cmd: string): string {
   return execSync(`git ${cmd}`, {
@@ -74,29 +112,48 @@ interface Commit {
   type: string;
   scope: string | null;
   subject: string;
+  /** Paths the commit touched, used to derive its region. */
+  files: string[];
 }
 
-function getCommitsSinceTag(tag: string | null): Commit[] {
+export function getCommitsSinceTag(tag: string | null): Commit[] {
   const range = tag ? `${tag}..HEAD` : 'HEAD';
-  const log = git(`log ${range} --pretty=format:"%H|%s"`);
+  // `--name-only` in the same call: the changed paths are what decides a
+  // commit's region, and one `git show` per commit would be needlessly slow.
+  const log = git(`log ${range} --pretty=format:"%H|%s" --name-only`);
 
   const commits: Commit[] = [];
-  for (const line of log.split('\n').filter(Boolean)) {
-    const clean = line.replace(/^"|"$/g, '');
-    const [hash, ...rest] = clean.split('|');
-    const subject = rest.join('|');
-    if (subject.startsWith('chore(release):')) {
-      continue;
-    }
+  let current: Commit | null = null;
 
-    const match = subject.match(/^(\w+)(?:\(([^)]+)\))?!?:\s*(.+)$/);
-    if (match) {
-      commits.push({
-        hash: hash.substring(0, 7),
+  for (const raw of log.split('\n')) {
+    const line = raw.replace(/^"|"$/g, '');
+    const header = line.match(/^([0-9a-f]{40})\|(.*)$/);
+
+    if (header) {
+      // Reset first: the file lines that follow a skipped commit must not be
+      // attributed to the previous one.
+      current = null;
+      const subject = header[2];
+      if (subject.startsWith('chore(release):')) {
+        continue;
+      }
+      const match = subject.match(/^(\w+)(?:\(([^)]+)\))?!?:\s*(.+)$/);
+      if (!match) {
+        continue;
+      }
+      current = {
+        hash: header[1].substring(0, 7),
         type: match[1],
         scope: match[2] || null,
         subject: match[3],
-      });
+        files: [],
+      };
+      commits.push(current);
+      continue;
+    }
+
+    if (current && line.trim()) {
+      current.files.push(line.trim());
     }
   }
   return commits;
@@ -107,31 +164,64 @@ function getLastTag(): string | null {
   return tags ? tags.split('\n')[0] : null;
 }
 
-function summarizeDocsChangesSince(from: string | null): {
+interface RegionDocs {
+  region: Region;
   count: number;
   locales: string[];
-} {
+}
+
+interface DocsSummary {
+  total: number;
+  byRegion: RegionDocs[];
+}
+
+/**
+ * Count guide changes per region. Previously this scanned `docs/` only, which
+ * made every change under `docs-us/` invisible in the changelog.
+ */
+export function summarizeDocsChangesSince(from: string | null): DocsSummary {
   if (!from) {
-    return { count: 0, locales: [] };
+    return { total: 0, byRegion: [] };
   }
 
-  const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'];
-  const output = git(`log ${from}..HEAD --name-only --pretty=format: -- docs/`);
-  const files = output
-    ? Array.from(new Set(output.split('\n').filter(Boolean)))
-    : [];
+  const byRegion: RegionDocs[] = [];
+  let total = 0;
 
-  const mdFiles = files.filter((f) => f.endsWith('.mdx') || f.endsWith('.md'));
-  const localesFound = new Set<string>();
-  for (const f of mdFiles) {
-    for (const locale of LOCALES) {
-      if (f.startsWith(`docs/${locale}/`)) {
-        localesFound.add(locale);
-        break;
+  for (const region of REGION_KEYS) {
+    const dir = REGIONS[region].contentDir;
+    const output = git(
+      `log ${from}..HEAD --name-only --pretty=format: -- ${dir}/`,
+    );
+    const files = output
+      ? Array.from(new Set(output.split('\n').filter(Boolean)))
+      : [];
+
+    const mdFiles = files.filter(
+      (f) => f.endsWith('.mdx') || f.endsWith('.md'),
+    );
+    if (mdFiles.length === 0) {
+      continue;
+    }
+
+    const localesFound = new Set<string>();
+    for (const f of mdFiles) {
+      for (const locale of REGIONS[region].locales) {
+        if (f.startsWith(`${dir}/${locale}/`)) {
+          localesFound.add(locale);
+          break;
+        }
       }
     }
+
+    byRegion.push({
+      region,
+      count: mdFiles.length,
+      locales: [...localesFound].sort(),
+    });
+    total += mdFiles.length;
   }
-  return { count: mdFiles.length, locales: [...localesFound].sort() };
+
+  return { total, byRegion };
 }
 
 function formatCommitEntry(commit: Commit): string {
@@ -151,10 +241,38 @@ function appendChangelogSection(
   lines.push(`### ${title}`, ...entries, '');
 }
 
-function buildChangelogReleaseMarkdown(
+/**
+ * Emit a rubric with one `####` sub-heading per non-empty region bucket.
+ * Buckets partition the commits — nothing is filtered out — which is what the
+ * entry-count check in the plan verifies.
+ */
+function appendRegionSections(
+  lines: string[],
+  title: string,
+  commits: Commit[],
+): void {
+  if (commits.length === 0) {
+    return;
+  }
+
+  lines.push(`### ${title}`, '');
+  for (const bucket of BUCKET_ORDER) {
+    const inBucket = commits.filter((c) => regionOf(c.files) === bucket);
+    if (inBucket.length === 0) {
+      continue;
+    }
+    lines.push(
+      `#### ${bucketLabel(bucket)}`,
+      ...inBucket.map(formatCommitEntry),
+      '',
+    );
+  }
+}
+
+export function buildChangelogReleaseMarkdown(
   version: string,
   commits: Commit[],
-  docs: { count: number; locales: string[] },
+  docs: DocsSummary,
 ): string {
   const features = commits.filter((c) => c.type === 'feat');
   const fixes = commits.filter((c) => c.type === 'fix');
@@ -164,24 +282,25 @@ function buildChangelogReleaseMarkdown(
 
   const lines: string[] = [`## ${version}`, ''];
 
-  appendChangelogSection(lines, 'Features', features.map(formatCommitEntry));
-  appendChangelogSection(lines, 'Fixes', fixes.map(formatCommitEntry));
-  appendChangelogSection(
-    lines,
-    'Maintenance',
-    maintenance.map(formatCommitEntry),
-  );
+  appendRegionSections(lines, 'Features', features);
+  appendRegionSections(lines, 'Fixes', fixes);
+  appendRegionSections(lines, 'Maintenance', maintenance);
 
-  if (docs.count > 0) {
-    appendChangelogSection(lines, 'Documentation', [
-      `- ${docs.count} guides updated across ${docs.locales.join(', ')}`,
-    ]);
+  if (docs.total > 0) {
+    appendChangelogSection(
+      lines,
+      'Documentation',
+      docs.byRegion.map(
+        (r) =>
+          `- ${bucketLabel(r.region)}: ${r.count} guides across ${r.locales.join(', ')}`,
+      ),
+    );
   }
 
   return lines.join('\n');
 }
 
-function patchChangelog(
+export function patchChangelog(
   existing: string,
   version: string,
   section: string,
@@ -214,12 +333,12 @@ function main() {
   const commits = getCommitsSinceTag(lastTag);
   const docs = summarizeDocsChangesSince(lastTag);
 
-  if (commits.length === 0 && docs.count === 0) {
+  if (commits.length === 0 && docs.total === 0) {
     console.log('No changes since last release. Skipping.');
     process.exit(0);
   }
 
-  console.log(`Found ${commits.length} commits and ${docs.count} doc changes.`);
+  console.log(`Found ${commits.length} commits and ${docs.total} doc changes.`);
 
   const section = buildChangelogReleaseMarkdown(version, commits, docs);
 
@@ -247,4 +366,14 @@ function main() {
   console.log(`Committed release ${version}. Run 'git push' to publish.`);
 }
 
-main();
+// CLI entry point only. Importing this module used to run a full release —
+// writing CHANGELOG.md and VERSION, then committing. Guarding it makes the pure
+// functions above importable, which is how the region classification is tested.
+//
+// This script is the SOLE producer of CHANGELOG.md. A second one
+// (scripts/generate-changelog.ts) used to regenerate the whole file from tags;
+// it was removed because it was unreachable and, if ever run, would have
+// rewritten history without the per-region sections.
+if (process.argv[1]?.endsWith('release.ts')) {
+  main();
+}
