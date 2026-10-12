@@ -74,9 +74,11 @@ export interface BuildModelOptions {
   tree: SidebarNode[];
   /** Resolve a `sidebar.gen.*` key to its label in `locale`. */
   label: (key: string) => string;
-  distDir: string;
+  /** This locale's build output: `dist/<locale>` or, unprefixed, `dist`. */
+  localeDist: string;
   docsDir: string;
-  siteUrl: string;
+  /** Public URL of a locale's root, no trailing slash (see ./index.ts). */
+  urlBaseFor: (locale: string) => string;
   builtLocales: readonly string[];
   /** Localized title of the orphan pseudo-product. */
   othersTitle: string;
@@ -118,8 +120,7 @@ function oneLine(value: unknown): string | undefined {
 }
 
 export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
-  const { locale, distDir, docsDir, siteUrl, builtLocales } = opts;
-  const localeDist = path.join(distDir, locale);
+  const { locale, localeDist, docsDir, urlBaseFor, builtLocales } = opts;
   const cache = new Map<string, LlmsPage | null>();
 
   function resolvePage(route: string): LlmsPage | null {
@@ -171,8 +172,8 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
     // this deployment; otherwise keep the local copy.
     const linkToReal = fallback && builtLocales.includes(contentLocale);
     const mdUrl = linkToReal
-      ? `${siteUrl}/${contentLocale}/${contentRoute}.md`
-      : `${siteUrl}/${locale}/${route}.md`;
+      ? `${urlBaseFor(contentLocale)}/${contentRoute}.md`
+      : `${urlBaseFor(locale)}/${route}.md`;
 
     return {
       route,

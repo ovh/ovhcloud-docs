@@ -261,6 +261,66 @@ check(
   enStats?.missingDescriptions.length === 0,
 );
 
+// --- Single-locale region served at the domain root (US) ---
+// Same EN pages, but built straight into dist/ and served without /en/.
+const rootDist = path.join(tmp, 'dist-root');
+fs.cpSync(path.join(distDir, 'en'), rootDist, { recursive: true });
+fs.rmSync(path.join(rootDist, 'llms'), { recursive: true, force: true });
+// The worker writes unprefixed `url:` frontmatter for a root region.
+for (const f of fs.readdirSync(rootDist, { recursive: true }) as string[]) {
+  if (!f.endsWith('.md')) continue;
+  const file = path.join(rootDist, f);
+  fs.writeFileSync(
+    file,
+    fs.readFileSync(file, 'utf-8').replaceAll(`${SITE}/en/`, `${SITE}/`),
+  );
+}
+const rootStats = generateLlms({
+  distDir: rootDist,
+  docsDir,
+  siteUrl: SITE,
+  builtLocales: ['en'],
+  localePrefix: false,
+  locales: [
+    { lang: 'en', label: '🇬🇧 English', title: 'OVHcloud Documentation' },
+  ],
+  treeFor: () => tree,
+  label: (key) => labels[key]?.en ?? key,
+});
+const readRoot = (rel: string) =>
+  fs.readFileSync(path.join(rootDist, rel), 'utf-8');
+const rootDir = readRoot('llms.txt');
+check(
+  'root build: /llms.txt is the directory',
+  rootDir.includes(
+    `- [Compute](${SITE}/llms/${PRODUCT}/llms.txt): Run instances`,
+  ),
+);
+check(
+  'root build: no language list for a single locale',
+  !rootDir.includes('Other languages'),
+);
+check(
+  'root build: full bundle at the root',
+  readRoot('llms-full.txt').includes(`${SITE}/llms.txt`),
+);
+const rootProduct = readRoot(`llms/${PRODUCT}/llms.txt`);
+check(
+  'root build: page links without locale prefix',
+  rootProduct.includes(`- [First](${SITE}/${G}/a-first.md): First guide`),
+);
+check(
+  'root build: no /en/ URL anywhere',
+  ![rootDir, rootProduct, readRoot('llms-full.txt')].some((t) =>
+    t.includes(`${SITE}/en/`),
+  ),
+);
+check(
+  'root build: no stray dist/en tree',
+  !fs.existsSync(path.join(rootDist, 'en')),
+);
+check('root build: stats', rootStats[0]?.products === 2);
+
 fs.rmSync(tmp, { recursive: true, force: true });
 
 if (failures.length > 0) {
