@@ -15,8 +15,9 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { contentSubdir, regionConfig } from '../config/regions';
 
-const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
+const LOCALES = regionConfig.locales;
 const ROOT = path.resolve(import.meta.dirname, '..');
 const OUT = path.join(ROOT, 'theme/data/locale-availability.ts');
 
@@ -42,13 +43,20 @@ const union = new Set<string>();
 
 for (const loc of LOCALES) {
   perLocale[loc] = new Set();
-  const dir = path.join(ROOT, 'docs', loc, 'guides');
+  // '' on a region whose guides sit at the locale root (US), so join()
+  // collapses to the locale dir itself.
+  const dir = path.join(
+    ROOT,
+    regionConfig.contentDir,
+    loc,
+    contentSubdir(regionConfig),
+  );
   if (!fs.existsSync(dir)) continue;
   for (const f of walk(dir)) {
     if (!isResolvable(f)) continue;
     // path.relative, not a string replace: path.join yields `\` on Windows.
     const rel = path
-      .relative(path.join(ROOT, 'docs', loc), f)
+      .relative(path.join(ROOT, regionConfig.contentDir, loc), f)
       .split(path.sep)
       .join('/')
       .replace(/\.mdx$/, '');

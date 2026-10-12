@@ -131,6 +131,46 @@ check(
   apply(`[[fragment:${KEY}]]`, 'en').includes('(/links/'),
 );
 
+// ------------------------------------------------------- the |n= modifier
+// A key whose body carries <sup>1</sup> also accepts |n=N: same body, note
+// numbered N. s3-trademark is the real consumer (s3-asynchronous-replication).
+const NKEY = 's3-trademark';
+const nBodyEn = textFragments[NKEY]?.en;
+const nBodyFr = textFragments[NKEY]?.fr;
+if (nBodyEn && nBodyFr) {
+  check(
+    '|n=3 renders the body with the note numbered 3',
+    apply(`[[fragment:${NKEY}|n=3]]`, 'fr').includes('<sup>3</sup>') &&
+      !apply(`[[fragment:${NKEY}|n=3]]`, 'fr').includes('[[fragment:'),
+  );
+  check(
+    '|n=3 keeps the locale body (fr)',
+    apply(`[[fragment:${NKEY}|n=3]]`, 'fr') ===
+      nBodyFr.replace('<sup>1</sup>', '<sup>3</sup>'),
+  );
+  check(
+    '|n=3|en pins the ENGLISH body, numbered 3',
+    apply(`[[fragment:${NKEY}|n=3|en]]`, 'fr') ===
+      nBodyEn.replace('<sup>1</sup>', '<sup>3</sup>'),
+  );
+  check(
+    '|en|n=3 (pin written first) renders exactly like |n=3|en',
+    apply(`[[fragment:${NKEY}|en|n=3]]`, 'fr') ===
+      apply(`[[fragment:${NKEY}|n=3|en]]`, 'fr') &&
+      apply(`[[fragment:${NKEY}|en|n=3]]`, 'de') ===
+        nBodyEn.replace('<sup>1</sup>', '<sup>3</sup>'),
+  );
+  check(
+    'the plain token still renders note 1',
+    apply(`[[fragment:${NKEY}]]`, 'fr').includes('<sup>1</sup>'),
+  );
+}
+check(
+  '|n= on a key without a numbered note stays literal (the build guard rejects it)',
+  apply('[[fragment:support-scope|n=3]]', 'en').includes('[[fragment:') &&
+    guardThrows(treeWith('text', '[[fragment:support-scope|n=3]]')),
+);
+
 // ------------------------------------------------------- known traps
 check(
   'TRAP: a real token expands even inside a fenced block (raw-text rules)',

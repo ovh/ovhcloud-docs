@@ -1,5 +1,74 @@
 # Changelog
 
+## 2026.10.12
+
+### Fixes
+
+#### All regions
+- **theme:** make file download links visible (#975)
+
+### Documentation
+- EU: 24 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.09
+
+### Features
+
+#### All regions
+- **theme:** wire page feedback and allow a comment on positive votes
+
+## 2026.10.08
+
+### Features
+
+#### US
+- **region:** add the US documentation site (docs.us.ovhcloud.com) (#960)
+
+### Maintenance
+
+#### EU
+- **docs:** tokenization clean-up & fixes (#959)
+
+### Documentation
+- EU: 210 guides across de, en, es, fr, it, pl, pt
+- US: 778 guides across en
+
+## 2026.10.07
+
+### Features
+- **veeam:** update guides with the canadas ip (#909)
+
+### Documentation
+- 114 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.05
+
+### Maintenance
+- **banner:** remove SIRET banner from FR guides and home page (#923)
+
+### Documentation
+- 54 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.02
+
+### Fixes
+- **docs:** repoint dead anchors of the Public Cloud prices page (#914)
+- improve llms.txt generation
+
+### Maintenance
+- **docs:** Add nav tokens to leftover pages (#912)
+
+### Documentation
+- 856 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.01.1
+
+### Maintenance
+- **docs:** Fix tokenized pages (#903)
+
+### Documentation
+- 510 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.10.01
 
 ### Fixes

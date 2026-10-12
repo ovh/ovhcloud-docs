@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 /**
  * One banner's content + targeting. The generic <Banner> engine renders any
- * BannerDef; each concrete banner (SIRET, future promos, …) lives in its own
+ * BannerDef; each concrete banner (promos, notices, …) lives in its own
  * file under ./banners and is collected in ./registry.
  */
 export interface BannerDef {

@@ -42,6 +42,28 @@ export function generateFragmentRules(locale: Locale): ReplaceRule[] {
       search: new RegExp(`\\[\\[fragment:${escaped}\\|en\\]\\]`, 'g'),
       replace: escapeDollars(fallback),
     });
+    // Numbered notes: a key whose body carries `<sup>1</sup>` also accepts
+    // [[fragment:key|n=N]] (and [[fragment:key|n=N|en]] — or |en|n=N, the same pin
+    // written in the other order), which renders the same
+    // body with the note numbered N. One legal text per locale — the number lives
+    // in the guide, whose other footnotes dictate it (s3-asynchronous-replication
+    // numbers its S3 note 3 after two table notes). The replace string embeds the
+    // regex capture ($1), inserted AFTER escapeDollars so it survives escaping.
+    if (body.includes('<sup>1</sup>')) {
+      const numbered = (text: string) =>
+        escapeDollars(text).replace('<sup>1</sup>', '<sup>$1</sup>');
+      rules.push({
+        search: new RegExp(`\\[\\[fragment:${escaped}\\|n=(\\d+)\\]\\]`, 'g'),
+        replace: numbered(body),
+      });
+      rules.push({
+        search: new RegExp(
+          `\\[\\[fragment:${escaped}(?:\\|n=(\\d+)\\|en|\\|en\\|n=(\\d+))\\]\\]`,
+          'g',
+        ),
+        replace: numbered(fallback).replace('<sup>$1</sup>', '<sup>$1$2</sup>'),
+      });
+    }
   }
   return rules;
 }
