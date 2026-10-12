@@ -1361,7 +1361,7 @@
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
                 + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
-                + [Manage ACLs via API for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
+                + [Manage users and ACLs for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
