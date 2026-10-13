@@ -22,6 +22,8 @@ import {
   isSidebarSectionHeader,
 } from './utils';
 
+declare const __AI_ASSISTANT__: boolean;
+
 export function Sidebar() {
   // We deliberately do NOT filter the sidebar by commercial zone — when the
   // visitor navigates off a zone-gated guide the ZoneSwitcher disappears
@@ -72,18 +74,21 @@ export function SidebarList({
           </svg>
         </Link>
         <PagefindSearch />
-        <button
-          type="button"
-          onClick={(e) => {
-            trackClick('cta-open-component-chatbot', e.currentTarget);
-            toggle();
-          }}
-          aria-label="Ask our AI"
-          style={{ background: 'linear-gradient(135deg,#fdef61,#77fbfb)' }}
-          className="w-10 h-10 block p-2 rounded-lg cursor-pointer"
-        >
-          <img src="/images/ai.svg" alt="AI assistant" className="w-6 h-6" />
-        </button>
+        {/* Only where the region runs the assistant service (config/regions.ts). */}
+        {__AI_ASSISTANT__ && (
+          <button
+            type="button"
+            onClick={(e) => {
+              trackClick('cta-open-component-chatbot', e.currentTarget);
+              toggle();
+            }}
+            aria-label="Ask our AI"
+            style={{ background: 'linear-gradient(135deg,#fdef61,#77fbfb)' }}
+            className="w-10 h-10 block p-2 rounded-lg cursor-pointer"
+          >
+            <img src="/images/ai.svg" alt="AI assistant" className="w-6 h-6" />
+          </button>
+        )}
       </div>
       <ActiveBranchProvider sidebarData={sidebarData}>
         <div className="overflow-auto">

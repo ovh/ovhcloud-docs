@@ -5,7 +5,9 @@
  * MD:   Injects frontmatter from source MDX (title, description, url, lang)
  *       for LLM consumption.
  *
- * Input (workerData):  { dir: string, locale: string, siteUrl: string, docsDir: string }
+ * Input (workerData):  { dir, locale, siteUrl, docsDir, basePath? }
+ *   basePath: URL prefix of `dir` — `/<locale>` (default, multi-locale
+ *   region) or `''` for a single-locale region served at the domain root.
  * Output (message):    { html: number, md: number }
  */
 
@@ -13,6 +15,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import YAML from 'yaml';
+import { contentSubdir, regionConfig } from '../config/regions';
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static']);
 
@@ -171,7 +174,8 @@ function processDir(
       // Read the source MDX frontmatter once — reused for the Pagefind title
       // meta (below) and the .md frontmatter injection (further down).
       const slug = entry.name.replace(/\.html$/, '');
-      const relativePath = `${basePath}/${slug}`.replace(`/${locale}/`, '');
+      // Path below the locale root (`guides/…`), whatever the URL prefix.
+      const relativePath = `${basePath}/${slug}`.slice(rootBase.length + 1);
       const mdxPath = path.join(docsDir, locale, `${relativePath}.mdx`);
       const fm = readMdxFrontmatter(mdxPath);
       const title = fm?.title || '';
@@ -181,15 +185,24 @@ function processDir(
       // `guides/`) carry filters; non-guide pages (home, etc.) get none.
       // Values are the stable path slugs — the search UI maps them to
       // locale-translated labels at render time (see config/sidebar/index.md).
+      // On a region whose guides sit at the locale root (US) there is no
+      // leading `guides/` segment, so the universe is segment 0 and every
+      // index below shifts by one.
+      const subdir = contentSubdir(regionConfig);
       const pathSegments = relativePath.split('/');
+      const hasPrefix = subdir !== '';
+      const offset = hasPrefix ? 1 : 0;
+      const inGuides = !hasPrefix || pathSegments[0] === subdir;
       const universe =
-        pathSegments[0] === 'guides' && pathSegments.length >= 3
-          ? pathSegments[1]
+        inGuides && pathSegments.length >= 2 + offset
+          ? pathSegments[offset]
           : '';
       // A product exists only when there's a segment BETWEEN universe and the
-      // final slug (guides/<universe>/<product>/<slug> → length ≥ 4).
+      // final slug (<universe>/<product>/<slug> → at least three left).
       const product =
-        universe && pathSegments.length >= 4 ? pathSegments[2] : '';
+        universe && pathSegments.length >= 3 + offset
+          ? pathSegments[offset + 1]
+          : '';
 
       // Inject, in a single pass over the `.rp-doc` root:
       //   1. The Pagefind result title (`data-pagefind-meta="title:…"`).
@@ -328,11 +341,13 @@ function processDir(
   return { html, md };
 }
 
-const { dir, locale, siteUrl, docsDir } = workerData as {
+const { dir, locale, siteUrl, docsDir, basePath } = workerData as {
   dir: string;
   locale: string;
   siteUrl: string;
   docsDir: string;
+  basePath?: string;
 };
-const counts = processDir(dir, locale, siteUrl, docsDir, `/${locale}`);
+const rootBase = basePath ?? `/${locale}`;
+const counts = processDir(dir, locale, siteUrl, docsDir, rootBase);
 parentPort?.postMessage(counts);

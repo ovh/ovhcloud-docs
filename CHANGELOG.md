@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026.10.12
+
+### Fixes
+
+#### All regions
+- **theme:** make file download links visible (#975)
+
+### Documentation
+- EU: 24 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.09
+
+### Features
+
+#### All regions
+- **theme:** wire page feedback and allow a comment on positive votes
+
+## 2026.10.08
+
+### Features
+
+#### US
+- **region:** add the US documentation site (docs.us.ovhcloud.com) (#960)
+
+### Maintenance
+
+#### EU
+- **docs:** tokenization clean-up & fixes (#959)
+
+### Documentation
+- EU: 210 guides across de, en, es, fr, it, pl, pt
+- US: 778 guides across en
+
 ## 2026.10.07
 
 ### Features
