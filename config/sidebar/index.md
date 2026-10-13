@@ -1317,6 +1317,7 @@
                 + [Fetch service metrics with Prometheus for Public Cloud Databases](public-cloud/databases/service-metrics-with-prometheus)
                 + [Enable deletion protection for Public Cloud Databases](public-cloud/databases/databases-deletion-protection)
             + [Migration](public-cloud-databases-mongodb-migration)
+                + [Manage a suspended Discovery service of Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-discovery-suspended-service)
                 + [Migrate to OVHcloud Public Cloud Databases](public-cloud/databases/databases-move-to-cloud)
                 + [Migrate to OVHcloud Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-migrate-to-ovhcloud)
                 + [Relational Migrator for Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-relational-migrator)
