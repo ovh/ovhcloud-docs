@@ -339,17 +339,25 @@ if (!fs.existsSync(DIST_DIR)) {
   process.exit(1);
 }
 
+// Content roots to check: one per built locale (`dist/<locale>/`, served under
+// `/<locale>/`), or — for a single-locale region served at the domain root
+// (US) — `dist/` itself, with no URL prefix.
 const presentLocales = LOCALES.filter((l) =>
   fs.existsSync(path.join(DIST_DIR, l, 'guides')),
 );
+const rootBuild =
+  presentLocales.length === 0 && fs.existsSync(path.join(DIST_DIR, 'guides'));
+const roots: { name: string; prefix: string }[] = rootBuild
+  ? [{ name: '(root)', prefix: '' }]
+  : presentLocales.map((l) => ({ name: l, prefix: `/${l}` }));
 
-if (presentLocales.length === 0) {
+if (roots.length === 0) {
   console.error(`❌ No locale guide trees found under ${DIST_DIR}`);
   process.exit(1);
 }
 
 console.log(
-  `🔎 Retrievability smoke test → ${DIST_DIR}\n   locales: ${presentLocales.join(', ')} · sample: ${SAMPLE_PER_LOCALE}/locale\n`,
+  `🔎 Retrievability smoke test → ${DIST_DIR}\n   locales: ${roots.map((r) => r.name).join(', ')} · sample: ${SAMPLE_PER_LOCALE}/locale\n`,
 );
 
 // 4. Root llms.txt — only meaningful once locales are combined (build:combine).
@@ -361,33 +369,39 @@ if (presentLocales.length > 1 && !fs.existsSync(rootLlms)) {
   fail('llms.txt', 'root /llms.txt missing from combined build');
 }
 
-for (const locale of presentLocales) {
+for (const { name, prefix } of roots) {
+  const rootDir = path.join(DIST_DIR, prefix);
   // Per-locale llms.txt (emitted by Rspress `llms: true`).
-  const localeLlms = path.join(DIST_DIR, locale, 'llms.txt');
+  const localeLlms = path.join(rootDir, 'llms.txt');
+  // Combined build (scripts/lib/llms/ ran): a root /llms.txt for a
+  // multi-locale build, the per-product dir for a root build.
+  const combined = rootBuild
+    ? fs.existsSync(path.join(DIST_DIR, 'llms'))
+    : fs.existsSync(rootLlms);
   if (!fs.existsSync(localeLlms)) {
-    fail(`${locale}/llms.txt`, `per-locale /${locale}/llms.txt missing`);
-  } else if (fs.existsSync(rootLlms)) {
+    fail(`${name}/llms.txt`, `per-locale ${prefix}/llms.txt missing`);
+  } else if (combined) {
     // Combined build: the directory must fan out to per-product indexes.
     const directory = fs.readFileSync(localeLlms, 'utf-8');
     const productLinks = [
       ...directory.matchAll(/\((?:https?:\/\/[^/)]+)?(\/[^)]+\/llms\.txt)\)/g),
     ]
       .map((m) => m[1])
-      .filter((href) => href.startsWith(`/${locale}/llms/`));
+      .filter((href) => href.startsWith(`${prefix}/llms/`));
     if (productLinks.length === 0) {
-      fail(`${locale}/llms.txt`, 'no per-product llms.txt link');
+      fail(`${name}/llms.txt`, 'no per-product llms.txt link');
     }
     for (const href of productLinks) {
       const file = path.join(DIST_DIR, href);
       if (!fs.existsSync(file)) {
-        fail(`${locale}/llms.txt`, `links to missing ${href}`);
+        fail(`${name}/llms.txt`, `links to missing ${href}`);
       } else if (fs.readFileSync(file, 'utf-8').includes('/internal/')) {
         fail(href, 'lists an internal/ page');
       }
     }
   }
 
-  const all = collectGuideHtml(path.join(DIST_DIR, locale, 'guides'));
+  const all = collectGuideHtml(path.join(rootDir, 'guides'));
   // Deterministic, spread-out sample: evenly stride across the sorted list so
   // we touch different products, not just the alphabetical head.
   all.sort();
@@ -404,7 +418,7 @@ for (const locale of presentLocales) {
 }
 
 console.log(
-  `   checked ${checkedGuides} guides across ${presentLocales.length} locale(s)\n`,
+  `   checked ${checkedGuides} guides across ${roots.length} locale(s)\n`,
 );
 
 if (failures.length > 0) {

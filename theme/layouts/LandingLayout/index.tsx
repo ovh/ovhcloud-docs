@@ -11,6 +11,7 @@ import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { PageToolbar } from 'theme/components/PageToolbar';
 import { ProductPdfButton } from 'theme/components/ProductPdfButton';
 import { Sidebar } from 'theme/components/Sidebar';
+import { SiteFooter } from 'theme/components/SiteFooter';
 import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
@@ -206,6 +207,12 @@ export function LandingLayout(props: LandingLayoutProps) {
           </main>
         </div>
       </div>
+      {/* This layout renders its own page body and never reaches the DocLayout
+          afterDoc slot, so the legal footer is mounted here too. It sits
+          OUTSIDE rp-doc-layout__container, which lays its children out as a
+          row: inside it, the footer became a column beside the sidebar and
+          rendered at the top of the page. */}
+      <SiteFooter />
     </>
   );
 }

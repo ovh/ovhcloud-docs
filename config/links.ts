@@ -1812,6 +1812,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-cloud/old-prices/',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/old-prices/',
   },
+  'public-cloud/prices-postgresql': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#postgresql',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#postgresql',
+    de: 'https://www.ovhcloud.com/de/public-cloud/prices/#postgresql',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/prices/#postgresql',
+    it: 'https://www.ovhcloud.com/it/public-cloud/prices/#postgresql',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#postgresql',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#postgresql',
+  },
   'public-cloud/public-cloud': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/',
     en: 'https://www.ovhcloud.com/en-gb/public-cloud/',
