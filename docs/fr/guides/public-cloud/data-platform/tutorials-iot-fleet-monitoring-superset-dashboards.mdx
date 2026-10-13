@@ -1,0 +1,209 @@
+---
+title: Construire les dashboards Superset
+description: Cette page est le complément détaillé de l'étape 7 du tutoriel du pipeline de supervision de flotte IoT
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Cette page est le complément détaillé de l'étape 7 du tutoriel du [pipeline de supervision de flotte IoT](/guides/public-cloud/data-platform/tutorials-iot-fleet-monitoring). Elle fournit les datasets virtuels et la configuration exacte des graphiques pour chaque panneau du dashboard de supervision de flotte.
+
+Superset interroge le Lakehouse via [Trino](/guides/public-cloud/data-platform/connectors-consumers-trino), donc tout le SQL de cette page utilise le **dialecte Trino**. Si vous n'avez pas encore déployé Superset, suivez d'abord [Déployer Apache Superset](/guides/public-cloud/data-platform/tutorials-install-apache-superset).
+
+Le dashboard fini que vous allez construire :
+
+<img className="thumbnail" alt="IoT fleet-monitoring dashboard" src="/images/public-cloud/data-platform/getting-further/iot-fleet-monitoring/picts/dashboard.png" loading="lazy" />
+
+:::info
+**À propos du parsing de `ts`.** Le producteur émet `ts` sous forme de chaîne ISO-8601. Si la colonne de la table est en `VARCHAR`, chaque requête la parse avec `from_iso8601_timestamp(ts)`. Si vous définissez la colonne comme un vrai `TIMESTAMP` dans le Lakehouse Manager, vous pouvez supprimer le parsing et utiliser `ts` directement. Dans tous les cas, marquez la colonne temporelle parsée comme la colonne temporelle principale du dataset dans Superset afin que les filtres temporels et les graphiques de séries temporelles fonctionnent.
+:::
+
+:::info
+**Se prémunir contre les lignes non parsables.** Si un message de test a laissé un enregistrement dont `ts` n'est pas un timestamp valide (par exemple `device_id = 'local-test'`), `from_iso8601_timestamp` lève `INVALID_FUNCTION_ARGUMENT: Invalid format`. Les requêtes ci-dessous enveloppent le parsing dans `try()` afin que cette ligne prenne la valeur `null` et soit filtrée. La correction propre consiste à la purger une bonne fois avec `DELETE FROM iot_readings WHERE device_id = 'local-test'`, après quoi les enveloppes `try()` deviennent optionnelles.
+:::
+
+## Configuration
+
+1. **Connectez Trino comme base de données** dans Superset sous **Settings > Database Connections > +**. L'URI SQLAlchemy a la forme `trino://<user>@<trino-host>:<port>/<catalog>`. Testez la connexion avant d'aller plus loin.
+2. **Ajoutez le dataset physique** `iot_readings` sous **Datasets > +**, en choisissant le catalog, le schema, et la table.
+3. **Créez les datasets virtuels** ci-dessous dans SQL Lab (exécutez la requête, puis **Save > Save dataset**). La logique de « dernier état par device » est réutilisée par plusieurs graphiques, donc sauvegardez-la une fois pour toutes sous le nom `iot_current_state`.
+
+## Le dataset virtuel iot_current_state
+
+Celui-ci retourne la dernière ligne par device, sur laquelle plusieurs panneaux s'appuient. Sauvegardez-le sous le nom `iot_current_state`.
+
+```sql
+SELECT *
+FROM (
+  SELECT
+    device_id, site, region, device_type,
+    temperature, humidity, co2, pm25,
+    battery_pct, status, error_code,
+    ts_parsed AS ts,
+    row_number() OVER (
+      PARTITION BY device_id
+      ORDER BY ts_parsed DESC
+    ) AS rn
+  FROM (
+    SELECT *, try(from_iso8601_timestamp(ts)) AS ts_parsed
+    FROM iot_readings
+  )
+  WHERE ts_parsed IS NOT NULL
+)
+WHERE rn = 1
+```
+
+Le `try()` interne associé à `WHERE ts_parsed IS NOT NULL` élimine toute ligne non parsable, ce qui empêche également une ligne invalide de remporter le tri du `row_number()` et d'être considérée comme l'état courant d'un device.
+
+## Panneau 1 : ligne de KPI
+
+Quatre graphiques Big Number en tête de dashboard.
+
+| Graphique | Type | Dataset | Métrique |
+| ----- | ---- | ------- | ------ |
+| Devices online | Big Number | virtuel (ci-dessous) | devices distincts vus au cours des 2 dernières minutes |
+| Fleet size | Big Number | `iot_current_state` | `COUNT(DISTINCT device_id)` |
+| Devices in alert | Big Number | `iot_current_state` | `COUNT_IF(status <> 'OK')` |
+| Avg CO₂ now | Big Number | `iot_current_state` | `AVG(co2)` |
+
+Sauvegardez le dataset virtuel **Devices online** :
+
+```sql
+SELECT count(DISTINCT device_id) AS devices_online
+FROM iot_readings
+WHERE try(from_iso8601_timestamp(ts)) >= current_timestamp - interval '2' minute
+```
+
+:::info
+« Online » signifie ayant transmis une valeur au cours des 2 dernières minutes. C'est ainsi qu'un device hors ligne sort du décompte. Il n'y a pas de ligne `OFFLINE` à compter, seulement une absence de lignes récentes.
+:::
+
+## Panneau 2 : donut de santé de la flotte
+
+La distribution actuelle des statuts sur la flotte, une part par device plutôt que par ligne.
+
+- Type de graphique : **Pie / Donut**
+- Dataset : `iot_current_state`
+- Dimension : `status`. Métrique : `COUNT(DISTINCT device_id)`
+- Couleurs suggérées : OK vert, DEGRADED ambre, FAULT rouge. `OFFLINE` apparaît rarement ici car les devices hors ligne cessent d'émettre, et sortent donc de l'état courant. Voir [Panneau 5](#panneau-5--tableau-des-temps-darrêt).
+
+## Panneau 3 : niveaux de batterie
+
+Le graphique « vous auriez pu le voir venir », trié pour que les devices les plus à risque apparaissent en premier.
+
+- Type de graphique : **Bar Chart**. Bar Orientation **Horizontal** sous Customize.
+- Dataset : `iot_current_state`
+- **X-axis** : `device_id`. **Metrics** : `MAX(battery_pct)`. Laissez **Dimensions** vide.
+- Tri par `MAX(battery_pct)` croissant, row limit 15.
+
+:::warning
+Une ligne de seuil au niveau des 15% de déclenchement de panne n'est **pas** disponible sur un bar chart catégoriel. Les couches d'annotation n'existent que sur les graphiques de séries temporelles. Pour faire ressortir le seuil, soit vous vous appuyez sur le tri croissant pour que les batteries les plus faibles soient évidentes, soit vous construisez ce panneau comme un **Table** et utilisez **Customize > Conditional formatting** pour colorer `MAX(battery_pct)` en rouge en dessous de 15.
+:::
+
+:::info
+Sur les bar charts, placez la catégorie dans **X-axis** et laissez la case **Dimensions** vide. Dimensions ne sert qu'à découper chaque barre en sous-séries, ce qui n'est pas souhaité ici.
+:::
+
+## Panneau 4 : tendance des relevés
+
+La tendance principale : métriques moyennes dans le temps, filtrables par site ou région.
+
+- Type de graphique : **Line Chart** (série temporelle)
+- Dataset : un dataset dont la colonne temporelle est le `ts` parsé (voir la note de parsing en haut de page). Créez un dataset virtuel qui expose `try(from_iso8601_timestamp(ts)) AS ts` et marquez-le comme colonne temporelle principale.
+- Time grain : 1 minute (ou 30 secondes)
+- **X-axis** : `ts`. **Metrics** : `AVG(co2)`, `AVG(pm25)`, `AVG(temperature)`. **Dimensions** : `site` pour obtenir une ligne par site.
+- Ajoutez des filtres de dashboard sur `region` et `device_type`.
+
+:::warning
+Les valeurs de CO₂ (autour de 480) écrasent la temperature (autour de 21) et le PM2.5 (autour de 9) sur un axe partagé. Pour que les trois soient lisibles, affichez le CO₂ séparément ou placez les métriques les plus petites sur un axe Y secondaire.
+:::
+
+Pour un gros plan par device sur une anomalie, montrant clairement les valeurs bloquées de FAULT et le pic de PM2.5, dupliquez ce graphique, définissez la dimension de série sur `device_id`, et filtrez sur l'un des devices scriptés :
+
+```sql
+SELECT
+  try(from_iso8601_timestamp(ts)) AS ts,
+  device_id, pm25, status
+FROM iot_readings
+WHERE device_id = 'paris-dc1-sensor-01'
+ORDER BY ts
+```
+
+## Panneau 5 : tableau des temps d'arrêt
+
+Détecte les vrais temps d'arrêt : un device dont le dernier relevé est obsolète car il a cessé d'émettre.
+
+- Type de graphique : **Table**
+- Dataset : le dataset virtuel ci-dessous
+
+Sauvegardez ce dataset. Il retourne chaque device avec le temps écoulé depuis son dernier relevé, de sorte que le panneau n'est jamais vide :
+
+```sql
+SELECT
+  device_id,
+  site,
+  region,
+  max(try(from_iso8601_timestamp(ts)))                                  AS last_seen,
+  date_diff('second', max(try(from_iso8601_timestamp(ts))), current_timestamp) AS seconds_since_last
+FROM iot_readings
+WHERE device_id <> 'local-test'
+GROUP BY device_id, site, region
+ORDER BY seconds_since_last DESC
+```
+
+Puis, dans le Table chart, utilisez **Customize > Conditional formatting** pour colorer `seconds_since_last` en rouge lorsqu'il dépasse 30.
+
+:::info
+Un seuil de 30 secondes suppose un intervalle d'émission de 5 secondes, si bien qu'un device manquant environ 6 cycles est considéré comme en panne. Ajustez selon vos préférences. Si vous préférez ne lister que les devices en panne, ajoutez `HAVING date_diff('second', max(try(from_iso8601_timestamp(ts))), current_timestamp) > 30` à la requête. Notez que cette version est vide lorsque la flotte est en bonne santé, ce qui peut paraître cassé lors d'une démo en direct.
+:::
+
+## Panneau 6 : répartition des codes d'erreur
+
+Quels types de pannes surviennent sur une fenêtre donnée.
+
+- Type de graphique : **Bar Chart**
+- Dataset : `iot_readings`
+- **X-axis** : `error_code`. **Metrics** : `COUNT(*)`. Laissez **Dimensions** vide.
+- Filtre : `error_code <> 'NONE'` et plage temporelle réglée sur les 15 dernières minutes.
+
+## Panneau 7 : relevés par site
+
+Comparer les relevés environnementaux sur la flotte.
+
+- Type de graphique : **Bar Chart**
+- Dataset : `iot_current_state`
+- **X-axis** : `site` (ou `region`). **Metrics** : `AVG(co2)`, `AVG(pm25)`. Laissez **Dimensions** vide.
+
+:::warning
+Comme au Panneau 4, le CO₂ écrase le PM2.5 sur un axe partagé. Affichez-les séparément ou utilisez un axe Y secondaire si vous avez besoin que les deux soient lisibles.
+:::
+
+## Disposition du dashboard
+
+Une disposition pratique des sept panneaux :
+
+```
++-----------------------------------------------------------------+
+|  Devices online | Fleet size | Devices in alert | Avg CO2 (now) |   KPI row
++------------------------------+----------------------------------+
+|  Fleet health donut          |  Battery levels                  |
++------------------------------+----------------------------------+
+|  Readings trend over time, by site                              |
++------------------------------+----------------------------------+
+|  Downtime table              |  Error-code breakdown            |
++------------------------------+----------------------------------+
+```
+
+Ajoutez des filtres de dashboard pour `region`, `site`, `device_type`, et une plage temporelle. Réglez l'intervalle d'auto-refresh du dashboard sur 30 secondes (sous **Edit dashboard**) pour un rendu en direct.
+
+Au fur et à mesure que les pannes scriptées se déroulent, le dashboard traverse toute l'histoire : une flotte en bonne santé, un device qui se dégrade puis tombe en panne, une fenêtre de temps d'arrêt qui apparaît dans le tableau des temps d'arrêt et comme un trou dans la tendance, et enfin une réparation qui ramène le device à la normale.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

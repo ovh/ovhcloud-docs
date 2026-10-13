@@ -1,14 +1,221 @@
 # AGENTS.md
 
+This file provides guidance to AI agents (Claude Code, Zed, Codex, …) when working with code in this repository. `CLAUDE.md` is a symlink to this file.
+
 You are an expert in JavaScript, Rspress, and documentation site development. You write maintainable, performant, and accessible code.
 
-## Commands
+## Project Overview
 
-- `pnpm run dev` - Start the dev server
-- `pnpm run build` - Build the site for production
-- `pnpm run preview` - Preview the production build locally
-- Run `pnpm run lint` to lint your code
-- Run `pnpm run format` to format your code
+This is the OVHcloud documentation site built with [Rspress](https://rspress.dev/) v2 (`@rspress/core` — the pinned range lives in `package.json`), a React-based static site generator. It serves documentation in 7 locales: fr, en, de, es, it, pl, pt.
+
+## Common Commands
+
+```bash
+# Development - serves all locales from single instance
+pnpm dev
+
+# Production build - builds all locales in parallel via Turborepo
+pnpm build
+
+# Build single locale
+pnpm build:fr
+# or: LOCALE=fr rspress build -c rspress.config.build.ts
+
+# Preview production build
+pnpm preview
+
+# Linting and formatting (Biome)
+pnpm lint
+pnpm format
+pnpm check  # lint + format with auto-fix
+```
+
+## Architecture
+
+### Configuration Split
+- `rspress.config.ts` - Development config, serves all locales from one instance
+- `rspress.config.build.ts` - Production config, used per-locale with `LOCALE` env var
+- `config/shared.ts` - Locale definitions only (the `locales` array + `Locale` type). Deliberately data-only: all build settings live in the two configs above
+- `turbo.json` - Turborepo orchestrates parallel locale builds
+
+### Text Fragments
+Reusable per-locale text blocks, inserted in MDX as a token on its own line (`[[fragment:<key>]]`) and expanded at build time via Rspress `replaceRules` — same mechanism as the `/links/` keys, applied before them so a fragment body can contain `/links/` targets.
+
+| File | Role |
+|------|------|
+| `config/fragments/<key>/<locale>.md` | **Source of truth** — one markdown body per locale; the directory name is the key (markdown, or import-free JSX / globally registered components only) |
+| `config/fragments.ts` | Loader — discovers the directories and builds the `FragmentMap` |
+| `config/fragment-rules.ts` | Generates the `ReplaceRule[]` for a locale (fallback `locale → en → first`) |
+| `plugins/remarkNoUnresolvedFragments.ts` | Fails the build on an unresolved/misspelled token |
+| `scripts/fragments-validate.ts` | `pnpm fragment:validate` — locale coverage, unknown keys, orphans, usage counts |
+| `scripts/fragments-new.ts` | `pnpm fragment:new <key>` — scaffolds the per-locale stubs |
+| `scripts/test-fragments.ts` | `pnpm fragment:test` — expansion + guard behaviour, incl. the code-fence trap |
+| `styles/index.css` | `details.support` styling for the `support-scope` block |
+
+Adding a fragment: `pnpm fragment:new <key>`, write `en.md` first (it is the fallback for every locale), translate the rest, then `pnpm fragment:validate`. A staged change under `config/fragments/**` runs the validator via `.husky/pre-commit`.
+
+Authoring rules and the current key list: `docs/en/internal/format-reference.mdx` §6b.
+
+### Dev vs Production Routing
+Rspress strips the URL prefix for the default locale (`lang: 'fr'`):
+
+| Mode | FR (default) | Other locales |
+|------|--------------|---------------|
+| Dev  | `/guides/...` | `/en/guides/...`, `/de/guides/...` |
+| Prod | `/fr/guides/...` | `/en/guides/...`, `/de/guides/...` |
+
+This affects sidebar key matching — see `config/sidebar/index.ts` for details.
+
+### Dev Performance
+With 9500+ MDX files, dev SSR is slow (~9s per page). Optimizations applied:
+
+- **`lastUpdated`** - The built-in feature is off (`themeConfig.lastUpdated: false`) in **both** configs, since it runs `git log` per page (80k+ calls). Frontmatter `lastUpdated` is the **single source of truth**: `plugins/lastUpdatedFromFrontmatter.ts` reads it from Rspress's already-parsed `frontmatter` (no disk re-read) and a custom `LastUpdated` component renders it. There is no git-derived fallback — a git timestamp would bump the date on reader-invisible edits (key renames, boilerplate swaps, typography passes), which the authoring rules forbid. A guide with no `lastUpdated` therefore fails the build (`plugins/remarkNoDatelessGuide.ts`); the only exemption is the body-less navigational page types listed in `config/navigational-page-types.ts`
+- **Shiki langs** - Removed `markdown` and `mdx` which disable lazy loading
+- Multi-locale and shiki lang count have minimal impact on SSR time
+
+The ~9s baseline appears to be Rspress MDX compilation overhead for large projects.
+
+### Directory Structure
+```
+docs/
+  {locale}/           # fr, en, de, etc. - each locale's content
+    guides/
+      public-cloud/
+      bare-metal-cloud/
+      hosted-private-cloud/
+      web-cloud/
+      account-and-service-management/
+  public/             # Shared static assets
+
+config/
+  sidebar/            # Sidebar definitions per product category
+  nav/                # Navigation with localized external URLs
+  shared.ts           # Locale definitions (data-only)
+
+theme/
+  index.tsx           # Theme entry - re-exports from @rspress/core/theme-original with overrides
+  components/         # Custom components: Nav, Sidebar, Breadcrumbs, LanguageSwitcher
+  layouts/            # HomeLayout, OverviewLayout
+
+components/           # Reusable MDX components: AIChatbot, Api, Carousel, LinkCard
+```
+
+### Sidebar System
+
+The sidebar is generated from a single source of truth and supports full i18n.
+
+#### Files
+
+| File | Role |
+|------|------|
+| `config/sidebar/index.md` | **Source of truth** — markdown tree defining the full sidebar structure |
+| `config/sidebar/parser.ts` | Parses `index.md` into Rspress `SidebarGroup[]` with i18n keys |
+| `config/sidebar/index.ts` | Entry point — creates the sidebar per locale, handles dev/prod routing |
+| `config/sidebar/supplements.ts` | Header items (API ref, changelog…) and Security section (not in `index.md`) |
+| `i18n.json` | Contains `sidebar.gen.*` translations for non-leaf labels |
+| `scripts/sidebar-sync-i18n.ts` | Seeds missing `sidebar.gen.*` keys from `index.md` into `i18n.json` (never overwrites an existing entry) |
+| `scripts/sidebar-validate.ts` | Checks that sidebar guide links point to existing `.mdx` files |
+| `scripts/sidebar-orphans.ts` | Finds guides not referenced in the sidebar |
+
+#### `index.md` format
+
+```markdown
++ Universe Name                                      ← top-level group (indent 0, no link)
+    + [Product Label](products/category-ref)          ← product group (link starts with products/)
+        + [Section Label](section-ref)                ← section group (link without /)
+            + [Guide Title](universe/product/slug)    ← leaf guide (link with /, Rspress path format)
+```
+
+Classification rules used by the parser:
+- **indent 0, no link** → universe (e.g. `+ Public Cloud`)
+- **link starts with `products/`** → product group
+- **link without `/`** → section group
+- **link with `/`** → guide leaf (converted to `/guides/...` link)
+
+#### How translations work
+
+There are two kinds of sidebar items:
+
+1. **Non-leaf nodes** (universes, products, sections) — use i18n keys (`sidebar.gen.*`), resolved at render time by Rspress from `i18n.json`
+2. **Leaf nodes** (guides) — title is read directly from the MDX frontmatter of the target locale at build time
+
+For non-leaf translations:
+- Universe names use hardcoded translations in `parser.ts` (`UNIVERSE_TRANSLATIONS`)
+- Product/section labels live only in `i18n.json` (a new key is seeded with the English label in all 7 locales, to translate by hand)
+- All are stored as `sidebar.gen.{camelCaseRef}` keys in `i18n.json`
+
+#### Dev vs Production
+
+In **dev mode**, each locale gets its own sidebar key (`/` for the default locale, `/{locale}/` for others). The `DEV_LOCALES` env var (default `fr,en`) limits which locales are generated.
+
+In **production**, each locale is built separately (`LOCALE=fr rspress build`). Each build generates only its own sidebar with key `/` (routes are relative to `base: /${locale}/`).
+
+#### Updating the sidebar
+
+**To add/remove/reorder a guide:**
+1. Edit `config/sidebar/index.md` — add or remove the `+ [Guide Title](universe/product/slug)` line
+2. Run `pnpm sidebar:validate` to check all links resolve to existing `.mdx` files
+
+**To add/remove a product or section:**
+1. Edit `config/sidebar/index.md`
+2. Run `pnpm sidebar:sync-i18n` to generate/update i18n keys in `i18n.json`
+3. Verify translations in `i18n.json` — missing translations fall back to English
+
+**To add a new universe:**
+1. Add the `+ Universe Name` block in `config/sidebar/index.md`
+2. Add translations in `UNIVERSE_TRANSLATIONS` in `config/sidebar/parser.ts`
+3. Run `pnpm sidebar:sync-i18n`
+
+**Validation:**
+```bash
+pnpm sidebar:validate   # Check sidebar links → existing .mdx files
+pnpm sidebar:orphans    # Find guides not in the sidebar
+pnpm sidebar:check      # Both above
+pnpm sidebar:sync-i18n  # Sync i18n keys from index.md → i18n.json
+```
+
+### i18n System
+- `i18n.json` - Translation keys for UI strings (sidebar labels, navigation text)
+- Sidebar/nav use i18n keys like `sidebar.documentation`, resolved at render time
+- Content is duplicated per locale under `docs/{locale}/`
+
+### Theme Customization
+The custom theme (`theme/index.tsx`) extends Rspress's original theme:
+- Overrides: `Nav`, `Sidebar`, `Layout`, `DocLayout`, `HomeLayout`, `OverviewLayout`
+- Uses Tailwind CSS v4 with `tw-dark` class for dark mode
+- Frontmatter `pageType: overview` triggers `OverviewLayout`
+- Frontmatter `outline: false` or `sidebar: false` hides those elements
+
+### Build Process
+1. Turborepo runs `build:{locale}` tasks in parallel
+2. Each locale build uses `rspress.config.build.ts` with `LOCALE` env var
+3. Output goes to `dist/{locale}/`
+4. `pnpm build:combine` merges locale builds into final `dist/` and generates the sitemaps, sitemap index and `robots.txt`
+
+#### Site origin (SEO / LLM crawlers)
+`rspress.config.build.ts` sets `siteOrigin: 'https://docs.ovhcloud.com'`. It is what makes the `llms: true` output (`llms.txt`, `llms-full.txt`, the per-page `.md` links and the AI-agent hint under the H1) emit absolute rather than relative URLs. **Three copies must stay in sync:** `siteOrigin` here, `SITE_URL` in `scripts/combine-builds.ts`, and the same constant in `theme/components/SEOHead`.
+
+#### llms.txt family
+Rspress (`llms: true`) only produces the per-page `.md` files and the agent hint; its flat per-locale `llms.txt` / `llms-full.txt` are **overwritten** by `scripts/lib/llms/` (step 5.6 of `combine-builds.ts`, after the `.md` frontmatter injection). Layout:
+
+| File | Content |
+|------|---------|
+| `/llms.txt` | Copy of the EN directory |
+| `/<locale>/llms.txt` | Directory: universe → product, each linking to its own index |
+| `/<locale>/llms/<product>/llms.txt` | Product index in sidebar order, `- [Title](….md): description` |
+| `/<locale>/llms/<product>/llms-full.txt` | Full Markdown of the product's guides |
+| `/<locale>/llms-full.txt` | Every guide of the locale, deduplicated |
+
+Structure comes from `config/sidebar/index.md`; a product's description is its landing page's (or overview's) `description`. Excluded: `internal/`, `noindex`, `_` partials; navigational page types are listed but kept out of the full files; language fallbacks (symlinks) link to the real locale's `.md`, tagged `(en)`, and are kept in the product full files but not in the locale-wide one. Custom layouts (`theme/index.tsx` DocLayout/HomeLayout) must defer to the original layout under `process.env.__SSR_MD__`, or the `.md` export serialises the whole nav. Region-aware: a single-locale region served at the root (US, `localePrefix: false`) gets the same family without the `/<locale>` segment — `/llms.txt` is its directory and products live under `/llms/<product>/` — and the worker's `basePath` is `''` there. Test: `pnpm llms:test` (covers both layouts). `docs/public/nginx.conf` serves `.md` as `text/markdown` and answers `Accept: text/markdown` on clean URLs.
+
+Sitemaps are **not** produced by an Rspress plugin (`@rspress/plugin-sitemap` was dropped) — `scripts/combine-builds.ts` writes one `sitemap.xml` per locale with hreflang alternates, a root sitemap index, `robots.txt`, and promotes the legacy `sitemap-help.xml`.
+
+## Code Style
+
+- Biome for linting/formatting (single quotes, space indentation)
+- CSS Modules with Tailwind directives enabled
+- TypeScript with strict mode
+- Path alias: `@components` → `components/`
 
 ## Docs
 

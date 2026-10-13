@@ -21,6 +21,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { SidebarGroup, SidebarItem } from '@rspress/core';
 import YAML from 'yaml';
+import { regionConfig } from '../regions';
 
 // Source of truth for sidebar.gen.* translations is `i18n.json` at the repo
 // root. This parser used to merge in per-locale strings from a sibling
@@ -166,12 +167,21 @@ interface StackEntry {
 // -------------------------------------------------------------------
 
 /**
- * Convert a slug from index.md to a /guides/ link.
- * Slugs are already in Rspress format (hyphens, lowercase).
- * e.g. public-cloud/compute/overview → /guides/public-cloud/compute/overview
+ * Convert a slug from the sidebar index to a route.
+ *
+ * Slugs are already in Rspress format (hyphens, lowercase), and the route
+ * mirrors the folder layout under the region's content root.
+ *
+ * The worldwide docs keep their `/guides/` segment: it is in 8,000+ in-content
+ * links and 400+ live 301 rules, so dropping it there would be a migration,
+ * not a rename. The US content root has no `guides/` folder, so its routes are
+ * one segment shorter -- see `routePrefix` in config/regions.ts.
+ * e.g. public-cloud/compute/overview
+ *        EU -> /guides/public-cloud/compute/overview
+ *        US -> /public-cloud/compute/overview
  */
 function slugToLink(slug: string): string {
-  return `/guides/${slug}`;
+  return `${regionConfig.routePrefix}${slug}`;
 }
 
 /**

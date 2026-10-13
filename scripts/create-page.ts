@@ -139,24 +139,24 @@ async function main() {
     titles[locale] = title;
   }
 
-  // 6. Excerpts per locale
-  console.log('\n📝 Enter excerpts/descriptions:\n');
+  // 6. Descriptions per locale
+  console.log('\n📝 Enter descriptions:\n');
 
-  const excerpts: Partial<Record<Locale, string>> = {};
+  const descriptions: Partial<Record<Locale, string>> = {};
 
-  excerpts.fr = await input({
-    message: `Excerpt (FR):`,
+  descriptions.fr = await input({
+    message: `Description (FR):`,
     default: '',
   });
 
   for (const locale of selectedLocales) {
     if (locale === 'fr') continue;
 
-    const excerpt = await input({
-      message: `Excerpt (${locale.toUpperCase()}):`,
-      default: excerpts.fr,
+    const description = await input({
+      message: `Description (${locale.toUpperCase()}):`,
+      default: descriptions.fr,
     });
-    excerpts[locale] = excerpt;
+    descriptions[locale] = description;
   }
 
   // 7. Sidebar configuration (only for public pages)
@@ -271,7 +271,7 @@ async function main() {
       pageType,
       visibility,
       titles,
-      excerpts,
+      descriptions,
       locales: selectedLocales,
     });
 

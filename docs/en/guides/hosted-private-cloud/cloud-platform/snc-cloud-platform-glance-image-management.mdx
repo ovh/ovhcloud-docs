@@ -1,0 +1,235 @@
+---
+title: Managing Glance images
+description: Find out how to import, verify, share and delete images in Glance on SNC Cloud Platform, and create volumes from them with the OpenStack CLI
+lastUpdated: 2026-09-30
+---
+
+## Objective
+
+Practical guide to importing, verifying and managing images in Glance (OpenStack's image catalogue service) on SNC Cloud Platform. Target audience: anyone who needs an image not in the default catalogue.
+
+This guide covers an image's full lifecycle in Glance on this platform: import, verification, use for creating a volume or instance, visibility management, deletion — with the specifics of this platform, which complement generic OpenStack documentation.
+
+## Requirements
+
+- The OpenStack CLI configured (see the [Creating an instance and connecting to it](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-create-instance) guide for CLI installation and configuration).
+- The `member` role, at minimum.
+- A local machine with enough free disk space to stage the image being imported — the upload happens **from the local machine**, not server-side (see the "[Available import methods](#available-import-methods)" section).
+
+## Instructions
+
+### Available import methods
+
+Glance offers several import methods. On this platform, only `openstack image create --file` (direct upload from the local machine) is supported — it is the recommended method:
+
+| Method | How it works | On this platform |
+|---|---|---|
+| `openstack image create --file` (direct upload, CLI) | The file is streamed **from the local machine** to Glance over HTTP | ✅ Recommended method, used in this guide. A ~7-8 GB file typically imports in 1 to 3 minutes depending on the local machine's upload bandwidth. |
+| `web_download` | Glance downloads the image **server-side**, from a supplied URL | ❌ Not functional on this platform, due to the network segmentation requirements tied to the ongoing SecNumCloud qualification (internal services have no outbound Internet access) — prefer the direct upload above. |
+| Manual upload via the Horizon UI | Uploading a local file through the "Create Image" web form | ⚠️ Not working yet. Use the CLI (`openstack image create --file`), which is fully supported. |
+| `copy-image` | Duplicates an image already present in Glance to another store | ✅ Works (tested: `openstack image import <image> --method copy-image --store <store>`). Mainly useful in a multi-store context; this platform currently exposes a single store (`defaultstore`). |
+
+### Step 1 — Listing existing images
+
+Before importing anything, check whether an equivalent image already exists:
+
+```bash
+openstack image list -f table -c Name -c Status -c Visibility
+```
+
+Base catalogue generally available on this platform (varies by project): common Linux distributions (Debian, AlmaLinux, CentOS) as ready-to-use `OVH` images (cloud-init included). Any image outside this catalogue (Windows, an unlisted distribution, a specific appliance) needs to be imported manually.
+
+### Step 2 — Importing an image
+
+```bash
+openstack image create \
+  --disk-format <format> \
+  --container-format bare \
+  --private \
+  --progress \
+  --file /local/path/to/image \
+  image-name
+```
+
+#### Picking the right `--disk-format`
+
+| File type | `--disk-format` | Typical use |
+|---|---|---|
+| Install ISO (Windows, a Linux distribution's installer) | `iso` | Boot from a virtual CD-ROM to launch an interactive or automated installer |
+| QCOW2 disk image (QEMU native format, often with cloud-init) | `qcow2` | Ready-to-use image, boots directly |
+| RAW disk image | `raw` | Ready-to-use image, no compression |
+
+`--container-format bare` fits nearly every case (no extra container metadata needed).
+
+`--private` restricts the image's visibility to your project (see [step 5](#step-5--managing-an-images-visibility)).
+
+#### Importing a large image
+
+`--progress` shows a progress bar during the upload — useful for multi-GB files, where several minutes without visible feedback might otherwise suggest a stalled upload.
+
+### Step 3 — Verifying an imported image
+
+```bash
+openstack image show image-name -f value -c status -c size -c checksum -c disk_format
+```
+
+`status` should read `active`. Any other value persisting (`queued`, `saving`) signals an import that is not progressing — see the "[Good to know (troubleshooting)](#good-to-know-troubleshooting)" section.
+
+### Step 4 — Creating a volume from an image
+
+Two use cases, with different behaviour observed in practice:
+
+#### Standalone volume (recommended)
+
+```bash
+openstack volume create --image image-name --size <size-GB> volume-name
+```
+
+Works reliably and quickly (tens of seconds for several GB). Prefer this method to verify that an image converts correctly to a volume before using it to create an instance.
+
+:::warning
+`<size-GB>` must be strictly greater than the image's **virtual size** (Glance's `virtual_size`), not its compressed size on disk. An image weighing a few hundred MB can have a virtual size of 15-20 GB once decompressed.
+:::
+
+#### Volume created alongside an instance (`server create --block-device`)
+
+```bash
+openstack server create \
+  --block-device uuid=<image-id>,source_type=image,destination_type=volume,volume_size=<size-GB> \
+  ...
+```
+
+:::warning
+**Good practice**: creating **multiple** `source_type=image` block devices at once in a single `server create` call can leave the instance in `task_state=scheduling`/`spawning` for longer than expected before reaching `ACTIVE`. The recommended approach on this platform is to **pre-create each volume separately** (fast and reliable, method above), then reference them in `server create` with `source_type=volume` (not `image`):
+
+```bash
+openstack server create \
+  --block-device uuid=<volume-id>,source_type=volume,destination_type=volume,boot_index=0 \
+  ...
+```
+
+:::
+
+### Step 5 — Managing an image's visibility
+
+```bash
+openstack image set --private image-name   # visible only to the current project
+openstack image set --shared image-name    # explicit sharing with specific projects
+
+# once shared, grant a specific project access to it:
+openstack image add project image-name <target-project-id>
+```
+
+`--private` is the recommended default for an image imported for a one-off use (test, Windows VM). `--shared` works as expected on this platform to share an image with specific projects. `public` visibility (accessible to every project on the platform) is not available.
+
+### Step 6 — Deleting an image
+
+```bash
+openstack image delete image-name
+```
+
+An image cannot be deleted while a volume or instance still directly depends on it. Whether a dependency remains depends on the attachment method: a volume already created from the image no longer depends on it. Check for active usage before deleting:
+
+```bash
+openstack volume list --property image_id=<image-id> -f table
+```
+
+## Example — importing an image from the Public Cloud catalogue
+
+A common use case: retrieve an image from the Public Cloud (PCI) catalogue and upload it into the SNC Cloud Platform image catalogue. In this example, the AlmaLinux 10 image is downloaded from the Public Cloud image catalogue and then uploaded into the SNC Cloud Platform image catalogue — keep the image's catalogue disk format throughout (see the upload step).
+
+This example additionally requires:
+
+- OpenStack credentials for a **Public Cloud** project (the download happens from the Public Cloud catalogue),
+- about **10 GB of free disk space** on the local machine to stage the downloaded image.
+
+:::info
+The Regional Panel does not manage images yet; the OpenStack console (Horizon) is not fully supported for this either — use the OpenStack CLI.
+:::
+
+### Retrieving the image from the Public Cloud catalogue
+
+Configure the OpenStack credentials for your Public Cloud project.
+Find the image and download it:
+
+```bash
+openstack image list -f value -c Name | grep -i alma
+AlmaLinux 10
+AlmaLinux 10 - UEFI
+AlmaLinux 8
+AlmaLinux 8 - UEFI
+AlmaLinux 8 - cPanel
+AlmaLinux 9
+AlmaLinux 9 - UEFI
+
+openstack image save --file almalinux_10.img "AlmaLinux 10"
+
+# Wait for the download to complete
+
+ls -lh almalinux_10.img
+-rw------- 1 debian debian 10G Jun 29 13:32 almalinux_10.img
+```
+
+Note the image's disk format, which you will pass to the `--disk-format` option when uploading it:
+
+```bash
+openstack image show "AlmaLinux 10" -f value -c disk_format
+```
+
+### Uploading the image into the image catalogue
+
+Configure the OpenStack credentials for your SNC Cloud Platform project.
+
+Create the image in the catalogue from the file, replacing `<disk-format>` with the format noted in the previous step:
+
+```bash
+openstack image list -f value -c Name | grep -i alma
+
+openstack image create --file almalinux_10.img --disk-format <disk-format> --container-format bare --private --progress "AlmaLinux 10"
+[=============================>] 100%
+...
+
+openstack image list -f value -c Name | grep -i alma
+AlmaLinux 10
+```
+
+### Creating an instance from this image
+
+Refer to the [Creating an instance and connecting to it](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-create-instance) guide for details.
+
+```bash
+openstack server create --flavor b3-8 --image "AlmaLinux 10" --boot-from-volume 20 --network Ext-Net --key-name test test-almalinux
+...
+
+# wait for the instance creation to complete (ACTIVE status)
+
+openstack server show test-almalinux -f value -c status -c addresses
+{'Ext-Net': ['192.0.2.10']}
+ACTIVE
+
+ssh almalinux@192.0.2.10 grep ^PRETTY_NAME /etc/os-release
+PRETTY_NAME="AlmaLinux 10.1 (Heliotrope Lion)"
+```
+
+## Good to know (troubleshooting)
+
+| Symptom | Explanation | Recommendation |
+|---|---|---|
+| Import stuck in `queued` status, no progress | `web_download` attempted from an external URL — not a supported method on this platform (see [available import methods](#available-import-methods)) | Use direct upload from the local machine instead (`openstack image create --file`, [step 2](#step-2--importing-an-image)) |
+| Horizon's "Create Image" form is not available | Not working yet on this platform | Use the CLI (`openstack image create --file`) |
+| An import error's detail (`/v2/tasks/<id>`) is not directly viewable | The `/tasks` API is not exposed on this platform | Check the high-level status via `openstack image show`; for finer diagnostics, [contact OVHcloud support](/links/support) |
+| `Block Device <id> is not bootable` when creating an instance on a volume created from an image | Rare with a standard image (the `bootable` flag is normally set automatically by Cinder during an image→volume conversion) — mostly concerns **blank** volumes (`source_type=blank`), which are outside Glance's scope | See the [Creating a Windows Server VM](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-create-windows-server-vm) guide for the blank-volume case |
+| Instance taking a while to reach `ACTIVE` with several `source_type=image` block devices in the same `server create` call | Converting several images to volumes simultaneously at boot time is not the recommended approach on this platform | Pre-create each volume separately via `openstack volume create --image`, then reference the volumes (`source_type=volume`) in `server create` — see [step 4](#step-4--creating-a-volume-from-an-image) |
+| `Image virtual size is XGB and doesn't fit in a volume of size YGB` | `--size`/`volume_size` smaller than the image's actual virtual size | Increase the size with a comfortable margin above the `virtual_size` reported by Glance |
+
+## Go further
+
+[Creating a Windows Server VM](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-create-windows-server-vm) — importing an ISO, full use case including blank volumes; same platform, same import limitations.
+
+[Using Terraform with SNC Cloud Platform](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform) — the `data "openstack_images_image_v2"` pattern for reusing an existing image without recreating it.
+
+Official OpenStack Image (Glance) CLI documentation: [docs.openstack.org — Image v2](https://docs.openstack.org/python-openstackclient/latest/cli/command-objects/image/v2/index.html).
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).

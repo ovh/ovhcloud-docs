@@ -1,0 +1,84 @@
+---
+title: Enregistrer une requête SQL en tant que vue réutilisable
+description: Les Vues vous permettent d'enregistrer une requête SQL SELECT en tant que table virtuelle nommée et réutilisable au sein d'un dataset, et de l'interroger comme une table
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Les **Vues** vous permettent d'enregistrer une requête SQL `SELECT` en tant que **table virtuelle** nommée et réutilisable au sein d'un [dataset](/guides/public-cloud/data-platform/lakehouse-manager-datasets). Une vue ressemble et se comporte comme une [table](/guides/public-cloud/data-platform/lakehouse-manager-tables) partout où vous interrogez des données, dans les requêtes et tableaux de bord de l'[Analytics Manager](/guides/public-cloud/data-platform/analytics-manager-queries), et dans les [notebooks](/guides/public-cloud/data-platform/dpe-notebooks), mais elle ne stocke aucune donnée propre : à chaque lecture, le résultat est calculé en direct à partir de ses tables sources. Modifiez les données sous-jacentes et la vue le reflète instantanément, sans étape de construction ni d'actualisation.
+
+Usages typiques : exposer une version nettoyée ou filtrée d'une table brute, pré-joindre des tables toujours interrogées ensemble, renommer ou masquer des colonnes pour les consommateurs, ou partager une définition métier unique et convenue d'une métrique au lieu de copier-coller du SQL.
+
+<img className="thumbnail" alt="Views overview" src="/images/public-cloud/data-platform/product/lakehouse-manager/views/picts/views-overview.png" loading="lazy" />
+
+## Instructions
+
+### Créer une vue
+
+Une vue nécessite trois éléments : un **nom**, le **dataset** dans lequel elle réside, et l'instruction **SQL `SELECT`** qui la définit. Pour en créer une, rendez-vous dans la section *Views* du Lakehouse Manager, puis cliquez sur **New View**.
+
+<img className="thumbnail" alt="Create a view — Views create" src="/images/public-cloud/data-platform/product/lakehouse-manager/views/picts/views-create.png" loading="lazy" />
+
+- Le SQL est **validé immédiatement** à la création. Les erreurs sont renvoyées de manière lisible par un humain, avec la ligne et la colonne dans votre SQL et les noms d'objets que vous connaissez, par exemple `line 2:3: Column 'name' cannot be resolved`.
+- Les **colonnes de la vue sont dérivées automatiquement** du SQL, noms et types inclus. Vous ne déclarez jamais de schéma.
+- La vue peut lire des tables de son propre dataset (noms simples) ou d'autres datasets (noms qualifiés), et elle peut lire **d'autres vues** : les vues s'empilent.
+- Une vue et une table ne peuvent pas partager un nom au sein d'un dataset. Les collisions sont rejetées dans les deux sens : vous ne pouvez pas non plus construire une table sur le nom d'une vue existante.
+
+### Statut de la vue : Valide et Cassée
+
+Chaque vue possède un statut, et la platform le maintient fiable pour vous :
+
+| Statut | Signification |
+|---|---|
+| **Valide** | Le SQL de la vue se résout actuellement avec ses tables sources et peut être interrogé. |
+| **Cassée** | Au moins une table ou colonne source dont dépend la vue est manquante. La vue ne peut pas être interrogée tant que la source n'est pas restaurée. |
+
+- Lorsqu'une action de la platform modifie une table source (une construction se termine, une colonne est ajoutée ou supprimée, une table est supprimée ou restaurée), les vues lisant cette table sont **revérifiées automatiquement en quelques secondes** et leur statut se met à jour de lui-même.
+- Une vue cassée vous indique **pourquoi** : si une table source a disparu, les tables manquantes sont listées par nom. Ouvrir la vue la revérifie en direct au niveau des colonnes, une colonne supprimée est donc détectée dès que vous regardez.
+
+<img className="thumbnail" alt="View status: Valid and Broken — Views broken" src="/images/public-cloud/data-platform/product/lakehouse-manager/views/picts/views-broken.png" loading="lazy" />
+
+:::info
+La casse n'est **pas destructive** : la définition de la vue est conservée, et dès que la source est restaurée (la table reconstruite, la colonne réajoutée), la vue repasse automatiquement à *Valid*. Aucune réparation manuelle n'est nécessaire.
+:::
+
+Les modifications effectuées entièrement en dehors de la platform (par exemple un notebook écrivant directement dans la couche de stockage) n'émettent aucun signal. Elles sont détectées à la place par des vérifications périodiques en arrière-plan : en quelques minutes pour une table manquante, en quelques heures pour une dérive au niveau des colonnes.
+
+### Éditer, renommer, supprimer
+
+Depuis la liste des vues, cliquez sur l'icône **edit** pour ouvrir une vue. Son **titre et sa définition SQL sont éditables sur place** : dès qu'une modification est en cours, un bouton **Save** apparaît. La liste indique également la **dernière mise à jour** de chaque vue.
+
+<img className="thumbnail" alt="Edit, rename, delete — Views edit" src="/images/public-cloud/data-platform/product/lakehouse-manager/views/picts/views-edit.png" loading="lazy" />
+
+- La **définition SQL peut être remplacée à tout moment**. Le nouveau SQL est d'abord validé puis appliqué de manière atomique, une édition échouée ne laisse donc jamais la vue à moitié modifiée. Les colonnes et le statut sont recalculés sur-le-champ.
+- **Le renommage est protégé** : si d'autres vues lisent celle-ci, le renommage est refusé et les vues dépendantes sont listées, car le renommage les casserait sinon silencieusement.
+
+:::warning
+**La suppression est autorisée même lorsque d'autres vues dépendent de celle-ci.** Les vues dépendantes sont immédiatement marquées *Broken*, la vue supprimée étant identifiée comme la source manquante.
+:::
+
+### Gouvernance
+
+- **[Policy tags](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags)** fonctionnent sur les vues exactement comme sur les datasets et les tables : ils peuvent être définis à la création ou lors d'une mise à jour, et sont affichés partout où la vue est affichée.
+- **Les permissions suivent le dataset** : quiconque peut lire un dataset peut lire ses vues, et quiconque peut éditer le modèle de données d'un dataset peut créer, éditer et supprimer ses vues. Aucun nouveau rôle ni nouvelle permission à apprendre.
+- Les modifications apportées aux vues sont enregistrées dans le **[journal d'audit](/guides/public-cloud/data-platform/control-center-auditing)** comme les autres modifications du modèle de données.
+
+### Vues créées en dehors du Lakehouse Manager
+
+Les vues créées directement sur le lakehouse par des outils externes (dbt, notebooks, outils BI) sont **découvertes automatiquement** et apparaissent aux côtés de celles créées dans le Lakehouse Manager. Leur statut est suivi de la même manière, et leur SQL est affiché en lecture seule, tel que stocké dans le catalogue.
+
+### Bon à savoir
+
+- Une vue est calculée au moment de la requête : une vue lourde est une requête lourde. Pour les transformations coûteuses souvent lues, une table construite (matérialisée) peut être le meilleur outil. Les vues sont faites pour les définitions qui doivent toujours être à jour.
+- Créer ou éditer une vue prend quelques secondes, car le SQL est réellement exécuté sur le moteur de requête pour validation. Lister et ouvrir des vues est instantané.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

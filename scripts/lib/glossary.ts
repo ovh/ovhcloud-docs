@@ -481,10 +481,11 @@ export function renderModule(
 // Regenerate after editing config/glossary/*.yaml: pnpm glossary:build
 // (the dev server hot-reloads this module — no restart needed).
 //
-// All 7 locales are ALWAYS emitted — never conditional on an env var: the
-// per-locale production builds run concurrently in one shared cwd, so a
-// LOCALE-dependent artifact at a fixed path could ship another locale's
-// definitions.
+// Scoped to the REGION axis, never to LOCALE: the per-locale production builds
+// run concurrently in one shared cwd, so a LOCALE-dependent artifact at this
+// fixed path could ship another locale's definitions. Every concurrent task of
+// a build shares one REGION, so they write identical bytes.
+// See scripts/build-glossary.ts.
 //
 // Links inside definitions:
 //   - /links/ keys are pre-resolved per locale via resolveLink()

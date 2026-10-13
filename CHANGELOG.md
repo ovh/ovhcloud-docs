@@ -1,12 +1,261 @@
 # Changelog
 
+## 2026.10.12
+
+### Fixes
+
+#### All regions
+- **theme:** make file download links visible (#975)
+
+### Documentation
+- EU: 24 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.09
+
+### Features
+
+#### All regions
+- **theme:** wire page feedback and allow a comment on positive votes
+
+## 2026.10.08
+
+### Features
+
+#### US
+- **region:** add the US documentation site (docs.us.ovhcloud.com) (#960)
+
+### Maintenance
+
+#### EU
+- **docs:** tokenization clean-up & fixes (#959)
+
+### Documentation
+- EU: 210 guides across de, en, es, fr, it, pl, pt
+- US: 778 guides across en
+
+## 2026.10.07
+
+### Features
+- **veeam:** update guides with the canadas ip (#909)
+
+### Documentation
+- 114 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.05
+
+### Maintenance
+- **banner:** remove SIRET banner from FR guides and home page (#923)
+
+### Documentation
+- 54 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.02
+
+### Fixes
+- **docs:** repoint dead anchors of the Public Cloud prices page (#914)
+- improve llms.txt generation
+
+### Maintenance
+- **docs:** Add nav tokens to leftover pages (#912)
+
+### Documentation
+- 856 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.01.1
+
+### Maintenance
+- **docs:** Fix tokenized pages (#903)
+
+### Documentation
+- 510 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.10.01
+
+### Fixes
+- **scripts:** improve validators for symlink functions (#888)
+
+### Maintenance
+- **docs:** delete leftover bullets from tokenized pages (#895)
+- **docs:** link fixes for LDP pages (#894)
+- **docs:** delete obsolete LDP guide (#889)
+
+### Documentation
+- 398 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.28
+
+### Features
+- **build:** render mermaid diagrams with rspress-plugin-mermaid
+
+### Fixes
+- **cpnav:** minor fixes in procedure (#877)
+- **scripts:** purge legacy excerpt line format (#876)
+
+### Documentation
+- 35 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.25.1
+
+### Features
+- **File storage:** update GS for adding encryption type (#860)
+
+### Fixes
+- **links:** restore link targets misrouted by the migration
+
+### Documentation
+- 276 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.25
+
+### Features
+- live-priced VPS product cards across the Game Panel guides (#857)
+- **vps:** update the Game Panel installation process following the new console manager (#854)
+- **vps:** update the Garry's Mod guide for the native Game Panel image (#855)
+- **opcp:** add docs for OPCP factory reset (#785)
+- **opcp:** add documentation for controller backup (#762)
+
+### Maintenance
+- RM obsolete guide (#832)
+
+### Documentation
+- 362 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.23
+
+### Documentation
+- 97 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.22
+
+### Documentation
+- 4700 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.21
+
+### Features
+- **PCI:** Warn about changes in the order of interfaces after hot-attach and detach (#700)
+
+### Documentation
+- 261 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.18
+
+### Fixes
+- **i18n:** align the Italian support links (#811)
+- **pci:** un display the metrics guide (#806)
+- **i18n:** restore the Spanish support-link label mangled by a global replace (#805)
+
+### Documentation
+- 791 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.17
+
+### Fixes
+- **cpnav,fragments:** pin blocks to English on untranslated guides (#800)
+
+### Documentation
+- 36 guides updated across de, en, es, it, pl, pt
+
+## 2026.09.16
+
+### Features
+- **mks:** remove Control Panel screenshots, add textual navigation steps (#707)
+- **lb:** update guide about getting source ip (#727)
+
+### Fixes
+- **mks:** convert links, symlink locale files, drop orphaned images
+
+### Documentation
+- 168 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.15
+
+### Features
+- **vps:** translate the native Valheim guide to de, es, it, pl, pt
+- **vps:** update the Valheim guide for the native Game Panel image
+- add the web-hosting cpnav key and tokenize its blocks
+- **i18n:** translate the Data Platform sidebar labels to French
+
+### Fixes
+- split the DNS zone cpnav key by the path each guide documents
+- **data-platform:** align FR terminology and neutralise tutorial register
+- **i18n:** restore diacritics in internal anchor links (#777)
+- **data-platform:** align the French translations with the EN source fixes
+
+### Maintenance
+- tokenize the Web Cloud Databases cpnav blocks
+
+### Documentation
+- 2611 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.14
+
+### Features
+- **data-platform:** rewrite generic page titles for search
+- **data-platform:** add Views and Deduplicate guides
+- **data-platform:** import Data Platform documentation
+
+### Fixes
+- **data-platform:** correct spelling and grammar across 17 guides
+- **data-platform:** repair dead in-page anchors
+- **data-platform:** repair the API authentication guide
+- **data-platform:** add the S3 trademark footer to the 23 guides using S3
+- **data-platform:** repair the Facebook connector guide
+- **data-platform:** correct two invented Objective sentences
+- **data-platform:** drop empty TOC headings, unlink localhost, fix descriptions
+- **data-platform:** localize the landing card links
+- **data-platform:** unblock the build — fence languages and API links
+
+### Documentation
+- 2018 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.11
+
+### Fixes
+- add vertical spacing inside tab panels
+
+### Maintenance
+- **links:** centralise Public Cloud URLs and fix the valkey routes (#756)
+
+### Documentation
+- 719 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.10.1
+
+### Features
+- **{components/{Api,Api,ManagerLink},bare-metal-cloud/dedicated-servers}:** soyoustart / kimsufi endpoints, reinstallation methods (fr+en) (#710)
+
+### Documentation
+- 54 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.10
+
+### Fixes
+- iam: example should match the specification (#745)
+
+### Documentation
+- 284 guides updated across de, en, es, fr, it, pl, pt
+
+## 2026.09.08
+
+### Features
+- **links:** add 162 commercial link keys for SEO request
+
+### Fixes
+- **links:** correct broken web databases route
+
+### Documentation
+- 182 guides updated across de, en, es, fr, it, pl, pt
+
 ## 2026.09.07
 
 ### Fixes
+- **links:** point all community links at the /links/community alias (#736)
 - **k8s:** update helm value for fluent-bit (#724)
+- **links:** correct broken Public Cloud projects route
 
 ### Documentation
-- 274 guides updated across de, en, es, fr, it, pl, pt
+- 1368 guides updated across de, en, es, fr, it, pl, pt
 
 ## 2026.09.02
 

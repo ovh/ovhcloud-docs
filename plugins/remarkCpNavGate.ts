@@ -17,10 +17,9 @@
  *   {\/* CP-NAV-END:web-zimbra *\/}
  *   </Region>
  *
- * Markers without a known product key are passed through unchanged.
- * If multiple CP-NAV blocks for different products are nested, each is wrapped
- * with its own <Region>. Already-wrapped blocks (with a Region ancestor) are
- * not double-wrapped.
+ * Markers without a known product key are passed through unchanged. A block
+ * already inside a hand-written <Region> still gets its own wrapper: Region
+ * renders its children only in its own zones, so nesting intersects them.
  *
  * The plugin also injects `import { Region } from '@components/Zone';` at the
  * top of the file if at least one wrap was applied and the import isn't there.
@@ -148,9 +147,9 @@ function injectRegionImport(tree: Root): void {
 }
 
 /**
- * Single-pass linear scan that finds matched START/END pairs at the root level
- * and wraps them. We do not recurse into nested containers — CP-NAV markers
- * are always emitted at root level by the CP scanner.
+ * Linear scan for matched START/END pairs, recursing into container nodes:
+ * a block placed inside a hand-written <Region> is not a root child, and a
+ * root-only scan left those ungated.
  */
 function transformChildren(children: RootContent[]): {
   out: RootContent[];
@@ -165,6 +164,14 @@ function transformChildren(children: RootContent[]): {
     const startProduct = getMarkerProduct(node, 'start');
 
     if (!startProduct) {
+      const inner = (node as { children?: RootContent[] }).children;
+      if (Array.isArray(inner) && inner.length > 0) {
+        const nested = transformChildren(inner);
+        if (nested.wrapped > 0) {
+          (node as { children: RootContent[] }).children = nested.out;
+          wrapped += nested.wrapped;
+        }
+      }
       out.push(node);
       i++;
       continue;

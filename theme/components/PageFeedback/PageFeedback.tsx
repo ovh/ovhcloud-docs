@@ -1,6 +1,12 @@
 import { Tooltip } from '@components/Tooltip';
-import { useI18n, useLang, usePageData } from '@rspress/core/runtime';
-import axios from 'axios';
+import {
+  useFrontmatter,
+  useI18n,
+  useLang,
+  usePageData,
+} from '@rspress/core/runtime';
+import * as Sentry from '@sentry/react';
+import axios, { type AxiosInstance } from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './PageFeedback.css';
 import { setupChallengeInterceptor } from './challengeInterceptor';
@@ -43,7 +49,32 @@ function ThumbDownIcon({ className }: { className?: string }) {
   );
 }
 
-type FeedbackState = 'initial' | 'form_open' | 'thanked' | 'dismissed';
+type FeedbackState = 'initial' | 'form_open' | 'thanked';
+type Rating = 'positive' | 'negative';
+
+/**
+ * Body POSTed to FEEDBACK_API_URL. One request per vote, sent when the form
+ * is closed (Submit or No thanks), so a vote and its optional comment arrive
+ * together whatever the rating.
+ */
+interface FeedbackPayload {
+  /** Rspress route, without the locale base: `/guides/…`. */
+  page_path: string;
+  /** URL the reader was on (origin + pathname): tells the regions apart. */
+  page_url: string;
+  page_title?: string;
+  /** Frontmatter `lastUpdated` of the guide the vote is about. */
+  last_updated?: string;
+  /** Source file, relative to `docs/`: `fr/guides/…/raid-soft.mdx`. */
+  source_path?: string;
+  locale: string;
+  rating: Rating;
+  /** Optional for both ratings; trimmed, absent when empty, ≤ 2000 chars. */
+  comment?: string;
+  user_agent: string;
+  /** ISO 8601, client clock. */
+  timestamp: string;
+}
 
 function getStorageKey(pagePath: string): string {
   return `pageFeedback:${pagePath}`;
@@ -72,35 +103,43 @@ function getFeedbackApiUrl(): string | null {
   return FEEDBACK_API_URL;
 }
 
-let challengeInterceptorReady = false;
+/**
+ * Frontmatter `lastUpdated` as an ISO date string. YAML may hand over a Date
+ * (unquoted `2026-10-06`) or a string; anything else is dropped.
+ */
+function toIsoDate(value: unknown): string | undefined {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value.toISOString();
+  }
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
 
-async function submitFeedback(payload: {
-  page_path: string;
-  locale: string;
-  rating: 'positive' | 'negative';
-  comment?: string;
-  user_agent: string;
-  timestamp: string;
-}): Promise<void> {
+// Dedicated client, created on first submit, so the challenge interceptor
+// never touches the global axios instance.
+let feedbackClient: AxiosInstance | null = null;
+
+async function submitFeedback(payload: FeedbackPayload): Promise<void> {
   const url = getFeedbackApiUrl();
   if (!url) {
     // No API configured — silently succeed so the UX flow still works
     return;
   }
-  if (!challengeInterceptorReady) {
-    setupChallengeInterceptor();
-    challengeInterceptorReady = true;
+  if (!feedbackClient) {
+    feedbackClient = axios.create();
+    setupChallengeInterceptor(feedbackClient);
   }
-  await axios.post(url, payload);
+  await feedbackClient.post(url, payload);
 }
 
 export function PageFeedback() {
   const t = useI18n();
   const lang = useLang();
   const { page } = usePageData();
+  const { frontmatter } = useFrontmatter();
   const pagePath = page?.routePath ?? '';
 
   const [state, setState] = useState<FeedbackState>('initial');
+  const [rating, setRating] = useState<Rating | null>(null);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -113,6 +152,7 @@ export function PageFeedback() {
     } else {
       setState('initial');
     }
+    setRating(null);
     setComment('');
     setError('');
     setSubmitting(false);
@@ -125,77 +165,56 @@ export function PageFeedback() {
     }
   }, [state]);
 
-  const handlePositive = useCallback(async () => {
+  // Yes and No only open the form: the vote leaves with the optional comment
+  // when the form is closed, as a single request.
+  const handleRate = useCallback((value: Rating) => {
     setError('');
-    setSubmitting(true);
-    try {
-      await submitFeedback({
-        page_path: pagePath,
-        locale: lang,
-        rating: 'positive',
-        user_agent: navigator.userAgent,
-        timestamp: new Date().toISOString(),
-      });
-      markAsVoted(pagePath);
-      setState('thanked');
-    } catch {
-      setError(t('pageFeedback.error'));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [pagePath, lang, t]);
-
-  const handleNegative = useCallback(() => {
-    setError('');
+    setRating(value);
     setState('form_open');
   }, []);
 
-  const handleDismiss = useCallback(async () => {
-    setError('');
-    setSubmitting(true);
-    try {
-      await submitFeedback({
-        page_path: pagePath,
-        locale: lang,
-        rating: 'negative',
-        user_agent: navigator.userAgent,
-        timestamp: new Date().toISOString(),
-      });
-      markAsVoted(pagePath);
-      setState('dismissed');
-    } catch {
-      setError(t('pageFeedback.error'));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [pagePath, lang, t]);
-
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  const send = useCallback(
+    async (withComment: boolean) => {
+      if (!rating) return;
       setError('');
       setSubmitting(true);
       try {
         await submitFeedback({
           page_path: pagePath,
+          page_url: window.location.origin + window.location.pathname,
+          page_title: page?.title || undefined,
+          last_updated: toIsoDate(frontmatter?.lastUpdated),
+          source_path: page?.pagePath || undefined,
           locale: lang,
-          rating: 'negative',
-          comment: comment.trim() || undefined,
+          rating,
+          comment: (withComment && comment.trim()) || undefined,
           user_agent: navigator.userAgent,
           timestamp: new Date().toISOString(),
         });
         markAsVoted(pagePath);
         setState('thanked');
-      } catch {
+      } catch (err) {
+        Sentry.captureException(err, { tags: { feature: 'page-feedback' } });
         setError(t('pageFeedback.error'));
       } finally {
         setSubmitting(false);
       }
     },
-    [pagePath, lang, comment, t],
+    [rating, frontmatter, pagePath, page, lang, comment, t],
   );
 
-  if (!pagePath || state === 'dismissed') {
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      void send(true);
+    },
+    [send],
+  );
+
+  // "No thanks" declines to comment; the chosen rating is still sent.
+  const handleDismiss = useCallback(() => void send(false), [send]);
+
+  if (!pagePath) {
     return null;
   }
 
@@ -222,9 +241,9 @@ export function PageFeedback() {
           <button
             type="button"
             className="page-feedback__btn page-feedback__btn--positive"
-            aria-pressed={false}
+            aria-pressed={rating === 'positive'}
             disabled={submitting}
-            onClick={handlePositive}
+            onClick={() => handleRate('positive')}
           >
             <ThumbUpIcon className="page-feedback__icon" />
             {t('pageFeedback.yes')}
@@ -232,9 +251,9 @@ export function PageFeedback() {
           <button
             type="button"
             className="page-feedback__btn page-feedback__btn--negative"
-            aria-pressed={state === 'form_open'}
+            aria-pressed={rating === 'negative'}
             disabled={submitting}
-            onClick={handleNegative}
+            onClick={() => handleRate('negative')}
           >
             <ThumbDownIcon className="page-feedback__icon" />
             {t('pageFeedback.no')}
@@ -255,7 +274,11 @@ export function PageFeedback() {
           aria-busy={submitting}
         >
           <p className="page-feedback__form-description">
-            {t('pageFeedback.formDescription')}
+            {t(
+              rating === 'positive'
+                ? 'pageFeedback.formDescriptionPositive'
+                : 'pageFeedback.formDescription',
+            )}
           </p>
 
           <div className="page-feedback__textarea-wrapper">
