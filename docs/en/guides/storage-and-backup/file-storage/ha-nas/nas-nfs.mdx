@@ -1,7 +1,7 @@
 ---
 title: Mounting HA-NAS via NFS share
 description: Find out how to connect to your HA-NAS using an NFS share
-lastUpdated: 2025-10-09
+lastUpdated: 2026-10-13
 ---
 
 ## Objective 
@@ -284,6 +284,35 @@ You can use this command to check the version of your current mount:
 ubuntu@server:~$ nfsstat -m
 ```
 
+**Can the NFS version be enforced on the HA-NAS side?**
+
+No. The HA-NAS accepts all the NFS versions listed above, and the version used is negotiated by the client. To guarantee that a client never uses an older version, set the version explicitly in its mount options (and in the `/etc/fstab` file for persistent mounts), as shown above.
+
+On FreeBSD, use the `nfsv4` option to force NFSv4:
+
+```bash
+root@server:~# mount -t nfs -o nfsv4 IP_HA-NAS:/NFS_PATH /MOUNTING_FOLDER
+```
+
+For the full list of options, refer to the [nfs(5)](https://www.man7.org/linux/man-pages/man5/nfs.5.html) manual page on Linux and the [mount_nfs(8)](https://man.freebsd.org/cgi/man.cgi?query=mount_nfs&sektion=8) manual page on FreeBSD.
+
+### File locking and delegations
+
+- **NFSv4**: byte-range locks are supported.
+- **NFSv3**: locks via the NLM (Network Lock Manager) protocol are supported.
+- **NFSv4 delegations**: delegations are not enabled. Clients therefore do not cache files locally under a delegation, and every client sees the changes made by the others according to the usual NFS attribute caching rules (see the `actimeo` option below).
+
+### Behaviour during a failover
+
+The HA-NAS runs on an active/passive cluster. If the primary node fails, or during a scheduled maintenance operation, the service is switched over to the secondary node. This switchover is designed to be as transparent as possible, but the NFS server is unavailable for several seconds.
+
+How your applications experience this interruption depends on your mount options:
+
+- With the `hard` option (recommended, see below), the client retries its requests until the HA-NAS responds again. Applications are paused during the switchover, then resume without error.
+- With the `soft` option, requests that do not receive a response in time are returned to the application as I/O errors.
+
+Applications that are sensitive to latency or that apply their own timeouts may still report errors during the switchover. If you host VMware virtual machines, also read the [Force the use of NFSv3 in some cases](#nfsv3) section below.
+
 ## Tips to optimize the performance and/or stability of your NFS connection
 
 In most cases, the default mount options configured in Linux clients are sufficient to achieve acceptable performance. However, in certain situations, it may be useful to enable or disable certain options in order to have better overall performance.
@@ -314,7 +343,18 @@ XX.XX.XX.XX:/zpool-XXXXXX/DIR on /mnt type nfs4 (rw,relatime,vers=4.2,rsize=1310
 - `nfsvers`: Avoid using version 4.0 of NFS if possible. Use versions 3, 4.1, or 4.2 instead (whenever possible, use the same version of NFS for all clients connected to the same NFS share).
 - `nordirplus`: In some environments with many directories, where only the information from a small subset of directory entries is used by an NFSv3 client, READDIRPLUS may result in slower performance. The nordirplus option allows you to disable this feature
 
-### Force the use of NFSv3 in some cases
+### Synchronous and asynchronous writes <a name="sync"></a>
+
+The HA-NAS NFS server does not impose a write mode: it follows the behaviour requested by the client.
+
+- If the client sends a write as synchronous (share mounted with the `sync` option, file opened with `O_SYNC`, `fsync()` call, etc.), the HA-NAS acknowledges it only once the data has been written to stable storage.
+- If the client sends a write as asynchronous (share mounted with the `async` option, for example), the HA-NAS can buffer the data in memory before writing it to disk.
+
+This behaviour corresponds to the default value (*standard*) of the partition's ZFS **sync** setting. You can change this setting to always force synchronous writes (*always*) or to always handle them asynchronously (*disabled*), regardless of the client's mount options. For details on each value and how to change it, read the [ZFS settings](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started#zfs) section of our getting started guide.
+
+To check which mode your Linux client uses, look for the `sync` or `async` option in the return of the `mount -l` command.
+
+### Force the use of NFSv3 in some cases <a name="nfsv3"></a>
 
 - Since NFSv3 is stateless, performance with NFSv3 can be significantly better for some workloads, especially those that make a lot of OPEN, CLOSE, SETATTR, and GETATTR calls.
 - If you host a database on your NFS share, please be aware that in the event of network disconnections, the NFS v4.x protocol-specific lock mechanism may cause your application to shut down (see this rfc for more details: [https://datatracker.ietf.org/doc/rfc3530/](https://datatracker.ietf.org/doc/rfc3530/)).

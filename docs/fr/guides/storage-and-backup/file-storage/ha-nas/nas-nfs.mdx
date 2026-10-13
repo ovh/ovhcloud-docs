@@ -1,7 +1,7 @@
 ---
 title: "Montage d'un NAS-HA via partage NFS"
 description: Découvrez comment vous connecter à votre NAS-HA en utilisant un partage NFS
-lastUpdated: 2025-10-09
+lastUpdated: 2026-10-13
 ---
 
 ## Objectif
@@ -286,6 +286,35 @@ Vous pouvez utiliser cette commande pour vérifier la version de votre montage a
 ubuntu@server:~$ nfsstat -m
 ```
 
+**Est-il possible d'imposer une version NFS côté NAS-HA ?**
+
+Non. Le NAS-HA accepte toutes les versions NFS listées ci-dessus, et la version utilisée est négociée par le client. Pour garantir qu'un client n'utilise jamais une version plus ancienne, définissez explicitement la version dans ses options de montage (ainsi que dans le fichier `/etc/fstab` pour les montages persistants), comme indiqué ci-dessus.
+
+Sous FreeBSD, utilisez l'option `nfsv4` pour forcer NFSv4 :
+
+```bash
+root@server:~# mount -t nfs -o nfsv4 IP_HA-NAS:/NFS_PATH /MOUNTING_FOLDER
+```
+
+Pour la liste complète des options, consultez la page de manuel [nfs(5)](https://www.man7.org/linux/man-pages/man5/nfs.5.html) sous Linux et la page de manuel [mount_nfs(8)](https://man.freebsd.org/cgi/man.cgi?query=mount_nfs&sektion=8) sous FreeBSD (en anglais).
+
+### Verrouillage de fichiers et délégations
+
+- **NFSv4** : les verrous de plages d'octets (*byte-range locks*) sont supportés.
+- **NFSv3** : les verrous via le protocole NLM (*Network Lock Manager*) sont supportés.
+- **Délégations NFSv4** : les délégations ne sont pas activées. Les clients ne conservent donc pas de fichiers en cache local sous délégation, et chaque client voit les modifications effectuées par les autres selon les règles habituelles de cache d'attributs NFS (voir l'option `actimeo` ci-dessous).
+
+### Comportement lors d'un basculement (failover)
+
+Le NAS-HA repose sur un cluster actif/passif. En cas de défaillance du nœud principal, ou lors d'une opération de maintenance programmée, le service bascule sur le nœud secondaire. Ce basculement est conçu pour être aussi transparent que possible, mais le serveur NFS est indisponible pendant plusieurs secondes.
+
+La façon dont vos applications perçoivent cette interruption dépend de vos options de montage :
+
+- Avec l'option `hard` (recommandée, voir ci-dessous), le client relance ses requêtes jusqu'à ce que le NAS-HA réponde à nouveau. Les applications sont mises en pause pendant le basculement, puis reprennent sans erreur.
+- Avec l'option `soft`, les requêtes qui n'obtiennent pas de réponse à temps sont renvoyées à l'application sous forme d'erreurs d'entrée/sortie.
+
+Les applications sensibles à la latence ou qui appliquent leurs propres délais d'expiration peuvent tout de même signaler des erreurs pendant le basculement. Si vous hébergez des machines virtuelles VMware, consultez également la section « [Forcer l'utilisation de NFSv3 dans certains cas](#nfsv3) » ci-dessous.
+
 ## Conseils pour optimiser la performance et/ou la stabilité de votre connexion NFS
 
 La plupart du temps, les options de montage par défaut configurées dans les clients Linux sont suffisantes afin d'obtenir des performances acceptables. Néanmoins, dans certaines situations, il peut s'avérer utile d'activer ou de désactiver certaines options afin d'avoir de meilleures performances globales.
@@ -316,7 +345,18 @@ XX.XX.XX.XX:/zpool-XXXXXX/DIR on /mnt type nfs4 (rw,relatime,vers=4.2,rsize=1310
 - `nfsvers` : évitez si possible d'utiliser la version 4.0 de NFS. Utilisez plutôt les versions 3, 4.1 ou 4.2 (autant que possible, utilisez la même version de NFS pour tous les clients connectés à un même partage NFS).
 - `nordirplus` : dans certains environnements avec de nombreux répertoires, où seules les informations d'un petit sous-ensemble d'entrées de répertoire sont utilisées par un client NFSv3, READDIRPLUS peut entrainer un ralentissement des performances. L'option nordirplus permet de désactiver cette fonctionnalité
 
-### Forcer l'utilisation de NFSv3 dans certains cas
+### Écritures synchrones et asynchrones <a name="sync"></a>
+
+Le serveur NFS du NAS-HA n'impose pas de mode d'écriture : il suit le comportement demandé par le client.
+
+- Si le client envoie une écriture en mode synchrone (partage monté avec l'option `sync`, fichier ouvert avec `O_SYNC`, appel à `fsync()`, etc.), le NAS-HA ne la confirme qu'une fois les données écrites sur un stockage stable.
+- Si le client envoie une écriture en mode asynchrone (partage monté avec l'option `async`, par exemple), le NAS-HA peut conserver les données en mémoire tampon avant de les écrire sur disque.
+
+Ce comportement correspond à la valeur par défaut (*standard*) du paramètre ZFS **sync** de la partition. Vous pouvez modifier ce paramètre pour toujours forcer les écritures synchrones (*always*) ou pour toujours les traiter de manière asynchrone (*disabled*), quelles que soient les options de montage du client. Pour le détail de chaque valeur et la procédure de modification, consultez la section « [Paramètres Z File System (ZFS)](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started#zfs) » de notre guide de premiers pas.
+
+Pour vérifier le mode utilisé par votre client Linux, recherchez l'option `sync` ou `async` dans le retour de la commande `mount -l`.
+
+### Forcer l'utilisation de NFSv3 dans certains cas <a name="nfsv3"></a>
 
 - Étant donné que NFSv3 est sans état, les performances avec NFSv3 peuvent être nettement meilleures pour certaines charges de travail, en particulier pour les charges de travail qui font énormément d'appels de type OPEN, CLOSE, SETATTR et GETATTR.
 - Si vous hébergez une base de données sur votre partage NFS, sachez qu'en cas de déconnexions réseau le mécanisme de verrous spécifique au protocole NFSv4.x peut provoquer un arrêt de votre application (consultez cette rfc pour plus de détails : [https://datatracker.ietf.org/doc/rfc3530/](https://datatracker.ietf.org/doc/rfc3530/)).
