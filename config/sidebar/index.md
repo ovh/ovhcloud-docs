@@ -84,8 +84,6 @@
             + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
         + [API](account-and-service-management-managing-billing-payments-and-services-api)
             + [Ordering Public Cloud projects using the OVHcloud API](account-and-service-management/managing-billing-payments-and-services/order-project-api)
-    + [FinOps](products/account-and-service-management-finops)
-        + [Exporting billing data to a bucket](account-and-service-management/finops/export-billing-data-to-bucket)
     + [Reversibility](products/account-and-service-management-reversibility)
         + [Reversibility policies](account-and-service-management-reversibility-reversibility-policies)
             + [Global Reversibility Policy](account-and-service-management/reversibility/global-reversibility-policy)
@@ -1344,14 +1342,16 @@
                 + [FAQ for Public Cloud databases](public-cloud/databases/faq)
                 + [Capabilities and Limitations of Public Cloud Databases](public-cloud/databases/capabilities)
                 + [Capabilities and Limitations of Public Cloud Databases for Valkey](public-cloud/databases/valkey-capabilities)
+                + [Comparison of Public Cloud Databases Deployment Modes - Understanding 3-AZ / 1-AZ](public-cloud/databases/public-cloud-databases-regions-comparison)
                 + [Automated Backups for Public Cloud Databases](public-cloud/databases/backups)
+                + [Understanding Public Cloud Databases pricing](public-cloud/databases/pricing)
             + [Getting started](public-cloud-databases-valkey-getting-started)
                 + [Getting started with Public Cloud Databases](public-cloud/databases/getting-started)
+                + [Public Cloud Databases - Getting started with Terraform](public-cloud/databases/public-cloud-databases-order-terraform)
                 + [Configure incoming connections of a Public Cloud Databases for Valkey service](public-cloud/databases/valkey-prepare-for-incoming-connections)
                 + [Connect using the CLI for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-cli)
                 + [Connect using PHP for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-php)
                 + [Connect using Python for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-python)
-                + [Connect using RedisInsight for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-redisinsight)
             + [Configuration](public-cloud-databases-valkey-configuration)
                 + [Maintenance operations for Public Cloud Databases](public-cloud/databases/maintenance)
                 + [Configure the private network for Public Cloud Databases](public-cloud/databases/configure-vrack)
@@ -1361,14 +1361,13 @@
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
                 + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
-                + [Manage ACLs via API for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
+                + [Manage users and ACLs for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
                 + [Fetch service metrics with Prometheus for Public Cloud Databases](public-cloud/databases/service-metrics-with-prometheus)
                 + [Enable deletion protection for Public Cloud Databases](public-cloud/databases/databases-deletion-protection)
             + [Migration](public-cloud-databases-valkey-migration)
-                + [Migrate to OVHcloud Public Cloud Databases](public-cloud/databases/databases-move-to-cloud)
                 + [Reversibility Policy for Managed In-Memory Database product](account-and-service-management/reversibility/idb-reversibility-policy)
             + [Tutorials](public-cloud-databases-valkey-tutorials)
                 + [Boost your WordPress CMS with caching with Public Cloud Databases for Valkey](public-cloud/databases/valkey-tuto-wordpress)
@@ -1789,6 +1788,8 @@
                 + [OVHcloud Billing Data Analysis](public-cloud/data-platform/tutorials-billing-analysis){label=OVHcloud Billing Data Analysis}
                 + [Deploy Apache Superset](public-cloud/data-platform/tutorials-install-apache-superset){label=Deploy Apache Superset}
                 + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
+                + [Analyse online store sales with Apache Superset](public-cloud-data-platform-analyze-online-store-sales){landing=public-cloud/data-platform/tutorials-ecommerce-sales}
+                    + [Build the sales dashboard in Superset](public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard){label=Build a sales dashboard for an online store in Superset}
             + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
                 + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
                 + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
@@ -2209,7 +2210,6 @@
         + [Getting started](web-cloud-managed-hosting-for-wordpress-getting-started)
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
-            + [Managing WordPress websites with MainWP on Managed Hosting](web-cloud/managed-hosting/mainwp-site-management)
             + [Retrieving and analysing your Managed Hosting for WordPress logs](web-cloud/managed-hosting/wordpress-logs)
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)
@@ -3070,3 +3070,5 @@
         + [OKMS Architecture overview](manage-and-operate/kms/architecture-overview)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
         + [How to use Kubernetes External Secret Operator with Secret Manager](manage-and-operate/secret-manager/external-secret-operator)
+    + [Cost Center](manage-operate-cost-center)
+        + [Exporting billing data to a bucket](manage-and-operate/cost-center/export-billing-data-to-bucket)
