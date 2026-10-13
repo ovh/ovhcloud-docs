@@ -625,7 +625,7 @@
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
         + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
-            + [Getting started with your CloudStore](hosted-private-cloud/opcp/cloudstore-getting-started)
+            + [Getting started with the OPCP Admin Console](hosted-private-cloud/opcp/cloudstore-getting-started)
         + [Landing Zone Manager](hosted-private-cloud-hosted-private-cloud-opcp-landing-zone-manager)
             + [Landing Zone Manager - Creating a user account](hosted-private-cloud/opcp/landing-zone-manager-create-user-account)
         + [Additional resources](hosted-private-cloud-hosted-private-cloud-opcp-additional-resources)
