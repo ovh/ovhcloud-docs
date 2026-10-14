@@ -1451,6 +1451,7 @@
                 + [Create topics for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-create-topics)
                 + [Use Access Control Lists (ACLs) for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-configure-acl)
                 + [Enable schema registry for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-schema-registry)
+                + [Enable the REST API for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-rest-api)
             + [Configuration](public-cloud-data-analytics-kafka-configuration)
                 + [Maintenance operations for Analytics](public-cloud/data-analytics/analytics/maintenance)
                 + [Configure the advanced parameters for Analytics](public-cloud/data-analytics/analytics/advanced-configuration)
