@@ -1,7 +1,7 @@
 ---
 title: Utiliser une passerelle personnalisée sur un cluster OVHcloud Managed Kubernetes
 description: Découvrez comment utiliser une passerelle personnalisée sur un cluster OVHcloud Managed Kubernetes, avec votre propre routeur ou pare-feu sur le plan Standard ou une passerelle vRack sur le plan Free.
-lastUpdated: 2026-10-13
+lastUpdated: 2026-10-15
 ---
 
 import Api from '@components/Api';
@@ -39,11 +39,37 @@ Sur tout nouveau cluster Standard, le trafic entre les nœuds et le control plan
 
 Avec le plan Standard, les nœuds n'ont pas d'IP publique par défaut : ils accèdent à Internet via une passerelle managée OVHcloud, ou via des IP flottantes définies au niveau du pool de nœuds.
 
-Les clusters Standard créés depuis le 13 octobre 2026, quelle que soit leur version de Kubernetes, peuvent à la place utiliser votre propre routeur ou pare-feu comme passerelle par défaut des nœuds. Votre routeur est la passerelle annoncée sur le sous-réseau des nœuds de votre réseau privé : tout le trafic sortant des nœuds passe par votre équipement, et aucune passerelle managée OVHcloud n'est nécessaire.
+Les clusters Standard créés depuis le 13 octobre 2026, quelle que soit leur version de Kubernetes, peuvent à la place utiliser votre propre routeur ou pare-feu comme passerelle par défaut des nœuds. C'est le design hub-and-spoke classique : votre appliance de sécurité est le hub, et le cluster est l'un des spokes. Votre appliance est la passerelle annoncée sur le sous-réseau des nœuds de votre réseau privé : tout le trafic sortant des nœuds passe par elle, et aucune passerelle managée OVHcloud n'est nécessaire.
 
-Pour utiliser votre propre routeur, l'exposition publique des nœuds et des workloads doit être désactivée : aucune IP flottante ne peut plus être attachée aux nœuds ni aux load balancers, et aucun Load Balancer public ne peut être créé.
+```mermaid
+flowchart LR
+    I((Internet))
+    subgraph HUB[Hub]
+        R["Votre routeur ou pare-feu<br/>porte l'adresse de passerelle du sous-réseau des nœuds<br/>route, filtre, journalise, NAT"]
+    end
+    subgraph MKS["Spoke : réseau privé (vRack), sous-réseau des nœuds"]
+        N["Nœuds Managed Kubernetes Standard<br/>pas d'IP publique<br/>route par défaut : votre routeur"]
+    end
+    O["Autres spokes<br/>réseaux privés, on-premises"]
+    subgraph OVH["Opéré par OVHcloud"]
+        CP["Control plane Kubernetes<br/>API server public, avec vos restrictions d'IP"]
+    end
+    N -- "trafic sortant des nœuds et des pods" --> R
+    R -- "sortie" --> I
+    R <--> O
+    N -.->|chemin privé, indépendant de votre routeur| CP
 
-Si votre routeur est indisponible, le cluster continue de fonctionner, mais vos workloads qui dépendent de votre routeur, par exemple pour accéder à Internet ou à d'autres ressources externes, sont affectés.
+    classDef hub fill:#0089C0,stroke:#0089C0,color:#fff;
+    classDef spoke fill:#E6F3FA,stroke:#0089C0,color:#0a2a36;
+    class R hub;
+    class N,O,CP spoke;
+```
+
+Ce que cela implique pour le cluster :
+
+- **Votre appliance porte le trafic sortant des workloads** : accès à Internet, aux autres réseaux, aux ressources on-premises. Les pods sortent avec l'adresse privée de leur nœud : vos règles de pare-feu voient donc des adresses de nœuds, et non des adresses de pods.
+- **Elle n'est pas sur le chemin du cluster lui-même** : les nœuds joignent le control plane Kubernetes via un chemin privé opéré par OVHcloud, et les images système du service ne passent pas par votre appliance. Si votre appliance est indisponible, le cluster continue de fonctionner, mais vos workloads qui dépendent d'elle, par exemple pour accéder à Internet ou à d'autres ressources externes, sont affectés.
+- **L'exposition publique des nœuds et des workloads est désactivée** : aucune IP flottante ne peut plus être attachée aux nœuds ni aux load balancers, et aucun Load Balancer public ne peut être créé. L'accès entrant à vos applications passe par vos propres équipements.
 
 :::note
 Avec le plan Standard, `defaultVrackGateway` et `privateNetworkRoutingAsDefault` ne sont pas utilisés : la passerelle des nœuds est celle configurée sur le sous-réseau des nœuds.
@@ -51,22 +77,35 @@ Avec le plan Standard, `defaultVrackGateway` et `privateNetworkRoutingAsDefault`
 
 ### Prérequis
 
+Côté Kubernetes :
+
 - Un projet Public Cloud dans votre compte OVHcloud.
 - Un cluster du plan Standard créé depuis le 13 octobre 2026, avec les options décrites ci-dessous.
-- Un réseau privé (vRack) avec un sous-réseau pour les nœuds, dans la région du cluster :
-    - le sous-réseau annonce une passerelle par défaut : la première adresse du CIDR du sous-réseau, par exemple `192.168.0.1` pour `192.168.0.0/24` ;
-    - le DHCP est activé (recommandé) ;
-    - la plage d'allocation du sous-réseau n'inclut pas l'adresse de la passerelle.
-- Votre routeur ou pare-feu déployé dans ce réseau privé et configuré avec l'adresse de passerelle du sous-réseau (`192.168.0.1` dans les exemples ci-dessous). Une passerelle managée OVHcloud n'est pas nécessaire sur ce sous-réseau.
-- Votre routeur autorise le trafic DNS sortant des nœuds (port 53, TCP et UDP), ainsi que l'accès sortant à Internet dont vos workloads ont besoin, par exemple pour récupérer des images depuis des registres de conteneurs publics. Les images système et les paquets nécessaires au service lui-même sont fournis par des miroirs OVHcloud.
 
-### Options réseau
+Côté réseau, quelle que soit votre appliance (appliance virtuelle sur des instances Public Cloud, serveur dédié ou équipement on-premises relié à votre vRack) :
 
-Deux attributs contrôlent cette configuration. Tous deux sont optionnels et valent `false` par défaut.
+- Un réseau privé (vRack) avec un sous-réseau pour les nœuds, dans la région du cluster.
+- Le sous-réseau annonce une passerelle par défaut (DHCP option 3), et cette adresse de passerelle est portée par votre appliance. Avec l'espace client OVHcloud ou l'API OVHcloud, le sous-réseau annonce sa première adresse : cochez <code className="action">Annoncer la première adresse d'un CIDR donné comme passerelle par défaut (DHCP option 3)</code>, ou définissez `noGateway` à `false`. Avec l'API OpenStack, vous pouvez choisir une autre adresse.
+- Le DHCP est activé sur le sous-réseau (recommandé), et sa plage d'allocation n'inclut pas l'adresse de la passerelle.
+- Aucune passerelle managée OVHcloud sur ce sous-réseau.
+- Votre appliance route le trafic sortant des nœuds et autorise au minimum le DNS (port 53, TCP et UDP), ainsi que l'accès à Internet dont vos workloads ont besoin, par exemple pour récupérer des images depuis des registres de conteneurs publics.
+
+Recommandations :
+
+- Rendez la passerelle hautement disponible, par exemple avec deux appliances qui partagent l'adresse de passerelle sous forme d'IP virtuelle (VRRP ou CARP) : une appliance unique est un point de défaillance unique pour l'accès externe de vos workloads.
+- Si votre appliance fonctionne sur des instances Public Cloud, l'adresse de passerelle doit être réservée par un port de votre appliance, et la sécurité de port doit être désactivée sur ses interfaces pour qu'elle puisse acheminer un trafic qui ne lui est pas destiné. Ces réglages sont disponibles via l'API OpenStack.
+
+:::tip
+La conception du hub (choix de l'appliance, haute disponibilité, règles de filtrage et de routage) dépend de votre environnement. Pour mettre en place la partie réseau, suivez le guide [Landing zone hub and spoke sur OVHcloud Public Cloud](/guides/public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects). Si vous avez besoin d'un accompagnement pour la concevoir ou la déployer, contactez votre account manager ou nos équipes [Professional Services](/links/professional-services).
+:::
+
+### Options réseau du cluster
+
+Côté Managed Kubernetes, deux attributs du cluster contrôlent cette configuration. Tous deux sont optionnels et valent `false` par défaut.
 
 | Attribut | Description |
 |---|---|
-| `disablePublicNetworking` | Désactive l'exposition publique des nœuds et des workloads : aucune IP flottante ne peut être attachée aux nœuds ni aux load balancers, donc aucun Load Balancer public ne peut être créé. L'API server Kubernetes n'est pas concerné. Utilisé seul, il exige toujours une passerelle managée OVHcloud dans le sous-réseau des nœuds pour l'accès sortant à Internet. |
+| `disablePublicNetworking` | Désactive l'exposition publique des nœuds et des workloads : aucune IP flottante ne peut être attachée aux nœuds ni aux load balancers, donc aucun Load Balancer public ne peut être créé. L'API server Kubernetes n'est pas concerné. Utilisé seul, il exige toujours une passerelle managée OVHcloud dans le sous-réseau des nœuds pour l'accès sortant à Internet : il sert alors de garde-fou contre toute exposition publique, consultez [Comprendre l'architecture d'OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/understanding-mks-architecture#désactiver-lexposition-publique-des-nœuds-et-des-workloads). |
 | `privateNetworkConfiguration.useUserGateway` | Les nœuds utilisent votre routeur, passerelle du sous-réseau des nœuds, comme passerelle par défaut. Exige `disablePublicNetworking` à `true`. |
 
 :::warning
@@ -91,87 +130,13 @@ Si la configuration n'est pas valide, la création du cluster est refusée :
 | `disablePublicNetworking` à `true` seul, sans passerelle managée dans le sous-réseau des nœuds | `missing a gateway in nodesSubnetId` |
 | Cluster du plan Free | `not supported` |
 
-### Créer le réseau privé et le sous-réseau des nœuds
-
-<Tabs>
-  <Tab label="Via l'espace client OVHcloud">
-    Créez un réseau privé dans la région de votre cluster en suivant le guide [Configurer le vRack pour le Public Cloud](/guides/public-cloud/network-services/vrack).
-
-    Dans les options de passerelle réseau du sous-réseau :
-
-    - cochez <code className="action">Annoncer la première adresse d'un CIDR donné comme passerelle par défaut (DHCP option 3)</code> ;
-    - ne cochez pas <code className="action">Assigner une Gateway et connectez-vous au réseau privé</code>.
-
-    Votre routeur utilisera cette première adresse.
-  </Tab>
-  <Tab label="Via l'API OVHcloud">
-    Créez le réseau privé :
-
-    <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/network/private"} />
-
-    Créez ensuite le sous-réseau des nœuds dans la région de votre cluster :
-
-    <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/network/private/\\{networkId\\}/subnet"} />
-
-    ```json
-    {
-      "region": "GRA9",
-      "network": "192.168.0.0/24",
-      "start": "192.168.0.10",
-      "end": "192.168.0.200",
-      "dhcp": true,
-      "noGateway": false
-    }
-    ```
-
-    Avec `noGateway` à `false`, le sous-réseau annonce sa première adresse (`192.168.0.1`) comme passerelle par défaut.
-  </Tab>
-  <Tab label="Via la CLI OVHcloud">
-    :::info
-    La prise en charge de ces options dans la [CLI OVHcloud](https://github.com/ovh/ovhcloud-cli) est en cours.
-    :::
-  </Tab>
-  <Tab label="Via Terraform">
-    :::info
-    La prise en charge de ces options dans le provider Terraform OVHcloud est en cours. L'exemple ci-dessous nécessitera la version du provider qui les introduit.
-    :::
-
-    ```python
-    resource "ovh_cloud_project_network_private" "network" {
-      service_name = "my_service_name" # Remplacez par l'ID de votre projet OVHcloud
-      name         = "my-private-network"
-      regions      = ["GRA9"]
-      vlan_id      = 0
-    }
-
-    resource "ovh_cloud_project_network_private_subnet" "nodes" {
-      service_name = ovh_cloud_project_network_private.network.service_name
-      network_id   = ovh_cloud_project_network_private.network.id
-      region       = "GRA9"
-      network      = "192.168.0.0/24"
-      start        = "192.168.0.10"
-      end          = "192.168.0.200"
-      dhcp         = true
-      no_gateway   = false # annonce 192.168.0.1 comme passerelle par défaut
-    }
-    ```
-  </Tab>
-</Tabs>
-
-Déployez votre routeur ou pare-feu dans ce réseau privé avec l'adresse de passerelle du sous-réseau, `192.168.0.1` dans ces exemples.
-
 ### Créer le cluster
 
 <Tabs>
   <Tab label="Via l'espace client OVHcloud">
-    Créez le cluster en suivant le guide [Créer un cluster](/guides/public-cloud/containers-orchestration/managed-kubernetes/create-cluster) et sélectionnez le réseau privé et le sous-réseau des nœuds créés ci-dessus.
-
-    Dans la section <code className="action">Gateway</code> de l'étape réseau :
-
-    - sélectionnez <code className="action">My Own Gateway</code> ;
-    - cochez <code className="action">I do understand that this cluster won't have Public Loadbalancer or Floating IPs on nodes</code>.
-
-    Pour désactiver seulement l'exposition publique des nœuds et des workloads en conservant la passerelle managée OVHcloud, sélectionnez plutôt <code className="action">Managed Gateway</code> puis, dans les options avancées, cochez <code className="action">I want to disable public exposition of my workloads (Public Loadbalancers or Floating IPs on nodes)</code>.
+    :::info
+    La prise en charge de ces options dans l'espace client OVHcloud est en cours. En attendant, utilisez l'API OVHcloud.
+    :::
   </Tab>
   <Tab label="Via l'API OVHcloud">
     Créez le cluster avec l'appel API suivant :
@@ -183,7 +148,7 @@ Déployez votre routeur ou pare-feu dans ce réseau privé avec l'adresse de pas
     ```json
     {
       "name": "my-cluster",
-      "region": "GRA9",
+      "region": "EU-WEST-PAR",
       "plan": "standard",
       "privateNetworkId": "d9775b7c-c267-44b4-b758-6e827b0a69bb",
       "nodesSubnetId": "aa9cf7c0-2d48-4ac4-a3d8-b6d1b2e5c1f2",
@@ -208,13 +173,13 @@ Déployez votre routeur ou pare-feu dans ce réseau privé avec l'adresse de pas
 
     ```python
     resource "ovh_cloud_project_kube" "cluster" {
-      service_name = ovh_cloud_project_network_private.network.service_name
+      service_name = "my_service_name" # Remplacez par l'ID de votre projet OVHcloud
       name         = "my-cluster"
-      region       = "GRA9"
+      region       = "EU-WEST-PAR"
       plan         = "standard"
 
-      private_network_id = tolist(ovh_cloud_project_network_private.network.regions_attributes[*].openstackid)[0]
-      nodes_subnet_id    = ovh_cloud_project_network_private_subnet.nodes.id
+      private_network_id = "d9775b7c-c267-44b4-b758-6e827b0a69bb" # ID OpenStack de votre réseau privé
+      nodes_subnet_id    = "aa9cf7c0-2d48-4ac4-a3d8-b6d1b2e5c1f2" # ID OpenStack du sous-réseau des nœuds
 
       disable_public_networking = true
       private_network_configuration {
@@ -227,7 +192,7 @@ Déployez votre routeur ou pare-feu dans ce réseau privé avec l'adresse de pas
 
 ### Ajouter un pool de nœuds
 
-Aucune IP flottante ne peut être attachée aux nœuds de ce cluster : ne l'activez pas sur le pool de nœuds.
+Aucune IP flottante ne peut être attachée aux nœuds de ce cluster : ne l'activez pas sur le pool de nœuds. Dans une région à plusieurs zones de disponibilité, comme `EU-WEST-PAR`, choisissez la zone du pool de nœuds.
 
 <Tabs>
   <Tab label="Via l'espace client OVHcloud">
@@ -242,9 +207,12 @@ Aucune IP flottante ne peut être attachée aux nœuds de ce cluster : ne l'acti
       "flavorName": "b3-8",
       "desiredNodes": 3,
       "minNodes": 3,
-      "maxNodes": 3
+      "maxNodes": 3,
+      "availabilityZones": ["eu-west-par-a"]
     }
     ```
+
+    `availabilityZones` est obligatoire dans une région à plusieurs zones de disponibilité, comme `EU-WEST-PAR`.
   </Tab>
   <Tab label="Via la CLI OVHcloud">
     ```bash
@@ -267,6 +235,8 @@ Aucune IP flottante ne peut être attachée aux nœuds de ce cluster : ne l'acti
       desired_nodes = 3
       min_nodes     = 3
       max_nodes     = 3
+
+      availability_zones = ["eu-west-par-a"] # Régions à plusieurs zones de disponibilité uniquement
     }
     ```
   </Tab>
@@ -286,7 +256,7 @@ Une fois le pool de nœuds à l'état `READY`, récupérez le fichier kubeconfig
 kubectl run egress-test --rm -it --restart=Never --image=curlimages/curl -- curl -s https://ifconfig.me
 ```
 
-La commande doit renvoyer l'adresse IP publique de votre routeur.
+La commande doit renvoyer l'adresse IP publique que votre routeur ou pare-feu utilise pour le trafic sortant.
 
 :::note
 Pour un cluster existant qui ne peut pas être recréé, nos équipes peuvent étudier au cas par cas une migration manuelle vers cette configuration. Contactez votre account manager.
@@ -916,6 +886,7 @@ Pour supprimer un routeur OpenStack, vous devez d'abord retirer les ports qui lu
 
 ## Aller plus loin
 
+- [Landing zone hub and spoke sur OVHcloud Public Cloud](/guides/public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects)
 - [[fragment:professional-services]]
 
 Échangez avec notre [communauté d'utilisateurs](/links/community).

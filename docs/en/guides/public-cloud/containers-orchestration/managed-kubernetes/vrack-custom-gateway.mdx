@@ -1,7 +1,7 @@
 ---
 title: Using a custom gateway on an OVHcloud Managed Kubernetes cluster
 description: Find out how to use a custom gateway on an OVHcloud Managed Kubernetes cluster, with your own router or firewall on the Standard plan or a vRack gateway on the Free plan.
-lastUpdated: 2026-10-13
+lastUpdated: 2026-10-15
 ---
 
 import Api from '@components/Api';
@@ -39,11 +39,37 @@ On every new Standard cluster, the traffic between the nodes and the Kubernetes 
 
 On the Standard plan, nodes have no public IP by default: they reach the Internet through an OVHcloud managed gateway, or through Floating IPs set at the node pool level.
 
-Standard clusters created since October 13, 2026, whatever their Kubernetes version, can instead use your own router or firewall as the default gateway of the nodes. Your router is the gateway announced on the nodes subnet of your private network: all outbound traffic of the nodes goes through your equipment, and no OVHcloud managed gateway is required.
+Standard clusters created since October 13, 2026, whatever their Kubernetes version, can instead use your own router or firewall as the default gateway of the nodes. This is the usual hub-and-spoke design: your security appliance is the hub, and the cluster is one of the spokes. Your appliance is the gateway announced on the nodes subnet of your private network: all outbound traffic of the nodes goes through it, and no OVHcloud managed gateway is required.
 
-To use your own router, the public exposure of the nodes and workloads must be disabled: Floating IPs can no longer be attached to the nodes or to load balancers, and no public Load Balancer can be created.
+```mermaid
+flowchart LR
+    I((Internet))
+    subgraph HUB[Hub]
+        R["Your router or firewall<br/>holds the gateway address of the nodes subnet<br/>routes, filters, logs, NAT"]
+    end
+    subgraph MKS["Spoke: private network (vRack), nodes subnet"]
+        N["Managed Kubernetes Standard nodes<br/>no public IP<br/>default route: your router"]
+    end
+    O["Other spokes<br/>private networks, on-premises"]
+    subgraph OVH["Operated by OVHcloud"]
+        CP["Kubernetes control plane<br/>API server public, with your IP restrictions"]
+    end
+    N -- "outbound traffic of nodes and pods" --> R
+    R -- "egress" --> I
+    R <--> O
+    N -.->|private path, independent of your router| CP
 
-If your router is unavailable, the cluster itself keeps working, but your workloads that rely on your router, for example to access the Internet or other external resources, are affected.
+    classDef hub fill:#0089C0,stroke:#0089C0,color:#fff;
+    classDef spoke fill:#E6F3FA,stroke:#0089C0,color:#0a2a36;
+    class R hub;
+    class N,O,CP spoke;
+```
+
+What this means for the cluster:
+
+- **Your appliance carries the outbound traffic of the workloads**: Internet access, other networks, on-premises resources. Pods leave with the private address of their node, so your firewall rules see node addresses, not pod addresses.
+- **It is not on the path of the cluster itself**: the nodes reach the Kubernetes control plane through a private path operated by OVHcloud, and the system images of the service do not go through your appliance. If your appliance is unavailable, the cluster keeps running, but your workloads that rely on it, for example to access the Internet or other external resources, are affected.
+- **The public exposure of the nodes and workloads is disabled**: Floating IPs can no longer be attached to the nodes or to load balancers, and no public Load Balancer can be created. Inbound access to your applications goes through your own equipment.
 
 :::note
 On the Standard plan, `defaultVrackGateway` and `privateNetworkRoutingAsDefault` are not used: the gateway of the nodes is the one configured on the nodes subnet.
@@ -51,22 +77,35 @@ On the Standard plan, `defaultVrackGateway` and `privateNetworkRoutingAsDefault`
 
 ### Requirements
 
+On the Kubernetes side:
+
 - A Public Cloud project in your OVHcloud account.
 - A Standard plan cluster created since October 13, 2026, with the options described below.
-- A private network (vRack) with a subnet for the nodes, in the region of the cluster:
-    - the subnet announces a default gateway: the first address of the subnet CIDR, for example `192.168.0.1` for `192.168.0.0/24`;
-    - DHCP is enabled (recommended);
-    - the allocation pool of the subnet does not include the gateway address.
-- Your router or firewall deployed in this private network and configured with the gateway address of the subnet (`192.168.0.1` in the examples below). An OVHcloud managed gateway is not needed on this subnet.
-- Your router allows the outbound DNS traffic of the nodes (port 53, TCP and UDP), and the outbound Internet access your workloads need, for example to pull images from public container registries. The system images and packages required by the service itself are served by OVHcloud mirrors.
 
-### Network options
+On the network side, whatever your appliance is (a virtual appliance on Public Cloud instances, a dedicated server or an on-premises device connected to your vRack):
 
-Two attributes control this configuration. Both are optional and set to `false` by default.
+- A private network (vRack) with a subnet for the nodes, in the region of the cluster.
+- The subnet announces a default gateway (DHCP option 3), and this gateway address is held by your appliance. With the OVHcloud Control Panel or the OVHcloud API, the subnet announces its first address: check <code className="action">Announce first address of a given CIDR as default gateway (DHCP option 3)</code>, or set `noGateway` to `false`. With the OpenStack API, you can choose another address.
+- DHCP is enabled on the subnet (recommended), and its allocation pool does not include the gateway address.
+- No OVHcloud managed gateway on this subnet.
+- Your appliance routes the outbound traffic of the nodes and allows at least DNS (port 53, TCP and UDP), plus the Internet access your workloads need, for example to pull images from public container registries.
+
+Recommendations:
+
+- Make the gateway highly available, for example with two appliances sharing the gateway address as a virtual IP (VRRP or CARP): a single appliance is a single point of failure for the external access of your workloads.
+- If your appliance runs on Public Cloud instances, the gateway address must be reserved by a port of your appliance, and port security must be disabled on its interfaces so that it can forward traffic that is not its own. These settings are available through the OpenStack API.
+
+:::tip
+The design of the hub (choice of appliance, high availability, filtering and routing rules) depends on your environment. To set up the network side, follow the guide [Hub and spoke landing zone on OVHcloud Public Cloud](/guides/public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects). If you need support to design or deploy it, contact your account manager or our [Professional Services](/links/professional-services) team.
+:::
+
+### Cluster network options
+
+On the Managed Kubernetes side, two attributes of the cluster control this configuration. Both are optional and set to `false` by default.
 
 | Attribute | Description |
 |---|---|
-| `disablePublicNetworking` | Disables the public exposure of the nodes and workloads: Floating IPs cannot be attached to the nodes or to load balancers, so no public Load Balancer can be created. The Kubernetes API server is not affected. Used alone, an OVHcloud managed gateway is still required in the nodes subnet for outbound Internet access. |
+| `disablePublicNetworking` | Disables the public exposure of the nodes and workloads: Floating IPs cannot be attached to the nodes or to load balancers, so no public Load Balancer can be created. The Kubernetes API server is not affected. Used alone, an OVHcloud managed gateway is still required in the nodes subnet for outbound Internet access: it then works as a guardrail against any public exposure, see [Understanding OVHcloud Managed Kubernetes architecture](/guides/public-cloud/containers-orchestration/managed-kubernetes/understanding-mks-architecture#disabling-the-public-exposure-of-nodes-and-workloads). |
 | `privateNetworkConfiguration.useUserGateway` | The nodes use your router, the gateway of the nodes subnet, as default gateway. Requires `disablePublicNetworking` set to `true`. |
 
 :::warning
@@ -91,87 +130,13 @@ If the configuration is not valid, the cluster creation is rejected:
 | `disablePublicNetworking` set to `true` alone, without a managed gateway in the nodes subnet | `missing a gateway in nodesSubnetId` |
 | Free plan cluster | `not supported` |
 
-### Create the private network and the nodes subnet
-
-<Tabs>
-  <Tab label="Via OVHcloud Control Panel">
-    Create a private network in the region of your cluster by following the guide [Configuring the vRack on the Public Cloud](/guides/public-cloud/network-services/vrack).
-
-    In the network gateway options of the subnet:
-
-    - check <code className="action">Announce first address of a given CIDR as default gateway (DHCP option 3)</code>;
-    - do not check <code className="action">Assign a Gateway and connect to the private network</code>.
-
-    Your router will use this first address.
-  </Tab>
-  <Tab label="Via the OVHcloud API">
-    Create the private network:
-
-    <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/network/private"} />
-
-    Then create the nodes subnet in the region of your cluster:
-
-    <Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\\{serviceName\\}/network/private/\\{networkId\\}/subnet"} />
-
-    ```json
-    {
-      "region": "GRA9",
-      "network": "192.168.0.0/24",
-      "start": "192.168.0.10",
-      "end": "192.168.0.200",
-      "dhcp": true,
-      "noGateway": false
-    }
-    ```
-
-    With `noGateway` set to `false`, the subnet announces its first address (`192.168.0.1`) as default gateway.
-  </Tab>
-  <Tab label="Via the OVHcloud CLI">
-    :::info
-    Support of these options in the [OVHcloud CLI](https://github.com/ovh/ovhcloud-cli) is in progress.
-    :::
-  </Tab>
-  <Tab label="Via Terraform">
-    :::info
-    Support of these options in the OVHcloud Terraform provider is in progress. The example below will require the provider version that introduces them.
-    :::
-
-    ```python
-    resource "ovh_cloud_project_network_private" "network" {
-      service_name = "my_service_name" # Replace with your OVHcloud project ID
-      name         = "my-private-network"
-      regions      = ["GRA9"]
-      vlan_id      = 0
-    }
-
-    resource "ovh_cloud_project_network_private_subnet" "nodes" {
-      service_name = ovh_cloud_project_network_private.network.service_name
-      network_id   = ovh_cloud_project_network_private.network.id
-      region       = "GRA9"
-      network      = "192.168.0.0/24"
-      start        = "192.168.0.10"
-      end          = "192.168.0.200"
-      dhcp         = true
-      no_gateway   = false # announces 192.168.0.1 as default gateway
-    }
-    ```
-  </Tab>
-</Tabs>
-
-Deploy your router or firewall in this private network with the gateway address of the subnet, `192.168.0.1` in these examples.
-
 ### Create the cluster
 
 <Tabs>
   <Tab label="Via OVHcloud Control Panel">
-    Create the cluster by following the guide [Creating a cluster](/guides/public-cloud/containers-orchestration/managed-kubernetes/create-cluster) and select the private network and the nodes subnet created above.
-
-    In the <code className="action">Gateway</code> section of the network step:
-
-    - select <code className="action">My Own Gateway</code>;
-    - check <code className="action">I do understand that this cluster won't have Public Loadbalancer or Floating IPs on nodes</code>.
-
-    To only disable the public exposure of the nodes and workloads while keeping the OVHcloud managed gateway, select <code className="action">Managed Gateway</code> instead and, in the advanced options, check <code className="action">I want to disable public exposition of my workloads (Public Loadbalancers or Floating IPs on nodes)</code>.
+    :::info
+    Support of these options in the OVHcloud Control Panel is in progress. Until then, use the OVHcloud API.
+    :::
   </Tab>
   <Tab label="Via the OVHcloud API">
     Create the cluster with the following API call:
@@ -183,7 +148,7 @@ Deploy your router or firewall in this private network with the gateway address 
     ```json
     {
       "name": "my-cluster",
-      "region": "GRA9",
+      "region": "EU-WEST-PAR",
       "plan": "standard",
       "privateNetworkId": "d9775b7c-c267-44b4-b758-6e827b0a69bb",
       "nodesSubnetId": "aa9cf7c0-2d48-4ac4-a3d8-b6d1b2e5c1f2",
@@ -208,13 +173,13 @@ Deploy your router or firewall in this private network with the gateway address 
 
     ```python
     resource "ovh_cloud_project_kube" "cluster" {
-      service_name = ovh_cloud_project_network_private.network.service_name
+      service_name = "my_service_name" # Replace with your OVHcloud project ID
       name         = "my-cluster"
-      region       = "GRA9"
+      region       = "EU-WEST-PAR"
       plan         = "standard"
 
-      private_network_id = tolist(ovh_cloud_project_network_private.network.regions_attributes[*].openstackid)[0]
-      nodes_subnet_id    = ovh_cloud_project_network_private_subnet.nodes.id
+      private_network_id = "d9775b7c-c267-44b4-b758-6e827b0a69bb" # OpenStack ID of your private network
+      nodes_subnet_id    = "aa9cf7c0-2d48-4ac4-a3d8-b6d1b2e5c1f2" # OpenStack ID of the nodes subnet
 
       disable_public_networking = true
       private_network_configuration {
@@ -227,7 +192,7 @@ Deploy your router or firewall in this private network with the gateway address 
 
 ### Add a node pool
 
-Floating IPs cannot be attached to the nodes of this cluster: do not enable them on the node pool.
+Floating IPs cannot be attached to the nodes of this cluster: do not enable them on the node pool. In a region with several availability zones, such as `EU-WEST-PAR`, choose the zone of the node pool.
 
 <Tabs>
   <Tab label="Via OVHcloud Control Panel">
@@ -242,9 +207,12 @@ Floating IPs cannot be attached to the nodes of this cluster: do not enable them
       "flavorName": "b3-8",
       "desiredNodes": 3,
       "minNodes": 3,
-      "maxNodes": 3
+      "maxNodes": 3,
+      "availabilityZones": ["eu-west-par-a"]
     }
     ```
+
+    `availabilityZones` is required in a region with several availability zones, such as `EU-WEST-PAR`.
   </Tab>
   <Tab label="Via the OVHcloud CLI">
     ```bash
@@ -267,6 +235,8 @@ Floating IPs cannot be attached to the nodes of this cluster: do not enable them
       desired_nodes = 3
       min_nodes     = 3
       max_nodes     = 3
+
+      availability_zones = ["eu-west-par-a"] # Regions with several availability zones only
     }
     ```
   </Tab>
@@ -286,7 +256,7 @@ Once the node pool is `READY`, retrieve the kubeconfig file of your cluster (see
 kubectl run egress-test --rm -it --restart=Never --image=curlimages/curl -- curl -s https://ifconfig.me
 ```
 
-The command must return the public IP address of your router.
+The command must return the public IP address your router or firewall uses for outbound traffic.
 
 :::note
 For an existing cluster that cannot be recreated, our teams can assess a manual migration to this configuration on a case-by-case basis. Contact your account manager.
@@ -916,6 +886,7 @@ To delete an Openstack router, you must first remove the linked ports.
 
 ## Go further
 
+- [Hub and spoke landing zone on OVHcloud Public Cloud](/guides/public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects)
 - [[fragment:professional-services|en]]
 
 Join our [community of users](/links/community).
