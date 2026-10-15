@@ -2813,6 +2813,13 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/web-hosting/uc-wordpress-website/',
     pt: 'https://www.ovhcloud.com/pt/web-hosting/uc-wordpress-website/',
   },
+  // Offer page published in fr / es-es / pl only: the other locales would
+  // fall back to the FR page, so their guides name the offer without a link.
+  'web/managed-hosting-wordpress': {
+    fr: 'https://www.ovhcloud.com/fr/managed-hosting-wordpress/',
+    es: 'https://www.ovhcloud.com/es-es/managed-hosting-wordpress/',
+    pl: 'https://www.ovhcloud.com/pl/managed-hosting-wordpress/',
+  },
   'web/ms365': {
     fr: 'https://www.ovhcloud.com/fr/microsoft-365/',
     en: 'https://www.ovhcloud.com/en-gb/microsoft-365/',
