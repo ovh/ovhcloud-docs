@@ -10,8 +10,9 @@
  * - `eu` (default): the historical multi-locale site on docs.ovhcloud.com.
  *   When the REGION env var is absent, everything behaves exactly as before.
  * - `us`: an English-only site on docs.us.ovhcloud.com with its own product
- *   tree (`docs-us/`) and its own sidebar source (`index-us.md`), served at the
- *   domain root (no `/en/` URL prefix since there is a single locale).
+ *   tree (`docs-us/`) and its own sidebar source (`index-us.md`), served under
+ *   `/en/` like the worldwide site so a second locale (`/es/`) can be added
+ *   without moving any URL.
  *
  * The REGION env var selects the active region for a build/dev run. It composes
  * with the existing LOCALE env var (e.g. `REGION=us LOCALE=en rspress build`).
@@ -40,6 +41,9 @@ export interface RegionConfig {
    * When true, content is served under a `/{locale}/` URL prefix and built into
    * `dist/{locale}/` (multi-locale site). When false, the single locale is
    * served at the domain root and built into `dist/` directly.
+   *
+   * This is a URL-shape flag only. Code that needs to know which site it is
+   * building tests `REGION`, not this flag.
    */
   localePrefix: boolean;
   /**
@@ -81,6 +85,13 @@ export interface RegionConfig {
    * for the EU; a region without it loads none of these.
    */
   consentManager: boolean;
+  /**
+   * Standalone cookie-policy script for a region the CMP does not cover yet,
+   * loaded in <head> on every page (async, `data-analytics` attribute), right
+   * after a parser-blocking jQuery that the container needs. Unset where the
+   * CMP runs: the two must never load together.
+   */
+  cookieScript?: string;
   /** Canonical site origin, used for sitemaps and canonical URLs. */
   siteUrl: string;
   /** OVHcloud API console URL used by the "API Reference" sidebar header item. */
@@ -105,6 +116,32 @@ export interface RegionConfig {
    * consent manager rather than a page.
    */
   footerLinks?: ReadonlyArray<{ text: string; link: string }>;
+  /**
+   * Whether the sidebar's "Product changelog" link is shown. The changelog is a
+   * single worldwide page on www.ovhcloud.com with no US edition, so the US
+   * site leaves the link out rather than send readers to the en-gb page.
+   */
+  productChangelog: boolean;
+  /**
+   * Whether the "Was this page helpful?" form is shown at the bottom of each
+   * guide. The US team does not collect this feedback, so the US site leaves
+   * the form out.
+   */
+  pageFeedback: boolean;
+  /**
+   * Language shown in the navbar's language slot while the region serves a
+   * single locale. It looks like the language dropdown but cannot be opened:
+   * readers see which language and market they are on. Once a second locale is
+   * added, the real dropdown takes over and this is ignored.
+   */
+  localeIndicator?: {
+    /** Flag drawn before the label (inline SVG, see theme/components/Nav). */
+    flag: 'us';
+    /** Visible label, e.g. `English`. */
+    label: string;
+    /** Tooltip, e.g. `Language: English (United States)`. */
+    tooltip: string;
+  };
 }
 
 // Footer copyright end year, resolved when the config module loads (i.e. at
@@ -146,6 +183,8 @@ export const REGIONS: Record<Region, RegionConfig> = {
     routePrefix: '/guides/',
     aiAssistant: true,
     consentManager: true,
+    productChangelog: true,
+    pageFeedback: true,
     siteUrl: 'https://docs.ovhcloud.com',
     apiConsoleUrl: 'https://api.eu.ovhcloud.com/console/',
     corporateUrl: 'https://www.ovhcloud.com/',
@@ -157,15 +196,21 @@ export const REGIONS: Record<Region, RegionConfig> = {
     contentDir: 'docs-us',
     sidebarIndex: 'index-us.md',
     repoSubdir: 'docs-us',
-    localePrefix: false,
+    localePrefix: true,
     includeSupplements: false,
     htmlLang: { en: 'en-us' },
     routePrefix: '/',
     // The US does not run the assistant service.
     aiAssistant: false,
-    // The OVHcloud CMP is not implemented for the US: no consent manager, so
-    // no analytics either.
+    // The OVHcloud CMP is not ready for the US yet: no consent manager, so
+    // none of the analytics it injects either. The cookie policy comes from
+    // the Commanders Act container below in the meantime.
     consentManager: false,
+    cookieScript: 'https://cdn.tagcommander.com/3881/ovhcloud.js',
+    // No US edition of the changelog: see `productChangelog` above.
+    productChangelog: false,
+    // The US team does not collect page feedback: see `pageFeedback` above.
+    pageFeedback: false,
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',
@@ -175,6 +220,11 @@ export const REGIONS: Record<Region, RegionConfig> = {
       'registered trademarks of OVH SAS.',
     legalNotice:
       'All other marks contained herein are the property of their respective owners.',
+    localeIndicator: {
+      flag: 'us',
+      label: 'English',
+      tooltip: 'Language: English (United States)',
+    },
     footerLinks: [
       {
         text: 'Terms of Service',

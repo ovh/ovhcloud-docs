@@ -261,7 +261,7 @@ check(
   enStats?.missingDescriptions.length === 0,
 );
 
-// --- Single-locale region served at the domain root (US) ---
+// --- Unprefixed region served at the domain root (none today; US is /en/) ---
 // Same EN pages, but built straight into dist/ and served without /en/.
 const rootDist = path.join(tmp, 'dist-root');
 fs.cpSync(path.join(distDir, 'en'), rootDist, { recursive: true });

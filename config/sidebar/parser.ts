@@ -352,6 +352,10 @@ export function parseIndexMd(
           collapsed: true,
           items: items as SidebarItem[],
         };
+        // A universe landing page (US): the universe header links to it.
+        if (parsed.landing) {
+          node.link = slugToLink(parsed.landing);
+        }
       } else {
         node = {
           text: i18nKey,
@@ -387,7 +391,8 @@ export function parseIndexMd(
     // Extract optional trailing `{key=value}` markers before parsing the
     // `[label](ref)` so they don't pollute the label/ref. Order-independent;
     // multiple markers on one line are supported.
-    //   - `{landing=<slug>}` : turns a product/section into a clickable group.
+    //   - `{landing=<slug>}` : turns a universe/product/section into a
+    //                          clickable group.
     //   - `{label=<text>}`   : overrides the sidebar label of a guide leaf,
     //                          independently of the guide's frontmatter title.
     //                          Emitted as a translatable i18n key (seeded from
@@ -413,7 +418,7 @@ export function parseIndexMd(
     const ref = linkMatch ? linkMatch[2] : null;
 
     const parsed = classifyLine(indent, label, ref);
-    if (landing && (parsed.kind === 'product' || parsed.kind === 'section')) {
+    if (landing && parsed.kind !== 'guide') {
       parsed.landing = landing;
     }
 
