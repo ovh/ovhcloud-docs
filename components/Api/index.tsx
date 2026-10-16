@@ -347,11 +347,27 @@ export default function Api({
         </div>
       )}
       <a target="_blank" href={href} rel="noopener noreferrer">
-        {keys.length === 1 && (
+        {/* A lone US endpoint needs no flag: it is the only API the US site
+            documents, and the flag only distinguished regions on a page
+            that offers several. */}
+        {keys.length === 1 && selectedKey !== 'us' && (
           <span className="ovh-api-flag">{selectedEndpoint.flag}</span>
         )}
         <span className={`ovh-api-verb ovh-api-verb-${method}`}>{method}</span>
         <span className="ovh-api-endpoint">{route.replace(/\\/g, '')}</span>
+        <svg
+          className="ovh-api-external"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M6.5 3.5H3.5v9h9v-3M9.5 2.5h4v4M13.5 2.5 7.5 8.5" />
+        </svg>
       </a>
     </div>
   );

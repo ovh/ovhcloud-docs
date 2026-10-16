@@ -1300,7 +1300,7 @@ export const externalLinks: LinkMap = {
     pt: 'https://www.ovhcloud.com/pt/identity-security-operations/service-logs/',
   },
   'manager-telecom': {
-    fr: 'https://www.ovh.com/auth?onsuccess=https%3A%2F%2Fwww.ovhtelecom.fr%2Fmanager&ovhSubsidiary=fr',
+    fr: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A%2F%2Fmanager.eu.ovhcloud.com%2F%23%2Ftelecom&ovhSubsidiary=fr',
   },
   'network/additional-ip': {
     fr: 'https://www.ovhcloud.com/fr/network/additional-ip/',
@@ -2812,6 +2812,13 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/web-hosting/uc-wordpress-website/',
     pl: 'https://www.ovhcloud.com/pl/web-hosting/uc-wordpress-website/',
     pt: 'https://www.ovhcloud.com/pt/web-hosting/uc-wordpress-website/',
+  },
+  // Offer page published in fr / es-es / pl only: the other locales fall back
+  // to the FR page on purpose.
+  'web/managed-hosting-wordpress': {
+    fr: 'https://www.ovhcloud.com/fr/managed-hosting-wordpress/',
+    es: 'https://www.ovhcloud.com/es-es/managed-hosting-wordpress/',
+    pl: 'https://www.ovhcloud.com/pl/managed-hosting-wordpress/',
   },
   'web/ms365': {
     fr: 'https://www.ovhcloud.com/fr/microsoft-365/',

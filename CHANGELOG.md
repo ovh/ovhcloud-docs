@@ -1,5 +1,90 @@
 # Changelog
 
+## 2026.10.16
+
+### Features
+
+#### All regions
+- **build:** load the Commanders Act cookie policy on the US site
+- **us:** add a Zendesk delta-resync script
+- **us:** drop the page feedback form on the US site
+
+### Fixes
+
+#### EU
+- point the Cloud Disk Array manager link at /public-cloud/
+
+#### All regions
+- move legacy ovh.com manager, sign-in and API hosts to ovhcloud.com
+- **us:** keep each guide's image paths with its resync base
+- **us:** make the resync reusable and image-aware
+
+### Maintenance
+
+#### All regions
+- **us:** regenerate the US redirect plan
+- **i18n:** sort the homeExploreProductPage key
+
+### Documentation
+- EU: 454 guides across de, en, es, fr, it, pl, pt
+- US: 483 guides across en
+
+## 2026.10.15
+
+### Features
+
+#### US
+- **theme:** tighter product banner, shared with US universe pages
+- **us:** add universe landing pages
+- **us:** serve US guides under /en/
+
+#### All regions
+- **us:** drop the Product changelog link from the US sidebar
+- **us:** add the redirection plan from the Zendesk help centre
+- **api:** lighter API call design, no US flag
+- **us:** show a fixed English language indicator
+- **us:** add a 301.map for the US site
+
+### Fixes
+
+#### All regions
+- **us:** commit the US redirection rule file
+- **us:** drop the arrow from the fixed language indicator
+- **us:** move the images of the guides moved by the sidebar revision
+
+### Documentation
+- EU: 355 guides across de, en, es, fr, it, pl, pt
+- US: 727 guides across en
+
+## 2026.10.14
+
+### Features
+
+#### EU
+- **compute:** update sentence in the architecture guide (#981)
+- **cold archive:** update on getting stard (#915)
+- **Clickhouse:** update guide with the new available regions 1AZ (#837)
+
+### Fixes
+
+#### EU
+- sk-2845 zimbra automatic replies need the keep in inbox action on a forwarding filter (#1000)
+
+### Documentation
+- EU: 154 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.13
+
+### Fixes
+
+#### EU
+- warn that a redirection forwards spam and document the exchange redirection (#986)
+- document the zimbra service tab and how to choose a service (#984)
+- explain how to get an email out of the Zimbra Spam folder (#980)
+
+### Documentation
+- EU: 494 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.12
 
 ### Fixes
