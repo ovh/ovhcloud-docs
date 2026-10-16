@@ -1,0 +1,264 @@
+---
+title: Enterprise File Storage - Ein Volume in das vRack migrieren
+description: "Erfahren Sie hier, wie Sie ein Enterprise File Storage Volume über die Share-Replikation zu einem Angebot im privaten Netzwerk vRack migrieren, im OVHcloud Kundencenter oder über die API"
+lastUpdated: 2026-10-16
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Ziel
+
+Diese Anleitung erklärt, wie Sie ein Volume, das auf einem OVHcloud Enterprise File Storage Angebot im öffentlichen Netzwerk gehostet wird, mithilfe der Share-Replikation auf ein zweites Enterprise File Storage Angebot im privaten Netzwerk <Tooltip term="vrack">vRack</Tooltip> migrieren. Sie können diese Funktion im OVHcloud Kundencenter oder über die OVHcloud API verwalten.
+
+:::warning
+Die Share-Replikation befindet sich in der **Beta-Phase**.
+:::
+
+## Voraussetzungen
+
+- Sie verfügen über ein OVHcloud [Enterprise File Storage](/links/storage/enterprise-file-storage) Angebot im öffentlichen Netzwerk (vor Januar 2025 abgeschlossen) mit einem zu migrierenden Volume.
+- Sie verfügen über ein OVHcloud Enterprise File Storage Angebot, das [mit einem privaten Netzwerk vRack verbunden ist](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config), in **derselben Region** wie das Quellangebot.
+- Sie haben Zugriff auf Ihr <ManagerLink to="/">OVHcloud Kundencenter</ManagerLink> oder auf die <ApiLink>OVHcloud API</ApiLink>.
+
+[[cpnav:storage-enterprise-file-storage]]
+
+## Funktionsweise
+
+Die Migration erfolgt in drei Phasen:
+
+1. **Replikation** — Zwischen dem Quell-Volume und dem Zieldienst wird eine Replikationsverbindung erstellt.
+2. **Synchronisierung** — Die Daten werden automatisch vom Quell-Volume auf das Ziel-Volume kopiert.
+3. **Abschluss** (*cutover*) — Die Replikationsverbindung wird getrennt, wodurch das Ziel-Volume unabhängig und beschreibbar wird (bis dahin ist es schreibgeschützt).
+
+## Einschränkungen der Funktion
+
+Mit der Share-Replikation kann ausschließlich ein Enterprise File Storage Volume im öffentlichen Netzwerk auf ein Enterprise File Storage Angebot im privaten Netzwerk vRack innerhalb **derselben Region** migriert werden.
+
+## In der praktischen Anwendung
+
+### Schritt 1 — Kompatibilität der Dienste überprüfen
+
+<Tabs>
+<Tab label="OVHcloud Kundencenter">
+
+1. Öffnen Sie im **Quelldienst** den Tab <code className="action">Volumes</code>.
+2. Setzen Sie einen Haken bei dem oder den zu migrierenden Volumes und klicken Sie dann auf <code className="action">Volume(s) replizieren</code>. Alternativ klicken Sie im Menü <code className="action">...</code> einer Zeile auf <code className="action">Dieses Volume replizieren</code>.
+3. Im Fenster **Volume(s) auf einem anderen Enterprise File Storage Dienst synchronisieren** werden im Feld **Enterprise File Storage Zieldienst** nur kompatible Dienste aufgeführt: Das OVHcloud Kundencenter übernimmt diese Überprüfung für Sie.
+
+:::info
+Wird kein Zieldienst angeboten, zeigt das OVHcloud Kundencenter direkt einen Button <code className="action">Bestellen</code> an, damit Sie ein kompatibles Enterprise File Storage Angebot (privates Netzwerk vRack, gleiche Region) abschließen können.
+:::
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Überprüfen Sie, ob Ihr Enterprise File Storage Angebot im privaten Netzwerk vRack als Ziel der Migration geeignet ist:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplicationServicesCompatibility"} />
+
+**Parameter:**
+
+- `serviceName`: eindeutige Kennung des Quelldienstes, der das zu migrierende Volume enthält
+- `compatibleOnly` *(optional)*: bei `true` werden nur kompatible Dienste zurückgegeben
+
+Diese Route gibt die infrage kommenden Dienste zurück, jeweils mit ihrem Kompatibilitätsstatus (`compatible`, `reason`) und der als Zieldienst zu verwendenden Kennung:
+
+```json
+[
+  {
+    "service": {
+      "id": "{destinationServiceId}",
+      "name": "MyDestinationService"
+    },
+    "compatible": true,
+    "reason": null
+  }
+]
+```
+
+:::info
+Ist die Liste leer oder ist kein Dienst als `compatible: true` gekennzeichnet, verfügen Sie über kein Enterprise File Storage Angebot im privaten Netzwerk vRack in derselben Region wie Ihr Quelldienst. [Bestellen Sie ein Enterprise File Storage Angebot](/links/storage/enterprise-file-storage) mit dem privaten Netzwerk vRack, um fortzufahren.
+:::
+
+</Tab>
+</Tabs>
+
+### Schritt 2 — Replikation erstellen
+
+<Tabs>
+<Tab label="OVHcloud Kundencenter">
+
+Wählen Sie im selben Fenster den Zieldienst im Feld **Enterprise File Storage Zieldienst** aus und klicken Sie dann auf <code className="action">Synchronisieren</code>, um die Replikation zu starten.
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Starten Sie die Replikation vom Quelldienst aus:
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+
+**Parameter:**
+
+- `serviceName`: eindeutige Kennung des Quelldienstes
+- `destinationServiceId`: Kennung des Zieldienstes, die Sie im vorherigen Schritt abgerufen haben
+- `sourceShareId`: Kennung des zu migrierenden Volumes
+- `description` *(optional)*: Beschreibung der Replikation
+
+Rufen Sie anschließend die Kennung der erstellten Replikation ab:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+
+```json
+[
+  {
+    "id": "{shareReplicationId}",
+    "description": "",
+    "status": "pending",
+    "source": {
+      "serviceID": "{sourceServiceId}",
+      "shareID": "{sourceShareId}"
+    },
+    "destination": {
+      "serviceID": "{destinationServiceId}",
+      "shareID": null
+    }
+  }
+]
+```
+
+</Tab>
+</Tabs>
+
+### Schritt 3 — Replikation im Zieldienst akzeptieren
+
+<Tabs>
+<Tab label="OVHcloud Kundencenter">
+
+1. Öffnen Sie im **Zieldienst** den Tab <code className="action">Replikationen</code>. Die eingehende Replikation wird mit dem Status **Genehmigung steht noch aus** angezeigt.
+2. Klicken Sie im Menü <code className="action">...</code> der Zeile auf <code className="action">Replikation akzeptieren</code>.
+3. Bestätigen Sie mit einem Klick auf <code className="action">Synchronisieren</code>.
+
+:::info
+Das OVHcloud Kundencenter erstellt das Ziel-Volume automatisch mit dem NFS-Protokoll und der Größe des Quell-Volumes. Es sind keine zusätzlichen Parameter erforderlich.
+:::
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Akzeptieren Sie die Replikation vom Zieldienst aus (diese Aktion erstellt das Volume, das die Replik aufnehmen wird):
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/accept"} />
+
+**Parameter:**
+
+- `serviceName`: eindeutige Kennung des Zieldienstes
+- `shareReplicationId`: Kennung der Replikation, die Sie im vorherigen Schritt abgerufen haben
+- `share.name` *(optional)*: Name des Ziel-Volumes
+- `share.protocol`: Protokoll des Volumes (`NFS`)
+- `share.size`: Größe des Volumes in GB — **muss größer oder gleich** der Größe des Quell-Volumes sein
+- `share.description` *(optional)*: Beschreibung des Volumes
+- `share.mountPointName` *(optional)*: Name des Einhängepunkts
+
+Über die Details der Replikation können Sie anschließend die Kennung des erstellten Ziel-Volumes abrufen:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
+
+```json
+{
+  "id": "{shareReplicationId}",
+  "description": "",
+  "status": "accepted",
+  "replicaState": "out_of_sync",
+  "createdAt": "2025-12-05T13:18:00Z",
+  "source": {
+    "serviceID": "{sourceServiceId}",
+    "shareID": "{sourceShareId}"
+  },
+  "destination": {
+    "serviceID": "{destinationServiceId}",
+    "shareID": "{destinationShareId}"
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+### Schritt 4 — Synchronisierung überwachen
+
+<Tabs>
+<Tab label="OVHcloud Kundencenter">
+
+Im Tab <code className="action">Replikationen</code> des Zieldienstes ändert sich der Status der Zeile automatisch:
+
+- **Wird synchronisiert** — Die Daten werden kopiert (entspricht `replicaState: out_of_sync`).
+- **Synchronisiert** — Die beiden Volumes sind synchronisiert (entspricht `replicaState: in_sync`).
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Fragen Sie die Route mit den Details der Replikation erneut ab, um den Fortschritt des Kopiervorgangs zu überwachen:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
+
+- `replicaState: out_of_sync` — Die Synchronisierung läuft; das Feld `progress` zeigt den Fortschritt an.
+- `replicaState: in_sync` — Die beiden Volumes sind synchronisiert.
+
+:::info
+Solange die Replikation aktiv ist, setzt jeder neue Schreibvorgang auf dem Quell-Volume `replicaState` vorübergehend auf `out_of_sync` zurück, bis die neuen Daten repliziert wurden.
+:::
+
+</Tab>
+</Tabs>
+
+### Schritt 5 — Migration abschließen (Cutover)
+
+<Tabs>
+<Tab label="OVHcloud Kundencenter">
+
+1. Sobald der Status **Synchronisiert** im Tab <code className="action">Replikationen</code> erreicht ist, klicken Sie im Menü <code className="action">...</code> der Zeile auf <code className="action">Hochstufen</code>.
+2. Ein Warnfenster weist Sie darauf hin, dass diese Aktion die Replikation mit dem Quell-Volume trennt und das hochgestufte Volume unabhängig macht — **diese Aktion kann nicht rückgängig gemacht werden**. Klicken Sie auf <code className="action">Bestätigen</code>.
+
+Der Status der Zeile wechselt dann zu **Wird hochgestuft** und anschließend zu **Migriert**.
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Sobald `replicaState` den Wert `in_sync` hat, schließen Sie die Migration ab, indem Sie die Replikationsverbindung vom Zieldienst aus trennen:
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/cutover"} />
+
+**Parameter:**
+
+- `serviceName`: eindeutige Kennung des Zieldienstes
+- `shareReplicationId`: Kennung der abzuschließenden Replikation
+
+Diese Aktion beendet die Replikation (`status` wechselt zu `completed`, sobald die Hochstufung abgeschlossen ist) und macht das Ziel-Volume unabhängig.
+
+</Tab>
+</Tabs>
+
+## Erwartetes Ergebnis
+
+- Das Volume ist nun auf dem Enterprise File Storage Angebot im privaten Netzwerk vRack mit allen Daten des Quell-Volumes verfügbar.
+- Die Replikationsverbindung ist beendet; die beiden Volumes entwickeln sich unabhängig voneinander.
+- Das Quell-Volume bleibt unverändert: Sie können es löschen, sobald Sie die Migration überprüft haben.
+
+Um das migrierte Volume zu verwenden, hängen Sie es auf Ihren Clients über die vRack-Adresse des neuen Angebots erneut ein.
+
+## Weiterführende Informationen
+
+[Enterprise File Storage - Verwaltung über das OVHcloud Kundencenter](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
+
+[Enterprise File Storage - Volume klonen](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume)
+
+[Enterprise File Storage - Private network configuration](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
+
+[Enterprise File Storage - Connect a Public Cloud instance to an EFS Volume via vRack Private Network](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack)
+
+[Enterprise File Storage - Volumes verwalten](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-volumes)
+
+[[fragment:professional-services]]
+
+Treten Sie unserer [User Community](/links/community) bei.
