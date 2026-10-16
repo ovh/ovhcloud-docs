@@ -4,11 +4,11 @@
  *
  * Two modes, selected by the active region (config/regions.ts):
  *
- * - Multi-locale region (EU, `localePrefix: true`): merges dist/<locale>/
- *   directories produced by the parallel Turborepo builds:
- *     1. Public assets deduplication (moves fr/public to shared dist/public)
+ * - Locale-prefixed region (EU and US, `localePrefix: true`): merges
+ *   dist/<locale>/ directories produced by the per-locale builds:
+ *     1. Public assets deduplication (moves <locale>/public to dist/public)
  *     1.5. Images deduplication (symlinks dist/{locale}/images -> ../images)
- *     2. Root redirect creation (/ -> /fr/)
+ *     2. Root redirect creation (/ -> /<default locale>/: /fr/ EU, /en/ US)
  *     3. Per-locale sitemaps with hreflang + sitemap index
  *     4. robots.txt + sitemap-help.xml placement
  *     5. FlexSearch cleanup
@@ -16,8 +16,8 @@
  *     5.6. llms.txt family (root/per-locale directories, per-product indexes)
  *     6. Pagefind indexing (per locale)
  *
- * - Single-locale region (US, `localePrefix: false`): the build is already at
- *   the dist/ root (served at the domain root, no /{locale}/ prefix). The
+ * - Unprefixed region (`localePrefix: false`, none today): the build is
+ *   already at the dist/ root (served at the domain root, no /{locale}/). The
  *   post-processing is simpler: no root redirect, no per-locale image symlinks,
  *   a single sitemap (no hreflang alternates), a single llms.txt directory at
  *   the root and a single Pagefind index.
@@ -33,7 +33,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Worker } from 'node:worker_threads';
-import { contentSubdir, regionConfig } from '../config/regions';
+import { contentSubdir, htmlLangFor, regionConfig } from '../config/regions';
 import { locales } from '../config/shared';
 import { parseIndexMd } from '../config/sidebar/parser';
 import { generateLlms } from './lib/llms';
@@ -187,7 +187,7 @@ function generateLlmsFamily(builtLocales: readonly string[]): void {
 }
 
 // ===================================================================
-// MULTI-LOCALE REGION (EU) — historical behaviour, unchanged
+// LOCALE-PREFIXED REGION (EU, US) — dist/<locale>/ per locale
 // ===================================================================
 async function combineMultiLocale(): Promise<void> {
   const totalStartTime = Date.now();
@@ -268,21 +268,22 @@ async function combineMultiLocale(): Promise<void> {
   console.log('\n2️⃣  Creating root redirect...');
   sectionStart = Date.now();
 
+  const rootLocale = regionConfig.defaultLocale;
   const rootIndexHtml = `<!DOCTYPE html>
-<html lang="fr">
+<html lang="${htmlLangFor(regionConfig, rootLocale)}">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=/fr/">
-  <link rel="canonical" href="${SITE_URL}/fr/">
+  <meta http-equiv="refresh" content="0; url=/${rootLocale}/">
+  <link rel="canonical" href="${SITE_URL}/${rootLocale}/">
   <title>Redirecting to OVHcloud Documentation...</title>
 </head>
 <body>
-  <p>Redirecting to <a href="/fr/">French documentation</a>...</p>
+  <p>Redirecting to <a href="/${rootLocale}/">the documentation</a>...</p>
 </body>
 </html>`;
 
   fs.writeFileSync(path.join(DIST_DIR, 'index.html'), rootIndexHtml);
-  console.log('   ✓ Created dist/index.html (redirects to /fr/)');
+  console.log(`   ✓ Created dist/index.html (redirects to /${rootLocale}/)`);
 
   const redirectMapCandidates = [
     path.join(DIST_DIR, builtLocales[0], '301.map'),
@@ -297,7 +298,7 @@ async function combineMultiLocale(): Promise<void> {
       `   ✓ Copied 301.map to dist root (from ${path.relative(ROOT_DIR, redirectMapSrc)})`,
     );
   } else {
-    fs.writeFileSync(redirectMapDst, '/ /fr/;\n');
+    fs.writeFileSync(redirectMapDst, `/ /${rootLocale}/;\n`);
     console.log('   ✓ Created default dist/301.map');
   }
   console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
@@ -317,6 +318,9 @@ async function combineMultiLocale(): Promise<void> {
   const defaultLocaleForHreflang = builtLocales.includes('en' as never)
     ? 'en'
     : builtLocales[0];
+  // A single-locale site has no alternates to declare: a cluster of one page
+  // pointing at itself carries no information.
+  const withAlternates = builtLocales.length > 1;
 
   let totalUrls = 0;
   for (const locale of builtLocales) {
@@ -332,17 +336,19 @@ async function combineMultiLocale(): Promise<void> {
       const loc = `${SITE_URL}/${locale}${p}`;
       lines.push('  <url>');
       lines.push(`    <loc>${escapeXml(loc)}</loc>`);
-      for (const other of builtLocales) {
+      for (const other of withAlternates ? builtLocales : []) {
         if (localePaths[other].has(p)) {
           const altLoc = `${SITE_URL}/${other}${p}`;
           lines.push(
-            `    <xhtml:link rel="alternate" hreflang="${other}" href="${escapeXml(altLoc)}"/>`,
+            `    <xhtml:link rel="alternate" hreflang="${htmlLangFor(regionConfig, other)}" href="${escapeXml(altLoc)}"/>`,
           );
         }
       }
-      const xDefault = localePaths[defaultLocaleForHreflang].has(p)
-        ? defaultLocaleForHreflang
-        : builtLocales.find((l) => localePaths[l].has(p));
+      const xDefault = !withAlternates
+        ? undefined
+        : localePaths[defaultLocaleForHreflang].has(p)
+          ? defaultLocaleForHreflang
+          : builtLocales.find((l) => localePaths[l].has(p));
       if (xDefault) {
         const xDefaultLoc = `${SITE_URL}/${xDefault}${p}`;
         lines.push(
@@ -393,6 +399,12 @@ async function combineMultiLocale(): Promise<void> {
   const robotsSrc = robotsCandidates.find((p) => fs.existsSync(p));
   const robotsDst = path.join(DIST_DIR, 'robots.txt');
 
+  const helpSitemapCandidates = [
+    path.join(firstLocaleDir, 'sitemap-help.xml'),
+    path.join(sharedPublic, 'sitemap-help.xml'),
+  ];
+  const helpSitemapSrc = helpSitemapCandidates.find((p) => fs.existsSync(p));
+
   if (robotsSrc) {
     fs.copyFileSync(robotsSrc, robotsDst);
     console.log(
@@ -403,8 +415,7 @@ async function combineMultiLocale(): Promise<void> {
 Allow: /
 
 Sitemap: ${SITE_URL}/sitemap.xml
-Sitemap: ${SITE_URL}/sitemap-help.xml
-
+${helpSitemapSrc ? `Sitemap: ${SITE_URL}/sitemap-help.xml\n` : ''}
 # AI/LLM index: ${SITE_URL}/llms.txt (product directory, one llms.txt per product)
 # Per-page Markdown: append .md to any page URL
 `;
@@ -412,11 +423,6 @@ Sitemap: ${SITE_URL}/sitemap-help.xml
     console.log('   ✓ Created default robots.txt');
   }
 
-  const helpSitemapCandidates = [
-    path.join(firstLocaleDir, 'sitemap-help.xml'),
-    path.join(sharedPublic, 'sitemap-help.xml'),
-  ];
-  const helpSitemapSrc = helpSitemapCandidates.find((p) => fs.existsSync(p));
   const helpSitemapDst = path.join(DIST_DIR, 'sitemap-help.xml');
   if (helpSitemapSrc) {
     fs.copyFileSync(helpSitemapSrc, helpSitemapDst);
@@ -516,7 +522,7 @@ Sitemap: ${SITE_URL}/sitemap-help.xml
 }
 
 // ===================================================================
-// SINGLE-LOCALE REGION (US) — served at the domain root
+// UNPREFIXED REGION (none today) — served at the domain root
 // ===================================================================
 async function combineSingleRoot(): Promise<void> {
   const totalStartTime = Date.now();

@@ -1300,7 +1300,7 @@ export const externalLinks: LinkMap = {
     pt: 'https://www.ovhcloud.com/pt/identity-security-operations/service-logs/',
   },
   'manager-telecom': {
-    fr: 'https://www.ovh.com/auth?onsuccess=https%3A%2F%2Fwww.ovhtelecom.fr%2Fmanager&ovhSubsidiary=fr',
+    fr: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A%2F%2Fmanager.eu.ovhcloud.com%2F%23%2Ftelecom&ovhSubsidiary=fr',
   },
   'network/additional-ip': {
     fr: 'https://www.ovhcloud.com/fr/network/additional-ip/',
