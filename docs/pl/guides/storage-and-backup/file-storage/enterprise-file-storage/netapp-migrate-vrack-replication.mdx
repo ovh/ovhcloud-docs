@@ -1,0 +1,264 @@
+---
+title: Enterprise File Storage - Migracja wolumenu do sieci vRack
+description: "Dowiedz się, jak przenieść wolumen Enterprise File Storage do usługi w prywatnej sieci vRack za pomocą replikacji wolumenów, w Panelu klienta OVHcloud lub przez API"
+lastUpdated: 2026-10-16
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Wprowadzenie
+
+Niniejszy przewodnik wyjaśnia, jak przenieść wolumen hostowany w usłudze OVHcloud Enterprise File Storage w sieci publicznej do drugiej usługi Enterprise File Storage w prywatnej sieci <Tooltip term="vrack">vRack</Tooltip>, korzystając z funkcji replikacji wolumenów (*share replication*). Funkcją tą możesz zarządzać w Panelu klienta OVHcloud lub przez API OVHcloud.
+
+:::warning
+Funkcja replikacji wolumenów jest dostępna w wersji **beta**.
+:::
+
+## Wymagania początkowe
+
+- Usługa OVHcloud [Enterprise File Storage](/links/storage/enterprise-file-storage) w sieci publicznej (zamówiona przed styczniem 2025 r.) z wolumenem do przeniesienia
+- Usługa OVHcloud Enterprise File Storage [podłączona do prywatnej sieci vRack](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config), znajdująca się w **tym samym regionie** co usługa źródłowa
+- Dostęp do <ManagerLink to="/">Panelu klienta OVHcloud</ManagerLink> lub do <ApiLink>API OVHcloud</ApiLink>
+
+[[cpnav:storage-enterprise-file-storage]]
+
+## Zasada działania
+
+Migracja przebiega w trzech etapach:
+
+1. **Replikacja** — między wolumenem źródłowym a usługą docelową tworzone jest połączenie replikacyjne
+2. **Synchronizacja** — dane są automatycznie kopiowane z wolumenu źródłowego do wolumenu docelowego
+3. **Finalizacja** (*cutover*) — połączenie replikacyjne zostaje przerwane, dzięki czemu wolumen docelowy staje się niezależny i dostępny do zapisu (do tego momentu pozostaje dostępny tylko do odczytu)
+
+## Ograniczenia funkcji
+
+Replikacja wolumenów pozwala wyłącznie przenieść wolumen Enterprise File Storage z sieci publicznej do usługi Enterprise File Storage w prywatnej sieci vRack, w obrębie **tego samego regionu**.
+
+## W praktyce
+
+### Etap 1 — Sprawdź kompatybilność usług
+
+<Tabs>
+<Tab label="Panel klienta OVHcloud">
+
+1. W usłudze **źródłowej** otwórz kartę <code className="action">Wolumeny</code>.
+2. Zaznacz pole wyboru przy wolumenie lub wolumenach do przeniesienia, a następnie kliknij <code className="action">Replikuj wolumen(y)</code>. Możesz też w menu <code className="action">...</code> danego wiersza kliknąć <code className="action">Replikuj ten wolumen</code>.
+3. W oknie **Synchronizuj wolumen(y) z inną usługą Enterprise File Storage** pole **Docelowy Enterprise File Storage** wyświetla wyłącznie kompatybilne usługi: Panel klienta OVHcloud przeprowadza tę weryfikację za Ciebie.
+
+:::info
+Jeśli nie jest proponowana żadna usługa docelowa, Panel klienta OVHcloud wyświetla bezpośrednio przycisk <code className="action">Zamów</code>, aby umożliwić Ci zamówienie kompatybilnej usługi Enterprise File Storage (prywatna sieć vRack, ten sam region).
+:::
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Sprawdź, czy Twoja usługa Enterprise File Storage w prywatnej sieci vRack może pełnić rolę usługi docelowej migracji:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplicationServicesCompatibility"} />
+
+**Parametry:**
+
+- `serviceName`: unikalny identyfikator usługi źródłowej, w której znajduje się wolumen do przeniesienia
+- `compatibleOnly` *(opcjonalnie)*: jeśli `true`, zwracane są tylko kompatybilne usługi
+
+Ta ścieżka zwraca usługi kandydujące, każdą z jej statusem kompatybilności (`compatible`, `reason`) oraz identyfikatorem, którego należy użyć jako usługi docelowej:
+
+```json
+[
+  {
+    "service": {
+      "id": "{destinationServiceId}",
+      "name": "MyDestinationService"
+    },
+    "compatible": true,
+    "reason": null
+  }
+]
+```
+
+:::info
+Jeśli lista jest pusta lub żadna usługa nie jest oznaczona jako `compatible: true`, nie posiadasz usługi Enterprise File Storage w prywatnej sieci vRack w tym samym regionie co Twoja usługa źródłowa. Aby kontynuować, [zamów usługę Enterprise File Storage](/links/storage/enterprise-file-storage) z prywatną siecią vRack.
+:::
+
+</Tab>
+</Tabs>
+
+### Etap 2 — Utwórz replikację
+
+<Tabs>
+<Tab label="Panel klienta OVHcloud">
+
+W tym samym oknie wybierz usługę docelową w polu **Docelowy Enterprise File Storage**, a następnie kliknij <code className="action">Synchronizuj</code>, aby uruchomić replikację.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Uruchom replikację z poziomu usługi źródłowej:
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+
+**Parametry:**
+
+- `serviceName`: unikalny identyfikator usługi źródłowej
+- `destinationServiceId`: identyfikator usługi docelowej, pobrany w poprzednim etapie
+- `sourceShareId`: identyfikator wolumenu do przeniesienia
+- `description` *(opcjonalnie)*: opis replikacji
+
+Następnie pobierz identyfikator utworzonej replikacji:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+
+```json
+[
+  {
+    "id": "{shareReplicationId}",
+    "description": "",
+    "status": "pending",
+    "source": {
+      "serviceID": "{sourceServiceId}",
+      "shareID": "{sourceShareId}"
+    },
+    "destination": {
+      "serviceID": "{destinationServiceId}",
+      "shareID": null
+    }
+  }
+]
+```
+
+</Tab>
+</Tabs>
+
+### Etap 3 — Zaakceptuj replikację w usłudze docelowej
+
+<Tabs>
+<Tab label="Panel klienta OVHcloud">
+
+1. W usłudze **docelowej** otwórz kartę <code className="action">Replikacje</code>. Przychodząca replikacja jest wyświetlana ze statusem **Oczekiwanie na zatwierdzenie**.
+2. W menu <code className="action">...</code> danego wiersza kliknij <code className="action">Zaakceptuj replikację</code>.
+3. Potwierdź, klikając <code className="action">Synchronizuj</code>.
+
+:::info
+Panel klienta OVHcloud automatycznie tworzy wolumen docelowy z protokołem NFS i o rozmiarze wolumenu źródłowego — nie są wymagane żadne dodatkowe parametry.
+:::
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Zaakceptuj replikację z poziomu usługi docelowej (ta operacja tworzy wolumen, w którym będzie przechowywana replika):
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/accept"} />
+
+**Parametry:**
+
+- `serviceName`: unikalny identyfikator usługi docelowej
+- `shareReplicationId`: identyfikator replikacji, pobrany w poprzednim etapie
+- `share.name` *(opcjonalnie)*: nazwa wolumenu docelowego
+- `share.protocol`: protokół wolumenu (`NFS`)
+- `share.size`: rozmiar wolumenu w GB — **musi być większy lub równy** rozmiarowi wolumenu źródłowego
+- `share.description` *(opcjonalnie)*: opis wolumenu
+- `share.mountPointName` *(opcjonalnie)*: nazwa punktu montowania
+
+Szczegóły replikacji pozwalają następnie pobrać identyfikator utworzonego wolumenu docelowego:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
+
+```json
+{
+  "id": "{shareReplicationId}",
+  "description": "",
+  "status": "accepted",
+  "replicaState": "out_of_sync",
+  "createdAt": "2025-12-05T13:18:00Z",
+  "source": {
+    "serviceID": "{sourceServiceId}",
+    "shareID": "{sourceShareId}"
+  },
+  "destination": {
+    "serviceID": "{destinationServiceId}",
+    "shareID": "{destinationShareId}"
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+### Etap 4 — Monitoruj synchronizację
+
+<Tabs>
+<Tab label="Panel klienta OVHcloud">
+
+Na karcie <code className="action">Replikacje</code> usługi docelowej status wiersza zmienia się automatycznie:
+
+- **W trakcie synchronizacji** — dane są kopiowane (odpowiednik `replicaState: out_of_sync`).
+- **Synchronizacja zakończona** — oba wolumeny są zsynchronizowane (odpowiednik `replicaState: in_sync`).
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Ponownie wyślij zapytanie do ścieżki szczegółów replikacji, aby monitorować postęp kopiowania danych:
+
+<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
+
+- `replicaState: out_of_sync` — synchronizacja jest w toku; pole `progress` wskazuje stopień jej zaawansowania.
+- `replicaState: in_sync` — oba wolumeny są zsynchronizowane.
+
+:::info
+Dopóki replikacja jest aktywna, każdy nowy zapis w wolumenie źródłowym tymczasowo przywraca wartość `out_of_sync` parametru `replicaState`, aż do zreplikowania nowych danych.
+:::
+
+</Tab>
+</Tabs>
+
+### Etap 5 — Sfinalizuj migrację (cutover)
+
+<Tabs>
+<Tab label="Panel klienta OVHcloud">
+
+1. Gdy na karcie <code className="action">Replikacje</code> pojawi się status **Synchronizacja zakończona**, kliknij <code className="action">Ustaw wolumen jako główny</code> w menu <code className="action">...</code> danego wiersza.
+2. Okno ostrzeżenia przypomina, że ta operacja przerywa replikację z wolumenem źródłowym i sprawia, że wolumen ustawiony jako główny staje się niezależny — **tej operacji nie można cofnąć**. Kliknij <code className="action">Zatwierdź</code>.
+
+Status wiersza zmienia się wówczas na **Trwa ustawianie wolumenu jako głównego**, a następnie na **Migracja zakończona**.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Gdy `replicaState` ma wartość `in_sync`, sfinalizuj migrację, przerywając połączenie replikacyjne z poziomu usługi docelowej:
+
+<Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/cutover"} />
+
+**Parametry:**
+
+- `serviceName`: unikalny identyfikator usługi docelowej
+- `shareReplicationId`: identyfikator replikacji do sfinalizowania
+
+Ta operacja kończy replikację (`status` zmienia się na `completed` po ustawieniu wolumenu jako głównego) i sprawia, że wolumen docelowy staje się niezależny.
+
+</Tab>
+</Tabs>
+
+## Oczekiwany rezultat
+
+- Wolumen jest teraz dostępny w usłudze Enterprise File Storage w prywatnej sieci vRack i zawiera wszystkie dane z wolumenu źródłowego.
+- Połączenie replikacyjne zostało zakończone; oba wolumeny funkcjonują odtąd niezależnie.
+- Wolumen źródłowy pozostaje niezmieniony: możesz go usunąć po zweryfikowaniu migracji.
+
+Aby korzystać z przeniesionego wolumenu, zamontuj go ponownie na swoich klientach, używając adresu vRack nowej usługi.
+
+## Sprawdź również
+
+[Enterprise File Storage - Zarządzanie w panelu klienta OVHcloud](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
+
+[Enterprise File Storage - Klonowanie wolumenu](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume)
+
+[Enterprise File Storage - Private network configuration](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
+
+[Enterprise File Storage - Connect a Public Cloud instance to an EFS Volume via vRack Private Network](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack)
+
+[Enterprise File Storage - Zarządzanie wolumenami](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-volumes)
+
+[[fragment:professional-services]]
+
+Dołącz do [grona naszych użytkowników](/links/community).
