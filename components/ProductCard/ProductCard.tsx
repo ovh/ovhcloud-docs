@@ -6,6 +6,7 @@ import {
   PRODUCT_CARDS,
   STRINGS,
 } from '../../config/product-cards';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { type LivePrices, loadCatalog, resolvePrices } from './livePrices';
 import './ProductCard.css';
@@ -134,6 +135,18 @@ export function ProductCard({ plan }: ProductCardProps) {
           },
           { text: s.bandwidth(def.bandwidthMbps) },
         ];
+
+  // `.md` export: name and specs. Prices are fetched in the reader's browser
+  // and are never part of a built page.
+  if (process.env.__SSR_MD__) {
+    return (
+      <MdLinkItem
+        href={orderUrl}
+        title={`${def.range} ${def.name}`}
+        description={specs.map((spec) => spec.text).join(', ')}
+      />
+    );
+  }
 
   return (
     <a

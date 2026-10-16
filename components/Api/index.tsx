@@ -316,6 +316,16 @@ export default function Api({
 
   const selectedEndpoint = endpointOf(selectedKey);
 
+  // `.md` export (llms): the call as one link to the default console. The
+  // region menu, flag and icon would serialise as stray text ("🇪🇺EU▾").
+  if (process.env.__SSR_MD__) {
+    return (
+      <p>
+        <a href={href}>{`${method} ${route.replace(/\\/g, '')}`}</a>
+      </p>
+    );
+  }
+
   return (
     <div className="ovh-api-main">
       {keys.length > 1 && (
