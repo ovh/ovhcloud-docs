@@ -101,16 +101,58 @@ expectClean(
   '### Best practices\n\nText.\n\n#### Launching\n\n#### Step 1.3\n',
 );
 
-// --- Regions ---
+// --- Regions: every zone kept, labelled ---
+const OPEN = '\u{F0004}';
+const SEP = '\u{F0005}';
+const CLOSE = '\u{F0006}';
 expectClean(
-  'nested Region blocks resolved for eu and dedented',
+  'nested Region blocks become labelled quotes, dedented in their list',
   "- Offers:\n  <Region zones={['eu']}>\n    - MX Plan EU\n  </Region>\n  <Region zones={['ca', 'apac']}>\n    - MX Plan CA\n  </Region>\n  - Other\n",
-  '- Offers:\n  - MX Plan EU\n  - Other\n',
+  '- Offers:\n\n  > **Zone: Europe / Africa**\n  >\n  > - MX Plan EU\n\n  > **Zones: Canada / Americas, Asia / Pacific**\n  >\n  > - MX Plan CA\n\n  - Other\n',
 );
 expectClean(
-  'inline Region and excludeZones',
+  'adjacent inline variants share one parenthetical; excludeZones is the other zones',
   "Mail: <Region zones={['ca']}>mx.ovh.ca</Region><Region excludeZones={['ca']}>mx.ovh.net</Region>.\n",
-  'Mail: mx.ovh.net.\n',
+  'Mail: (Canada / Americas: mx.ovh.ca; Europe / Africa, Asia / Pacific: mx.ovh.net).\n',
+);
+expectClean(
+  'labels follow the locale (fr)',
+  "Offre : <Region zones={['eu']}>Perso, Pro</Region> <Region zones={['ca', 'apac']}>Perso</Region>.\n\n<Region zones={['ca']}>\nTexte CA.\n</Region>\n",
+  'Offre : (Europe / Afrique : Perso, Pro ; Canada / Amérique, Asie / Pacifique : Perso).\n\n> **Zone : Canada / Amérique**\n>\n> Texte CA.\n',
+  { locale: 'fr' },
+);
+expectClean(
+  'callout and code inside a zone block are cleaned, then quoted',
+  "<Region zones={['ca']}>\n:::warning\nCheck the server.\n:::\n\n```bash\ndig mx.ovh.ca\n```\n</Region>\n",
+  '> **Zone: Canada / Americas**\n>\n> **Warning:** Check the server.\n>\n> ```bash\n> dig mx.ovh.ca\n> ```\n',
+);
+expectClean(
+  'a variant shown in every zone needs no label',
+  '<Region excludeZones={[]}>\nEverywhere.\n</Region>\n',
+  'Everywhere.\n',
+);
+expectClean(
+  'markers rendered by the Region component (block and inline)',
+  `Intro.\n\n${OPEN}eu${SEP}\nEU only.\n\n${CLOSE}\n\nPlans: ${OPEN}eu,ca${SEP}MX Plan${CLOSE}${OPEN}apac${SEP}Starter${CLOSE}.\n`,
+  'Intro.\n\n> **Zone: Europe / Africa**\n>\n> EU only.\n\nPlans: (Europe / Africa, Canada / Americas: MX Plan; Asia / Pacific: Starter).\n',
+);
+
+expectClean(
+  'regions wrapping only cards: inline markers, rendered lines, back to back',
+  `- [A](https://x/a)\n${OPEN}eu,ca${SEP}- [B](https://x/b)\n- [C](https://x/c)\n${CLOSE}${OPEN}eu${SEP}- [D](https://x/d)\n${CLOSE}\n`,
+  '- [A](https://x/a)\n\n> **Zones: Europe / Africa, Canada / Americas**\n>\n> - [B](https://x/b)\n> - [C](https://x/c)\n\n> **Zone: Europe / Africa**\n>\n> - [D](https://x/d)\n',
+);
+
+expectClean(
+  'inline variants rendered by the component keep their sentence',
+  `Disponible pour ${OPEN}eu${SEP}Hosted, Private et Trusted\n${CLOSE}${OPEN}ca,apac${SEP}Hosted\n${CLOSE}. Suite.\n\n${OPEN}eu${SEP}MX Plan\n${CLOSE} est inclus.\n`,
+  'Disponible pour (Europe / Afrique : Hosted, Private et Trusted ; Canada / Amérique, Asie / Pacifique : Hosted). Suite.\n\n(Europe / Afrique : MX Plan) est inclus.\n',
+  { locale: 'fr' },
+);
+expectClean(
+  'a block rendered by the component, text right after the marker',
+  `Intro.\n\n${OPEN}ca${SEP}First paragraph.\n\nSecond.\n${CLOSE}\n\nAfter.\n`,
+  'Intro.\n\n> **Zone: Canada / Americas**\n>\n> First paragraph.\n>\n> Second.\n\nAfter.\n',
 );
 
 // --- Structure recovered from the source ---
@@ -147,6 +189,17 @@ expectClean(
   '1. Check:\n\n    <details>\n      <summary>\n        Example\n      </summary>\n\n      Result.\n    </details>\n',
   '1. Check:\n\n## Example\n\n      Result.\n',
   { locale: 'en' },
+);
+
+expectClean(
+  'a zone tab carries its zones in its heading',
+  '## Email\n\n**MX Plan**\n\nText.\n\n**Exchange**\n\nMore.\n\n**Any**\n\nAll.\n',
+  '## Email\n\n### MX Plan (Europe / Africa)\n\nText.\n\n### Exchange (Europe / Africa, Canada / Americas)\n\nMore.\n\n### Any\n\nAll.\n',
+  {
+    locale: 'en',
+    source:
+      '<ZoneTabs>\n  <Tab label="MX Plan" availableIn={[\'eu\']}>\n  </Tab>\n  <Tab label="Exchange" availableIn={[\'eu\', \'ca\']}>\n  </Tab>\n  <Tab label="Any">\n  </Tab>\n</ZoneTabs>\n',
+  },
 );
 
 // --- Code is never touched ---
@@ -194,6 +247,12 @@ check(
       'Use <host> and <IP>.\n<Foo bar="1">x</Foo>\n:::info\n`<Code />`\n',
     ),
   ) === JSON.stringify(['<Foo bar=', '</Foo>', ':::info']),
+);
+check(
+  'residue reports an unmatched zone marker',
+  findResidue('Text \u{F0004}eu\u{F0005} left open.\n').includes(
+    'unmatched <Region> marker',
+  ),
 );
 
 console.log(`clean-md: ${passed} passed, ${failures.length} failed`);

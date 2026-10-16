@@ -7,8 +7,7 @@
  *
  *  - JSX nested below a block (a `<ManagerLink>` in a list item, a
  *    `<code className="action">` in a tab, a `<Region>` in a requirements list)
- *    is never rendered: it is copied as raw source, so `<Region zones={['ca']}>`
- *    content reaches the EU export.
+ *    is never rendered: it is copied as raw source.
  *  - Our remark plugins and Rspress's own container plugin do not run in that
  *    mode, so `:::info` stays a directive; sibling blocks inside a rendered
  *    component are joined by a single newline, gluing images and callouts to
@@ -18,19 +17,29 @@
  * comes out as a bare line. Those are recovered from the page's MDX source
  * (`options.source`) and turned back into subheadings.
  *
+ * Zone variants: every `<Region>` is kept, labelled with its zones — a block
+ * as a quote (`> **Zone : Europe / Afrique**`), an inline variant as a
+ * parenthetical — so an AI reader can answer a customer of any zone. The
+ * component marks what it renders (components/LlmsMarkdown/zoneMarkers.ts),
+ * raw nested tags are marked here, and the labels are applied last.
+ *
  * Text only: fenced code blocks and inline code spans are never touched.
  * Idempotent: cleaning an already-clean page changes nothing.
  */
 
-export type Zone = 'eu' | 'ca' | 'apac';
+import {
+  ALL_ZONES,
+  ZONE_CLOSE,
+  ZONE_OPEN,
+  ZONE_SEP,
+} from '../../../components/LlmsMarkdown/zoneMarkers';
+import i18n from '../../../i18n.json';
 
 export interface CleanMdOptions {
   /** Locale of the page, for callout labels and quotation marks. */
   locale: string;
   /** The page's MDX source, to recover `<summary>` and `<Tab>` labels. */
   source?: string;
-  /** Zone kept from `<Region>` blocks; `eu`, as `<Region>` renders at SSR. */
-  zone?: Zone;
   /**
    * Site origin. Links rendered by components are site-relative
    * (`/en/guides/x`); with it they become absolute `.md` URLs, like the
@@ -85,6 +94,17 @@ const CALLOUT_LABELS: Record<string, Record<CalloutKind, string>> = {
   pt: { note: 'Nota', tip: 'Dica', warning: 'Aviso', important: 'Importante' },
 };
 
+/** "Zone" / "Zones" before the zone names of a labelled block. */
+const ZONE_WORD: Record<string, [string, string]> = {
+  en: ['Zone', 'Zones'],
+  fr: ['Zone', 'Zones'],
+  de: ['Zone', 'Zonen'],
+  es: ['Zona', 'Zonas'],
+  it: ['Zona', 'Zone'],
+  pl: ['Strefa', 'Strefy'],
+  pt: ['Zona', 'Zonas'],
+};
+
 const QUOTES: Record<string, [string, string]> = {
   en: ['"', '"'],
   fr: ['« ', ' »'],
@@ -103,7 +123,7 @@ const TAB_MARK = '\u{F0003}';
 const CODE_MARK = '\u{F0002}';
 
 export function cleanMarkdown(md: string, options: CleanMdOptions): string {
-  const { locale, source, zone = 'eu', siteUrl } = options;
+  const { locale, source, siteUrl } = options;
   const lang = locale in CALLOUT_LABELS ? locale : 'en';
   const [open, close] = QUOTES[lang];
   const quote = (text: string) => `${open}${text.trim()}${close}`;
@@ -111,7 +131,7 @@ export function cleanMarkdown(md: string, options: CleanMdOptions): string {
   const { text, restore } = protectCode(md);
   let out = text;
 
-  out = resolveRegions(out, zone);
+  out = markRegions(out);
   out = convertRawDetails(out);
 
   out = out
@@ -147,10 +167,11 @@ export function cleanMarkdown(md: string, options: CleanMdOptions): string {
   // After the removals: a `:::` glued behind an image only starts its line
   // once the image is gone.
   out = convertCallouts(out, CALLOUT_LABELS[lang], lang === 'fr');
-  if (source) out = markSourceLabels(out, source);
+  if (source) out = markSourceLabels(out, source, lang);
   out = resolveHeadingMarks(out);
   out = normaliseBlocks(out);
-  return restore(out);
+  // Last: a quote's `> ` prefix must reach the restored code lines too.
+  return normaliseBlocks(applyZones(restore(out), lang));
 }
 
 /**
@@ -165,6 +186,8 @@ export function findResidue(md: string): string[] {
   const jsx = /<[A-Z][A-Za-z]*(?:\s+[\w-]+=|\s*\/>)|<\/[A-Z][A-Za-z]*>/g;
   for (const m of text.matchAll(jsx)) residue.push(m[0]);
   for (const m of text.matchAll(/^[ \t]*:::.*$/gm)) residue.push(m[0].trim());
+  if (text.includes(ZONE_OPEN) || text.includes(ZONE_CLOSE))
+    residue.push('unmatched <Region> marker');
   return residue;
 }
 
@@ -235,11 +258,11 @@ function protectCode(md: string): {
 }
 
 /**
- * Keep or drop each raw `<Region>` block the way the component would for
- * `zone`, innermost first. Blocks on their own lines lose their tag lines and
- * are dedented to the tag's indentation (they sit in lists).
+ * Raw `<Region>` tags → zone markers, innermost first. Tags on their own lines
+ * keep them, the content dedented to the tag's indentation (they sit in
+ * lists); inline tags are replaced in place.
  */
-function resolveRegions(md: string, zone: Zone): string {
+function markRegions(md: string): string {
   let out = md;
   for (;;) {
     const closeAt = out.indexOf('</Region>');
@@ -247,8 +270,7 @@ function resolveRegions(md: string, zone: Zone): string {
     const openAt = out.lastIndexOf('<Region', closeAt);
     if (openAt < 0) return out;
     const openEnd = out.indexOf('>', openAt) + 1;
-    const attrs = out.slice(openAt, openEnd);
-    const keep = regionKeeps(attrs, zone);
+    const open = `${ZONE_OPEN}${regionZones(out.slice(openAt, openEnd)).join(',')}${ZONE_SEP}`;
 
     const lineStart = out.lastIndexOf('\n', openAt) + 1;
     const indent = out.slice(lineStart, openAt);
@@ -260,30 +282,130 @@ function resolveRegions(md: string, zone: Zone): string {
 
     if (!ownLines) {
       const inner = out.slice(openEnd, closeAt);
-      out = out.slice(0, openAt) + (keep ? inner : '') + out.slice(closeEnd);
+      out = `${out.slice(0, openAt)}${open}${inner}${ZONE_CLOSE}${out.slice(closeEnd)}`;
       continue;
     }
     const innerStart = out.indexOf('\n', openEnd) + 1;
     const innerEnd = out.lastIndexOf('\n', closeAt) + 1;
     const afterClose = out.indexOf('\n', closeEnd);
     const tail = afterClose < 0 ? '' : out.slice(afterClose + 1);
-    const inner = keep
-      ? dedent(out.slice(innerStart, innerEnd), indent.length)
-      : '';
-    out = out.slice(0, lineStart) + inner + tail;
+    const inner = dedent(out.slice(innerStart, innerEnd), indent.length);
+    out = `${out.slice(0, lineStart)}${indent}${open}\n${inner}${indent}${ZONE_CLOSE}\n${tail}`;
   }
 }
 
-function regionKeeps(openTag: string, zone: Zone): boolean {
+/** The zones a `<Region>` tag shows, as `<Region>` itself decides. */
+function regionZones(openTag: string): string[] {
   const list = (attr: string) => {
     const m = new RegExp(`${attr}=\\{\\[([^\\]]*)\\]\\}`).exec(openTag);
     return m ? [...m[1].matchAll(/['"](\w+)['"]/g)].map((z) => z[1]) : null;
   };
   const zones = list('zones');
   const excluded = list('excludeZones');
-  if (zones && !zones.includes(zone)) return false;
-  if (excluded?.includes(zone)) return false;
-  return true;
+  return ALL_ZONES.filter(
+    (z) => (!zones || zones.includes(z)) && !excluded?.includes(z),
+  );
+}
+
+/**
+ * Zone markers → labels. A block (markers on their own lines) becomes a quote
+ * led by its zones; adjacent inline variants merge into one parenthetical,
+ * each led by its zones. A variant shown in every zone needs no label.
+ */
+function applyZones(md: string, lang: string): string {
+  const fr = lang === 'fr';
+  const [one, many] = ZONE_WORD[lang] ?? ZONE_WORD.en;
+  const names = (codes: string) => {
+    const list = codes.split(',').filter(Boolean);
+    return {
+      all: ALL_ZONES.every((z) => list.includes(z)),
+      count: list.length,
+      text: list.map((z) => zoneName(z, lang)).join(', '),
+    };
+  };
+  const colon = fr ? ' :' : ':';
+
+  let out = md;
+  for (;;) {
+    const closeAt = out.indexOf(ZONE_CLOSE);
+    if (closeAt < 0) break;
+    const openAt = out.lastIndexOf(ZONE_OPEN, closeAt);
+    if (openAt < 0) break;
+    const sepAt = out.indexOf(ZONE_SEP, openAt);
+    const zone = names(out.slice(openAt + ZONE_OPEN.length, sepAt));
+    const lineStart = out.lastIndexOf('\n', openAt) + 1;
+    const indent = out.slice(lineStart, openAt);
+    const content = out.slice(sepAt + ZONE_SEP.length, closeAt);
+    // A block starts its line, holds a line break and ends its line (or meets
+    // the next region there, cards in a row). Anything else is inline, even
+    // with the trailing line break Rspress gives a variant's text.
+    const restOfLine = /^[^\n]*/.exec(
+      out.slice(closeAt + ZONE_CLOSE.length),
+    )?.[0] as string;
+    const block =
+      /^[ \t]*$/.test(indent) &&
+      content.includes('\n') &&
+      (restOfLine.trim() === '' || restOfLine.startsWith(ZONE_OPEN));
+
+    if (!block) {
+      const inner = content.trim();
+      const variant = zone.all
+        ? inner
+        : `${INLINE_OPEN}${zone.text}${colon} ${inner}${INLINE_CLOSE}`;
+      out =
+        out.slice(0, openAt) + variant + out.slice(closeAt + ZONE_CLOSE.length);
+      continue;
+    }
+    // Text after the closing marker on its line (the next region's opening
+    // marker) starts the next line.
+    const tail = out
+      .slice(closeAt + ZONE_CLOSE.length)
+      .replace(/^[ \t]*\n?/, '');
+    const lines = content
+      .replace(/^[ \t]*\n+|\s+$/g, '')
+      .split('\n')
+      .map((l) =>
+        l.startsWith(indent) ? l.slice(indent.length) : l.trimStart(),
+      );
+    const quoted = zone.all
+      ? lines.map((l) => `${indent}${l}`)
+      : [
+          `${indent}> **${zone.count > 1 ? many : one}${colon} ${zone.text}**`,
+          `${indent}>`,
+          ...lines.map((l) => (l.trim() ? `${indent}> ${l}` : `${indent}>`)),
+        ];
+    const before = out.slice(0, lineStart);
+    const lead = before === '' || before.endsWith('\n\n') ? '' : '\n';
+    out = `${before}${lead}${quoted.join('\n')}\n\n${tail}`;
+  }
+
+  // Adjacent inline variants share one parenthetical.
+  return out.replace(
+    new RegExp(
+      `(?:${INLINE_OPEN}[^${INLINE_CLOSE}]*${INLINE_CLOSE}[ \\t]*)+`,
+      'gu',
+    ),
+    (run) => {
+      const parts = run
+        .trim()
+        .split(INLINE_CLOSE)
+        .filter((p) => p.trim())
+        .map((p) => p.replace(INLINE_OPEN, '').trim());
+      const trailing = /[ \t]$/.test(run) ? ' ' : '';
+      return `(${parts.join(fr ? ' ; ' : '; ')})${trailing}`;
+    },
+  );
+}
+
+/** Wraps one labelled inline variant until adjacent ones are merged. */
+const INLINE_OPEN = '\u{F0007}';
+const INLINE_CLOSE = '\u{F0008}';
+
+function zoneName(code: string, lang: string): string {
+  const entry = (i18n as Record<string, Record<string, string>>)[
+    `zone.label${code.toUpperCase()}`
+  ];
+  return entry?.[lang] ?? entry?.en ?? code.toUpperCase();
 }
 
 /** Shift a block left so its least-indented line sits at `indent`. */
@@ -363,7 +485,12 @@ function convertCallouts(
 function isPlainText(line: string): boolean {
   const t = line.trim();
   if (!t) return false;
-  return !/^([-*+]\s|\d+\.\s|#|\||>|<|!\[)/.test(t) && !t.startsWith(CODE_MARK);
+  return (
+    !/^([-*+]\s|\d+\.\s|#|\||>|<|!\[)/.test(t) &&
+    !t.startsWith(CODE_MARK) &&
+    !t.startsWith(ZONE_OPEN) &&
+    !t.startsWith(ZONE_CLOSE)
+  );
 }
 
 /**
@@ -372,14 +499,26 @@ function isPlainText(line: string): boolean {
  * standalone line (the summary text, or the `**label**` Rspress renders for a
  * tab), so a sentence that merely repeats a label is left alone.
  */
-function markSourceLabels(md: string, source: string): string {
-  const labels: Array<{ text: string; tab: boolean }> = [];
+function markSourceLabels(md: string, source: string, lang: string): string {
+  // `zone`: the zones of a `<ZoneTabs>` tab (`availableIn`), appended to its
+  // heading, as every tab is rendered into the `.md`.
+  const labels: Array<{ text: string; tab: boolean; zone: string }> = [];
   const re =
-    /<summary>\s*([\s\S]*?)\s*<\/summary>|<Tab\b[^>]*?\blabel=(?:"([^"]*)"|'([^']*)'|\{['"`]([^'"`]*)['"`]\})/g;
+    /<summary>\s*([\s\S]*?)\s*<\/summary>|<Tab\b([^>]*?)\blabel=(?:"([^"]*)"|'([^']*)'|\{['"`]([^'"`]*)['"`]\})([^>]*)>/g;
   for (const m of source.matchAll(re)) {
-    const text = m[1] ?? m[2] ?? m[3] ?? m[4] ?? '';
+    const text = m[1] ?? m[3] ?? m[4] ?? m[5] ?? '';
+    const available = /availableIn=\{\[([^\]]*)\]\}/.exec(
+      `${m[2] ?? ''}${m[6] ?? ''}`,
+    );
+    const codes = available
+      ? [...available[1].matchAll(/['"](\w+)['"]/g)].map((z) => z[1])
+      : [];
+    const zone =
+      codes.length && !ALL_ZONES.every((z) => codes.includes(z))
+        ? ` (${codes.map((z) => zoneName(z, lang)).join(', ')})`
+        : '';
     if (text.trim())
-      labels.push({ text: normalise(text), tab: m[1] === undefined });
+      labels.push({ text: normalise(text), tab: m[1] === undefined, zone });
   }
   if (!labels.length) return md;
 
@@ -390,7 +529,10 @@ function markSourceLabels(md: string, source: string): string {
       const line = lines[i].trim();
       // Already a heading (a second pass): it consumes the label, unchanged.
       const heading = /^#{1,6}\s+(.*)$/.exec(line)?.[1];
-      if (heading !== undefined && normalise(heading) === label.text) {
+      if (
+        heading !== undefined &&
+        normalise(heading) === normalise(`${label.text}${label.zone}`)
+      ) {
         cursor = i + 1;
         break;
       }
@@ -399,7 +541,8 @@ function markSourceLabels(md: string, source: string): string {
         continue;
       const indent = /^[ \t]*/.exec(lines[i])?.[0] ?? '';
       const mark = label.tab ? TAB_MARK : HEADING_MARK;
-      lines[i] = `${indent}${mark}${line.replace(/^\*\*(.+)\*\*$/, '$1')}`;
+      lines[i] =
+        `${indent}${mark}${line.replace(/^\*\*(.+)\*\*$/, '$1')}${label.zone}`;
       cursor = i + 1;
       break;
     }
