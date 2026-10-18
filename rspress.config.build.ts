@@ -278,6 +278,8 @@ export default defineConfig({
         __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
         // Whether guides end with the page feedback form (see config/regions.ts).
         __PAGE_FEEDBACK__: JSON.stringify(regionConfig.pageFeedback),
+        // Survey opened by theme/components/SurveyWidget (see config/regions.ts).
+        __SURVEY_URL__: JSON.stringify(regionConfig.surveyUrl),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
