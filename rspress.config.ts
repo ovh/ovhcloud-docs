@@ -11,7 +11,6 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
-import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
@@ -23,6 +22,7 @@ import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkMermaid } from './plugins/remarkMermaid';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
@@ -125,13 +125,7 @@ const pathExcludes = devPath
 
 export default defineConfig({
   root: path.join(__dirname, regionConfig.contentDir),
-  plugins: [
-    pluginLastUpdatedFromFrontmatter(),
-    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
-    // the plugin's `loose` default: diagrams are contributor-written, so no
-    // click callbacks or raw HTML in labels.
-    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
-  ],
+  plugins: [pluginLastUpdatedFromFrontmatter()],
   builderConfig: {
     plugins: [pluginSass()],
     html: {
@@ -290,6 +284,9 @@ export default defineConfig({
   locales: [...activeLocales],
   markdown: {
     remarkPlugins: [
+      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
+      // column — config/mermaid.ts). Source passed verbatim.
+      remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
@@ -310,6 +307,7 @@ export default defineConfig({
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
       path.join(__dirname, 'components/Banner/Banner.tsx'),
+      path.join(__dirname, 'components/MermaidDiagram/MermaidDiagram.tsx'),
     ],
     link: {
       checkDeadLinks: true,
