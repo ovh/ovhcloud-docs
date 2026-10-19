@@ -60,6 +60,22 @@ const SAMPLE_PER_LOCALE = Number(process.env.SAMPLE_PER_LOCALE ?? '8');
 // leaves headroom for <head> growth, topbar and breadcrumbs, while still
 // failing hard if the ~1.2MB nav ever precedes content again.
 const BODY_BYTE_BUDGET = Number(process.env.BODY_BYTE_BUDGET ?? '102400'); // 100 KB
+// Openings of the zone parentheticals of the `.md` export. There, an inline
+// `<Region>` carries EVERY zone's variant, led by its zone label
+// (`(Europe / Africa: …; Canada / Americas: …)`, see
+// scripts/lib/llms/clean-md.ts), while the server-rendered HTML carries only
+// the default zone's: such a line differs by design and is no probe.
+const ZONE_PAREN_OPENINGS = (() => {
+  const i18n = JSON.parse(
+    fs.readFileSync(
+      path.resolve(import.meta.dirname, '..', 'i18n.json'),
+      'utf-8',
+    ),
+  ) as Record<string, Record<string, string>>;
+  return ['EU', 'CA', 'APAC'].flatMap((code) =>
+    Object.values(i18n[`zone.label${code}`] ?? {}).map((label) => `(${label}`),
+  );
+})();
 
 type Failure = { where: string; msg: string };
 const failures: Failure[] = [];
@@ -205,6 +221,7 @@ function pickBodyProbes(mdPath: string, max = 5): string[] {
       !/^\**\\?\*/.test(l) && // footnote markers: `\*`, `**\***: …`
       !l.startsWith(':::') &&
       !l.includes('](') && // skip markdown links (URLs get re-encoded in HTML)
+      !ZONE_PAREN_OPENINGS.some((o) => l.includes(o)) && // zone variants
       !/^\s*\d+\.\s/.test(l)
     ) {
       candidates.push(l);
