@@ -1686,6 +1686,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-cloud/management-interfaces/',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/management-interfaces/',
   },
+  'public-cloud/mongodb': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/mongodb/',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/mongodb/',
+    de: 'https://www.ovhcloud.com/de/public-cloud/mongodb/',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/mongodb/',
+    it: 'https://www.ovhcloud.com/it/public-cloud/mongodb/',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/mongodb/',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/mongodb/',
+  },
   'public-cloud/network': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/network/',
     en: 'https://www.ovhcloud.com/en-gb/public-cloud/network/',
@@ -1784,6 +1793,15 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/public-cloud/prices/#load-balancer',
     pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#load-balancer',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#load-balancer',
+  },
+  'public-cloud/prices-mongodb': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#mongodb',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#mongodb',
+    de: 'https://www.ovhcloud.com/de/public-cloud/prices/#mongodb',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/prices/#mongodb',
+    it: 'https://www.ovhcloud.com/it/public-cloud/prices/#mongodb',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#mongodb',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#mongodb',
   },
   'public-cloud/prices-network': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#network',
