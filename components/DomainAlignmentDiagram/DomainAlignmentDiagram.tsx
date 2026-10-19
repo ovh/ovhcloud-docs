@@ -248,6 +248,24 @@ function AlignmentCase({
 export function DomainAlignmentDiagram() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: each case on one line, from the same strings.
+  if (process.env.__SSR_MD__) {
+    const cases = [
+      [t.situationOk, FROM_OK, t.resultOk, t.noteOk],
+      [t.situationKo, FROM_KO, t.resultKo, t.noteKo],
+    ];
+    return (
+      <ul>
+        {cases.map(([situation, from, result, note]) => (
+          <li key={situation}>
+            <strong>{situation}</strong>: {t.authLabel} <code>{AUTH}</code>,{' '}
+            {t.sendsAs} <code>{from}</code> ({t.fromLabel}). {t.resultLabel}:{' '}
+            {result} ({note}).
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return (
     <div className="domain-align" role="img" aria-label={t.ariaLabel}>
       <AlignmentCase

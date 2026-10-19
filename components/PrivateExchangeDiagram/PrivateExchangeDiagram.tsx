@@ -366,6 +366,23 @@ function TenancyCase({
 export function PrivateExchangeDiagram() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: each offer on one line, from the same strings.
+  if (process.env.__SSR_MD__) {
+    return (
+      <ul>
+        <li>
+          <strong>{t.hosted}</strong>: {t.sharedPlatform} (
+          {t.sharedPlatformNote}); {t.sharedIp} ({t.sharedIpNote});{' '}
+          {t.sharedSsl} ({t.sharedSslNote}). {t.reputation}: {t.repShared}.
+        </li>
+        <li>
+          <strong>{t.private}</strong>: {t.ownServer} ({t.ownServerNote});{' '}
+          {t.dedicatedIp}; {t.ownSsl} ({t.ownSslNote}). {t.reputation}:{' '}
+          {t.repOwn}.
+        </li>
+      </ul>
+    );
+  }
   return (
     <div className="pe-tenancy" role="img" aria-label={t.ariaLabel}>
       <TenancyCase
