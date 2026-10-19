@@ -48,6 +48,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { CALLOUT_LABELS } from './lib/llms/clean-md';
+import { hasZoneParenthetical, toDefaultZone } from './lib/llms/default-zone';
 
 const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'];
 const DIST_DIR = path.resolve(process.argv[2] ?? 'dist');
@@ -60,22 +62,20 @@ const SAMPLE_PER_LOCALE = Number(process.env.SAMPLE_PER_LOCALE ?? '8');
 // leaves headroom for <head> growth, topbar and breadcrumbs, while still
 // failing hard if the ~1.2MB nav ever precedes content again.
 const BODY_BYTE_BUDGET = Number(process.env.BODY_BYTE_BUDGET ?? '102400'); // 100 KB
-// Openings of the zone parentheticals of the `.md` export. There, an inline
-// `<Region>` carries EVERY zone's variant, led by its zone label
-// (`(Europe / Africa: …; Canada / Americas: …)`, see
-// scripts/lib/llms/clean-md.ts), while the server-rendered HTML carries only
-// the default zone's: such a line differs by design and is no probe.
-const ZONE_PAREN_OPENINGS = (() => {
-  const i18n = JSON.parse(
-    fs.readFileSync(
-      path.resolve(import.meta.dirname, '..', 'i18n.json'),
-      'utf-8',
-    ),
-  ) as Record<string, Record<string, string>>;
-  return ['EU', 'CA', 'APAC'].flatMap((code) =>
-    Object.values(i18n[`zone.label${code}`] ?? {}).map((label) => `(${label}`),
-  );
-})();
+
+// Prefixes the `.md` export puts before text the HTML renders on its own
+// (scripts/lib/llms/clean-md.ts): a callout's label, `**Note:** …` (` :` in
+// French, `**Note – Title:**` with a title), and a card's link,
+// `- [Title](url): description` (components/LlmsMarkdown/MdLinkItem.tsx).
+// The text after the prefix is the probe candidate.
+const CALLOUT_LABEL = new RegExp(
+  `^\\*\\*(?:${[
+    ...new Set(Object.values(CALLOUT_LABELS).flatMap((l) => Object.values(l))),
+  ].join('|')})(?: – [^*]+)? ?:\\*\\* `,
+);
+const CARD_LINK = /^- \[[^\]\n]*\]\([^)\s]*\): /;
+const probeText = (line: string) =>
+  line.replace(CALLOUT_LABEL, '').replace(CARD_LINK, '');
 
 type Failure = { where: string; msg: string };
 const failures: Failure[] = [];
@@ -123,8 +123,10 @@ function canonical(s: string): string {
       // Strip HTML/MDX tags. In .md source these appear as literal text
       // (e.g. inline `<code className="action">Browse</code>`); in rendered
       // HTML they are real elements. Dropping them on BOTH sides leaves just
-      // the inner text, which matches.
-      .replace(/<[^>]+>/g, ' ')
+      // the inner text, which matches. A tag opens on a letter, `/` or `!`
+      // and holds no `<`: a stray `<` in the text (`\<-`, `a < b`) must not
+      // swallow everything up to the next `>`.
+      .replace(/<[/!A-Za-z][^<>]*>/g, ' ')
       // Decode the entities Rspress emits in body text.
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
@@ -137,7 +139,13 @@ function canonical(s: string): string {
       // quotes/hyphens as authored; the rendered HTML sometimes carries curly
       // quotes (’ “ ”) and en/em dashes. Fold both sides to one form.
       .replace(/[‘’ʼ]/g, "'") // ‘ ’ ʼ → '
-      .replace(/[“”]/g, '"') // “ ” → "
+      // Double quotes of every locale dropped: the .md export quotes UI labels
+      // (`„Dodaj”`, `« Modifier »`, see scripts/lib/llms/clean-md.ts) that the
+      // HTML renders unquoted, as `<code class="action">` or a link.
+      .replace(/["“”„«»]/g, '')
+      // Commas dropped too: a product card's specs are `, `-joined in the .md
+      // (MdLinkItem) and separate elements in the HTML.
+      .replace(/,/g, ' ')
       .replace(/[–—]/g, '-') // – — → -
       .replace(/ /g, ' ') // NBSP → space
       // Strip inline markdown markup.
@@ -184,7 +192,8 @@ function htmlToText(html: string): string {
  * HTML is the real regression we test for.
  */
 function pickBodyProbes(mdPath: string, max = 5): string[] {
-  const raw = fs.readFileSync(mdPath, 'utf-8');
+  // The default zone's view: the one the server-rendered HTML holds.
+  const raw = toDefaultZone(fs.readFileSync(mdPath, 'utf-8'));
   // Strip leading frontmatter block if present.
   const body = raw.startsWith('---\n')
     ? raw.slice(raw.indexOf('\n---', 4) + 4)
@@ -195,7 +204,7 @@ function pickBodyProbes(mdPath: string, max = 5): string[] {
   let inFence = false;
   const candidates: string[] = [];
   for (const rawLine of body.split('\n')) {
-    const l = rawLine.trim();
+    const l = probeText(rawLine.trim());
     if (l.startsWith('```')) {
       inFence = !inFence;
       continue;
@@ -221,7 +230,7 @@ function pickBodyProbes(mdPath: string, max = 5): string[] {
       !/^\**\\?\*/.test(l) && // footnote markers: `\*`, `**\***: …`
       !l.startsWith(':::') &&
       !l.includes('](') && // skip markdown links (URLs get re-encoded in HTML)
-      !ZONE_PAREN_OPENINGS.some((o) => l.includes(o)) && // zone variants
+      !hasZoneParenthetical(l) && // a zone parenthetical toDefaultZone() could not parse
       !/^\s*\d+\.\s/.test(l)
     ) {
       candidates.push(l);
@@ -302,7 +311,7 @@ function checkGuide(htmlPath: string): void {
   // legitimately doesn't line-match the HTML; a prose probe is the wrong shape
   // for them. They still got the body-first + head-hint checks above.
   if (html.includes('rp-doc-layout__doc-container')) {
-    const md = fs.readFileSync(mdPath, 'utf-8');
+    const md = toDefaultZone(fs.readFileSync(mdPath, 'utf-8'));
     const mdText = canonical(md);
     const htmlText = htmlToText(html);
 

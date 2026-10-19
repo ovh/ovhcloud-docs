@@ -59,7 +59,7 @@ const CALLOUT_KIND: Record<string, CalloutKind> = {
   danger: 'important',
 };
 
-const CALLOUT_LABELS: Record<string, Record<CalloutKind, string>> = {
+export const CALLOUT_LABELS: Record<string, Record<CalloutKind, string>> = {
   en: { note: 'Note', tip: 'Tip', warning: 'Warning', important: 'Important' },
   fr: {
     note: 'Note',
@@ -95,7 +95,7 @@ const CALLOUT_LABELS: Record<string, Record<CalloutKind, string>> = {
 };
 
 /** "Zone" / "Zones" before the zone names of a labelled block. */
-const ZONE_WORD: Record<string, [string, string]> = {
+export const ZONE_WORD: Record<string, [string, string]> = {
   en: ['Zone', 'Zones'],
   fr: ['Zone', 'Zones'],
   de: ['Zone', 'Zonen'],
