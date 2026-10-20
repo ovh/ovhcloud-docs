@@ -1836,6 +1836,7 @@
                     + [Trino](public-cloud/data-platform/connectors-sources-trino){label=Trino}
                     + [Twitter](public-cloud/data-platform/connectors-sources-twitter){label=Twitter}
                     + [FHIR](public-cloud/data-platform/connectors-sources-fhir){label=FHIR}
+                + [Custom Sources](public-cloud/data-platform/connectors-custom-sources){label=Custom Sources}
                 + [Analyzer](public-cloud-data-platform-analyzer){landing=public-cloud/data-platform/landing-page-connectors-analyzer}
                     + [Extract the metadata](public-cloud/data-platform/connectors-analyzer-extract-metadata){label=Extract the metadata}
                     + [Blueprint rules](public-cloud/data-platform/connectors-analyzer-blueprint-rules){label=Blueprint rules}
