@@ -2695,6 +2695,7 @@
                 + [Mounting HA-NAS via NFS share](storage-and-backup/file-storage/ha-nas/nas-nfs)
                 + [Mount your HA-NAS on Windows Server via CIFS](storage-and-backup/file-storage/ha-nas/nas-cifs)
                 + [HA-NAS - Managing ACLs via API](storage-and-backup/file-storage/ha-nas/nas-manage-acls)
+                + [HA-NAS - Configuring the ZFS settings of a partition](storage-and-backup/file-storage/ha-nas/nas-zfs-settings)
                 + [HA-NAS - Managing partitions via API](storage-and-backup/file-storage/ha-nas/nas-partitions-api)
                 + [HA-NAS - Managing snapshots via API](storage-and-backup/file-storage/ha-nas/nas-snapshots-api)
             + [Migration](storage-file-storage-ha-nas-migration)
