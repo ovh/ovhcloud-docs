@@ -1454,6 +1454,8 @@
                 + [Use Access Control Lists (ACLs) for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-configure-acl)
                 + [Enable the Schema Registry for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-schema-registry)
                 + [Enable the REST API for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-rest-api)
+                + [Link Kafka Connect to Kafka and create a connector](public-cloud/data-analytics/analytics/kafkaconnect-create-connector)
+                + [Replicate topics with Kafka MirrorMaker](public-cloud/data-analytics/analytics/mirrormaker-replicate-topics)
             + [Configuration](public-cloud-data-analytics-kafka-configuration)
                 + [Maintenance operations for Analytics](public-cloud/data-analytics/analytics/maintenance)
                 + [Configure the advanced parameters for Analytics](public-cloud/data-analytics/analytics/advanced-configuration)
@@ -1799,6 +1801,7 @@
             + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
                 + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
                 + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
+                + [Govern a customer dataset](public-cloud/data-platform/tutorials-customer-data-governance){label=Govern a customer dataset}
                 + [Custom event handling action](public-cloud/data-platform/tutorials-custom-event-handling){label=Custom event handling action}
                 + [Access your buckets with S3-compatible tools](public-cloud/data-platform/tutorials-bucket-s3-access)
         + [Services](public-cloud-data-platform-services){landing=public-cloud/data-platform/landing-page-services}

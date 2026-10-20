@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026.10.20
+
+### Features
+
+#### EU
+- **components:** render mermaid diagrams whole with click-to-zoom, check their source at commit (#1032)
+
+#### All regions
+- **theme:** open the region's survey from the survey widget (#1031)
+
+### Fixes
+
+#### EU
+- **okms:** backup guide: fix the backup regions and lowercase the region names (#1023)
+- correct Terraform registry links in Terraform guide (#1020)
+
+#### All regions
+- **husky:** stop the Mermaid block from failing commits without a diagram (#1051)
+
+### Documentation
+- EU: 418 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.16.1
 
 ### Features

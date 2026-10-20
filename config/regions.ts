@@ -129,6 +129,11 @@ export interface RegionConfig {
    */
   pageFeedback: boolean;
   /**
+   * Survey opened by the floating "Share your feedback" widget. A `{lang}`
+   * token is replaced by the page locale; a URL without one is opened as is.
+   */
+  surveyUrl: string;
+  /**
    * Language shown in the navbar's language slot while the region serves a
    * single locale. It looks like the language dropdown but cannot be opened:
    * readers see which language and market they are on. Once a second locale is
@@ -185,6 +190,8 @@ export const REGIONS: Record<Region, RegionConfig> = {
     consentManager: true,
     productChangelog: true,
     pageFeedback: true,
+    // One survey for every locale, which reads the language from `Version`.
+    surveyUrl: 'https://s.elq.fr/ovhabp/LfDet1p?%23+Version={lang}',
     siteUrl: 'https://docs.ovhcloud.com',
     apiConsoleUrl: 'https://api.eu.ovhcloud.com/console/',
     corporateUrl: 'https://www.ovhcloud.com/',
@@ -211,6 +218,8 @@ export const REGIONS: Record<Region, RegionConfig> = {
     productChangelog: false,
     // The US team does not collect page feedback: see `pageFeedback` above.
     pageFeedback: false,
+    // The US survey has a single, English version: no `{lang}` to fill in.
+    surveyUrl: 'https://survey.us.ovhcloud.com/ovhcloud-docs',
     siteUrl: 'https://docs.us.ovhcloud.com',
     apiConsoleUrl: 'https://api.us.ovhcloud.com/console',
     corporateUrl: 'https://us.ovhcloud.com/',
