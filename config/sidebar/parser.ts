@@ -21,6 +21,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { SidebarGroup, SidebarItem } from '@rspress/core';
 import YAML from 'yaml';
+import { regionConfig } from '../regions';
 
 // Source of truth for sidebar.gen.* translations is `i18n.json` at the repo
 // root. This parser used to merge in per-locale strings from a sibling
@@ -166,12 +167,21 @@ interface StackEntry {
 // -------------------------------------------------------------------
 
 /**
- * Convert a slug from index.md to a /guides/ link.
- * Slugs are already in Rspress format (hyphens, lowercase).
- * e.g. public-cloud/compute/overview → /guides/public-cloud/compute/overview
+ * Convert a slug from the sidebar index to a route.
+ *
+ * Slugs are already in Rspress format (hyphens, lowercase), and the route
+ * mirrors the folder layout under the region's content root.
+ *
+ * The worldwide docs keep their `/guides/` segment: it is in 8,000+ in-content
+ * links and 400+ live 301 rules, so dropping it there would be a migration,
+ * not a rename. The US content root has no `guides/` folder, so its routes are
+ * one segment shorter -- see `routePrefix` in config/regions.ts.
+ * e.g. public-cloud/compute/overview
+ *        EU -> /guides/public-cloud/compute/overview
+ *        US -> /public-cloud/compute/overview
  */
 function slugToLink(slug: string): string {
-  return `/guides/${slug}`;
+  return `${regionConfig.routePrefix}${slug}`;
 }
 
 /**
@@ -342,6 +352,10 @@ export function parseIndexMd(
           collapsed: true,
           items: items as SidebarItem[],
         };
+        // A universe landing page (US): the universe header links to it.
+        if (parsed.landing) {
+          node.link = slugToLink(parsed.landing);
+        }
       } else {
         node = {
           text: i18nKey,
@@ -377,7 +391,8 @@ export function parseIndexMd(
     // Extract optional trailing `{key=value}` markers before parsing the
     // `[label](ref)` so they don't pollute the label/ref. Order-independent;
     // multiple markers on one line are supported.
-    //   - `{landing=<slug>}` : turns a product/section into a clickable group.
+    //   - `{landing=<slug>}` : turns a universe/product/section into a
+    //                          clickable group.
     //   - `{label=<text>}`   : overrides the sidebar label of a guide leaf,
     //                          independently of the guide's frontmatter title.
     //                          Emitted as a translatable i18n key (seeded from
@@ -403,7 +418,7 @@ export function parseIndexMd(
     const ref = linkMatch ? linkMatch[2] : null;
 
     const parsed = classifyLine(indent, label, ref);
-    if (landing && (parsed.kind === 'product' || parsed.kind === 'section')) {
+    if (landing && parsed.kind !== 'guide') {
       parsed.landing = landing;
     }
 

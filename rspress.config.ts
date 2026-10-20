@@ -11,16 +11,18 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
-import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
+import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
+import { regionConfig } from './config/regions';
 import type { Locale } from './config/shared';
 import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkMermaid } from './plugins/remarkMermaid';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
@@ -74,9 +76,16 @@ const allLocales = [
   },
 ] as const;
 
-const devLocales = (process.env.DEV_LOCALES || 'fr,en').split(',');
-const activeLocales = allLocales.filter((l) => devLocales.includes(l.lang));
-const excludedLocales = allLocales
+// Restrict to the active region's locales (config/regions.ts). EU keeps the
+// historical fr+en dev default; a single-locale region defaults to its locale.
+const regionLocales = allLocales.filter((l) =>
+  (regionConfig.locales as readonly string[]).includes(l.lang),
+);
+const devLocaleDefault =
+  regionConfig.locales.length > 1 ? 'fr,en' : regionConfig.defaultLocale;
+const devLocales = (process.env.DEV_LOCALES || devLocaleDefault).split(',');
+const activeLocales = regionLocales.filter((l) => devLocales.includes(l.lang));
+const excludedLocales = regionLocales
   .filter((l) => !devLocales.includes(l.lang))
   .map((l) => l.lang);
 
@@ -115,14 +124,8 @@ const pathExcludes = devPath
   : [];
 
 export default defineConfig({
-  root: path.join(__dirname, 'docs'),
-  plugins: [
-    pluginLastUpdatedFromFrontmatter(),
-    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
-    // the plugin's `loose` default: diagrams are contributor-written, so no
-    // click callbacks or raw HTML in labels.
-    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
-  ],
+  root: path.join(__dirname, regionConfig.contentDir),
+  plugins: [pluginLastUpdatedFromFrontmatter()],
   builderConfig: {
     plugins: [pluginSass()],
     html: {
@@ -145,44 +148,100 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
-        {
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
-        },
-        // OVHcloud CMP — mirrors rspress.config.build.ts (early <head> consent
-        // gate). Intentional divergences from prod: (1) dev serves multiple
-        // locales from one instance, so we omit `locale` and let the CMP fall
-        // back to navigator.language / en-GB; (2) environment is 'preproduction'
-        // so local dev never writes test consents to the production API.
-        {
-          tag: 'script',
-          head: true,
-          append: true,
-          children:
-            "window.__cmpConfig={region:'EU',environment:'preproduction'," +
-            "scripts:['https://analytics.ovh.com/ovh/ovh_delta.js','https://analytics.ovh.com/ovh/ovh_tags.js']};",
-        },
-        {
-          // Absolute URL — the bundle is served by the OVHcloud server farms.
-          tag: 'script',
-          head: true,
-          append: true,
-          attrs: {
-            src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
-            defer: true,
-          },
-        },
+        // Cookie policy for a region the CMP does not cover yet (see
+        // config/regions.ts `cookieScript`).
+        ...(regionConfig.cookieScript
+          ? [
+              // The container calls jQuery as soon as it runs. It is async, so
+              // it may run before any deferred script: jQuery must be
+              // parser-blocking and placed before it to be there in time.
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js' },
+              },
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: regionConfig.cookieScript,
+                  async: true,
+                  'data-analytics': '',
+                },
+              },
+            ]
+          : []),
+        // Consent manager + analytics, only where the region runs them.
+        ...(regionConfig.consentManager
+          ? [
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              // OVHcloud CMP — mirrors rspress.config.build.ts (early <head> consent
+              // gate). Intentional divergences from prod: (1) dev serves multiple
+              // locales from one instance, so we omit `locale` and let the CMP fall
+              // back to navigator.language / en-GB; (2) environment is 'preproduction'
+              // so local dev never writes test consents to the production API.
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                children:
+                  "window.__cmpConfig={region:'EU',environment:'preproduction'," +
+                  "scripts:['https://analytics.ovh.com/ovh/ovh_delta.js','https://analytics.ovh.com/ovh/ovh_tags.js']};",
+              },
+              {
+                // Absolute URL — the bundle is served by the OVHcloud server farms.
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: 'https://docs.ovhcloud.com/website/session_handler/assets/cmp_app/cmp.iife.js',
+                  defer: true,
+                },
+              },
+            ]
+          : []),
       ],
     },
     source: {
       define: {
+        // Whether to render the in-page AI assistant (see config/regions.ts).
+        __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
+        // Whether the CMP and its analytics run (see config/regions.ts).
+        __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
+        // Whether guides end with the page feedback form (see config/regions.ts).
+        __PAGE_FEEDBACK__: JSON.stringify(regionConfig.pageFeedback),
+        // Survey opened by theme/components/SurveyWidget (see config/regions.ts).
+        __SURVEY_URL__: JSON.stringify(regionConfig.surveyUrl),
+        // Legal footer values, consumed by theme/components/SiteFooter. It
+        // renders in the browser and cannot import config/regions.
+        __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
+        __FOOTER_CORPORATE_URL__: JSON.stringify(regionConfig.corporateUrl),
+        __FOOTER_LEGAL_NOTICE__: JSON.stringify(regionConfig.legalNotice ?? ''),
+        __FOOTER_LINKS__: JSON.stringify(regionConfig.footerLinks ?? []),
+        // Fixed language label for single-locale regions (see config/regions.ts).
+        __LOCALE_INDICATOR__: JSON.stringify(
+          regionConfig.localeIndicator ?? null,
+        ),
         FEEDBACK_API_URL: JSON.stringify(process.env.FEEDBACK_API_URL ?? ''),
         SENTRY_DSN: JSON.stringify(process.env.SENTRY_DSN ?? ''),
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
+        // Regions served without a /{locale}/ URL segment (none today).
+        __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
+        // Mirrors rspress.config.build.ts — consumed by
+        // theme/components/SEOHead. Uses the region's full locale list, not the
+        // DEV_LOCALES subset, so dev matches the production markup.
+        __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
+        __LOCALES__: JSON.stringify(regionConfig.locales),
+        __HTML_LANG_MAP__: JSON.stringify(regionConfig.htmlLang ?? {}),
       },
     },
     resolve: {
@@ -227,6 +286,9 @@ export default defineConfig({
   locales: [...activeLocales],
   markdown: {
     remarkPlugins: [
+      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
+      // column — config/mermaid.ts). Source passed verbatim.
+      remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
@@ -247,6 +309,7 @@ export default defineConfig({
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
       path.join(__dirname, 'components/Banner/Banner.tsx'),
+      path.join(__dirname, 'components/MermaidDiagram/MermaidDiagram.tsx'),
     ],
     link: {
       checkDeadLinks: true,
@@ -306,8 +369,7 @@ export default defineConfig({
       },
     ],
     footer: {
-      message:
-        '<div><a href="https://www.ovhcloud.com/" target="_blank" rel="nofollow">© Copyright 1999-2026 OVH SAS.</a> · <a href="#" data-cmp-trigger="show-preferences">Privacy center</a></div>',
+      message: buildFooterMessage(),
     },
   },
 });

@@ -27,6 +27,11 @@ import './index.css';
 const OVH_REGIONS = {
   eu: { flag: '🇪🇺', label: 'EU', base: 'https://api.eu.ovhcloud.com/console/' },
   ca: { flag: '🇨🇦', label: 'CA', base: 'https://api.ca.ovhcloud.com/console/' },
+  // The US subsidiary has its own console. Purely additive: nothing selects
+  // `us` unless a page passes `regions={["us"]}` explicitly — `regionsForPath`
+  // never returns it and the fallback stays ['eu', 'ca'] — so EU pages are
+  // unaffected. The US import emits that prop on every <Api> it generates.
+  us: { flag: '🇺🇸', label: 'US', base: 'https://api.us.ovhcloud.com/console/' },
 } as const;
 
 type Region = keyof typeof OVH_REGIONS;
@@ -311,6 +316,16 @@ export default function Api({
 
   const selectedEndpoint = endpointOf(selectedKey);
 
+  // `.md` export (llms): the call as one link to the default console. The
+  // region menu, flag and icon would serialise as stray text ("🇪🇺EU▾").
+  if (process.env.__SSR_MD__) {
+    return (
+      <p>
+        <a href={href}>{`${method} ${route.replace(/\\/g, '')}`}</a>
+      </p>
+    );
+  }
+
   return (
     <div className="ovh-api-main">
       {keys.length > 1 && (
@@ -342,11 +357,27 @@ export default function Api({
         </div>
       )}
       <a target="_blank" href={href} rel="noopener noreferrer">
-        {keys.length === 1 && (
+        {/* A lone US endpoint needs no flag: it is the only API the US site
+            documents, and the flag only distinguished regions on a page
+            that offers several. */}
+        {keys.length === 1 && selectedKey !== 'us' && (
           <span className="ovh-api-flag">{selectedEndpoint.flag}</span>
         )}
         <span className={`ovh-api-verb ovh-api-verb-${method}`}>{method}</span>
         <span className="ovh-api-endpoint">{route.replace(/\\/g, '')}</span>
+        <svg
+          className="ovh-api-external"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M6.5 3.5H3.5v9h9v-3M9.5 2.5h4v4M13.5 2.5 7.5 8.5" />
+        </svg>
       </a>
     </div>
   );

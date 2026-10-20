@@ -212,7 +212,7 @@ Visit the [API console](/links/api).
 Order a [VPS](/links/bare-metal/vps).
 ```
 
-At build time, Rspress replaces `(/links/manager)` with the actual URL for the target locale — e.g. `(https://www.ovh.com/auth/...&ovhSubsidiary=fr)` for `fr`.
+At build time, Rspress replaces `(/links/manager)` with the actual URL for the target locale — e.g. `(https://auth.eu.ovhcloud.com/signin/...&ovhSubsidiary=fr)` for `fr`.
 
 ### Architecture
 

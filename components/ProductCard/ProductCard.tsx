@@ -6,6 +6,7 @@ import {
   PRODUCT_CARDS,
   STRINGS,
 } from '../../config/product-cards';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { type LivePrices, loadCatalog, resolvePrices } from './livePrices';
 import './ProductCard.css';
@@ -46,7 +47,9 @@ const HelpIcon = () => (
  * A replica of the product cards on ovhcloud.com (e.g. /fr/vps/uc-vps-game/):
  * range badge, name, "From" price as that locale's page shows it, setup fee,
  * Configure button, spec panel. The whole card links to the configurator, as
- * there. Lay two of them out with <CardGrid>.
+ * there. Lay them out with <CardGrid>. Eco dedicated servers (`kind:
+ * 'dedicated'`) get the same card, with their own specs and the Eco
+ * configurator as the link.
  *
  * Prices are fetched from the public order catalog in the reader's browser at
  * every page view (./livePrices.ts) and are never part of the built page:
@@ -106,19 +109,44 @@ export function ProductCard({ plan }: ProductCardProps) {
     );
   const onlyIncl = market.tax === 'included';
   const orderUrl =
-    `https://www.ovhcloud.com/${market.site}/vps/configurator/` +
-    `?planCode=${plan}` +
-    `&brick=${encodeURIComponent(def.brick.replace(/ /g, '+'))}` +
-    `&pricing=${def.pricingMode}&processor=%20` +
-    `&vcore=${def.vcores}__vCore&storage=${def.diskGb}__SSD__NVMe`;
-  const specs = [
-    { text: s.vcores(def.vcores) },
-    { text: s.ram(def.ramGb) },
-    { text: s.disk(def.diskGb) },
-    { text: s.backup },
-    { text: s.traffic, note: def.trafficNote[lang] },
-    { text: s.bandwidth(def.bandwidthGbps) },
-  ];
+    def.kind === 'vps'
+      ? `https://www.ovhcloud.com/${market.site}/vps/configurator/` +
+        `?planCode=${plan}` +
+        `&brick=${encodeURIComponent(def.brick.replace(/ /g, '+'))}` +
+        `&pricing=${def.pricingMode}&processor=%20` +
+        `&vcore=${def.vcores}__vCore&storage=${def.diskGb}__SSD__NVMe`
+      : `https://eco.ovhcloud.com/${market.site}/${def.page}/`;
+  const specs: { text: string; note?: string }[] =
+    def.kind === 'vps'
+      ? [
+          { text: s.vcores(def.vcores) },
+          { text: s.ram(def.ramGb) },
+          { text: s.disk(def.diskGb) },
+          { text: s.backup },
+          { text: s.traffic, note: def.trafficNote[lang] },
+          { text: s.bandwidth(def.bandwidthMbps) },
+        ]
+      : [
+          { text: def.cpu },
+          { text: def.cpuDetail },
+          { text: s.memory(def.ramGb, def.ramType) },
+          {
+            text: s.storage(def.disks.count, def.disks.sizeGb, def.disks.type),
+          },
+          { text: s.bandwidth(def.bandwidthMbps) },
+        ];
+
+  // `.md` export: name and specs. Prices are fetched in the reader's browser
+  // and are never part of a built page.
+  if (process.env.__SSR_MD__) {
+    return (
+      <MdLinkItem
+        href={orderUrl}
+        title={`${def.range} ${def.name}`}
+        description={specs.map((spec) => spec.text).join(', ')}
+      />
+    );
+  }
 
   return (
     <a
@@ -150,11 +178,11 @@ export function ProductCard({ plan }: ProductCardProps) {
             )}
             <span className="product-card__fees">
               {s.setupFee}{' '}
-              <span className="product-card__free">
-                {prices
-                  ? (prices.setupFee ?? s.setupFree)
-                  : amount(undefined, 'small')}
-              </span>
+              {prices?.setupFee ?? (
+                <span className="product-card__free">
+                  {prices ? s.setupFree : amount(undefined, 'small')}
+                </span>
+              )}
             </span>
           </div>
         )}
