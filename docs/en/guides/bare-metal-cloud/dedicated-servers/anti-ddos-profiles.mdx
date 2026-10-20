@@ -1,0 +1,216 @@
+---
+title: Fine-tune Anti-DDoS protection with Anti-DDoS Profiling
+description: Apply an Anti-DDoS profile to the IP addresses of your network-intensive workloads so that legitimate traffic peaks are no longer mitigated as attacks.
+lastUpdated: 2026-10-13
+---
+
+:::warning
+Anti-DDoS Profiling is in **Beta**. Screens, profile names and limits may still change before general availability.
+:::
+
+{/* DRAFT: To verify — Profiling screen labels taken from the v8 sandbox mockup (2026-10-13); legacy-settings window (MANAGER-22884) and top-level Traffic tab (MANAGER-22857) labels taken from review feedback (2026-10-14). None are in the manager-network anti-ddos app code yet: run /verify-buttons once merged. Side menu labels are confirmed in the v8 code. */}
+
+## Objective
+
+The Anti-DDoS Infrastructure protects every OVHcloud service by default, with no configuration and no extra cost. Detection works from the shape of your traffic — packet rates, connection turnover, sudden changes in volume — not from what your application actually is.
+
+That approach suits most workloads. For a VPN concentrator, a Blockchain/Solana node or a live video stream, legitimate traffic has the same signature as an attack, and gets mitigated as one.
+
+Anti-DDoS Profiling lets you declare what your traffic normally looks like, so that the Anti-DDoS Infrastructure can tell a legitimate peak from an attack and adapt its mitigation accordingly.
+
+**In this guide, you will learn how to:**
+
+- Recognise when your workload needs a profile.
+- Activate profiling on your account and create a policy.
+- Apply a policy to your IP addresses and read its status.
+- Adjust, disable or delete a policy, and judge its effect.
+
+## Requirements
+
+- At least one OVHcloud service with a public IPv4 address protected by the Anti-DDoS Infrastructure.
+- Access to the <ManagerLink to="/">OVHcloud Control Panel</ManagerLink>.
+
+## Instructions
+
+**Contents:**
+
+- [Why protection sometimes needs fine-tuning](#why)
+- [How profiling works](#concepts)
+- [Step 1 — Activate profiling](#activate)
+- [Step 2 — Create a policy](#create)
+- [Step 3 — Add your IP addresses](#targets)
+- [Reading the statuses](#statuses)
+- [Managing your policies](#manage)
+- [Monitoring the effect of a policy](#monitoring)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+
+### Why protection sometimes needs fine-tuning <a name="why"></a>
+
+Generic detection can fail in two opposite ways, and each one calls for the opposite correction.
+
+| | What happens | What you observe |
+|---|---|---|
+| **False positive** | Legitimate traffic is read as an attack and gets mitigated. | Dropped sessions, broken tunnels, users cut off during a traffic peak, with no attack actually taking place. |
+| **False negative** | Attack traffic is not aggressive enough to trip generic thresholds. | Degraded service during an attack that was never fully mitigated. |
+
+False positives are the more common case, and a few workloads account for most of them: VPN tunnels, whose UDP packet rates run high; Blockchain/Solana nodes, which use wide port ranges with constant peer turnover; live streaming and voice, which face sudden legitimate audience surges; and web services during a launch or a sale.
+
+Create a policy if any of these situations applies:
+
+- Legitimate traffic is being mitigated and you have been working around it — forcing TCP mode on a VPN, lowering the MTU, or opening a support ticket after each incident.
+- You are preparing for a known traffic spike, such as a live event or a product launch.
+- You are running an application whose traffic is structurally unusual, and you prefer to declare it in advance rather than wait for the first false positive.
+- An attack was mitigated, but not thoroughly enough, and you want detection to react sooner.
+
+If none of these applies, no change is needed: your services stay protected by default.
+
+### How profiling works <a name="concepts"></a>
+
+You create **policies**. A policy pairs a network traffic profile with a sensitivity level, and applies to the public IPv4 addresses or blocks you add to it.
+
+#### Network traffic profiles
+
+OVHcloud maintains the profiles: you select the one matching your workload instead of defining thresholds yourself. The list shown in the Control Panel is filtered to your account. At Beta launch, it covers:
+
+| Network traffic profile | Use it for |
+|---|---|
+| VPN - Wireguard | WireGuard VPN servers. |
+| VPN - OpenVPN | OpenVPN servers running over UDP, with TCP as a fallback. |
+| Game Server - Generic | Game servers using both TCP and UDP. More permissive than the UDP-only and TCP-only game profiles, it keeps all game features working during an attack, such as TCP downloads from a server whose game traffic otherwise runs on UDP. |
+| Game Server - Generic UDP | UDP-based game services. It also suits TeamSpeak traffic. |
+| Name Server - Generic TCP | TCP-based game protocols. |
+| VoIP - TeamSpeak | TeamSpeak servers. It also protects most UDP-based game services. |
+| WebServer - Generic | Web servers receiving HTTP and HTTPS traffic on TCP ports 80 and 443 only. |
+| Generic - Proxied TCP | Back-end servers whose front end is hosted outside OVHcloud, for example by an external CDN provider. Hosts that legitimately open many connections to the back end are much less likely to be flagged as attackers. |
+| Blockchain - Solana | Solana nodes, whose legitimate traffic can be very high in volume. |
+| Default | A generic profile offering several sensitivity levels. Use it when no other profile matches your workload. |
+
+{/* DRAFT: To verify — "Name Server - Generic TCP": the source list (beta-profiles.md, 2026-10-16) describes it as "TCP-based gaming protocols", which does not match the name. Confirm the name and the description with Product. */}
+
+#### Getting the best results from a profile
+
+- **VPN - Wireguard:** run WireGuard on its default port, UDP 51820. This avoids losing legitimate traffic during an attack.
+- **VPN - OpenVPN:** run OpenVPN on its default ports, UDP 1194 and TCP 443. If you do not need the TCP fallback, block that traffic with the [Edge Network Firewall](/guides/bare-metal-cloud/dedicated-servers/firewall-network).
+- **WebServer - Generic:** do not use it if the server also receives UDP traffic. QUIC (HTTP/3) is not supported yet: QUIC traffic is discarded during an attack.
+- **Blockchain - Solana:** during an attack, mitigation avoids affecting legitimate Solana traffic. The trade-off is that highly targeted attacks may let more malicious traffic through to the server.
+
+#### Sensitivity
+
+Sensitivity sets where the policy sits on the trade-off between mitigating too much and mitigating too little. The levels available depend on the profile.
+
+| Sensitivity | Effect | Choose it when |
+|---|---|---|
+| `Low` | Fewer false positives: the most tolerant of legitimate bursts. | Availability during peaks matters more than filtering depth. |
+| `Medium` | Balanced detection. The recommended starting point. | You are applying a profile for the first time. |
+| `High` | Fewer false negatives: the most aggressive filtering. | Attacks have been getting through. |
+
+#### One policy per IP address
+
+An IP address is covered by exactly one policy. If a block is attached to one policy and an address inside it to another, the most specific entry wins. For example, if `203.0.113.0/24` is attached to a WebServer - Generic policy and `203.0.113.10` to a VPN - Wireguard policy, then `203.0.113.10` uses the VPN - Wireguard policy and the rest of the block uses the WebServer - Generic policy.
+
+Nothing else about your service changes: your Edge Network Firewall rules are untouched, and the price of your services does not change.
+
+### Step 1 — Activate profiling <a name="activate"></a>
+
+Activation is needed only once per account.
+
+1. Log in to the <ManagerLink to="/">OVHcloud Control Panel</ManagerLink>.
+2. In the side menu, go to **Security** > **Anti-DDoS**, then open the `Profiling` tab.
+3. Click <code className="action">Activate Anti-DDoS Profiling</code>.
+
+Follow the instructions displayed, if any, to complete the activation. No amount is charged.
+
+Once activation is complete, the `Profiling` tab lists your policies. Activating profiling does not change the protection of any IP address until you add it to a policy.
+
+### Step 2 — Create a policy <a name="create"></a>
+
+1. In the `Profiling` tab, click <code className="action">Create a policy</code>.
+2. In the `Name` field, enter a name that identifies the workload, for example `vpn-concentrators`.
+3. In the `Application profile` list, select the profile that matches your workload. Its description is displayed below the list.
+4. Set the `Sensitivity`. Start with `Medium` unless you already know which way the protection needs to move.
+5. Click <code className="action">Create policy</code>.
+
+IP addresses are added once the policy exists. Until then, the policy has the status **Not configured**: it does not apply to any address yet.
+
+### Step 3 — Add your IP addresses <a name="targets"></a>
+
+1. In the policy list, click the policy name, or click the `...` button at the end of its row, then <code className="action">Edit</code>.
+2. In the `Targets` section of the `Edit policy` panel, click the `Add an IP…` field. The list shows the IP blocks and individual IP addresses of your account. Type the beginning of an address to filter it.
+3. Select an address, or a whole block. If your servers sit in a contiguous block, add the block rather than each address. Ineligible addresses are not listed.
+4. Repeat for each address or block, then click <code className="action">Save changes</code>. A confirmation message is displayed.
+
+From then on, Anti-DDoS protection for that address follows the policy's profile and sensitivity instead of the generic settings. The change is applied in the background: the address is marked **Pending** for a few minutes, then the badge disappears once the address is protected.
+
+If an address you add already carries Anti-DDoS settings that were not set by a policy, such as custom settings applied by OVHcloud support or the automatic defaults of some Public Cloud instances and Managed Kubernetes Service nodes, a `Legacy Anti-DDoS settings detected` window opens when you save. To apply the policy anyway, tick the `I understand` box, then click <code className="action">Overwrite and save</code>.
+
+:::warning
+Overwriting legacy settings is irreversible: they cannot be restored afterwards. If you later disable the policy, the address returns to the default Anti-DDoS protection, not to its previous settings.
+:::
+
+### Reading the statuses <a name="statuses"></a>
+
+The policy list shows, for each policy, its network traffic profile, sensitivity, number of IP addresses, last attack detected and status. You can filter it by profile, sensitivity and status.
+
+| Where | Status | Meaning |
+|---|---|---|
+| Policy list | **Active** | Enabled, with at least one IP address. The protection is tuned. |
+| Policy list | **Not configured** | Enabled, but with no IP address yet. Add a target. |
+| Policy list | **Disabled** | Turned off. The default Anti-DDoS protection applies to its addresses, which stay attached. |
+| Policy list | Warning icon next to `Number of IPs` | Some addresses of the policy are still being applied or removed (**Pending** or **Deleting**). |
+| `Targets` section | No badge | The address is protected by the policy. |
+| `Targets` section | **Pending** | The address is being synchronised with the profiling system. This can take a few minutes. |
+| `Targets` section | **Deleting** | The address is being removed from the policy. |
+
+### Managing your policies <a name="manage"></a>
+
+Each policy has an actions button (`...`) at the end of its row in the policy list, with the following options:
+
+| Action | How | Effect |
+|---|---|---|
+| Change the profile or the sensitivity | <code className="action">Edit</code>, then change `Application profile` or `Sensitivity` and click <code className="action">Save changes</code>. | Applies to every address of the policy at once. Move the sensitivity one level at a time and observe before moving again. |
+| Disable the policy | <code className="action">Disable</code>, then confirm. | The addresses fall back to the default Anti-DDoS protection. They stay attached, and the policy can be enabled again at any time. Use this to rule the profile in or out while troubleshooting, rather than deleting the policy. |
+| Enable the policy | <code className="action">Enable</code> on a disabled policy. | The profile is applied again to the attached addresses. |
+| Move an address | <code className="action">Edit</code>, remove the address from the `Targets` section of one policy and save, then add it to another. | An address belongs to exactly one policy. |
+| Delete the policy | <code className="action">Delete</code>, then confirm. | Removes the policy and all its targets. Its addresses return to the default protection. This cannot be undone. |
+
+For a scheduled event, such as a live broadcast or a product launch, create the policy and add the addresses in advance: changes are applied in the background, so a policy created while traffic is already building may not take effect in time. You can also lower the sensitivity one level before the event, then restore it afterwards.
+
+### Monitoring the effect of a policy <a name="monitoring"></a>
+
+A policy changes which traffic gets mitigated, so the way to judge it is to compare mitigation activity before and after applying it.
+
+In the Control Panel, go to **Security** > **Anti-DDoS**. The `Dashboard` tab lists the attacks detected on your addresses, and the `Traffic` tab shows the legitimate and filtered traffic of the address you select. A policy that does its job filters less traffic during legitimate peaks, and no less during genuine attacks. For more information on the attacks detected on your services, see [Monitoring DDoS attacks with the Network Security Dashboard](/guides/bare-metal-cloud/dedicated-servers/network-security-dashboard).
+
+If a profile does not behave as expected, tell us with the <code className="action">Do you like it?</code> link at the top of the Profiling page. During the Beta, that feedback is how the catalogue improves.
+
+### Limitations <a name="limitations"></a>
+
+| Limitation | Details |
+|---|---|
+| Policies | 20 per account. |
+| Target types | IPv4 addresses and IPv4 blocks only. IPv6 support will be added later. |
+| Ineligible addresses | Telephony and ext-net Local Zone addresses. They are not listed in the `Add an IP…` field. |
+| Public Cloud | Floating IP addresses, including those used by Managed Kubernetes Service, are added one by one. A policy cannot target a whole Public Cloud project. |
+| Address changes | A policy follows an address when it moves between your services. It stops applying if the address changes owner or its service is terminated. |
+
+### Troubleshooting <a name="troubleshooting"></a>
+
+| Issue | Possible cause | Solution |
+|---|---|---|
+| Legitimate traffic is still dropped | The sensitivity is too high, or the profile does not match the workload. | Lower the sensitivity one level and observe. If the problem persists at `Low`, the profile is probably the wrong match: try another one and report it with the feedback link. |
+| An attack was not fully mitigated | The sensitivity is too low. | Raise the sensitivity one level, and compare filtered traffic before and after. |
+| An address stays **Pending** or **Deleting** | The change has not finished applying. | Wait a few minutes and refresh. If the status does not change, [contact support](/links/support) with the policy name and the address. |
+| Traffic is dropped although the address is in a suitable policy | Another protection layer, such as the Edge Network Firewall or Anti-Hack, may be filtering it. A policy does not override them. | Check your [Edge Network Firewall](/guides/bare-metal-cloud/dedicated-servers/firewall-network) rules and your [Anti-Hack](/guides/bare-metal-cloud/dedicated-servers/anti-hack-dedicated-vps) status. |
+
+If a profile is applied and the problem persists, a traffic capture (pcap) of the affected flows will help support analyse it.
+
+## Go further
+
+[Monitoring DDoS attacks with the Network Security Dashboard](/guides/bare-metal-cloud/dedicated-servers/network-security-dashboard)
+
+[Enabling and configuring the Edge Network Firewall](/guides/bare-metal-cloud/dedicated-servers/firewall-network)
+
+[Anti-Hack information - Dedicated Server and VPS](/guides/bare-metal-cloud/dedicated-servers/anti-hack-dedicated-vps)
+
+Join our [community of users](/links/community).
