@@ -1,0 +1,208 @@
+---
+title: Call AI models from SQL with Trino AI functions
+description: The Trino AI functions consumer connects your project to a large language model so you can call AI functions directly from SQL
+lastUpdated: 2026-11-02
+---
+
+## Objective
+
+The **Trino AI functions** consumer connects your project to a large language model so you can call AI functions directly from SQL. You give it a provider, an API key and a model, and Data Platform creates a dedicated **Trino catalog** that exposes the [Trino AI functions](https://trino.io/docs/current/functions/ai.html): classify support tickets, translate product descriptions, extract fields from free-text reviews or mask personal data, all inside a query.
+
+Once the consumer exists, the functions are available wherever a query goes through Trino: the [Lakehouse Manager Explorer](/guides/public-cloud/data-platform/lakehouse-manager-explorer), the [Analytics Manager SQL editor](/guides/public-cloud/data-platform/analytics-manager-queries-sql-editor), the [SQL action](/guides/public-cloud/data-platform/dpe-actions-sql) and external tools connected with a [Trino consumer](/guides/public-cloud/data-platform/connectors-consumers-trino).
+
+[OVHcloud AI Endpoints](/links/public-cloud/ai-endpoints) is the default provider. Any provider exposing an OpenAI-compatible API on a public HTTPS address works as well.
+
+<img className="thumbnail" alt="The Trino AI functions consumer in the Connectors service, with its provider, model and Usage tab" src="/images/public-cloud/data-platform/product/connectors/consumers/trino-ai-functions/picts/trino-ai-functions-overview.png" loading="lazy" />
+
+:::warning
+**Everyone who can query the project can call the AI functions, on your key.** Calling them needs no permission beyond the right to run queries, so every user of the Explorer, Analytics Manager, SQL actions or a Trino consumer can send data to the provider and consume tokens billed to the API key you configured. Controlling that spend, and which data is sent, is up to you.
+
+**The data you pass to a function leaves Data Platform.** Each call sends the values it receives, for example the content of a column, to the provider's endpoint. Check that this is allowed for the data you process.
+:::
+
+## Requirements
+
+- An API key for your provider. For OVHcloud AI Endpoints, follow [Generating your first API access key](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started#generating-your-first-api-access-key).
+- The permission to write consumers in the project, see [Permissions](#permissions).
+
+## Instructions
+
+### Create the Trino AI functions consumer
+
+In the Connectors service, open the **Consumers** tab, click **New consumer**, select **Trino AI functions** and click **Create**.
+
+Give the consumer a **name**, an optional **description** and optional **tags**, then fill in the *Trino AI functions configuration* section.
+
+<img className="thumbnail" alt="The Trino AI functions configuration section with the provider, endpoint and API key fields and the Test connection button" src="/images/public-cloud/data-platform/product/connectors/consumers/trino-ai-functions/picts/trino-ai-functions-create.png" loading="lazy" />
+
+1. Pick the **Provider**:
+
+   | Provider | Endpoint |
+   |---|---|
+   | **OVHcloud AI Endpoints** (default) | Filled in for you and read-only: `https://oai.endpoints.kepler.ai.cloud.ovh.net` |
+   | **OpenAI-compatible endpoint** | Enter the base address of the provider's API, without `/v1`, for example `https://api.openai.com`. It must use `https://` and resolve to a public address: private, local and `http://` addresses are refused. The provider must answer `GET /v1/models`. |
+
+2. Enter your **API key**.
+3. Click **Test connection**. Data Platform calls the provider with your key. When the test succeeds, a **Model** selector appears, listing every model the provider offers for this key.
+4. Pick the **model** the AI functions will use.
+5. Click **Create**.
+
+Data Platform creates the catalog, named `db_<project>_ai`.
+
+A project holds **one Trino AI functions consumer at most**.
+
+### Call AI functions from SQL
+
+Open the consumer and go to its **Usage** tab: it shows an example query for each AI function, with your project's catalog name filled in, ready to copy.
+
+The functions live in the `ai` schema of the catalog, so you call them with their fully qualified name, `db_<project>_ai.ai.<function>`. Seven functions are available:
+
+| Function | What it returns |
+|---|---|
+| `ai_analyze_sentiment(text)` | The sentiment of the text: positive, negative, neutral or mixed |
+| `ai_classify(text, labels)` | The label from the array that best fits the text |
+| `ai_extract(text, labels)` | The values found in the text for each label |
+| `ai_fix_grammar(text)` | The text with its grammar corrected |
+| `ai_gen(prompt)` | Text generated from the prompt |
+| `ai_mask(text, labels)` | The text with the values for each label replaced by `[MASKED]` |
+| `ai_translate(text, language)` | The text translated into the language, given as a code such as `en` or `fr` |
+
+Classify support tickets into categories:
+
+```sql
+SELECT
+  ticket_id,
+  db_<project>_ai.ai.ai_classify(
+    description,
+    ARRAY['billing', 'technical', 'refund', 'sales']
+  ) AS category
+FROM db_<project>_<dataset>.<schema>.support_tickets
+LIMIT 20
+```
+
+Translate product descriptions into English:
+
+```sql
+SELECT
+  product_id,
+  db_<project>_ai.ai.ai_translate(description, 'en') AS description_en
+FROM db_<project>_<dataset>.<schema>.products
+LIMIT 20
+```
+
+Extract structured fields from customer reviews:
+
+```sql
+SELECT
+  review_id,
+  db_<project>_ai.ai.ai_extract(review, ARRAY['product', 'sentiment', 'issue']) AS fields
+FROM db_<project>_<dataset>.<schema>.reviews
+LIMIT 20
+```
+
+### Test on a few rows, then enrich the table with an action
+
+An AI function sends **one request to the provider for every row** it processes, and each request waits for the model's answer. A plain query runs the rows one after the other, so on a whole table it is slow: in our tests, `ai_analyze_sentiment` on a 500-row table took 5 to 6 minutes as a query.
+
+Work in two steps:
+
+1. **Test with `LIMIT`.** Run the query on a handful of rows, as in the examples above, and check the output before you go further.
+2. **Enrich the table with the AI enrichment action.** To process a whole table, run the function from a [Custom action](/guides/public-cloud/data-platform/dpe-actions-custom) with the script in [Enrich a whole table with the AI enrichment action](#enrich-a-whole-table-with-the-ai-enrichment-action). It splits the rows into chunks that run side by side, up to 16 at a time, writes the results to a table and continues where it stopped when you run it again. The same 500-row table took about 15 seconds this way.
+Timings depend on the model, the time of day and the health of the provider's endpoint.
+
+### Enrich a whole table with the AI enrichment action
+
+The *AI enrichment action* is a Custom action script that applies one AI function to the rows of a table and writes the results to a target table. Each run:
+
+- picks up to `ROW_LIMIT` rows whose text column is not null and that are not yet in the target table, so running the action again continues where the last run stopped;
+- splits them into `CHUNKS` chunks by a hash of their id, and runs one `INSERT ... SELECT` per chunk, all chunks side by side;
+- writes the id, the source text, the function name and its output to the target table, created in the source dataset on the first run with the columns `<id>`, `source_text`, `ai_operation` and `ai_output`.
+
+To set it up:
+
+1. Download the script: <a className="rp-link" href="/images/public-cloud/data-platform/product/connectors/consumers/trino-ai-functions/resources/ai-enrichment-action.py" download>ai-enrichment-action.py</a>.
+2. In the Data Processing Engine, open the *Actions* tab, click **New Action** and choose the *Custom* type. Drag and drop the script onto the *Drag and drop* section and keep `customfunc` as the function name.
+3. Fill in the config block at the top of the script:
+
+   | Setting | Value |
+   |---|---|
+   | `SOURCE` | The dataset holding the table, as a [connection string](/guides/public-cloud/data-platform/developers-python-sdk-connect-dataset) with a trailing slash: `dwh/<dataset>/` |
+   | `SOURCE_TABLE` | The table to enrich |
+   | `ID_COLUMN` | A non-null, unique column. It tells the rows already enriched from the rows to do |
+   | `TEXT_COLUMN` | The text column passed to the function |
+   | `AI_EXPR` | The call to apply, copied from the **Usage** tab, with `{c}` in place of the text column and without the catalog prefix, for example `ai_translate({c}, 'en')`. The script adds the catalog for you |
+   | `TARGET_TABLE` | The table that receives the results. Left empty: `<table>_ai_<function>` |
+   | `CHUNKS` | How many chunks run side by side, from 1 to 16. Default 4 |
+   | `ROW_LIMIT` | How many new rows one run enriches. Default 100. This is your spend cap: raise it once the output looks right |
+   | `AI_CATALOG` | The AI catalog. Left empty: this project's `db_<project>_ai` |
+
+4. Run the action. The first run creates the target table and enriches the first `ROW_LIMIT` rows.
+5. Check the output in the Explorer, then raise `ROW_LIMIT` and run the action again. Rows already in the target table are skipped.
+
+To change a setting for one run without editing the script, trigger the action with a body that overrides the keys in lower case, for example `{"row_limit": 500, "chunks": 8}`. See [Creating Event Handling Actions](/guides/public-cloud/data-platform/tutorials-custom-event-handling) for how an action receives a body.
+
+Good to know about the action:
+
+- **Every row is one billed call**, as in a query. A chunk that fails is retried once and bills its rows again. When a chunk still fails, the run is marked failed, the rows the other chunks enriched are kept, and running the action again picks up the rest.
+- **More chunks is faster, up to your provider's rate limit.** Each chunk holds a Trino query slot. With OVHcloud AI Endpoints, 400 requests per minute per model is the ceiling whatever the number of chunks: if a run fails with `429` errors, lower `CHUNKS`.
+- **Do not run two instances at once.** Both would pick the same rows and bill them twice.
+- **A target table holds the results of one function.** A run with another function is refused: set another `TARGET_TABLE`.
+- **`ai_extract` returns a map.** Store it as JSON text with `json_format(cast(ai_extract({c}, ARRAY['price']) AS json))`.
+- **Keep the script under 10 KB** when you adapt it, the platform rejects larger uploads.
+
+### Change the model
+
+Open the consumer, pick another model in the **Model** selector and save with the button below it. Data Platform recreates the catalog with the new model, under the same name.
+
+The model is the only setting you can change. The provider, the endpoint and the API key are fixed once the consumer exists: to change one of them, delete the consumer and create a new one.
+
+### Delete the consumer
+
+:::warning
+Deleting the consumer drops the `db_<project>_ai` catalog. Every query, SQL action and dashboard that calls an AI function fails until you create a new Trino AI functions consumer. The stored API key is deleted with it.
+:::
+
+To delete the consumer, go to the *Consumers* tab of the Connectors service and delete it from the list of consumers.
+
+### Permissions
+
+Managing the consumer is governed by the *Consumer* permissions in the [Identity Access Manager](/guides/public-cloud/data-platform/iam-roles-conditions). Calling the functions is not: anyone who can run queries in the project can call them.
+
+| To do this | You need |
+|---|---|
+| See the consumer and its models | *Consumer* read |
+| Create the consumer or change its model | *Consumer* write |
+| Delete the consumer | *Consumer* delete |
+| Call the AI functions | The right to run queries in the project |
+
+### Good to know
+
+- **Your provider bills the calls.** AI functions use your API key, so the tokens they consume are billed to your provider account, for example your OVHcloud AI Endpoints project (see [AI Endpoints billing](/guides/public-cloud/ai-machine-learning/ai-endpoints-billing)). As the Trino documentation puts it, cost depends on the function, the length of the input and the length of the output.
+- **Your provider limits the request rate.** With OVHcloud AI Endpoints, an API key allows 400 requests per minute per Public Cloud project and per model, and calls beyond that fail with a `429` error. See [Model rate limit](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started#model-rate-limit).
+- **Arguments must be text.** The functions take `varchar` arguments. Cast other types first, for example `CAST(order_total AS varchar)`. See [Trino data types and casts](/guides/public-cloud/data-platform/tutorials-trino-types-and-casts).
+- **Results depend on the model.** Quality, speed and cost vary with the provider and the model you pick. Check a sample of the output before you rely on it.
+- **The API key is write-only.** Data Platform stores it encrypted and never returns it, in the interface or in the API.
+
+### Troubleshooting
+
+| Symptom | Where to look |
+|---|---|
+| "Test connection fails with a key error" | The provider rejected the API key. Check that it is valid and belongs to the endpoint you entered. |
+| "The endpoint is refused" | The endpoint must use `https://` and resolve to a public address. Local, private and `http://` addresses are refused by design. |
+| "No model appears after the test" | The provider must answer `GET /v1/models`. Providers without that route cannot be used. |
+| "A second consumer cannot be created" | A project holds one Trino AI functions consumer at most. Change the model on the existing one, or delete it first. |
+| "The API key, provider or endpoint cannot be changed" | Only the model can change. Delete the consumer and create a new one. |
+| "The query runs for minutes" | The function sends one request per row. Add a `LIMIT` to test, and process whole tables with the [AI enrichment action](#enrich-a-whole-table-with-the-ai-enrichment-action). |
+| "A query fails with a 429 error" | The provider's rate limit is reached. Process fewer rows at a time, lower `CHUNKS` in the AI enrichment action, or ask your provider for a higher limit. |
+| "A query fails with a type error" | An argument is not `varchar`. Cast it to `varchar`. |
+| "The catalog is not found" | Check the name with `SHOW CATALOGS` in the Explorer. If it is missing, the consumer was deleted. |
+
+## Go further
+
+[[fragment:professional-services|en]]
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

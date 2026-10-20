@@ -1843,6 +1843,7 @@
                     + [PowerBI](public-cloud/data-platform/connectors-consumers-power-bi){label=PowerBI}
                     + [OpenLineage](public-cloud/data-platform/connectors-consumers-openlineage){label=OpenLineage}
                     + [Trino](public-cloud/data-platform/connectors-consumers-trino){label=Trino}
+                    + [Trino AI functions](public-cloud/data-platform/connectors-consumers-trino-ai-functions){label=Trino AI functions}
             + [Lakehouse Manager](public-cloud-data-platform-lakehouse-manager){landing=public-cloud/data-platform/landing-page-lakehouse-manager}
                 + [Discover key concepts](public-cloud/data-platform/lakehouse-manager-key-concepts){label=Discover key concepts}
                 + [Datasets](public-cloud/data-platform/lakehouse-manager-datasets){label=Datasets}
