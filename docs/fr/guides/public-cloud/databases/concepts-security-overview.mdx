@@ -1,8 +1,10 @@
 ---
 title: Présentation de la sécurité des bases de données Public Cloud
 description: Présentation de la sécurité de Public Cloud Databases
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 ---
+
+import Api from '@components/Api';
 
 ## Objectif
 
@@ -62,6 +64,29 @@ Si vous avez besoin de restaurer vos données à partir d'une sauvegarde, vous p
 | Espace client | Journaux des interactions effectuées par les contacts administrateur, technique ou facturation dans l'espace client et sur les services auxquels ils ont accès, via des appels API. |- <ApiLink section="/me" method="GET" route={"/me/api/logs/self"} regions={["eu"]}>Liste des appels API effectués avec votre compte</ApiLink><br/>- <ApiLink section="/me" method="GET" route={"/me/api/logs/services"} regions={["eu"]}>Liste des appels API effectués sur les services auxquels vous avez accès</ApiLink><br/>-<ApiLink section="/me" method="GET" route={"/me/logs/audit"}>Récupérer vos logs d'audit</ApiLink> |
 | Service | 1000 derniers logs d'utilisation du service | Voir l'onglet « log » dans l'espace client<br/>- ou via l'API (pour le service Kafka par exemple `/cloud/project/{serviceName}/database/kafka/{clusterId}/logs`<br/>- `/cloud/project/{serviceName}/database/{serviceType}/{clusterId}/logs` |
 
+### 5.1 Contenu des logs PostgreSQL
+
+Les logs du service contiennent ce que PostgreSQL écrit, sans aucun masquage. Avec la configuration par défaut :
+
+- **Requêtes lentes** : `log_min_duration_statement` vaut `1000` ms. Toute requête plus longue est journalisée avec son texte et la valeur de ses paramètres (`DETAIL: Parameters: $1 = '<valeur>'`).
+- **Erreurs** : la requête qui a provoqué une erreur est journalisée (`log_min_error_statement` vaut `error`), et certains messages d'erreur citent la valeur en cause, par exemple `invalid input syntax for type integer: "<valeur>"` ou `DETAIL: Key (email)=(<valeur>) already exists.`
+
+Pour réduire ce que les logs peuvent contenir, modifiez ces deux paramètres avancés :
+
+- `pg.log_min_duration_statement` à `-1` : les requêtes lentes ne sont plus journalisées ;
+- `pg.log_error_verbosity` à `TERSE` : les lignes `DETAIL`, `HINT`, `QUERY` et `CONTEXT` des messages d'erreur ne sont plus journalisées.
+
+Les deux s'appliquent par un rechargement de la configuration, sans redémarrage du service. Le message d'erreur principal et le texte de la requête en erreur restent journalisés. Modifiez ces deux paramètres avec l'appel API suivant :
+
+<Api version="v1" section="/cloud" method="PUT" route={"/cloud/project/\{serviceName\}/database/postgresql/\{clusterId\}/advancedConfiguration"} />
+
+Les utilisateurs de la base, y compris l'utilisateur administrateur du service, ne peuvent pas modifier `log_statement` ni `log_min_duration_statement`, ni pour leur session ni pour un rôle (`permission denied to set parameter`). Vous pouvez vérifier les valeurs en vigueur avec :
+
+```sql
+SELECT name, setting, source FROM pg_settings WHERE name LIKE 'log_%';
+SELECT setdatabase, setrole::regrole, setconfig FROM pg_db_role_setting;
+```
+
 ## 6.API
 
 | **Nom** | **Capacité** | **Lien** |
@@ -85,6 +110,16 @@ Vous pouvez diagnostiquer la configuration de votre politique IAM et analyser le
 Une fois qu'une VM est créée par OVHcloud, sur laquelle les moteurs de base de données du client s'exécutent, un certificat TLS est généré et utilisé par le client pour accéder à sa base de données.
 
 Pour vous protéger contre l'usurpation du serveur, configurez vos clients pour qu'ils vérifient le certificat présenté par le service à l'aide du certificat CA fourni dans les informations de connexion du service.
+
+### 7.3 Mots de passe des utilisateurs de base de données
+
+Le mot de passe d'un utilisateur de base de données n'est affiché qu'une seule fois : dans la réponse à sa création ou à la réinitialisation de son mot de passe, dans l'espace client comme dans l'API. Il ne peut plus être affiché ensuite : la lecture d'un utilisateur avec l'API ne renvoie jamais son mot de passe. Pour réinitialiser un mot de passe, utilisez l'appel API suivant :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/postgresql/\{clusterId\}/user/\{userId\}/credentials/reset"} />
+
+Chaque réinitialisation génère un nouveau mot de passe et le précédent cesse immédiatement de fonctionner. La réponse ne porte aucun identifiant d'opération. Si vous perdez la réponse d'une réinitialisation, essayez de vous connecter avec l'ancien mot de passe. S'il est refusé, la réinitialisation a été appliquée : relancez une réinitialisation pour obtenir un mot de passe utilisable.
+
+Sur PostgreSQL, la création d'un utilisateur ou la réinitialisation de son mot de passe n'écrit ni le mot de passe ni son vérificateur SCRAM dans les logs du service.
 
 ## 8.Fonctionnalités et options disponibles à la livraison du service
 
@@ -110,7 +145,7 @@ Pour un moteur MongoDB :
 - **Nœuds :** les instances de service et les VM sous-jacentes utilisent un chiffrement complet du volume via [LUKS](https://en.wikipedia.org/wiki/Linux_Unified_Key_Setup) avec une clé éphémère générée aléatoirement pour chaque instance et chaque volume.
 La clé n'est jamais réutilisée et est détruite lors de la suppression de l'instance, ce qui assure une rotation naturelle des clés lors des mises à jour progressives.
 Nous utilisons le mode LUKS2 aes-cbc-essiv:sha256 avec une clé de 512 bits.
-- **Sauvegardes :** les sauvegardes sont chiffrées avec une clé générée aléatoirement. Cette clé est asymétrique RSA4096.
+- **Sauvegardes :** les sauvegardes sont chiffrées avec AES-256 et une clé RSA 4096 générée aléatoirement avant leur envoi vers Object Storage. Dans toutes les régions, Object Storage ajoute ensuite son propre chiffrement côté serveur (SSE-OMK) sur les buckets de sauvegarde : chaque objet est chiffré avec sa propre clé, dérivée et gérée par OVHcloud.
 
 Pour tous les moteurs de bases de données tels que MySQL, PostgreSQL, Valkey, etc., le chiffrement des données au repos couvre à la fois les instances de service actives et les sauvegardes de service dans le stockage objet cloud :
 
@@ -135,7 +170,7 @@ Le Client-Side Field Level Encryption (FLE) est une fonctionnalité de chiffreme
 
 ### 8.3 Surveillance des CVE
 
-L'équipe opérationnelle OVHcloud en charge de la maintenance des services Public Cloud Databases surveille en permanence les CVE sur les différents SGBD disponibles. Cette surveillance est effectuée via différents canaux : listes de diffusion officielles, communauté de sécurité, vérifications de sécurité internes...<br/>
+L'équipe opérationnelle OVHcloud en charge de la maintenance des services Public Cloud Databases surveille en permanence les CVE sur les différents SGBD disponibles. Cette surveillance est effectuée via différents canaux : listes de diffusion officielles, communauté de sécurité, vérifications de sécurité internes, etc.<br/>
 
 Nous sommes également en communication constante avec l'équipe MongoDB, afin de garantir une transition rapide et fluide vers la dernière version de sécurité de MongoDB.
 
@@ -149,6 +184,20 @@ L'option HDS peut être activée sur le service.<br/>
 Cette option est disponible uniquement pour les offres « Business/Production » et « Enterprise/Advanced » de ce service.<br/>
 La souscription au niveau de support Business est obligatoire, à minima pour respecter les exigences nécessaires.
 
+### 8.6 Maintenances
+
+Les maintenances OVHcloud portent sur les composants du service : le moteur de base de données, le système d'exploitation et les versions des extensions installées sur le service. Elles ne modifient pas votre configuration utilisateur : utilisateurs, rôles, appartenances, privilèges et propriétaires. Lorsqu'une maintenance met à jour une extension que vous utilisez, les objets de cette extension passent à sa nouvelle version.
+
+Chaque maintenance est listée avec une courte description, son statut (par exemple `PENDING` ou `APPLIED`), sa date prévue et sa date d'application, dans l'espace client et avec l'API. Les routes ci-dessous sont celles de PostgreSQL ; pour un autre moteur, remplacez `postgresql` par son nom.
+
+Pour obtenir les identifiants des maintenances du service, utilisez l'appel API suivant :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/postgresql/\{clusterId\}/maintenance"} />
+
+Pour afficher la description, le statut et les dates d'une maintenance, utilisez l'appel API suivant :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/postgresql/\{clusterId\}/maintenance/\{maintenanceId\}"} />
+
 ## 9.Réversibilité
 
 Vous pouvez importer et exporter vos données en suivant les recommandations fournies par les éditeurs pour chaque technologie de moteur de base de données. Par exemple, pour MongoDB, consultez le [guide d'import et d'export de MongoDB Compass](https://www.mongodb.com/docs/compass/import-export/).
@@ -157,6 +206,19 @@ Vous pouvez importer et exporter vos données en suivant les recommandations fou
 
 Une fois que vous supprimez votre projet Public Cloud (votre projet Database) dans l'espace client OVHcloud, toutes les ressources allouées sont libérées automatiquement, y compris les clés de chiffrement utilisées.<br/>
 Les clés de chiffrement étant uniques à chaque projet, elles seront supprimées après la mise hors service. Les données ne peuvent plus être récupérées par la suite.
+
+Pour MongoDB, la suppression d'un service supprime immédiatement toutes ses données, y compris ses sauvegardes dans toutes les régions où elles sont stockées, sur toutes les offres (Production, Advanced).
+
+## 10.Questions fréquentes des audits de sécurité
+
+| Question | Réponse |
+| --- | --- |
+| Les nœuds et les sauvegardes sont-ils chiffrés au repos ? | Oui, sur toutes les offres. Voir [8.2.1](#821-chiffrement-effectué-par-les-équipes-ovhcloud). |
+| Un mot de passe peut-il être relu après sa création ou sa réinitialisation ? | Non. Voir [7.3](#73-mots-de-passe-des-utilisateurs-de-base-de-données). |
+| Les logs PostgreSQL peuvent-ils contenir des données ? | Oui, ceux des requêtes lentes et en erreur. Voir [5.1](#51-contenu-des-logs-postgresql) pour les paramètres qui les réduisent. |
+| Une maintenance peut-elle modifier les rôles ou les privilèges ? | Non. Voir [8.6](#86-maintenances). |
+| Que reste-t-il après la suppression d'un service ? | Voir [9.1](#91-suppression-des-données-client). |
+| Le service est-il couvert par la certification HDS ? | Voir [8.5](#85-option-hds) et la [liste des produits certifiés HDS](/guides/account-and-service-management/account-information/hds-certification). |
 
 ## Aller plus loin
 

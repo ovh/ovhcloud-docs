@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import './LinkCard.css';
 
 interface LinkCardProps {
@@ -48,6 +49,12 @@ export function LinkCard({
   const localizeHref = useLocalizeHref();
   const isExternal = href.startsWith('http://') || href.startsWith('https://');
   const resolvedHref = isExternal ? href : localizeHref(href);
+
+  if (process.env.__SSR_MD__) {
+    return (
+      <MdLinkItem href={resolvedHref} title={title} description={description} />
+    );
+  }
 
   const className = [
     'link-card',

@@ -84,8 +84,6 @@
             + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
         + [API](account-and-service-management-managing-billing-payments-and-services-api)
             + [Ordering Public Cloud projects using the OVHcloud API](account-and-service-management/managing-billing-payments-and-services/order-project-api)
-    + [FinOps](products/account-and-service-management-finops)
-        + [Exporting billing data to a bucket](account-and-service-management/finops/export-billing-data-to-bucket)
     + [Reversibility](products/account-and-service-management-reversibility)
         + [Reversibility policies](account-and-service-management-reversibility-reversibility-policies)
             + [Global Reversibility Policy](account-and-service-management/reversibility/global-reversibility-policy)
@@ -594,7 +592,6 @@
             + [Using Terraform with SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform)
             + [Managing Glance images](hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management)
             + [Managing public IPs](hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management)
-            + [Creating a Windows Server VM](hosted-private-cloud/cloud-platform/snc-cloud-platform-create-windows-server-vm)
     + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
@@ -617,6 +614,7 @@
             + [How to see node inventory](hosted-private-cloud/opcp/how-to-see-node-inventory)
             + [How to handle the NetBox rack elevation](hosted-private-cloud/opcp/how-to-handle-rack-elevation)
             + [How the Ironic to NetBox synchronisation works](hosted-private-cloud/opcp/netbox-ironic-synchronisation)
+            + [How to access the NetBox API with a token](hosted-private-cloud/opcp/netbox-api-access)
             + [How to use Terraform](hosted-private-cloud/opcp/use-terraform)
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
             + [How to back up the OPCP controller data](hosted-private-cloud/opcp/how-to-create-a-backup)
@@ -858,7 +856,6 @@
                     + [Cold Archive - Overview](storage-and-backup/object-storage/cold-archive-overview)
                 + [Getting Started](products/public-cloud-storage-object-storage-s3-getting-started)
                     + [Object Storage - Getting started with Object Storage](storage-and-backup/object-storage/s3-getting-started-with-object-storage)
-                    + [Cold Archive - Getting started with Cold Archive](storage-and-backup/object-storage/cold-archive-getting-started)
                     + [Object Storage - Identity and access management](storage-and-backup/object-storage/s3-identity-and-access-management)
                 + [Configuration](products/public-cloud-storage-object-storage-s3-configuration)
                     + [Object Storage - Getting Started with Versioning](storage-and-backup/object-storage/s3-versioning) 
@@ -904,6 +901,7 @@
                 + [Additional Resources](products/public-cloud-storage-object-storage-s3-additional-resources)
                     + [Object Storage - Shared Responsibility RACI](storage-and-backup/object-storage/s3-object-storage-responsibility-model)
                     + [Cold Storage - Shared Responsibility for archive and restoration services](storage-and-backup/object-storage/cold-storage-responsibility-model)
+                    + [Legacy Cold Archive - Getting started with Cold Archive](storage-and-backup/object-storage/cold-archive-getting-started)
                     + [Object Storage - Third-party applications compatibility](storage-and-backup/object-storage/s3-ecosystem)
             + [Swift](products/public-cloud-storage-object-storage-swift)
                 + [Getting Started](public-cloud-storage-object-storage-swift-getting-started)
@@ -1320,6 +1318,7 @@
                 + [Fetch service metrics with Prometheus for Public Cloud Databases](public-cloud/databases/service-metrics-with-prometheus)
                 + [Enable deletion protection for Public Cloud Databases](public-cloud/databases/databases-deletion-protection)
             + [Migration](public-cloud-databases-mongodb-migration)
+                + [Manage a suspended Discovery service of Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-discovery-suspended-service)
                 + [Migrate to OVHcloud Public Cloud Databases](public-cloud/databases/databases-move-to-cloud)
                 + [Migrate to OVHcloud Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-migrate-to-ovhcloud)
                 + [Relational Migrator for Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-relational-migrator)
@@ -1355,7 +1354,6 @@
                 + [Connect using the CLI for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-cli)
                 + [Connect using PHP for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-php)
                 + [Connect using Python for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-python)
-                + [Connect using RedisInsight for Public Cloud Databases for Valkey](public-cloud/databases/valkey-connect-redisinsight)
             + [Configuration](public-cloud-databases-valkey-configuration)
                 + [Maintenance operations for Public Cloud Databases](public-cloud/databases/maintenance)
                 + [Configure the private network for Public Cloud Databases](public-cloud/databases/configure-vrack)
@@ -1365,7 +1363,7 @@
                 + [Update the flavor of Public Cloud Databases](public-cloud/databases/update-cluster-flavor)
                 + [Update the plan of Public Cloud Databases](public-cloud/databases/update-cluster-plan)
                 + [Update the network configuration of Public Cloud Databases](public-cloud/databases/update-cluster-network)
-                + [Manage ACLs via API for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
+                + [Manage users and ACLs for Public Cloud Databases for Valkey](public-cloud/databases/valkey-update-acls)
                 + [Set up logs forwarding for Public Cloud Databases](public-cloud/databases/logs-to-customers)
                 + [Set up the Kubernetes operator for Public Cloud Databases](public-cloud/databases/database-operator)
                 + [Set up service integration for Public Cloud Databases](public-cloud/databases/databases-cross-service-integration)
@@ -1433,6 +1431,9 @@
             + [Tutorials](public-cloud-data-analytics-clickhouse-tutorials)
                 + [ClickHouse - Connect with Tabix](public-cloud/data-analytics/analytics/clickhouse-connect-tabix)
                 + [ClickHouse – Real-time Analytics with Kafka integration](public-cloud/data-analytics/analytics/clickhouse-integration-with-kafka)
+                + [ClickHouse - Query files stored in OVHcloud Object Storage](public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
+                + [ClickHouse - Query PostgreSQL and MySQL databases](public-cloud/data-analytics/analytics/clickhouse-query-postgresql-mysql)
+                + [ClickHouse - Query Iceberg and Delta Lake tables and ingest files continuously](public-cloud/data-analytics/analytics/clickhouse-iceberg-delta-s3queue)
         + [Kafka](products/public-cloud-data-analytics-kafka)
             + [Overview](public-cloud/data-analytics/kafka/overview)
             + [Key concepts](public-cloud-data-analytics-kafka-key-concepts)
@@ -1451,7 +1452,10 @@
                 + [Connect using the CLI for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-connect-cluster-cli)
                 + [Create topics for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-create-topics)
                 + [Use Access Control Lists (ACLs) for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-configure-acl)
-                + [Enable schema registry for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-schema-registry)
+                + [Enable the Schema Registry for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-schema-registry)
+                + [Enable the REST API for Analytics with Kafka](public-cloud/data-analytics/analytics/kafka-enable-rest-api)
+                + [Link Kafka Connect to Kafka and create a connector](public-cloud/data-analytics/analytics/kafkaconnect-create-connector)
+                + [Replicate topics with Kafka MirrorMaker](public-cloud/data-analytics/analytics/mirrormaker-replicate-topics)
             + [Configuration](public-cloud-data-analytics-kafka-configuration)
                 + [Maintenance operations for Analytics](public-cloud/data-analytics/analytics/maintenance)
                 + [Configure the advanced parameters for Analytics](public-cloud/data-analytics/analytics/advanced-configuration)
@@ -1792,9 +1796,12 @@
                 + [OVHcloud Billing Data Analysis](public-cloud/data-platform/tutorials-billing-analysis){label=OVHcloud Billing Data Analysis}
                 + [Deploy Apache Superset](public-cloud/data-platform/tutorials-install-apache-superset){label=Deploy Apache Superset}
                 + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
+                + [Analyse online store sales with Apache Superset](public-cloud-data-platform-analyze-online-store-sales){landing=public-cloud/data-platform/tutorials-ecommerce-sales}
+                    + [Build the sales dashboard in Superset](public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard){label=Build a sales dashboard for an online store in Superset}
             + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
                 + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
                 + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
+                + [Govern a customer dataset](public-cloud/data-platform/tutorials-customer-data-governance){label=Govern a customer dataset}
                 + [Custom event handling action](public-cloud/data-platform/tutorials-custom-event-handling){label=Custom event handling action}
                 + [Access your buckets with S3-compatible tools](public-cloud/data-platform/tutorials-bucket-s3-access)
         + [Services](public-cloud-data-platform-services){landing=public-cloud/data-platform/landing-page-services}
@@ -2573,7 +2580,6 @@
                 + [Cold Archive - Overview](storage-and-backup/object-storage/cold-archive-overview)
             + [Getting Started](products/storage-object-storage-s3-getting-started)
                 + [Object Storage - Getting started with Object Storage](storage-and-backup/object-storage/s3-getting-started-with-object-storage)
-                + [Cold Archive - Getting started with Cold Archive](storage-and-backup/object-storage/cold-archive-getting-started)
                 + [Object Storage - Identity and access management](storage-and-backup/object-storage/s3-identity-and-access-management)
             + [Configuration](products/storage-object-storage-s3-configuration)
                 + [Object Storage - Getting Started with Versioning](storage-and-backup/object-storage/s3-versioning) 
@@ -2615,6 +2621,7 @@
             + [Additional Resources](products/storage-object-storage-s3-additional-resources)
                 + [Object Storage - Shared Responsibility RACI](storage-and-backup/object-storage/s3-object-storage-responsibility-model)
                 + [Cold Storage - Shared Responsibility for archive and restoration services](storage-and-backup/object-storage/cold-storage-responsibility-model)
+                + [Legacy Cold Archive - Getting started with Cold Archive](storage-and-backup/object-storage/cold-archive-getting-started)
                 + [Object Storage - Third-party applications compatibility](storage-and-backup/object-storage/s3-ecosystem)
         + [Swift](products/storage-object-storage-swift)
             + [Overview](storage-and-backup/object-storage/swift/overview)
@@ -3072,3 +3079,5 @@
         + [OKMS Architecture overview](manage-and-operate/kms/architecture-overview)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
         + [How to use Kubernetes External Secret Operator with Secret Manager](manage-and-operate/secret-manager/external-secret-operator)
+    + [Cost Center](manage-operate-cost-center)
+        + [Exporting billing data to a bucket](manage-and-operate/cost-center/export-billing-data-to-bucket)
