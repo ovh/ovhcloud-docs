@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.10.21
+
+### Fixes
+
+#### EU
+- **callouts:** prune old formats (#1053)
+
+### Documentation
+- EU: 86 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.20
 
 ### Features

@@ -16,7 +16,7 @@ For build & dev-server setup, see [README.md](README.md). For repo architecture,
 | Sidebar / order | Per-section `_meta.json` / Pelican config | Single source [config/sidebar/index.md](config/sidebar/index.md) |
 | Internal links | `/pages/...`, `/products/...` | `/guides/...` |
 | Locale-aware external links | Hand-written per locale | `/links/<key>` resolved at build from [config/links.ts](config/links.ts) |
-| Admonitions | `> [!warning]` blockquotes | `:::warning ... :::` (blockquote style still works) |
+| Admonitions | `> [!warning]` blockquotes | `:::warning ... :::` |
 | Tabs / FAQ / API blocks | Hugo shortcodes | MDX components, imported at top of file |
 
 ## Folder layout — one tree per locale
@@ -157,7 +157,7 @@ lastUpdated: 2025-09-09
 
 ### Admonitions
 
-RSPress fences are preferred:
+Use RSPress fences:
 
 ```mdx
 :::warning
@@ -173,7 +173,7 @@ Hidden content
 :::
 ```
 
-The legacy GitHub-style blockquote syntax (`> [!warning]`) still renders, so existing copy-pastes keep working.
+Do not use the GitHub-style blockquote syntax (`> [!INFO]`, `> [!warning]`). A callout inside a `:::details` fence does not render; for a collapsible that holds one, use `<details>` HTML.
 
 All seven callout types are supported. Each appears with its own icon and color in the rendered output:
 
