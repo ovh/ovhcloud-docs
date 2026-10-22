@@ -1,7 +1,7 @@
 ---
 title: Enterprise File Storage - Migrer un volume vers le vRack
 description: "Migrez un volume Enterprise File Storage vers une offre en réseau privé vRack grâce à la réplication de partages, depuis l'espace client OVHcloud ou l'API"
-lastUpdated: 2026-10-16
+lastUpdated: 2026-10-20
 ---
 
 import Api from '@components/Api';
@@ -27,13 +27,16 @@ La fonctionnalité de réplication de partages est en statut **bêta**.
 
 La migration se déroule en trois phases :
 
-1. **Réplication** — création d'un lien de réplication entre le volume source et le service de destination
+1. **Réplication** — création d'un lien de réplication entre le volume source et un volume du service de destination
 2. **Synchronisation** — copie automatique des données du volume source vers le volume de destination
 3. **Finalisation** (*cutover*) — coupure du lien de réplication, qui rend le volume de destination autonome et accessible en écriture (il reste en lecture seule jusque-là)
 
 ## Limites de la fonctionnalité
 
-La réplication de partages permet uniquement de migrer un volume Enterprise File Storage en réseau public vers une offre Enterprise File Storage en réseau privé vRack, au sein de la **même région**.
+- La réplication de partages permet uniquement de migrer un volume en réseau public vers une offre en réseau privé vRack, au sein de la **même région**.
+- Via l'API, chaque réplication porte sur un seul volume. L'espace client OVHcloud permet de sélectionner plusieurs volumes à la fois.
+- Le service de destination doit disposer d'une capacité libre suffisante pour accueillir le volume migré.
+- Seules les données sont répliquées. Les règles d'accès (ACL) et les politiques de snapshots ne sont pas copiées sur le volume de destination.
 
 ## En pratique
 
@@ -72,7 +75,7 @@ Cette route renvoie les services candidats, chacun avec son état de compatibili
       "name": "MyDestinationService"
     },
     "compatible": true,
-    "reason": null
+    "reason": ""
   }
 ]
 ```
@@ -105,26 +108,25 @@ Depuis le service source, lancez la réplication :
 - `sourceShareId` : identifiant du volume à migrer
 - `description` *(facultatif)* : description de la réplication
 
-Récupérez ensuite l'identifiant de la réplication créée :
-
-<Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication"} />
+La réponse contient l'identifiant de la réplication créée (`id`) :
 
 ```json
-[
-  {
-    "id": "{shareReplicationId}",
-    "description": "",
-    "status": "pending",
-    "source": {
-      "serviceID": "{sourceServiceId}",
-      "shareID": "{sourceShareId}"
-    },
-    "destination": {
-      "serviceID": "{destinationServiceId}",
-      "shareID": null
-    }
+{
+  "id": "{shareReplicationId}",
+  "description": "",
+  "status": "pending",
+  "replicaState": null,
+  "progress": null,
+  "createdAt": "2025-12-05T13:15:00Z",
+  "source": {
+    "serviceID": "{sourceServiceId}",
+    "shareID": "{sourceShareId}"
+  },
+  "destination": {
+    "serviceID": "{destinationServiceId}",
+    "shareID": null
   }
-]
+}
 ```
 
 </Tab>
@@ -170,7 +172,8 @@ Le détail de la réplication permet ensuite de récupérer l'identifiant du vol
   "description": "",
   "status": "accepted",
   "replicaState": "out_of_sync",
-  "createdAt": "2025-12-05T13:18:00Z",
+  "progress": 0,
+  "createdAt": "2025-12-05T13:15:00Z",
   "source": {
     "serviceID": "{sourceServiceId}",
     "shareID": "{sourceShareId}"
@@ -202,8 +205,30 @@ Interrogez à nouveau la route de détail de la réplication pour suivre l'avanc
 
 <Api version="v1" section="/storage" method="GET" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
 
-- `replicaState: out_of_sync` — la synchronisation est en cours ; le champ `progress` indique son avancement.
-- `replicaState: in_sync` — les deux volumes sont synchronisés.
+```json
+{
+  "id": "{shareReplicationId}",
+  "description": "",
+  "status": "accepted",
+  "replicaState": "in_sync",
+  "progress": 100,
+  "createdAt": "2025-12-05T13:15:00Z",
+  "source": {
+    "serviceID": "{sourceServiceId}",
+    "shareID": "{sourceShareId}"
+  },
+  "destination": {
+    "serviceID": "{destinationServiceId}",
+    "shareID": "{destinationShareId}"
+  }
+}
+```
+
+Le champ `replicaState` peut prendre les valeurs suivantes :
+
+- `out_of_sync` — la synchronisation est en cours ; le champ `progress` indique le pourcentage de données déjà répliquées.
+- `in_sync` — les deux volumes sont synchronisés.
+- `error` — la réplication a rencontré une erreur.
 
 :::info
 Tant que la réplication est active, toute nouvelle écriture sur le volume source fait temporairement repasser `replicaState` à `out_of_sync`, le temps de répliquer les nouvelles données.
@@ -213,6 +238,12 @@ Tant que la réplication est active, toute nouvelle écriture sur le volume sour
 </Tabs>
 
 ### Étape 5 — Finaliser la migration (cutover)
+
+:::warning
+**Arrêtez toute écriture sur le volume source avant le cutover**, en le démontant de vos clients.
+
+Le cutover aboutira, même si des données écrites sur le volume source n'ont pas encore été répliquées : le volume de destination ne contient que les données jusqu'au dernier transfert terminé. Le volume source ne passe pas en lecture seule : après le cutover, toute nouvelle écriture sur celui-ci n'est plus répliquée vers le volume de destination.
+:::
 
 <Tabs>
 <Tab label="Espace client OVHcloud">
@@ -229,15 +260,40 @@ Une fois `replicaState` à `in_sync`, finalisez la migration en coupant le lien 
 
 <Api version="v1" section="/storage" method="POST" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}/cutover"} />
 
+```json
+{
+  "id": "{shareReplicationId}",
+  "description": "",
+  "status": "cutting_over",
+  "replicaState": "in_sync",
+  "progress": 100,
+  "createdAt": "2025-12-05T13:15:00Z",
+  "source": {
+    "serviceID": "{sourceServiceId}",
+    "shareID": "{sourceShareId}"
+  },
+  "destination": {
+    "serviceID": "{destinationServiceId}",
+    "shareID": "{destinationShareId}"
+  }
+}
+```
+
 **Paramètres :**
 
 - `serviceName` : identifiant unique du service de destination
 - `shareReplicationId` : identifiant de la réplication à finaliser
 
-Cette action met fin à la réplication (`status` passe à `completed` une fois la promotion terminée) et rend le volume de destination autonome.
+Cette action met fin à la réplication et rend le volume de destination autonome : `status` passe à `cutting_over` pendant la promotion, puis à `completed`.
 
 </Tab>
 </Tabs>
+
+### Annuler une réplication
+
+Pour annuler une réplication avant le cutover, par exemple lorsqu'elle est en attente d'acceptation ou en erreur, supprimez-la via l'API :
+
+<Api version="v1" section="/storage" method="DELETE" route={"/storage/netapp/\{serviceName\}/shareReplication/\{shareReplicationId\}"} />
 
 ## Résultat attendu
 
@@ -245,7 +301,11 @@ Cette action met fin à la réplication (`status` passe à `completed` une fois 
 - Le lien de réplication est terminé ; les deux volumes évoluent indépendamment.
 - Le volume source reste inchangé : vous pouvez le supprimer une fois la migration validée.
 
-Pour utiliser le volume migré, remontez-le sur vos clients depuis l'adresse vRack de la nouvelle offre.
+Pour utiliser le volume migré :
+
+1. Recréez les règles d'accès (ACL) sur le volume de destination — consultez le guide [Enterprise File Storage - Gérer les ACL d'un volume](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-volume-acl).
+2. Si nécessaire, configurez une politique de snapshots — consultez le guide [Enterprise File Storage - Gérez vos politiques de snapshots](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-snapshot-policy).
+3. Remontez le volume sur vos clients depuis l'adresse vRack de la nouvelle offre — pour une instance Public Cloud, consultez le guide [Enterprise File Storage - Connecter une instance Public Cloud à un volume EFS via le réseau privé vRack](/guides/storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack).
 
 ## Aller plus loin
 
