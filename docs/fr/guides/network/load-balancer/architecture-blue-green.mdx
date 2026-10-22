@@ -1,0 +1,318 @@
+---
+title: Déployer une architecture blue-green sur un OVHcloud Load Balancer
+description: Concevez un modèle de livraison blue-green sur OVHcloud Load Balancer avec des fermes et frontends appairés pour basculer le trafic sans interruption.
+lastUpdated: 2026-06-05
+---
+
+import Api from '@components/Api';
+import ManagerLink from '@components/ManagerLink';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objectif
+
+Le déploiement blue-green est un modèle de livraison qui fait fonctionner côte à côte deux environnements fonctionnellement identiques : l'un sert le trafic de production en direct (blue) et l'autre héberge la prochaine version candidate (green). Lorsque l'environnement green est validé, vous basculez le trafic de blue vers green en une seule opération, avec la possibilité de revenir immédiatement en arrière si un problème survient.
+
+Ce guide présente une architecture de référence qui met en œuvre ce modèle sur OVHcloud Load Balancer. Il transpose le blue-green sur les composants de base du Load Balancer, les fermes de serveurs et les frontends, et détaille le basculement.
+
+**Dans ce guide, vous allez apprendre à :**
+
+- Transposer un modèle de livraison blue-green sur les fermes et les frontends du Load Balancer.
+- Construire les environnements de production et de préproduction appairés derrière un seul Load Balancer.
+- Effectuer le basculement en production et revenir en arrière si la validation échoue.
+
+:::info
+Il s'agit d'une architecture de référence, et non d'un guide de configuration pas à pas. Pour les étapes détaillées de création de chaque composant, suivez les guides liés sur les fermes de serveurs{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [fermes de serveurs](/guides/network/load-balancer/configure-server-farms) */} et les frontends{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [frontends](/guides/network/load-balancer/configure-frontends) */}.
+:::
+
+## Prérequis
+
+- Un service [OVHcloud Load Balancer](/links/network/load-balancer)
+- Accès à la <ManagerLink to="/">console OVHcloud</ManagerLink>
+- Deux environnements backend configurés de façon identique, par exemple deux [Serveurs dédiés](/links/bare-metal/bare-metal) ou deux ensembles d'instances Public Cloud, l'un hébergeant la production et l'autre la version candidate
+- Une bonne connaissance des fermes et des frontends du Load Balancer. Consultez Qu'est-ce qu'OVHcloud Load Balancer{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Qu'est-ce qu'OVHcloud Load Balancer](/guides/network/load-balancer/what-is-load-balancer) */} et le glossaire{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [glossaire](/guides/network/load-balancer/glossary) */}.
+
+[[cpnav:network-load-balancer]]
+
+## Introduction
+
+OVHcloud Load Balancer répartit le trafic entrant entre les serveurs backend. Deux de ses composants portent le modèle blue-green :
+
+- Une **ferme de serveurs** regroupe un ou plusieurs serveurs backend et leur applique un algorithme d'équilibrage de charge et des health checks.
+- Un **frontend** écoute sur un port public et transmet le trafic vers une ferme par défaut.
+
+Comme la ferme par défaut d'un frontend peut être modifiée et réappliquée à tout moment, le lien entre un port public et un environnement backend relève de la configuration, et non d'un câblage figé. C'est ce découplage qui rend le basculement possible.
+
+## Vue d'ensemble de l'architecture <a name="overview"></a>
+
+Cette section explique comment les composants du Load Balancer expriment le modèle blue-green et quel rôle joue chacun avant et après le basculement.
+
+L'architecture utilise deux fermes et deux frontends :
+
+- La **Ferme A** et la **Ferme B** pointent chacune vers un environnement backend. Les deux environnements sont fonctionnellement identiques ; seuls le code ou la configuration déployés diffèrent à un instant donné.
+- Le **frontend public** écoute sur le port de service standard (par exemple `80` ou `443`) et expose la ferme actuellement en production.
+- Le **frontend de préproduction** écoute sur un port non standard (par exemple `8888`) et expose la ferme candidate, accessible uniquement par votre équipe pour la validation.
+
+Le basculement consiste à échanger la valeur `defaultFarmId` sur les deux frontends, puis à appliquer la configuration en une seule opération. Aucun serveur backend n'est déplacé, recréé ou reconfiguré pendant la bascule.
+
+Le schéma ci-dessous montre l'état initial, où la Ferme A est en production (blue) et la Ferme B est la candidate (green).
+
+<img className="thumbnail" alt="Vue d'ensemble de l'architecture — schéma" src="/images/network/load-balancer/architecture-blue-green/fig-1.fr.svg" loading="lazy" />
+
+Après un basculement réussi, le frontend public pointe vers la Ferme B et le frontend de préproduction pointe vers la Ferme A. Les couleurs suivent le rôle, et non la ferme : la ferme en production est toujours « blue ».
+
+| Composant | Rôle avant le basculement | Rôle après le basculement |
+|---|---|---|
+| Frontend public (port `80`/`443`) | Achemine vers la Ferme A | Achemine vers la Ferme B |
+| Frontend de préproduction (port `8888`) | Achemine vers la Ferme B | Achemine vers la Ferme A |
+| Ferme A | Production (blue) | Candidate (green) |
+| Ferme B | Candidate (green) | Production (blue) |
+
+:::tip
+Conservez une convention de nommage qui reflète le **rôle** plutôt qu'une couleur figée, par exemple `farm-a` / `farm-b` et `frontend-public` / `frontend-staging`. Après plusieurs basculements, des noms figés « blue »/« green » ne correspondent plus à la ferme réellement active.
+:::
+
+## En pratique
+
+**Sommaire :**
+
+- [Vue d'ensemble de l'architecture](#overview)
+- [Construire les deux environnements](#build-environments)
+- [Créer les deux frontends](#create-frontends)
+- [Effectuer le basculement](#cutover)
+- [Revenir en arrière](#rollback)
+- [Vérification](#verification)
+- [Limitations](#limitations)
+- [Résolution des problèmes](#troubleshooting)
+
+### Construire les deux environnements <a name="build-environments"></a>
+
+Cette section crée les deux fermes de serveurs et rattache les serveurs backend qui hébergent chaque environnement. Répétez la procédure deux fois, une fois pour la Ferme A, une fois pour la Ferme B. Les deux fermes exposent le même port de service backend (par exemple `8080`).
+
+{/* CP-STEPS-START:build-environments */}
+
+<Tabs>
+<Tab label="Console">
+
+1. Connectez-vous à la <ManagerLink to="/">console OVHcloud</ManagerLink> et ouvrez votre service Load Balancer.
+2. Sélectionnez l'onglet <code className="action">Fermes de serveurs</code>.
+3. Cliquez sur <code className="action">Créer une ferme</code> et configurez la ferme sur la page **Créer une ferme de serveurs** (protocole, algorithme d'équilibrage de charge et health check), puis cliquez sur <code className="action">Créer la ferme</code>.
+4. Une fois la ferme créée, cliquez sur <code className="action">Ajouter un serveur</code> sur sa carte, saisissez l'adresse IP privée et le port du serveur backend (par exemple `8080`), puis cliquez sur <code className="action">Ajouter le serveur</code>.
+5. Répétez les étapes 3 et 4 pour créer la seconde ferme avec son propre serveur backend.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Créez la ferme de production (Ferme A) :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/http/farm"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+| `port` (body) | Non | Port backend vers lequel la ferme transmet le trafic. | `8080` |
+| `zone` (body) | Oui | Zone dans laquelle la ferme est déployée. | `all` |
+| `displayName` (body) | Non | Nom lisible de la ferme. | `farm-a` |
+
+Rattachez le serveur backend à la ferme :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/http/farm/\{farmId\}/server"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+| `farmId` | Oui | L'identifiant retourné lors de la création de la ferme. | `77212` |
+| `address` (body) | Oui | L'adresse IPv4 du serveur backend. | `10.10.1.100` |
+| `port` (body) | Non | Le port du serveur backend. | `8080` |
+| `displayName` (body) | Non | Le nom du serveur au sein de la ferme. | `server-a` |
+
+Répétez les deux appels pour la Ferme B, en utilisant l'adresse du second serveur backend (par exemple `10.10.2.100`).
+
+:::info
+Les exemples ci-dessus utilisent les endpoints de ferme HTTP. Pour un service TCP ou UDP, remplacez par les routes `/tcp/farm` (ou l'équivalent UDP) ; les paramètres sont identiques.
+:::
+
+</Tab>
+<Tab label="Terraform">
+
+Déclarez chaque ferme avec la ressource `ovh_iploadbalancing_http_farm` et rattachez son serveur backend avec `ovh_iploadbalancing_http_farm_server`. Pour un service TCP ou UDP, utilisez plutôt les ressources `ovh_iploadbalancing_tcp_farm` / `ovh_iploadbalancing_tcp_farm_server` ou `ovh_iploadbalancing_udp_farm` / `ovh_iploadbalancing_udp_farm_server`. Répétez la paire de ressources pour la Ferme A et la Ferme B, en utilisant l'adresse backend de chaque environnement.
+
+</Tab>
+</Tabs>
+
+{/* CP-STEPS-END:build-environments */}
+
+### Créer les deux frontends <a name="create-frontends"></a>
+
+Cette section crée le frontend public et le frontend de préproduction. Chaque frontend écoute sur un port et pointe vers une ferme par l'intermédiaire de son paramètre de ferme par défaut.
+
+Créez le **frontend public** sur le port de service standard et faites-le pointer vers la Ferme A. Créez le **frontend de préproduction** sur un port non standard et faites-le pointer vers la Ferme B.
+
+{/* CP-STEPS-START:create-frontends */}
+
+<Tabs>
+<Tab label="Console">
+
+1. Sélectionnez l'onglet <code className="action">Frontends</code>.
+2. Cliquez sur <code className="action">Créer un frontend</code> pour ouvrir la page **Créer un frontend**.
+3. Définissez le port sur `80` (le frontend public), puis, sous **Route par défaut**, choisissez **Router vers une ferme** et sélectionnez la Ferme A. Cliquez sur <code className="action">Créer le frontend</code>.
+4. Cliquez de nouveau sur <code className="action">Créer un frontend</code>, définissez le port sur `8888` (le frontend de préproduction) et acheminez-le vers la Ferme B.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Créez le frontend public (port `80`, pointant vers la Ferme A) :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/http/frontend"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+| `port` (body) | Oui | Port public exposé par le frontend. | `80` |
+| `zone` (body) | Oui | Zone dans laquelle le frontend est déployé. | `all` |
+| `defaultFarmId` (body) | Non | Identifiant de la ferme vers laquelle ce frontend achemine le trafic. | `77212` |
+| `displayName` (body) | Non | Nom lisible du frontend. | `frontend-public` |
+
+Créez le frontend de préproduction en répétant l'appel avec `port` réglé sur `8888` et `defaultFarmId` réglé sur l'identifiant de la Ferme B.
+
+</Tab>
+<Tab label="Terraform">
+
+Déclarez chaque frontend avec la ressource `ovh_iploadbalancing_http_frontend`, en définissant `port` et en faisant pointer `default_farm_id` vers la ferme appropriée. Pour un service TCP ou UDP, utilisez plutôt la ressource `ovh_iploadbalancing_tcp_frontend` ou `ovh_iploadbalancing_udp_frontend`. Créez le frontend public sur le port `80` pointant vers la Ferme A, et le frontend de préproduction sur le port `8888` pointant vers la Ferme B. Appliquez la configuration avec la ressource `ovh_iploadbalancing_refresh`.
+
+</Tab>
+</Tabs>
+
+Après avoir créé les fermes et les frontends, appliquez la configuration pour que le Load Balancer l'active. Dans la console OVHcloud, ouvrez l'onglet <code className="action">Vue d'ensemble</code> et, sous **Déploiement**, cliquez sur <code className="action">Appliquer N changements</code> (N correspond au nombre de modifications en attente), puis suivez la progression dans l'onglet <code className="action">Opérations</code>. Via l'API, appelez :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/refresh"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+
+{/* CP-STEPS-END:create-frontends */}
+:::info
+Les modifications apportées aux fermes et aux frontends sont mises en attente jusqu'à ce que vous les appliquiez. Rien n'atteint le trafic en direct tant que l'opération d'application n'est pas terminée. C'est ce qui rend le basculement ultérieur atomique.
+:::
+
+### Effectuer le basculement <a name="cutover"></a>
+
+Cette section fait passer la production de la Ferme A à la Ferme B une fois l'environnement candidat validé sur le port de préproduction. La bascule échange la ferme par défaut de chaque frontend, puis applique la modification.
+
+Avant de basculer, déployez et testez votre nouvelle version sur l'environnement situé derrière la Ferme B, en l'atteignant par le port de préproduction (`8888`). Ne poursuivez qu'une fois la version candidate validée.
+
+Le basculement échange deux valeurs :
+
+- Le **frontend public** passe de la Ferme A à la **Ferme B** (la nouvelle production).
+- Le **frontend de préproduction** passe de la Ferme B à la **Ferme A** (la nouvelle candidate / cible de retour arrière).
+
+{/* CP-STEPS-START:cutover */}
+
+<Tabs>
+<Tab label="Console">
+
+1. Sélectionnez l'onglet <code className="action">Frontends</code>.
+2. Sur la ligne du frontend public, cliquez sur le bouton `⋮`, puis sur <code className="action">Modifier</code>. Sur la page **Modifier le frontend**, sous **Route par défaut**, conservez **Router vers une ferme** et sélectionnez la Ferme B. Cliquez sur <code className="action">Enregistrer les modifications</code>.
+3. Sur la ligne du frontend de préproduction, cliquez sur le bouton `⋮`, puis sur <code className="action">Modifier</code>, et sélectionnez la Ferme A sous **Router vers une ferme**. Cliquez sur <code className="action">Enregistrer les modifications</code>.
+4. Dans l'onglet <code className="action">Vue d'ensemble</code>, sous **Déploiement**, cliquez sur <code className="action">Appliquer N changements</code>. Le trafic public sur le port `80` atteint désormais la Ferme B.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Mettez à jour le frontend public pour qu'il achemine vers la Ferme B :
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/http/frontend/\{frontendId\}"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+| `frontendId` | Oui | Identifiant du frontend public. | `70089` |
+| `defaultFarmId` (body) | Non | Identifiant de la nouvelle ferme de production (Ferme B). | `77213` |
+
+Mettez à jour le frontend de préproduction pour qu'il achemine vers la Ferme A :
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/http/frontend/\{frontendId\}"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+| `frontendId` | Oui | Identifiant du frontend de préproduction. | `70090` |
+| `defaultFarmId` (body) | Non | Identifiant de la nouvelle ferme candidate (Ferme A). | `77212` |
+
+Appliquez la modification pour basculer la production de manière atomique :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/refresh"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-abcdef0123456789` |
+
+</Tab>
+<Tab label="Terraform">
+
+Le basculement échange la ferme par défaut de chaque frontend. Modifiez l'argument `default_farm_id` sur chaque ressource `ovh_iploadbalancing_http_frontend` (ou son équivalent `ovh_iploadbalancing_tcp_frontend` / `ovh_iploadbalancing_udp_frontend`) — faites pointer le frontend public vers la Ferme B et le frontend de préproduction vers la Ferme A — puis lancez `terraform apply`. Déclenchez l'activation avec la ressource `ovh_iploadbalancing_refresh`, en utilisant son argument `keepers` pour dépendre des identifiants de ferme mis à jour afin que le rafraîchissement s'exécute après la bascule.
+
+</Tab>
+</Tabs>
+
+{/* CP-STEPS-END:cutover */}
+
+### Revenir en arrière <a name="rollback"></a>
+
+Cette section annule le basculement si la nouvelle version se comporte mal en production. Comme l'environnement précédent reste intact et rattaché à la Ferme A, le retour arrière est la même opération exécutée en sens inverse.
+
+Répétez les étapes du basculement en réinversant les frontends : faites pointer de nouveau le frontend public vers la Ferme A et le frontend de préproduction vers la Ferme B, puis appliquez. Le trafic revient vers l'environnement précédent dès que l'opération d'application est terminée.
+
+:::warning
+Le retour arrière ne restaure l'environnement précédent que si le backend de la Ferme A n'a pas été modifié après le basculement. Ne redéployez pas et ne reconfigurez pas l'ancien environnement tant que vous n'êtes pas certain que la nouvelle version est stable.
+:::
+
+### Vérification <a name="verification"></a>
+
+Cette section confirme que le basculement a acheminé le trafic comme prévu. Effectuez ces vérifications immédiatement après chaque opération d'application.
+
+{/* CP-STEPS-START:verification */}
+
+| Vérification | Comment | Résultat attendu |
+|---|---|---|
+| Le port public sert la nouvelle version | Interrogez le port public : `curl -I http://<lb-ip>:80/` | La réponse identifie la nouvelle version (par exemple un en-tête de version ou le contenu de la page). |
+| Le port de préproduction sert l'ancienne version | Interrogez le port de préproduction : `curl -I http://<lb-ip>:8888/` | La réponse identifie l'environnement précédent, désormais cible de retour arrière. |
+| Configuration appliquée | Consultez l'onglet <code className="action">Opérations</code> et le statut **Déploiement** dans l'onglet <code className="action">Vue d'ensemble</code> de la console OVHcloud, ou `GET /ipLoadbalancing/{serviceName}/http/frontend/{frontendId}` | `defaultFarmId` correspond à la ferme attendue, l'opération est terminée et **Déploiement** affiche **À jour**. |
+| Les backends sont sains | Dans l'onglet <code className="action">Fermes de serveurs</code>, ouvrez le tableau des serveurs de chaque ferme (<code className="action">Serveurs N</code> sur la carte de la ferme) et examinez la colonne **Health check**. Survolez une icône pour afficher le détail du contrôle (par exemple `L4CON: Connection refused`). | Tous les serveurs de la ferme active affichent une coche verte. Une icône d'alerte rouge signale un serveur hors service ; un tiret (—) indique que la ferme n'a pas de health check. |
+
+{/* CP-STEPS-END:verification */}
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/http/frontend/\{frontendId\}"} />
+
+### Limitations <a name="limitations"></a>
+
+Cette section liste les contraintes à prendre en compte lors de l'adoption de ce modèle.
+
+| Limitation | Détails |
+|---|---|
+| Une seule ferme par défaut par frontend | Un frontend achemine vers une seule ferme par défaut. Répartir le trafic simultanément entre blue et green (canary) nécessite des routes HTTP plutôt qu'une simple bascule de ferme. Consultez Configurer des routes HTTP{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer des routes HTTP](/guides/network/load-balancer/configure-http-routes) */}. |
+| Connexions en cours | La bascule modifie le routage des nouvelles connexions. Les connexions existantes vers l'ancienne ferme se vident selon vos paramètres de délai d'expiration plutôt que de s'interrompre instantanément. |
+| Plusieurs ports de service | Un service exposé sur plusieurs ports (par exemple `80` et `443`) nécessite un frontend par port pour chaque rôle. Chacun doit être basculé lors du basculement. |
+| Parité des backends | Le blue-green suppose que les deux environnements sont interchangeables. Des migrations de schéma ou des changements avec état non rétrocompatibles peuvent empêcher le retour arrière. |
+| Portée de l'application | L'opération d'application active toutes les modifications en attente du service, et non uniquement la bascule du frontend. Évitez de laisser des modifications brouillon sans rapport en attente pendant un basculement. |
+
+### Résolution des problèmes <a name="troubleshooting"></a>
+
+Cette section couvre les problèmes courants rencontrés lors d'un basculement blue-green.
+
+{/* CP-STEPS-START:troubleshooting */}
+
+| Problème | Cause possible | Solution |
+|---|---|---|
+| Le port public sert toujours l'ancienne version | La modification n'a pas été appliquée | Appliquez les modifications en attente avec <code className="action">Appliquer N changements</code> sous **Déploiement** dans l'onglet <code className="action">Vue d'ensemble</code>, puis vérifiez que l'opération se termine dans l'onglet <code className="action">Opérations</code>. |
+| La candidate n'est pas accessible sur le port de préproduction | Le port ou la ferme du frontend est mal configuré | Vérifiez que le frontend de préproduction écoute sur le port choisi et que son `defaultFarmId` pointe vers la ferme candidate. |
+| Le trafic alterne entre les versions | Les deux frontends pointent vers la même ferme, ou des frontends en double existent sur le même port | Vérifiez que chaque port correspond à exactement un frontend et que chaque frontend pointe vers une ferme distincte. |
+| Les backends sont marqués comme non sains après la bascule | Le chemin ou le port du health check diffère entre les environnements | Alignez la configuration du health check sur les deux fermes. Consultez Configurer des health checks{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer des health checks](/guides/network/load-balancer/configure-health-probes) */}. |
+
+{/* CP-STEPS-END:troubleshooting */}
+## Aller plus loin
+
+- Architecture résiliente multizone{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Architecture résiliente multizone](/guides/network/load-balancer/architecture-resilient-multi-zone) */}
+- Configurer des fermes de serveurs{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer des fermes de serveurs](/guides/network/load-balancer/configure-server-farms) */}
+- Configurer des routes HTTP{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer des routes HTTP](/guides/network/load-balancer/configure-http-routes) */}
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
