@@ -1,0 +1,345 @@
+---
+title: Build a Vélib' availability dashboard in Superset
+description: "Find out how to build a Superset dashboard on the Vélib' history: bikes available now, daily rhythm, problem stations and daily trends"
+lastUpdated: 2026-10-22
+---
+
+## Objective
+
+This guide walks you through building a Superset dashboard on top of the Vélib' history: where to find a bike right now, how the network breathes during the day, which stations are often empty or full, and how each day compares to the others.
+
+It is the second part of [Collect Vélib' availability every hour with SQL only](/guides/public-cloud/data-platform/tutorials-velib-availability). Superset queries the Lakehouse through [Trino](/guides/public-cloud/data-platform/connectors-consumers-trino), so all SQL on this page is in the **Trino dialect**.
+
+## Requirements
+
+To follow this guide you need:
+
+- The table `velib_raw` and the five views created in [Collect Vélib' availability every hour with SQL only](/guides/public-cloud/data-platform/tutorials-velib-availability#step-7-model-the-data-with-views).
+- An Apache Superset application connected to your project. If you have not deployed it yet, follow the [Deploying Apache Superset on OVHcloud Data Platform](/guides/public-cloud/data-platform/tutorials-install-apache-superset) guide.
+- One Superset dataset per view, `station_current`, `network_hourly`, `station_profile` and `velib_daily`, created in [Step 8 of the collection guide](/guides/public-cloud/data-platform/tutorials-velib-availability#step-8-connect-superset).
+- Ideally, a week of collection: the charts of the *Daily rhythm* and *Trends* tabs fill in as days go by.
+
+## What you will build
+
+At the end of this part, your dashboard looks like this:
+
+<img className="thumbnail" alt="The Now tab of the Vélib' availability dashboard, with the four key figure tiles, the map of the stations by status and the table of empty stations" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-dashboard-now.png" loading="lazy" />
+
+Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+
+| Tab | Content | Dataset |
+|---|---|---|
+| *Now* | 4 tiles, map of the stations, table of empty stations | `station_current` |
+| *Daily rhythm* | bikes hour by hour, typical day, electric and mechanical bikes, two heatmaps | `network_hourly` |
+| *Stations* | most often empty, most often full, docks out of service by commune | `station_profile` |
+| *Trends* | empty station-hours per day, daily figures | `velib_daily` |
+
+Every chart follows the same path in Superset: **Charts** > **+ Chart**, pick the dataset and the chart type, fill in the settings, click **Create chart**, then **Save** with the chart name and the dashboard `Vélib' availability`. The first chart you save creates the dashboard; you lay out the charts in its tabs in [Step 5](#step-5-assemble-the-dashboard).
+
+:::info
+**Note:** your charts will look like the screenshots, but not with the same values: the figures depend on when you collect and for how long. The *Now* tab is complete from the first collection. The *Daily rhythm*, *Stations* and *Trends* tabs only take a similar shape a few days later: until then, the lines are short, the heatmaps have empty cells and the rankings still move.
+:::
+
+## Instructions
+
+### Step 1: Build the Now tab
+
+These charts use the dataset `station_current`: one row per station, at the latest collection.
+
+#### Key figures
+
+The four tiles use the chart type *Big Number*.
+
+| Tile | Metric | Subheader | Number format |
+|---|---|---|---|
+| Bikes available now | *Simple* tab: column `bikes`, aggregate `SUM` | `bikes in stations, latest collection` | `,d` |
+| Electric bikes | *Custom SQL*: `SUM(ebike) * 1e0 / NULLIF(SUM(bikes), 0)` | `of available bikes are electric` | `.1%` |
+| Empty stations | *Custom SQL*: `SUM(CASE WHEN bikes = 0 AND is_open THEN 1 ELSE 0 END)` | `open stations with no bike` | `,d` |
+| Docks out of service | *Custom SQL*: `SUM(CASE WHEN is_open THEN out_of_service_docks ELSE 0 END)` | `docks neither free nor holding a bike` | `,d` |
+
+Expected values: about **19,000** bikes, **39%** of electric bikes, about **100** empty stations and **1,350** docks out of service. The figures change with each collection.
+
+`1e0` avoids an integer division, which would return 0. A closed station is not counted as empty, and in a closed station every dock looks unavailable: the last two tiles only count open stations.
+
+<img className="thumbnail" alt="The Bikes available now Big Number chart with the metric SUM(bikes), showing 18,931" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-bikes-available-now.png" loading="lazy" />
+
+#### Stations by status
+
+The map shows every station, coloured by its state at the latest collection.
+
+| Setting | Value |
+|---|---|
+| Chart type | *deck.gl Scatterplot* |
+| Longitude & Latitude | `lon` and `lat` |
+| Row limit | `10000` |
+| Ignore null locations | checked |
+| Categorical Color | `status` |
+| Minimum Radius | `3` |
+| Tooltip contents | empty |
+| Customize tooltips template | empty |
+
+Use *deck.gl Scatterplot*: it is the only map type that draws one point per station with a colour per category. *MapBox* needs a Mapbox key, which means a third-party account. The grid and hexagon maps group the stations into cells, and lose the station.
+
+<img className="thumbnail" alt="The Stations by status deck.gl Scatterplot with the Categorical Color set to status, and the map of Paris with one point per station coloured as Closed, Available, Empty or Full" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-stations-by-status.png" loading="lazy" />
+
+Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+
+#### Empty stations right now
+
+The table gives the details that the map cannot show in a tooltip.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Table* |
+| Query mode | **Raw records** |
+| Columns | `station_name`, `commune`, `capacity`, `free_docks`, `out_of_service_docks` |
+| Filters | `status` equal to `Empty` |
+| Ordering | `capacity`, descending |
+| Row limit | `250` |
+
+**Raw records** shows one row per station, without grouping. Sorting by capacity brings the largest empty stations first: they leave the most users without a bike.
+
+The table holds as many rows as the *Empty stations* tile shows. For each station, `free_docks` plus `out_of_service_docks` equals `capacity`: an empty station has no bike, so every dock is either free or out of service.
+
+<img className="thumbnail" alt="The Empty stations right now table in Raw records mode, filtered on status Empty and ordered by capacity, led by Dutot - Place Alleray" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-empty-stations-right-now.png" loading="lazy" />
+
+### Step 2: Build the Daily rhythm tab
+
+These charts use the dataset `network_hourly`: one row per hour for the whole network. They fill in as the collection goes on.
+
+#### Bikes in stations, hour by hour
+
+The network breathes: available bikes drop when they are on the road, and come back at night.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Line Chart* |
+| X-axis | `collected_hour` |
+| Time grain | `Hour` |
+| Metrics | *Simple* tab: column `bikes`, aggregate `MAX` |
+| Filters | `collected_hour`: **Last week** |
+
+`network_hourly` already holds one row per hour, so the aggregate groups nothing: `MAX` returns the value of the hour. The filter keeps the last seven days, 168 points, so the chart stays readable as the collection grows.
+
+<img className="thumbnail" alt="The Bikes in stations, hour by hour line chart over the last week, with a peak above 20,000 bikes each night and a drop each day" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-bikes-hour-by-hour.png" loading="lazy" />
+
+This chart shows what really happened, day after day. The next one averages all days into a typical day.
+
+#### Typical day
+
+The average day, hour by hour, with one line for weekdays and one for weekends.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Line Chart* |
+| X-axis | `hour_of_day` |
+| Metrics | *Simple* tab: column `bikes`, aggregate `AVG` |
+| Dimensions | `day_type` |
+| X-axis sort | axis value, ascending |
+
+The X-axis is the hour of the day, from 0 to 23: every 8 a.m. is grouped together, whatever the day, and the average gives the typical number of bikes available at 8 a.m. The *Weekend* line appears on its own once the collection covers a Saturday.
+
+On weekdays, the line drops at the morning rush hour, around 9 a.m., and even lower at the evening one, around 6 p.m.
+
+<img className="thumbnail" alt="The Typical day line chart from 0 to 23 hours, with one line for weekdays and one for weekends, both at their lowest around 6 p.m." src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-typical-day.png" loading="lazy" />
+
+#### Electric and mechanical bikes
+
+Two lines, one per type of bike, to check whether electric bikes leave first.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Line Chart* |
+| X-axis | `collected_hour` |
+| Time grain | `Hour` |
+| Metrics | *Simple* tab: `MAX` of `mechanical`, then `MAX` of `ebike` |
+| Filters | `collected_hour`: **Last week** |
+
+Electric bikes swing much more than mechanical ones: from about 8,500 at night to about 6,000 at rush hours, while mechanical bikes stay between 11,000 and 12,000. About 40% of the parked bikes are electric at night, and fewer at rush hours: electric bikes are taken first.
+
+<img className="thumbnail" alt="The Electric and mechanical bikes line chart over the last week, with the electric bikes line swinging much more than the mechanical one" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-electric-and-mechanical-bikes.png" loading="lazy" />
+
+#### When is it hard to find a bike?
+
+A heatmap of the day of the week against the hour, coloured by the share of empty stations. The darkest cells are the time slots when finding a bike is the hardest.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Heatmap* |
+| X-axis | `hour_of_day` |
+| Y-axis | `day_of_week` |
+| Metric | *Custom SQL*: `AVG(empty_stations * 1e0 / stations)` |
+| Sort X Axis | **Axis ascending** |
+| Sort Y Axis | **Axis descending** |
+| Normalize Across | `heatmap` |
+| Number format | `.1%` |
+| Y-axis title | `Day of week (1 = Monday)` |
+
+The metric divides empty stations by open stations, so the share stays comparable when a few stations close or reopen. `1e0` avoids an integer division.
+
+Sort both axes by their value: the default order follows the query results, and **Metric ascending** sorts the hours by their share of empty stations. **Axis ascending** puts the hours from 0 to 23, and **Axis descending** on the Y-axis puts Monday at the top, like a calendar.
+
+On weekdays, the darkest cells come late in the morning, between 9 and 11 a.m., with up to about 10% of empty stations. Nights and weekends are the lightest.
+
+This does not contradict the typical day, where the fewest bikes are parked around 6 p.m. The evening has fewer bikes in stations, but the morning has them worse spread: the next heatmap shows that full stations also peak late in the morning. Some stations run empty while others fill up, and the number of empty stations measures that imbalance, not the number of bikes.
+
+<img className="thumbnail" alt="The When is it hard to find a bike? heatmap of days of the week against hours, darkest on weekdays between 9 and 11 a.m." src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-heatmap-empty-stations.png" loading="lazy" />
+
+#### When is it hard to return a bike?
+
+The mirror heatmap: the share of open stations with no free dock, where users cannot return their bike.
+
+The quickest way is to save the previous chart under a new name, with **...** > **Save as**, then change the metric and the name.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Heatmap* |
+| X-axis | `hour_of_day` |
+| Y-axis | `day_of_week` |
+| Metric | *Custom SQL*: `AVG(full_stations * 1e0 / stations)` |
+| Sort X Axis | **Axis ascending** |
+| Sort Y Axis | **Axis descending** |
+| Normalize Across | `heatmap` |
+| Number format | `.1%` |
+
+Keep the same sorts as the first heatmap, so that both read cell by cell. Each heatmap has its own colour scale, from its own minimum to its own maximum: compare the values, not only the colours.
+
+Full stations do not peak at the same hours as empty ones: the darkest cells come at night on weekdays, when bikes are parked, and again late in the morning, with up to about 5.5% of full stations.
+
+<img className="thumbnail" alt="The When is it hard to return a bike? heatmap, darkest on weekday nights and late on weekday mornings" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-heatmap-full-stations.png" loading="lazy" />
+
+### Step 3: Build the Stations tab
+
+These charts use the dataset `station_profile`: one row per station, over the whole collection. All three use the chart type *Bar Chart*, with the **Horizontal** orientation: it leaves room for the names.
+
+#### Most often empty
+
+The ten stations that spend the most time without any bike.
+
+| Setting | Value |
+|---|---|
+| X-axis | `station_name` |
+| Metrics | *Simple* tab: column `empty_hours_pct`, aggregate `MAX` |
+| Row limit | `10` |
+| X-axis sort | by the metric, descending |
+| Orientation | **Horizontal**, in the *Customize* tab |
+| Axis title | `Share of hours with no bike (%)` |
+
+`station_profile` already holds one row per station, so `MAX` returns the share of the station.
+
+Stations on hills tend to empty: users ride down, but rarely ride back up. Six of the ten, such as Pyrénées - Ménilmontant or Saint-Fargeau - Mortier, are in the 20th arrondissement, on the Belleville and Ménilmontant hill.
+
+<img className="thumbnail" alt="The Most often empty horizontal bar chart, led by Pyrénées - Ménilmontant and Douai - Pierre Fontaine at 29.6% of hours with no bike" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-most-often-empty.png" loading="lazy" />
+
+#### Most often full
+
+The ten stations where users cannot return their bike, for lack of a free dock.
+
+| Setting | Value |
+|---|---|
+| X-axis | `station_name` |
+| Metrics | *Simple* tab: column `full_hours_pct`, aggregate `MAX` |
+| Row limit | `10` |
+| X-axis sort | by the metric, descending |
+| Orientation | **Horizontal**, in the *Customize* tab |
+| Axis title | `Share of hours with no free dock (%)` |
+
+The quickest way is to save the previous chart under a new name, with **...** > **Save as**, then change the metric, the axis title and the name. Full stations are the mirror image of empty ones: bikes ride down the hills and pile up at the bottom, such as at the station BNF - Bibliothèque Nationale de France.
+
+<img className="thumbnail" alt="The Most often full horizontal bar chart, led by BNF - Bibliothèque Nationale de France at 25.5% of hours with no free dock" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-most-often-full.png" loading="lazy" />
+
+#### Docks out of service by commune
+
+A maintenance view: where broken docks are, relative to the number of docks of each commune.
+
+| Setting | Value |
+|---|---|
+| X-axis | `commune` |
+| Metrics | *Custom SQL*: `SUM(avg_out_of_service_docks) * 1e0 / SUM(capacity)` |
+| Filters | *Custom SQL*, clause **HAVING**: `COUNT(*) >= 5` |
+| Row limit | `15` |
+| X-axis sort | by the metric, descending |
+| Orientation | **Horizontal**, in the *Customize* tab |
+| Number format | `.1%` |
+
+A share rather than a number of docks: Paris alone has about a thousand stations, and would dwarf every other commune in absolute numbers. The `HAVING` filter applies after the grouping by commune, and leaves out communes with fewer than 5 stations, where a single broken dock would push them to the top.
+
+Bobigny and Colombes lead, with more than 10% of their docks out of service. Paris is not in the top 15.
+
+<img className="thumbnail" alt="The Docks out of service by commune horizontal bar chart with the HAVING filter COUNT(*) >= 5, led by Bobigny at 10.8% and Colombes at 10.4%" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-docks-out-of-service-by-commune.png" loading="lazy" />
+
+### Step 4: Build the Trends tab
+
+These charts use the dataset `velib_daily`: one row per day for the whole network. They need several days of collection.
+
+#### Empty station-hours per day
+
+One bar per day: the total of hours spent empty by all stations, an indicator of how hard it was to find a bike that day.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Bar Chart* |
+| X-axis | `day` |
+| Time grain | `Day` |
+| Metrics | *Simple* tab: column `empty_station_hours`, aggregate `MAX` |
+| Dimensions | `day_type` |
+| Filters | *Custom SQL*, clause **WHERE**: `observed_hours >= 23` |
+
+Only complete days count: a day with a few hours of collection would have fewer empty hours, and could not be compared. The threshold of 23 hours rather than 24 tolerates one missed hour. The dimension `day_type` colours weekdays and weekends differently: weekends stay well below weekdays.
+
+Many factors move these figures from one day to the next: the weather, as rain and cold keep users off bikes, school holidays, public holidays, strikes or disruptions on public transport, which send more users to Vélib', and large events. A public holiday, such as 11 November, shows as a weekday, but should look like a Sunday. Compare similar days, and read a change over several days rather than on a single bar.
+
+<img className="thumbnail" alt="The Empty station-hours per day bar chart, with weekdays between about 1,300 and 2,000 empty station-hours and weekends lower" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-empty-station-hours-per-day.png" loading="lazy" />
+
+#### Daily figures
+
+The full table of daily figures, to read the exact values behind the charts.
+
+| Setting | Value |
+|---|---|
+| Chart type | *Table* |
+| Query mode | **Raw records** |
+| Columns | `day`, `day_type`, `observed_hours`, `min_bikes`, `max_bikes`, `daily_swing`, `avg_fill_rate_pct`, `empty_station_hours`, `peak_empty_stations` |
+| Ordering | `day`, descending |
+| Row limit | `100` |
+| Show cell bars | unchecked, in the *Customize* tab |
+| Timestamp format | `%Y-%m-%d`, in the *Customize* tab |
+
+Unlike the previous chart, the table keeps incomplete days: the column `observed_hours` shows which days are complete, and reveals a day with missing collections. The first day of collection, which starts at noon, and the current day show fewer than 24 observed hours.
+
+On a weekday, the network goes from about 20,300 parked bikes at night to about 16,800 at the busiest hour: some 3,500 bikes are in use at the peak.
+
+<img className="thumbnail" alt="The Daily figures table in Raw records mode, one row per day with the observed hours, the fewest and most bikes and the daily swing" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-daily-figures.png" loading="lazy" />
+
+### Step 5: Assemble the dashboard
+
+1. Open **Dashboards**, then the dashboard `Vélib' availability`, and click **Edit dashboard**.
+2. From *Layout elements*, add a *Tabs* component with four tabs: `Now`, `Daily rhythm`, `Stations` and `Trends`.
+3. From *Charts*, place the charts in each tab:
+
+| Tab | Charts, in order | Layout |
+|---|---|---|
+| *Now* | Bikes available now, Electric bikes, Empty stations, Docks out of service, Stations by status, Empty stations right now | the four tiles on one row, then the map and the table at full width |
+| *Daily rhythm* | Bikes in stations, hour by hour, Typical day, Electric and mechanical bikes, When is it hard to find a bike?, When is it hard to return a bike? | the timeline at full width, the typical day and the electric bikes side by side, then the two heatmaps at full width |
+| *Stations* | Most often empty, Most often full, Docks out of service by commune | the two rankings side by side, then the communes at full width |
+| *Trends* | Empty station-hours per day, Daily figures | the chart at full width, then the table |
+
+4. Click **Save**.
+
+<img className="thumbnail" alt="The Daily rhythm tab of the dashboard, with the hour by hour timeline, the typical day and the electric bikes side by side, and the two heatmaps" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-dashboard-daily-rhythm.png" loading="lazy" />
+
+## What you have built
+
+You have a four-tab dashboard that turns a raw Vélib' history into answers: where to find a bike now, when the network is under strain, which stations fail their users most often, and how each day compares to the others.
+
+From here you can add dashboard filters on `commune`, or apply the same pipeline to another public API that only gives a current state. For another Superset dashboard built on Data Platform, see [Build a sales dashboard for an online store in Superset](/guides/public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard).
+
+## Go further
+
+[[fragment:professional-services|en]]
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

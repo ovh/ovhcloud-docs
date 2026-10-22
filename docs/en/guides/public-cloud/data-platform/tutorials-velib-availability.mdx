@@ -1,0 +1,522 @@
+---
+title: Collect Vélib' availability every hour with SQL only
+description: Find out how to collect the availability of every Vélib' station in Paris every hour from a public API, build its history and model it with SQL views ready for Superset
+lastUpdated: 2026-10-22
+---
+
+## Objective
+
+This guide walks you through collecting the availability of every Vélib' station in Paris from a public API, every hour, building a clean history of it and modelling it with SQL views ready for Apache Superset. You connect the API with an [HTTP REST source](/guides/public-cloud/data-platform/connectors-sources-rest), create the history table in [Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-tables), date and deduplicate each collection with [Data Processing Engine](/guides/public-cloud/data-platform/dpe-actions-sql), then model the history with [views](/guides/public-cloud/data-platform/lakehouse-manager-views). Everything happens in the Data Platform interface and in SQL: no line of Python.
+
+The Vélib' API only gives the current state of each station. By polling it regularly, you build the history it does not keep, and that history is what you analyse.
+
+By the end you will have the table `velib_raw`, which grows on its own every hour, and five SQL views on top of it, ready to query from Apache Superset. The second part of the guide, [Build a Vélib' availability dashboard in Superset](/guides/public-cloud/data-platform/tutorials-velib-availability-superset-dashboard), turns them into a dashboard.
+
+## Requirements
+
+To follow this guide you need:
+
+- A Data Platform project. This guide uses a project named `velib-availability`.
+- Nothing else: the API is public and needs no account or key.
+
+:::info
+**About the data:** [Vélib - Vélos et bornes - Disponibilité temps réel](https://opendata.paris.fr/explore/dataset/velib-disponibilite-en-temps-reel/), © Smovengo / Syndicat Autolib' Vélib' Métropole, published by Ville de Paris under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
+
+When you reuse these data, mention their producers and the ODbL licence. transport.data.gouv.fr applies [special conditions of use](https://doc.transport.data.gouv.fr/le-point-d-acces-national/cadre-juridique/conditions-dutilisation-des-donnees/licence-odbl) to the share-alike clause of the licence: it only covers a derived database of the same nature, granularity, temporal conditions and geographic extent as the original data. Check these conditions before you publish data built from this dataset.
+:::
+
+We recommend completing the [Getting Started guides](/guides/public-cloud/data-platform/landing-page-getting-started) first. This guide assumes you are comfortable with the main components of Data Platform.
+
+## What you will build
+
+| Stage | Component | Result |
+|---|---|---|
+| 1. Connect the API | [HTTP REST source](/guides/public-cloud/data-platform/connectors-sources-rest) | A source that returns the 1,519 stations |
+| 2. Check the attributes | [Analyzer](/guides/public-cloud/data-platform/landing-page-connectors-analyzer) | Types you can rely on |
+| 3. Create the history table | [Lakehouse Manager tables](/guides/public-cloud/data-platform/lakehouse-manager-tables) | `velib_raw`, with two collection columns |
+| 4. Date each collection | [SQL action](/guides/public-cloud/data-platform/dpe-actions-sql) | Every row knows when it was collected |
+| 5. Keep one row per station and hour | [Deduplicate action](/guides/public-cloud/data-platform/dpe-actions-deduplicate) | No duplicate, even when both runs of an hour succeed |
+| 6. Schedule the collection every hour | [Workflow](/guides/public-cloud/data-platform/dpe-workflows) and a [trigger](/guides/public-cloud/data-platform/dpe-jobs-preferences) | One collection per hour, with a second run as a safety net |
+| 7. Model the data | [Lakehouse Manager views](/guides/public-cloud/data-platform/lakehouse-manager-views) | Five views ready for analysis |
+| 8. Connect Superset | [Trino consumer](/guides/public-cloud/data-platform/connectors-consumers-trino) and [Apache Superset](/guides/public-cloud/data-platform/tutorials-install-apache-superset) | One Superset dataset per view |
+
+## Instructions
+
+### Step 1: Connect the API
+
+The dataset has an **export** endpoint that returns every station in one call:
+
+```
+https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/velib-disponibilite-en-temps-reel/exports/json
+```
+
+The `records` endpoint shown in the *API* tab of Paris Data returns a limited number of results per call. The export endpoint returns all **1,519** stations at once.
+
+1. Open **Connectors** > **Sources** and create a new source of type *HTTP REST*.
+2. Name it `velib`.
+3. In *Base URL*, enter `https://opendata.paris.fr/api/explore/v2.1/`. Keep *SSL Verify* on and *Authentication mode* set to **None**, then click **Connect**.
+
+<img className="thumbnail" alt="The HTTP REST source velib with the Paris Data base URL, SSL Verify turned on and no authentication" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/connectors-http-rest-base-url.png" loading="lazy" />
+
+4. In *Endpoints to connect*, click **Add an endpoint** and fill in the endpoint:
+
+| Setting | Value |
+|---|---|
+| Method | `GET` |
+| Endpoint | `/catalog/datasets/velib-disponibilite-en-temps-reel/exports/json` |
+| Source object technical name, in the *Options* tab | `stations` |
+| Pagination, in the *Options* tab | None |
+
+5. Click **Confirm**.
+
+<img className="thumbnail" alt="The Configure an endpoint window with the GET method, the export endpoint path and the technical name stations" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/connectors-http-rest-endpoint.png" loading="lazy" />
+
+6. Click **Create**.
+
+The source lists one endpoint, `stations.json`.
+
+<img className="thumbnail" alt="The source velib with its base URL and the endpoint stations.json" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/connectors-http-rest-source.png" loading="lazy" />
+
+Each station comes with its availability and its description:
+
+```json
+{
+  "stationcode": "40001",
+  "name": "Hôpital Mondor",
+  "is_installed": "OUI",
+  "capacity": 28,
+  "numdocksavailable": 20,
+  "numbikesavailable": 7,
+  "mechanical": 3,
+  "ebike": 4,
+  "is_renting": "OUI",
+  "is_returning": "OUI",
+  "duedate": "2026-10-07T06:27:24+00:00",
+  "coordonnees_geo": { "lon": 2.4537451531298, "lat": 48.798922410229 },
+  "nom_arrondissement_communes": "Créteil",
+  "code_insee_commune": "94028",
+  "station_opening_hours": null
+}
+```
+
+### Step 2: Check the attributes
+
+1. Open **Connectors** > **Analyzer**.
+2. Select the source `velib`, then `stations.json`.
+3. Click **Extract metadata**.
+
+The [Analyzer](/guides/public-cloud/data-platform/connectors-analyzer-extract-metadata) detects the types on a sample of 1,000 rows. Check them now: once the table is created, you cannot change the type of its attributes.
+
+| Attribute | Detected type | What to know |
+|---|---|---|
+| `stationcode` | Double | Station codes never start with a zero, so the number loses nothing. The views turn it back into text. |
+| `code_insee_commune` | Double | Same as above. |
+| `coordonnees_geo.lon`, `coordonnees_geo.lat` | String | The nested object is split into two attributes. The views convert them to numbers. |
+| `duedate` | DateTime | The Analyzer adds two [blueprint rules](/guides/public-cloud/data-platform/connectors-analyzer-blueprint-rules) on its own: they turn the text into a date and time, and keep it in UTC. |
+| `station_opening_hours` | String | Always empty. Clear its checkbox. |
+| `is_installed`, `is_renting`, `is_returning` | String | `OUI` or `NON`. The views turn them into booleans. |
+
+<img className="thumbnail" alt="The Analyzer showing the attributes detected in stations.json, with station_opening_hours cleared" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/connectors-analyzer.png" loading="lazy" />
+
+### Step 3: Create the history table
+
+#### Create the table
+
+1. Open **Lakehouse Manager** > **Tables** and click **New table** > **Create from a Connectors source**.
+2. Select `stations.json` from the source `velib`, then click **Next**.
+
+<img className="thumbnail" alt="The Create table from stations.json window with stations.json from the source velib selected" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-create-table-from-connector.png" loading="lazy" />
+
+3. Name the table `velib_raw`, keep the dataset `default_dataset`, and keep the three options turned on: *Automatically build the table*, *Automatically load the table once* and *Automatically generate Load action for later*.
+4. Click **Create**.
+
+<img className="thumbnail" alt="The table settings with the name velib_raw, the dataset default_dataset and the three automatic options turned on" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-create-table-settings.png" loading="lazy" />
+
+The table holds **1,519 rows**, one per station. The nested coordinates become `coordonnees_geo_lat` and `coordonnees_geo_lon`.
+
+<img className="thumbnail" alt="The table velib_raw listed in Lakehouse Manager, with the logs of its creation and first load" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-table-loaded.png" loading="lazy" />
+
+#### Add the collection columns
+
+The API does not say when you collected a station. Two columns record it:
+
+| Column | Type | Role |
+|---|---|---|
+| `collected_at` | Datetime | Exact time of the collection |
+| `collected_hour` | Datetime | Same time, rounded down to the hour |
+
+1. Open the table `velib_raw`, then its *Schema* tab.
+2. Click **New attribute**, name it `collected_at`, select the data type *Datetime* and click **Save**. Do the same for `collected_hour`.
+
+<img className="thumbnail" alt="The New attribute window for collected_at on the table velib_raw" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-new-attribute.png" loading="lazy" />
+
+3. Click **Build**: adding attributes changes the structure of the table.
+
+<img className="thumbnail" alt="The Schema tab of velib_raw with the Datetime attributes collected_at and collected_hour" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-table-schema.png" loading="lazy" />
+
+#### Empty the table
+
+The first load has no collection time. Empty the table with a [Delete action](/guides/public-cloud/data-platform/dpe-actions-delete) before the first real collection:
+
+1. Open **Data Processing Engine** > **Actions**, click **New action** and select the *Delete* action.
+2. In *Table list*, move `velib_raw` to *Table to empty*.
+3. Click **Create**, then run the action.
+
+<img className="thumbnail" alt="The Delete action with velib_raw in the Table to empty list" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/dpe-delete-action.png" loading="lazy" />
+
+In the [Explorer](/guides/public-cloud/data-platform/lakehouse-manager-explorer), `SELECT count(*) FROM velib_raw` returns 0.
+
+### Step 4: Date each collection
+
+Create an [SQL action](/guides/public-cloud/data-platform/dpe-actions-sql) that dates the rows that have just been loaded.
+
+1. In **Data Processing Engine** > **Actions**, click **New action** and select the *SQL* action.
+2. Name it `Stamp collection time`.
+3. In the *Tables* panel, click the copy icon of `velib_raw`: an SQL action needs the full name `catalog.schema.table`, and the catalog name is specific to your project.
+4. Paste the query below, with that full name in place of `<catalog>.default_dataset.velib_raw`:
+
+    ```sql
+    UPDATE <catalog>.default_dataset.velib_raw
+    SET collected_at   = CAST(current_timestamp AT TIME ZONE 'UTC' AS timestamp(6)),
+        collected_hour = date_trunc('hour', CAST(current_timestamp AT TIME ZONE 'UTC' AS timestamp(6)))
+    WHERE collected_at IS NULL
+    ```
+
+5. Click **Validate**. Validation is a dry run: it checks the query without changing the table.
+6. Click **Create**.
+
+<img className="thumbnail" alt="The SQL action Stamp collection time with the UPDATE query on the full name of velib_raw and a successful validation" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/dpe-sql-action-stamp.png" loading="lazy" />
+
+`WHERE collected_at IS NULL` only dates the rows of the current collection: earlier collections keep their time. Times are stored in UTC, like `duedate`.
+
+#### Check a first collection
+
+1. Run the *Load* action of `velib_raw`, generated when you created the table.
+2. Run `Stamp collection time`.
+3. In the Explorer, run:
+
+    ```sql
+    SELECT count(*) AS rows, count(collected_at) AS stamped, min(collected_at) AS first_collection, max(collected_at) AS last_collection
+    FROM velib_raw
+    ```
+
+You get **1,519** rows, all stamped, with a single collection time in UTC.
+
+### Step 5: Keep one row per station and hour
+
+If a run fails between the load and the stamp, the next run loads the stations again, and the stamp dates both loads at once. Each station then has two rows for the same hour, possibly with different figures. The [Deduplicate action](/guides/public-cloud/data-platform/dpe-actions-deduplicate) keeps only the most recent one.
+
+1. In **Data Processing Engine** > **Actions**, click **New action** and select the *Deduplicate* action.
+2. Fill in the action:
+
+| Setting | Value |
+|---|---|
+| Table | `velib_raw` from `default_dataset` |
+| Key column(s) | `stationcode`, `collected_hour` |
+| Row to keep | *Most recent / oldest entry*, then **Most recent**, ordered by the column `collected_at` |
+| Keep a backup of this table | Off: [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) already keeps the previous state |
+
+3. Click **Scan**: it estimates, without changing anything, how many rows the key would remove. On a single collection, it finds no duplicate.
+4. Click **Create**. The action is named `Deduplicate - velib_raw`.
+
+<img className="thumbnail" alt="The Deduplicate action on velib_raw with the key stationcode and collected_hour, the most recent row kept by collected_at, and a Scan that finds no duplicate" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/dpe-deduplicate-action.png" loading="lazy" />
+
+### Step 6: Schedule the collection every hour
+
+#### Create the workflow
+
+1. Open **Data Processing Engine** > **Workflows** and click **New workflow**.
+2. Name it `Vélib collection`.
+3. Add one action per stage, in this order:
+
+| Stage | Action |
+|---|---|
+| 1 | `velib_raw`, the *Load* action of the table |
+| 2 | `Stamp collection time` |
+| 3 | `Deduplicate - velib_raw` |
+
+4. Click **Create**.
+
+<img className="thumbnail" alt="The workflow Vélib collection with the Load action, Stamp collection time and Deduplicate - velib_raw in three successive stages" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/dpe-workflow.png" loading="lazy" />
+
+Each action must be in its own stage: actions of the same stage run at the same time, and each step here needs the previous one to be finished.
+
+#### Schedule it
+
+In the *Preferences* tab of the workflow, in the *Triggers* section, click **Add** and fill in the time-based [trigger](/guides/public-cloud/data-platform/dpe-jobs-preferences#time-based-trigger):
+
+| Setting | Value |
+|---|---|
+| Name | `Twice an hour` |
+| Type | Cron |
+| Mode | Advanced |
+| Expression | `7,37 * * * *` |
+
+Click **Confirm**.
+
+<img className="thumbnail" alt="The New trigger window with the cron expression 7,37 * * * * in Advanced mode, read as at 7 and 37 minutes past the hour UTC" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/dpe-workflow-trigger.png" loading="lazy" />
+
+The goal is one collection per hour. The workflow runs twice, at minutes 7 and 37 of every hour, UTC: the second run is a safety net, in case the first one fails. Both runs of an hour get the same `collected_hour`, and the Deduplicate action keeps the most recent one, so each hour holds one row per station either way. Minute 0 is avoided on purpose, because many scheduled jobs start at that moment.
+
+#### Check the collection
+
+After a few hours, each hour holds exactly one row per station:
+
+```sql
+SELECT collected_hour, count(*) AS stations
+FROM velib_raw
+GROUP BY collected_hour
+ORDER BY collected_hour DESC
+```
+
+Every line shows **1,519**. A missing hour points to runs that failed; a number above 1,519 to a deduplication that did not run. Step 7 gives a query that lists the missing hours.
+
+### Step 7: Model the data with views
+
+Five views turn the raw history into data ready for analysis. Create each one in **Lakehouse Manager** > **Views** > **New View**, in the dataset `default_dataset`, in the order below: each view reads the ones before it.
+
+| View | One row is | Used for |
+|---|---|---|
+| `station_hourly` | a station at a given hour | the base of every other view |
+| `network_hourly` | the whole network at a given hour | the daily rhythm |
+| `station_profile` | a station over the whole period | rankings of stations |
+| `velib_daily` | the whole network on a given day | trends, day after day |
+| `station_current` | a station at the latest collection | the map and the current figures |
+
+<img className="thumbnail" alt="The Create a new view window with the view name station_hourly, the target dataset default_dataset and its SQL definition" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-new-view.png" loading="lazy" />
+
+:::info
+**Note:** inside a view, a table needs only its name, `velib_raw`: the catalog and schema are resolved for you. A view read by another view needs its full name, `catalog.schema.view`. Replace `<catalog>` with the catalog name of your project, the one you copied in Step 4.
+:::
+
+#### station_hourly
+
+Converts the types, renames the columns and converts the collection hour to Paris time.
+
+```sql
+SELECT
+    CAST(CAST(stationcode AS BIGINT) AS VARCHAR)                         AS station_code,
+    name                                                                 AS station_name,
+    nom_arrondissement_communes                                          AS commune,
+    CAST(coordonnees_geo_lat AS DOUBLE)                                  AS lat,
+    CAST(coordonnees_geo_lon AS DOUBLE)                                  AS lon,
+    capacity,
+    numbikesavailable                                                    AS bikes,
+    mechanical,
+    ebike,
+    numdocksavailable                                                    AS free_docks,
+    capacity - numbikesavailable - numdocksavailable                     AS out_of_service_docks,
+    is_installed = 'OUI' AND is_renting = 'OUI'                          AS is_open,
+    CAST(with_timezone(collected_hour, 'UTC') AT TIME ZONE 'Europe/Paris' AS timestamp(6)) AS collected_hour
+FROM velib_raw
+```
+
+`capacity - numbikesavailable - numdocksavailable` gives the docks that are neither free nor holding a bike: docks out of service. The final `CAST` keeps the Paris time without a time zone, so that Superset handles `collected_hour` as an ordinary date.
+
+#### network_hourly
+
+```sql
+SELECT
+    collected_hour,
+    hour(collected_hour)                                                  AS hour_of_day,
+    day_of_week(collected_hour)                                           AS day_of_week,
+    CASE WHEN day_of_week(collected_hour) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+    count(*)                                                              AS stations,
+    sum(bikes)                                                            AS bikes,
+    sum(mechanical)                                                       AS mechanical,
+    sum(ebike)                                                            AS ebike,
+    sum(free_docks)                                                       AS free_docks,
+    sum(out_of_service_docks)                                             AS out_of_service_docks,
+    count_if(bikes = 0)                                                   AS empty_stations,
+    count_if(free_docks = 0)                                              AS full_stations,
+    round(100.0 * sum(bikes) / sum(capacity), 1)                          AS fill_rate_pct
+FROM <catalog>.default_dataset.station_hourly
+WHERE is_open
+GROUP BY collected_hour
+```
+
+Only open stations count: a closed station is neither empty nor full for a user.
+
+#### station_profile
+
+```sql
+SELECT
+    station_code,
+    max(station_name)                                                  AS station_name,
+    max(commune)                                                       AS commune,
+    max(lat)                                                           AS lat,
+    max(lon)                                                           AS lon,
+    max(capacity)                                                      AS capacity,
+    count(*)                                                           AS observed_hours,
+    round(100e0 * count_if(bikes = 0) / count(*), 1)                   AS empty_hours_pct,
+    round(100e0 * count_if(free_docks = 0) / count(*), 1)              AS full_hours_pct,
+    round(100e0 * sum(bikes) / nullif(sum(capacity), 0), 1)            AS avg_fill_rate_pct,
+    round(avg(out_of_service_docks), 1)                                AS avg_out_of_service_docks
+FROM <catalog>.default_dataset.station_hourly
+WHERE is_open
+GROUP BY station_code
+```
+
+#### velib_daily
+
+```sql
+SELECT
+    CAST(collected_hour AS date)                                          AS day,
+    CASE WHEN day_of_week(collected_hour) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+    count(*)                                                              AS observed_hours,
+    min(bikes)                                                            AS min_bikes,
+    max(bikes)                                                            AS max_bikes,
+    max(bikes) - min(bikes)                                               AS daily_swing,
+    round(avg(bikes))                                                     AS avg_bikes,
+    round(avg(fill_rate_pct), 1)                                          AS avg_fill_rate_pct,
+    sum(empty_stations)                                                   AS empty_station_hours,
+    max(empty_stations)                                                   AS peak_empty_stations
+FROM <catalog>.default_dataset.network_hourly
+GROUP BY CAST(collected_hour AS date), CASE WHEN day_of_week(collected_hour) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END
+```
+
+| Column | Meaning |
+|---|---|
+| `daily_swing` | Difference between the most and the fewest bikes parked during the day: an estimate of the bikes in use at the peak, not a number of trips |
+| `empty_station_hours` | Total of hours spent empty by all stations: a station empty for 3 hours counts for 3 |
+| `observed_hours` | Number of collections of the day: a day with fewer than 24 is incomplete |
+
+#### station_current
+
+```sql
+SELECT
+    station_code,
+    station_name,
+    commune,
+    lat,
+    lon,
+    capacity,
+    bikes,
+    mechanical,
+    ebike,
+    free_docks,
+    out_of_service_docks,
+    is_open,
+    round(100e0 * bikes / nullif(capacity, 0), 1)                     AS fill_rate_pct,
+    CASE
+        WHEN NOT is_open      THEN 'Closed'
+        WHEN bikes = 0        THEN 'Empty'
+        WHEN free_docks = 0   THEN 'Full'
+        ELSE 'Available'
+    END                                                                AS status,
+    collected_hour
+FROM <catalog>.default_dataset.station_hourly
+WHERE collected_hour = (
+    SELECT max(collected_hour)
+    FROM <catalog>.default_dataset.station_hourly
+)
+```
+
+#### Check the views
+
+In the Explorer, prefix each view with its dataset:
+
+```sql
+SELECT count(*) AS stations, max(collected_hour) AS last_collection, sum(bikes) AS bikes
+FROM default_dataset.station_current
+```
+
+You get 1,519 stations and the latest collection hour, in Paris time.
+
+To list the hours with no collection, generate every hour of the period and keep those missing from `station_hourly`. Inside a `WITH`, the view needs its full name:
+
+```sql
+WITH bounds AS (
+    SELECT min(collected_hour) AS first_hour, max(collected_hour) AS last_hour
+    FROM <catalog>.default_dataset.station_hourly
+),
+hours AS (
+    SELECT h AS collected_hour
+    FROM bounds
+    CROSS JOIN UNNEST(sequence(first_hour, last_hour, INTERVAL '1' HOUR)) AS t(h)
+)
+SELECT h.collected_hour
+FROM hours h
+LEFT JOIN (
+    SELECT DISTINCT collected_hour
+    FROM <catalog>.default_dataset.station_hourly
+) s
+  ON s.collected_hour = h.collected_hour
+WHERE s.collected_hour IS NULL
+ORDER BY h.collected_hour
+```
+
+During a first week of hourly collection, 11 hours out of about 120 were missing. Their logs showed the same error on every action of the run: the query engine of the project answered `error 503: service unavailable`. The second run of each hour is there to fill these gaps.
+
+### Step 8: Connect Superset
+
+All the data is now ready in the Lakehouse. To analyse it, create an Apache Superset application:
+
+1. Create a Trino connection by following the [Generate a Trino connection string for external tools](/guides/public-cloud/data-platform/connectors-consumers-trino) guide. Copy the connection string before you close the window: it is not shown again.
+
+<img className="thumbnail" alt="The Trino Consumer creation success window, with the connection string hidden and the warning that it is shown only once" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/connectors-trino-connection-string.png" loading="lazy" />
+
+2. Create the application and connect it to Trino by following Steps 1 to 3 of the [Deploying Apache Superset on OVHcloud Data Platform](/guides/public-cloud/data-platform/tutorials-install-apache-superset) guide.
+
+<img className="thumbnail" alt="The Databases page of Superset with the Trino database connected" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-database-connections.png" loading="lazy" />
+
+#### Create the datasets in Superset
+
+1. In Superset, open **Datasets** and click **+ Dataset**.
+2. Select the Trino database, then the schema `default_dataset` and the view `station_current`.
+3. Click **Create and explore dataset**.
+4. Do the same for `network_hourly`, `station_profile` and `velib_daily`.
+
+`station_hourly` only feeds the other views: it does not need a dataset.
+
+<img className="thumbnail" alt="The Datasets page of Superset listing velib_daily, station_profile, network_hourly and station_current on the Trino database" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-datasets-list.png" loading="lazy" />
+
+## Good to know
+
+- **The API dates the station, not the change.** `duedate` can stay the same while bikes come and go, so it cannot tell two states apart: see [Why duedate is not the deduplication key](#why-duedate-is-not-the-deduplication-key).
+- **Schedules are in UTC.** Paris is one or two hours ahead, depending on the season.
+- **Load adds rows.** Each run of the *Load* action appends the current state of every station: the history grows without any setting.
+
+### Why duedate is not the deduplication key
+
+The obvious key for a history of stations is the station and its update time, `stationcode` and `duedate`. It looks right: two collections of a station that did not update return the same `duedate`.
+
+[Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) shows it is wrong. On the table as it was before a first deduplication, 676 of the 1,463 duplicated keys had different figures. For example, the station **Turbigo - Française** had the same `duedate` in two collections, 06:28:26 UTC, with different figures:
+
+| Bikes | Mechanical | Electric | Free docks |
+|---|---|---|---|
+| 9 | 7 | 2 | 7 |
+| 10 | 7 | 3 | 6 |
+
+Someone returned an electric bike between the two collections, and `duedate` did not change. Deduplicating on `duedate` would have kept one of the two rows at random, and lost a real change. The collection time, which you control, is a key you can trust.
+
+The check that revealed it:
+
+```sql
+SELECT count(*) AS keys_with_different_values
+FROM (
+    SELECT stationcode, duedate
+    FROM velib_raw FOR VERSION AS OF <snapshot ID before the deduplication>
+    GROUP BY stationcode, duedate
+    HAVING count(*) > 1
+       AND (count(DISTINCT numbikesavailable) > 1 OR count(DISTINCT numdocksavailable) > 1)
+)
+```
+
+Check that a deduplication key identifies truly identical rows before you trust it: the Scan of the Deduplicate action counts duplicates, but does not say whether they are identical.
+
+## What you have built
+
+You have a history of every Vélib' station, collected every hour from a live public API, with a second run as a safety net, cleaned of duplicates and modelled by five SQL views, all without a line of Python, and four Superset datasets on top of it.
+
+The next part, [Build a Vélib' availability dashboard in Superset](/guides/public-cloud/data-platform/tutorials-velib-availability-superset-dashboard), turns these datasets into a dashboard: bikes available now, daily rhythm, problem stations and daily trends.
+
+## Go further
+
+[[fragment:professional-services|en]]
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
