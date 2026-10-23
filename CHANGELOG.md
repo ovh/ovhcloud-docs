@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.10.23
+
+### Maintenance
+
+#### EU
+- **public-cloud:** set lastUpdated to merge date of #952 (2026-10-23) (#1067)
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.21
 
 ### Fixes
