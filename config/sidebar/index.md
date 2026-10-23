@@ -2500,6 +2500,7 @@
                 + [Ligne SIP - Configuration sur un softphone / téléphone personnel](web-cloud/phone-and-fax/voip/register-sip-softphone)
                 + [Enregistrer une ligne SIP OVHcloud sur Zoiper](web-cloud/phone-and-fax/voip/register-sip-softphone-zoiper)
                 + [Tutoriel - Utiliser une ligne SIP OVHcloud sur Linphone](web-cloud/phone-and-fax/voip/register-sip-softphone-linphone)
+                + [Enregistrer une ligne SIP OVHcloud sur AlloDesk](web-cloud/phone-and-fax/voip/register-sip-softphone-allodesk)
             + [Security](web-cloud-phone-and-fax-voip-security)
                 + [Sécuriser sa ligne SIP OVHcloud](web-cloud/phone-and-fax/voip/secure-sip-line)
                 + [Modifier le mot de passe d'une ligne SIP](web-cloud/phone-and-fax/voip/modifier-mot-de-passe-ligne-sip)
