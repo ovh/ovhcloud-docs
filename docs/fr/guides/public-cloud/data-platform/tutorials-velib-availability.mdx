@@ -17,7 +17,7 @@ L'API Vélib' ne donne que l'état actuel de chaque station. En l'interrogeant r
 Pour suivre ce guide, vous devez :
 
 - Disposer d'un projet Data Platform. Ce guide utilise un projet nommé `velib-availability`.
-- Rien d'autre : l'API est publique et ne demande ni compte ni clé.
+- Rien d'autre pour collecter les données : l'API est publique et ne demande ni compte ni clé. L'étape 8 déploie une application Apache Superset, facturée pour le temps où elle reste déployée : voir la [tarification de la Data Platform](/guides/public-cloud/data-platform/manage-pricing).
 
 :::info
 **À propos des données :** [Vélib - Vélos et bornes - Disponibilité temps réel](https://opendata.paris.fr/explore/dataset/velib-disponibilite-en-temps-reel/), © Smovengo / Syndicat Autolib' Vélib' Métropole, publié par la Ville de Paris sous [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
@@ -31,7 +31,7 @@ Avant de commencer, nous vous recommandons de suivre les [guides de démarrage](
 
 | Étape | Composant | Résultat |
 |---|---|---|
-| 1. Connecter l'API | [Source HTTP REST](/guides/public-cloud/data-platform/connectors-sources-rest) | Une source qui renvoie les 1 519 stations |
+| 1. Connecter l'API | [Source HTTP REST](/guides/public-cloud/data-platform/connectors-sources-rest) | Une source qui renvoie toutes les stations |
 | 2. Vérifier les attributs | [Analyzer](/guides/public-cloud/data-platform/landing-page-connectors-analyzer) | Des types fiables |
 | 3. Créer la table d'historique | [Tables du Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-tables) | `velib_raw`, avec deux colonnes de collecte |
 | 4. Dater chaque collecte | [Action SQL](/guides/public-cloud/data-platform/dpe-actions-sql) | Chaque ligne sait quand elle a été collectée |
@@ -50,7 +50,7 @@ Le jeu de données dispose d'un endpoint d'**export** qui renvoie toutes les sta
 https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/velib-disponibilite-en-temps-reel/exports/json
 ```
 
-L'endpoint `records` présenté dans l'onglet *API* de Paris Data renvoie un nombre limité de résultats par appel. L'endpoint d'export renvoie les **1 519** stations d'un coup.
+L'endpoint `records` présenté dans l'onglet *API* de Paris Data renvoie un nombre limité de résultats par appel. L'endpoint d'export renvoie toutes les stations d'un coup : environ 1 500, 1 519 le 22 octobre 2026.
 
 1. Ouvrez **Connectors** > **Sources** et créez une nouvelle source de type *HTTP REST*.
 2. Nommez-la `velib`.
@@ -132,7 +132,7 @@ L'[Analyzer](/guides/public-cloud/data-platform/connectors-analyzer-extract-meta
 
 <img className="thumbnail" alt="Les paramètres de la table avec le nom velib_raw, le dataset default_dataset et les trois options automatiques activées" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-create-table-settings.png" loading="lazy" />
 
-La table contient **1 519 lignes**, une par station. Les coordonnées imbriquées deviennent `coordonnees_geo_lat` et `coordonnees_geo_lon`.
+La table contient une ligne par station, soit environ 1 500 lignes. Les coordonnées imbriquées deviennent `coordonnees_geo_lat` et `coordonnees_geo_lon`.
 
 <img className="thumbnail" alt="La table velib_raw listée dans le Lakehouse Manager, avec les logs de sa création et de son premier chargement" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-table-loaded.png" loading="lazy" />
 
@@ -200,11 +200,13 @@ Créez une [action SQL](/guides/public-cloud/data-platform/dpe-actions-sql) qui 
     FROM velib_raw
     ```
 
-Vous obtenez **1 519** lignes, toutes datées, avec une seule heure de collecte en UTC.
+Vous obtenez une ligne par station, toutes datées, avec une seule heure de collecte en UTC.
 
 ### Étape 5 : garder une ligne par station et par heure
 
-Si une exécution échoue entre le chargement et la datation, l'exécution suivante charge à nouveau les stations, et la datation date les deux chargements d'un coup. Chaque station a alors deux lignes pour la même heure, avec des chiffres parfois différents. L'[action Deduplicate](/guides/public-cloud/data-platform/dpe-actions-deduplicate) ne garde que la plus récente.
+Quand les deux exécutions d'une heure réussissent, chaque station a deux lignes pour la même heure, avec des chiffres parfois différents. L'[action Deduplicate](/guides/public-cloud/data-platform/dpe-actions-deduplicate) garde une ligne par station et par heure : celle dont `collected_at` est le plus récent.
+
+Si une exécution échoue entre le chargement et la datation, l'exécution suivante charge à nouveau les stations, et la datation date les deux chargements d'un coup, avec le même `collected_at`. L'action garde toujours une ligne par station et par heure, mais sans garantie sur laquelle des deux.
 
 1. Dans **Data Processing Engine** > **Actions**, cliquez sur **New action** et sélectionnez l'action *Deduplicate*.
 2. Renseignez l'action :
@@ -220,6 +222,8 @@ Si une exécution échoue entre le chargement et la datation, l'exécution suiva
 4. Cliquez sur **Create**. L'action s'appelle `Deduplicate - velib_raw`.
 
 <img className="thumbnail" alt="L'action Deduplicate sur velib_raw avec la clé stationcode et collected_hour, la ligne la plus récente gardée selon collected_at, et un Scan qui ne trouve aucun doublon" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/dpe-deduplicate-action.png" loading="lazy" />
+
+L'action Deduplicate relit toute la table à chaque exécution, et la table grossit d'environ 36 000 lignes par jour. Sa durée d'exécution, facturée en [heures de DPU](/guides/public-cloud/data-platform/manage-pricing#billing-units), augmente avec l'historique.
 
 ### Étape 6 : planifier la collecte toutes les heures
 
@@ -243,7 +247,7 @@ Chaque action doit être dans son propre stage : les actions d'un même stage s
 
 #### Le planifier
 
-Dans l'onglet *Preferences* du workflow, dans la section *Triggers*, cliquez sur **Add** et renseignez le [trigger](/guides/public-cloud/data-platform/dpe-jobs-preferences#time-based-trigger) basé sur le temps :
+Dans l'onglet *Preferences* du workflow, dans la section *Triggers*, cliquez sur **Add** et renseignez le [trigger](/guides/public-cloud/data-platform/dpe-jobs-preferences#déclencheur-temporel) basé sur le temps :
 
 | Paramètre | Valeur |
 |---|---|
@@ -269,7 +273,7 @@ GROUP BY collected_hour
 ORDER BY collected_hour DESC
 ```
 
-Chaque ligne affiche **1 519**. Une heure manquante signale des exécutions en échec ; un nombre supérieur à 1 519, une déduplication qui ne s'est pas exécutée. L'étape 7 donne une requête qui liste les heures manquantes.
+Chaque ligne affiche le même nombre de stations, environ 1 500. Une heure manquante signale des exécutions en échec ; un nombre supérieur, une déduplication qui ne s'est pas exécutée. L'étape 7 donne une requête qui liste les heures manquantes.
 
 ### Étape 7 : modéliser les données avec des vues
 
@@ -283,7 +287,7 @@ Cinq vues transforment l'historique brut en données prêtes pour l'analyse. Cr�
 | `velib_daily` | tout le réseau un jour donné | les tendances, jour après jour |
 | `station_current` | une station à la dernière collecte | la carte et les chiffres actuels |
 
-<img className="thumbnail" alt="La fenêtre Create a new view avec le nom de vue station_hourly, le dataset cible default_dataset et sa définition SQL" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-new-view.png" loading="lazy" />
+<img className="thumbnail" alt="La fenêtre Create a new view avec le nom de vue network_hourly, le dataset cible default_dataset et sa définition SQL fondée sur collected_hour_paris" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/lakehouse-new-view.png" loading="lazy" />
 
 :::info
 **Remarque :** dans une vue, une table n'a besoin que de son nom, `velib_raw` : le catalogue et le schéma sont résolus pour vous. Une vue lue par une autre vue a besoin de son nom complet, `catalog.schema.view`. Remplacez `<catalog>` par le nom du catalogue de votre projet, celui que vous avez copié à l'étape 4.
@@ -291,7 +295,7 @@ Cinq vues transforment l'historique brut en données prêtes pour l'analyse. Cr�
 
 #### station_hourly
 
-Convertit les types, renomme les colonnes et passe l'heure de collecte à l'heure de Paris.
+Convertit les types, renomme les colonnes et ajoute l'heure de collecte à l'heure de Paris.
 
 ```sql
 SELECT
@@ -307,20 +311,24 @@ SELECT
     numdocksavailable                                                    AS free_docks,
     capacity - numbikesavailable - numdocksavailable                     AS out_of_service_docks,
     is_installed = 'OUI' AND is_renting = 'OUI'                          AS is_open,
-    CAST(with_timezone(collected_hour, 'UTC') AT TIME ZONE 'Europe/Paris' AS timestamp(6)) AS collected_hour
+    collected_hour,
+    CAST(with_timezone(collected_hour, 'UTC') AT TIME ZONE 'Europe/Paris' AS timestamp(6)) AS collected_hour_paris
 FROM velib_raw
 ```
 
-`capacity - numbikesavailable - numdocksavailable` donne les bornes qui ne sont ni libres ni occupées par un vélo : les bornes hors service. Le `CAST` final conserve l'heure de Paris sans fuseau horaire, pour que Superset traite `collected_hour` comme une date ordinaire.
+`capacity - numbikesavailable - numdocksavailable` donne les bornes qui ne sont ni libres ni occupées par un vélo : les bornes hors service.
+
+`collected_hour` reste en UTC, et toutes les vues regroupent sur cette colonne : une heure UTC n'est jamais répétée ni sautée. `collected_hour_paris` donne la même heure à l'heure de Paris, pour l'affichage et pour l'heure de la journée. Ne regroupez pas sur elle : au passage à l'heure d'hiver, en octobre, deux heures UTC ont la même heure de Paris, et au passage à l'heure d'été, en mars, une heure de Paris n'existe pas. Le `CAST` conserve l'heure de Paris sans fuseau horaire, pour que Superset la traite comme une date ordinaire.
 
 #### network_hourly
 
 ```sql
 SELECT
     collected_hour,
-    hour(collected_hour)                                                  AS hour_of_day,
-    day_of_week(collected_hour)                                           AS day_of_week,
-    CASE WHEN day_of_week(collected_hour) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+    collected_hour_paris,
+    hour(collected_hour_paris)                                            AS hour_of_day,
+    day_of_week(collected_hour_paris)                                     AS day_of_week,
+    CASE WHEN day_of_week(collected_hour_paris) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS day_type,
     count(*)                                                              AS stations,
     sum(bikes)                                                            AS bikes,
     sum(mechanical)                                                       AS mechanical,
@@ -332,10 +340,10 @@ SELECT
     round(100.0 * sum(bikes) / sum(capacity), 1)                          AS fill_rate_pct
 FROM <catalog>.default_dataset.station_hourly
 WHERE is_open
-GROUP BY collected_hour
+GROUP BY collected_hour, collected_hour_paris
 ```
 
-Seules les stations ouvertes comptent : pour un usager, une station fermée n'est ni vide ni pleine.
+Seules les stations ouvertes comptent : pour un usager, une station fermée n'est ni vide ni pleine. L'heure de la journée et le jour de la semaine viennent de l'heure de Paris, pour que 8 h corresponde à 8 h à Paris toute l'année.
 
 #### station_profile
 
@@ -361,8 +369,8 @@ GROUP BY station_code
 
 ```sql
 SELECT
-    CAST(collected_hour AS date)                                          AS day,
-    CASE WHEN day_of_week(collected_hour) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+    CAST(collected_hour_paris AS date)                                    AS day,
+    CASE WHEN day_of_week(collected_hour_paris) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS day_type,
     count(*)                                                              AS observed_hours,
     min(bikes)                                                            AS min_bikes,
     max(bikes)                                                            AS max_bikes,
@@ -372,14 +380,14 @@ SELECT
     sum(empty_stations)                                                   AS empty_station_hours,
     max(empty_stations)                                                   AS peak_empty_stations
 FROM <catalog>.default_dataset.network_hourly
-GROUP BY CAST(collected_hour AS date), CASE WHEN day_of_week(collected_hour) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END
+GROUP BY CAST(collected_hour_paris AS date), CASE WHEN day_of_week(collected_hour_paris) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END
 ```
 
 | Colonne | Signification |
 |---|---|
 | `daily_swing` | Écart entre le plus grand et le plus petit nombre de vélos garés dans la journée : une estimation des vélos en circulation au pic, pas un nombre de trajets |
 | `empty_station_hours` | Total des heures passées vides par l'ensemble des stations : une station vide pendant 3 heures compte pour 3 |
-| `observed_hours` | Nombre de collectes de la journée : une journée avec moins de 24 collectes est incomplète |
+| `observed_hours` | Nombre de collectes de la journée : 24 pour une journée complète, 23 ou 25 les jours de changement d'heure |
 
 #### station_current
 
@@ -404,7 +412,8 @@ SELECT
         WHEN free_docks = 0   THEN 'Full'
         ELSE 'Available'
     END                                                                AS status,
-    collected_hour
+    collected_hour,
+    collected_hour_paris
 FROM <catalog>.default_dataset.station_hourly
 WHERE collected_hour = (
     SELECT max(collected_hour)
@@ -417,13 +426,13 @@ WHERE collected_hour = (
 Dans l'Explorer, préfixez chaque vue par son dataset :
 
 ```sql
-SELECT count(*) AS stations, max(collected_hour) AS last_collection, sum(bikes) AS bikes
+SELECT count(*) AS stations, max(collected_hour_paris) AS last_collection, sum(bikes) AS bikes
 FROM default_dataset.station_current
 ```
 
-Vous obtenez 1 519 stations et l'heure de la dernière collecte, à l'heure de Paris.
+Vous obtenez le nombre de stations, environ 1 500, et l'heure de la dernière collecte, à l'heure de Paris.
 
-Pour lister les heures sans collecte, générez toutes les heures de la période et gardez celles qui manquent dans `station_hourly`. Dans un `WITH`, la vue a besoin de son nom complet :
+Pour lister les heures sans collecte, générez toutes les heures de la période et gardez celles qui manquent dans `station_hourly`. La requête travaille sur l'heure UTC : les changements d'heure ne créent donc aucun faux trou. Dans un `WITH`, la vue a besoin de son nom complet :
 
 ```sql
 WITH bounds AS (
@@ -446,7 +455,7 @@ WHERE s.collected_hour IS NULL
 ORDER BY h.collected_hour
 ```
 
-Pendant une première semaine de collecte horaire, 11 heures sur environ 120 manquaient. Leurs logs montraient la même erreur sur chaque action de l'exécution : le moteur de requêtes du projet répondait `error 503: service unavailable`. La deuxième exécution de chaque heure est là pour combler ces trous.
+Une exécution peut échouer pour une raison passagère : la deuxième exécution de chaque heure comble le trou.
 
 ### Étape 8 : connecter Superset
 
