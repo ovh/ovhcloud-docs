@@ -1773,6 +1773,8 @@
                 + [Stream data from Apache Kafka](public-cloud/data-platform/tutorials-kafka){label=Stream data from Apache Kafka}
                 + [Build an IoT fleet-monitoring pipeline](public-cloud-data-platform-build-an-iot-fleet-monitoring-pipeline){landing=public-cloud/data-platform/tutorials-iot-fleet-monitoring}
                     + [Build the Superset dashboards](public-cloud/data-platform/tutorials-iot-fleet-monitoring-superset-dashboards)
+                + [Analyse Vélib' availability with Apache Superset](public-cloud-data-platform-analyze-velib-availability){landing=public-cloud/data-platform/tutorials-velib-availability}
+                    + [Build the Vélib' dashboard in Superset](public-cloud/data-platform/tutorials-velib-availability-superset-dashboard){label=Build a Vélib' availability dashboard in Superset}
                 + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
                 + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
                 + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
