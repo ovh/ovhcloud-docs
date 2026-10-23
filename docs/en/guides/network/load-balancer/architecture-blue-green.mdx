@@ -1,0 +1,318 @@
+---
+title: Deploy a blue-green architecture on an OVHcloud Load Balancer
+description: Design a blue-green release pattern on OVHcloud Load Balancer using paired farms and frontends to cut over traffic with near-zero downtime.
+lastUpdated: 2026-06-05
+---
+
+import Api from '@components/Api';
+import ManagerLink from '@components/ManagerLink';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objective
+
+Blue-green deployment is a release pattern that runs two functionally identical environments side by side: one serving live production traffic (blue) and one holding the next release candidate (green). When the green environment is validated, you switch traffic from blue to green in a single operation, with the option to switch back immediately if a problem appears.
+
+This guide presents a reference design that implements this pattern on the OVHcloud Load Balancer. It maps the blue-green model onto the Load Balancer's building blocks, server farms and frontends, and walks through the cutover.
+
+**In this guide, you will learn how to:**
+
+- Map a blue-green release model onto Load Balancer farms and frontends.
+- Build the paired production and staging environments behind a single Load Balancer.
+- Perform the production cutover and roll back if validation fails.
+
+:::info
+This is a reference architecture, not a click-by-click setup guide. For the detailed steps to create each component, follow the linked task guides on server farms{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [server farms](/guides/network/load-balancer/configure-server-farms) */} and frontends{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [frontends](/guides/network/load-balancer/configure-frontends) */}.
+:::
+
+## Requirements
+
+- An [OVHcloud Load Balancer](/links/network/load-balancer) service
+- Access to the <ManagerLink to="/">OVHcloud Console</ManagerLink>
+- Two backend environments configured identically, for example two [Dedicated Servers](/links/bare-metal/bare-metal) or two sets of Public Cloud instances, one hosting production and one hosting the release candidate
+- Familiarity with Load Balancer farms and frontends. Refer to What is OVHcloud Load Balancer{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [What is OVHcloud Load Balancer](/guides/network/load-balancer/what-is-load-balancer) */} and the glossary{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [glossary](/guides/network/load-balancer/glossary) */}.
+
+[[cpnav:network-load-balancer|en]]
+
+## Introduction
+
+The OVHcloud Load Balancer distributes incoming traffic across backend servers. Two of its components carry the blue-green pattern:
+
+- A **server farm** groups one or more backend servers and applies a load balancing algorithm and health probes to them.
+- A **frontend** listens on a public port and forwards traffic to a default farm.
+
+Because you can change and reapply a frontend's default farm at any time, the link between a public port and a backend environment is a configuration value, not fixed wiring. This decoupling makes the cutover possible.
+
+## Architecture overview <a name="overview"></a>
+
+This section explains how Load Balancer components express the blue-green model and which role each one plays before and after the cutover.
+
+The design uses two farms and two frontends:
+
+- **Farm A** and **Farm B** each point at one backend environment. The two environments are functionally identical; only their deployed code or configuration differs at any given moment.
+- The **public frontend** listens on the standard service port (for example `80` or `443`) and exposes whichever farm is currently in production.
+- The **staging frontend** listens on a non-standard port (for example `8888`) and exposes the candidate farm, reachable only by your team for validation.
+
+The cutover is a swap of the `defaultFarmId` value on the two frontends, followed by a single apply operation. No backend server is moved, recreated, or reconfigured during the switch.
+
+The diagram below shows the initial state, where Farm A is in production (blue) and Farm B is the candidate (green).
+
+<img className="thumbnail" alt="Architecture overview diagram" src="/images/network/load-balancer/architecture-blue-green/fig-1.svg" loading="lazy" />
+
+After a successful cutover, the public frontend points at Farm B and the staging frontend points at Farm A. The colours follow the role, not the farm: the farm in production is always "blue".
+
+| Component | Role before cutover | Role after cutover |
+|---|---|---|
+| Public frontend (port `80`/`443`) | Routes to Farm A | Routes to Farm B |
+| Staging frontend (port `8888`) | Routes to Farm B | Routes to Farm A |
+| Farm A | Production (blue) | Candidate (green) |
+| Farm B | Candidate (green) | Production (blue) |
+
+:::tip
+Keep a naming convention that reflects the **role** rather than a fixed colour, for example `farm-a` / `farm-b` and `frontend-public` / `frontend-staging`. After several cutovers, fixed "blue"/"green" names no longer match which farm is live.
+:::
+
+## Instructions
+
+**Contents:**
+
+- [Architecture overview](#overview)
+- [Build the two environments](#build-environments)
+- [Create the two frontends](#create-frontends)
+- [Perform the cutover](#cutover)
+- [Roll back](#rollback)
+- [Verification](#verification)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+
+### Build the two environments <a name="build-environments"></a>
+
+This section creates the two server farms and attaches the backend servers that host each environment. Repeat the procedure twice, once for Farm A and once for Farm B. Both farms expose the same backend service port (for example `8080`).
+
+{/* CP-STEPS-START:build-environments */}
+
+<Tabs>
+<Tab label="Console">
+
+1. Log in to the <ManagerLink to="/">OVHcloud Console</ManagerLink> and open your Load Balancer service.
+2. Select the <code className="action">Server farms</code> tab.
+3. Click <code className="action">Create farm</code> and configure the farm on the **Create Server Farm** page (protocol, load balancing algorithm, and health probe), then click <code className="action">Create Farm</code>.
+4. With the farm created, click <code className="action">Add server</code> on its card, enter the backend server's private IP address and port (for example `8080`), then click <code className="action">Add Server</code>.
+5. Repeat steps 3 and 4 to create the second farm with its own backend server.
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Create the production farm (Farm A):
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/http/farm"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+| `port` (body) | No | Backend port the farm forwards to. | `8080` |
+| `zone` (body) | Yes | Zone in which the farm is deployed. | `all` |
+| `displayName` (body) | No | Human-readable farm name. | `farm-a` |
+
+Attach the backend server to the farm:
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/http/farm/\{farmId\}/server"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+| `farmId` | Yes | The ID returned when the farm was created. | `77212` |
+| `address` (body) | Yes | The backend server's IPv4 address. | `10.10.1.100` |
+| `port` (body) | No | The backend server port. | `8080` |
+| `displayName` (body) | No | The server name within the farm. | `server-a` |
+
+Repeat both calls for Farm B, using the second backend server's address (for example `10.10.2.100`).
+
+:::info
+The examples above use the HTTP farm endpoints. For a TCP or UDP service, substitute the `/tcp/farm` (or UDP equivalent) routes; the parameters are the same.
+:::
+
+</Tab>
+<Tab label="Terraform">
+
+Declare each farm with the `ovh_iploadbalancing_http_farm` resource and attach its backend server with `ovh_iploadbalancing_http_farm_server`. For a TCP or UDP service, use the `ovh_iploadbalancing_tcp_farm` / `ovh_iploadbalancing_tcp_farm_server` or `ovh_iploadbalancing_udp_farm` / `ovh_iploadbalancing_udp_farm_server` resources instead. Repeat the pair of resources for Farm A and Farm B, using each environment's backend address.
+
+</Tab>
+</Tabs>
+
+{/* CP-STEPS-END:build-environments */}
+
+### Create the two frontends <a name="create-frontends"></a>
+
+This section creates the public frontend and the staging frontend. Each frontend listens on a port and points at one farm through its default farm setting.
+
+Create the **public frontend** on the standard service port and point it at Farm A. Create the **staging frontend** on a non-standard port and point it at Farm B.
+
+{/* CP-STEPS-START:create-frontends */}
+
+<Tabs>
+<Tab label="Console">
+
+1. Select the <code className="action">Frontends</code> tab.
+2. Click <code className="action">Create frontend</code> to open the **Create Frontend** page.
+3. Set the port to `80` (the public frontend), then under **Default route** choose **Route to farm** and select Farm A. Click <code className="action">Create Frontend</code>.
+4. Click <code className="action">Create frontend</code> again, set the port to `8888` (the staging frontend), and route it to Farm B.
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Create the public frontend (port `80`, pointing at Farm A):
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/http/frontend"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+| `port` (body) | Yes | Public port exposed by the frontend. | `80` |
+| `zone` (body) | Yes | Zone in which the frontend is deployed. | `all` |
+| `defaultFarmId` (body) | No | ID of the farm this frontend routes to. | `77212` |
+| `displayName` (body) | No | Human-readable frontend name. | `frontend-public` |
+
+Create the staging frontend by repeating the call with `port` set to `8888` and `defaultFarmId` set to Farm B's ID.
+
+</Tab>
+<Tab label="Terraform">
+
+Declare each frontend with the `ovh_iploadbalancing_http_frontend` resource, setting `port` and pointing `default_farm_id` at the correct farm. For a TCP or UDP service, use the `ovh_iploadbalancing_tcp_frontend` or `ovh_iploadbalancing_udp_frontend` resource instead. Create the public frontend on port `80` pointing at Farm A, and the staging frontend on port `8888` pointing at Farm B. Apply the configuration with the `ovh_iploadbalancing_refresh` resource.
+
+</Tab>
+</Tabs>
+
+After creating the farms and frontends, apply the configuration so the Load Balancer activates it. In the OVHcloud Console, open the <code className="action">Overview</code> tab and, under **Deployment**, click <code className="action">Apply N changes</code>, where N is the number of pending changes, then monitor progress in the <code className="action">Operations</code> tab. Via the API, call:
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/refresh"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+
+{/* CP-STEPS-END:create-frontends */}
+:::info
+Changes to farms and frontends are staged until you apply them. Nothing reaches live traffic until the apply operation completes. This is what makes the later cutover atomic.
+:::
+
+### Perform the cutover <a name="cutover"></a>
+
+This section switches production from Farm A to Farm B once the candidate environment has been validated on the staging port. The switch swaps the default farm of each frontend and then applies the change.
+
+Before cutting over, deploy and test your new release on the environment behind Farm B, reaching it through the staging port (`8888`). Only proceed when the candidate passes validation.
+
+The cutover swaps two values:
+
+- The **public frontend** moves from Farm A to **Farm B** (the new production).
+- The **staging frontend** moves from Farm B to **Farm A** (the new candidate / rollback target).
+
+{/* CP-STEPS-START:cutover */}
+
+<Tabs>
+<Tab label="Console">
+
+1. Select the <code className="action">Frontends</code> tab.
+2. In the public frontend's row, click the `⋮` button, then <code className="action">Edit</code>. On the **Edit Frontend** page, under **Default route**, keep **Route to farm** and select Farm B. Click <code className="action">Save changes</code>.
+3. In the staging frontend's row, click the `⋮` button, then <code className="action">Edit</code>, and select Farm A under **Route to farm**. Click <code className="action">Save changes</code>.
+4. On the <code className="action">Overview</code> tab, under **Deployment**, click <code className="action">Apply N changes</code>. Public traffic on port `80` now reaches Farm B.
+
+</Tab>
+<Tab label="OVHcloud API">
+
+Update the public frontend to route to Farm B:
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/http/frontend/\{frontendId\}"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+| `frontendId` | Yes | ID of the public frontend. | `70089` |
+| `defaultFarmId` (body) | No | New production farm ID (Farm B). | `77213` |
+
+Update the staging frontend to route to Farm A:
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/http/frontend/\{frontendId\}"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+| `frontendId` | Yes | ID of the staging frontend. | `70090` |
+| `defaultFarmId` (body) | No | New candidate farm ID (Farm A). | `77212` |
+
+Apply the change to switch production atomically:
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/refresh"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Your Load Balancer service ID. | `loadbalancer-abcdef0123456789` |
+
+</Tab>
+<Tab label="Terraform">
+
+The cutover swaps each frontend's default farm. Change the `default_farm_id` argument on each `ovh_iploadbalancing_http_frontend` resource (or its `ovh_iploadbalancing_tcp_frontend` / `ovh_iploadbalancing_udp_frontend` equivalent) — point the public frontend at Farm B and the staging frontend at Farm A — then run `terraform apply`. Trigger the activation with the `ovh_iploadbalancing_refresh` resource, using its `keepers` argument to depend on the updated farm IDs so the refresh runs after the swap.
+
+</Tab>
+</Tabs>
+
+{/* CP-STEPS-END:cutover */}
+
+### Roll back <a name="rollback"></a>
+
+This section reverses the cutover if the new release misbehaves in production. Because the previous environment is untouched and still attached to Farm A, rollback is the same operation run in reverse.
+
+Repeat the cutover steps, swapping the frontends back: point the public frontend at Farm A again and the staging frontend at Farm B, then apply. Traffic returns to the previous environment as soon as the apply operation completes.
+
+:::warning
+Rollback only restores the previous environment if Farm A's backend was not changed after the cutover. Do not redeploy or reconfigure the old environment until you are confident the new release is stable.
+:::
+
+### Verification <a name="verification"></a>
+
+This section confirms that the cutover routed traffic as intended. Run these checks immediately after each apply operation.
+
+{/* CP-STEPS-START:verification */}
+
+| Check | How | Expected result |
+|---|---|---|
+| Public port serves the new release | Request the public port: `curl -I http://<lb-ip>:80/` | Response identifies the new release (for example a version header or page content). |
+| Staging port serves the old release | Request the staging port: `curl -I http://<lb-ip>:8888/` | Response identifies the previous environment, now the rollback target. |
+| Configuration applied | Check the <code className="action">Operations</code> tab and the **Deployment** status on the <code className="action">Overview</code> tab in the OVHcloud Console, or `GET /ipLoadbalancing/{serviceName}/http/frontend/{frontendId}` | `defaultFarmId` matches the expected farm, the operation is complete and **Deployment** shows **Up to date**. |
+| Backends are healthy | On the <code className="action">Server farms</code> tab, open each farm's servers table (<code className="action">Servers N</code> on the farm card) and review the **Health check** column. Hover an icon to see the check detail (for example `L4CON: Connection refused`). | All servers in the active farm show a green check icon. A red alert icon marks a server that is down; a dash (—) means the farm has no health probe. |
+
+{/* CP-STEPS-END:verification */}
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/http/frontend/\{frontendId\}"} />
+
+### Limitations <a name="limitations"></a>
+
+This section lists constraints to account for when adopting this pattern.
+
+| Limitation | Details |
+|---|---|
+| One default farm per frontend | A frontend routes to a single default farm. Splitting traffic between blue and green simultaneously (canary) requires HTTP routes rather than a simple farm swap. See Configure HTTP routes{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configure HTTP routes](/guides/network/load-balancer/configure-http-routes) */}. |
+| In-flight connections | The swap changes routing for new connections. Existing connections to the old farm drain according to your timeout settings rather than ending instantly. |
+| Multiple service ports | A service exposed on several ports (for example `80` and `443`) needs one frontend per port for each role. Each must be swapped during the cutover. |
+| Backend parity | Blue-green assumes the two environments are interchangeable. Schema migrations or stateful changes that are not backward compatible can break rollback. |
+| Apply scope | The apply operation activates all pending changes for the service, not only the frontend swap. Avoid leaving unrelated draft changes staged during a cutover. |
+
+### Troubleshooting <a name="troubleshooting"></a>
+
+This section covers common problems during a blue-green cutover.
+
+{/* CP-STEPS-START:troubleshooting */}
+
+| Issue | Possible cause | Solution |
+|---|---|---|
+| Public port still serves the old release | The change was not applied | Apply pending changes with <code className="action">Apply N changes</code> under **Deployment** on the <code className="action">Overview</code> tab and confirm the operation completes in the <code className="action">Operations</code> tab. |
+| Candidate not reachable on the staging port | Frontend port or farm misconfigured | Verify the staging frontend listens on the chosen port and its `defaultFarmId` points at the candidate farm. |
+| Traffic alternates between releases | Both frontends point at the same farm, or duplicate frontends exist on the same port | Confirm each port maps to exactly one frontend and each frontend points at a distinct farm. |
+| Backends marked unhealthy after switch | Health probe path or port differs between environments | Align the probe configuration on both farms. See Configure health probes{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configure health probes](/guides/network/load-balancer/configure-health-probes) */}. |
+
+{/* CP-STEPS-END:troubleshooting */}
+## Go further
+
+- Resilient multi-zone architecture{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Resilient multi-zone architecture](/guides/network/load-balancer/architecture-resilient-multi-zone) */}
+- Configure server farms{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configure server farms](/guides/network/load-balancer/configure-server-farms) */}
+- Configure HTTP routes{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configure HTTP routes](/guides/network/load-balancer/configure-http-routes) */}
+
+Join our [community of users](/links/community).

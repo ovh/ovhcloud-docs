@@ -1,0 +1,242 @@
+---
+title: Configurer le SMTP sur un Load Balancer
+description: Configurez un service TCP sur votre OVHcloud Load Balancer pour répartir le trafic SMTP entre plusieurs serveurs de messagerie via le port 25.
+lastUpdated: 2026-06-05
+---
+
+import Api from '@components/Api';
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objectif
+
+L'OVHcloud Load Balancer peut répartir le trafic SMTP entre plusieurs serveurs de messagerie backend. Le SMTP étant un protocole basé sur TCP, vous utilisez pour cela une ferme de serveurs TCP et un frontend TCP en écoute sur le port 25.
+
+**Ce guide explique comment configurer un service TCP pour le SMTP sur votre OVHcloud Load Balancer : créer la ferme de serveurs, y rattacher vos serveurs de messagerie, ajouter le frontend et appliquer la configuration.**
+
+:::warning
+Ce guide suppose une bonne connaissance du protocole SMTP et du fonctionnement d'un serveur de messagerie. La configuration des serveurs de messagerie eux-mêmes reste à votre charge.
+:::
+
+## Prérequis
+
+- Disposer d'un service OVHcloud Load Balancer dans votre compte
+- Avoir accès à la <ManagerLink to="/">console OVHcloud</ManagerLink>
+- Disposer d'un service SMTP de type Postfix installé et configuré sur chaque serveur backend
+- Être familiarisé avec les composants du Load Balancer — voir Configurer les fermes de serveurs{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer les fermes de serveurs](/guides/network/load-balancer/configure-server-farms) */} et Configurer les frontends{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer les frontends](/guides/network/load-balancer/configure-frontends) */}
+
+[[cpnav:network-load-balancer]]
+
+## Introduction
+
+Chaque famille de protocoles de l'OVHcloud Load Balancer (HTTP, TCP et UDP) possède ses propres frontends, fermes de serveurs et serveurs. Le SMTP fonctionne au-dessus de TCP : toute la configuration s'effectue donc dans la famille TCP.
+
+L'ordre dans lequel vous créez les composants a son importance : la ferme de serveurs doit exister avant que vous puissiez y rattacher des serveurs, et le frontend référence la ferme comme cible par défaut. La procédure ci-dessous respecte cet ordre.
+
+:::info
+Les modifications de configuration sont mises en attente jusqu'à ce que vous les appliquiez. Elles ne deviennent visibles par vos utilisateurs qu'une fois la configuration appliquée. Cela vous permet de préparer un ensemble complet de modifications et de l'appliquer en une seule opération.
+:::
+
+## En pratique
+
+### Étape 1 — Créer la ferme de serveurs TCP
+
+La ferme de serveurs regroupe vos serveurs de messagerie backend et gère la manière dont le trafic est réparti entre eux.
+
+{/* CP-STEPS-START:create-tcp-farm */}
+<Tabs>
+<Tab label="Console">
+
+1. Connectez-vous à la <ManagerLink to="/">console OVHcloud</ManagerLink>. Dans la barre supérieure, sélectionnez <code className="action">Bare Metal Cloud</code> (ou <code className="action">Private Cloud</code>), puis ouvrez <code className="action">Réseau</code> > <code className="action">Load Balancer</code> dans le menu de gauche et sélectionnez votre service.
+2. Sélectionnez l'onglet <code className="action">Fermes de serveurs</code> et cliquez sur <code className="action">Créer une ferme</code>.
+3. Sur la page **Créer une ferme de serveurs**, sélectionnez **TCP** dans la liste déroulante **Protocole**.
+4. Définissez le **Port** sur `25`. Si vous laissez le port vide, la ferme reprend le port du frontend associé.
+5. Dans la liste déroulante **Zone**, sélectionnez la zone de votre service ou conservez **Toutes les zones**. La zone ne peut plus être modifiée une fois la ferme créée.
+6. Si vous le souhaitez, dans la section **Surveillance**, cochez **Activer le health check** et choisissez **SMTP** comme **Type de sonde** : le Load Balancer surveillera ainsi la disponibilité de vos serveurs de messagerie. Le **Port** de la sonde est par défaut celui de la ferme et l'**Intervalle (s)** doit être d'au moins 30 secondes ; vous pouvez aussi définir une condition de **Correspondance**.
+7. Cliquez sur <code className="action">Créer la ferme</code> pour confirmer.
+
+La nouvelle ferme apparaît sous forme de carte dans l'onglet <code className="action">Fermes de serveurs</code>.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Créez une ferme de serveurs TCP :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-xxxxx` |
+| `port` (body) | Non | Port d'écoute de la ferme. Utilisez 25 pour le SMTP standard. | `25` |
+| `zone` (body) | Oui | Zone dans laquelle la ferme est créée. | `all` |
+| `balance` (body) | Non | Algorithme d'équilibrage de charge. | `roundrobin` |
+
+Pour consulter ou gérer les fermes TCP existantes :
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="DELETE" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}"} />
+
+</Tab>
+</Tabs>
+{/* CP-STEPS-END:create-tcp-farm */}
+
+### Étape 2 — Ajouter vos serveurs de messagerie à la ferme
+
+Déclarez chaque serveur SMTP backend comme membre de la ferme TCP.
+
+{/* CP-STEPS-START:add-mail-servers */}
+<Tabs>
+<Tab label="Espace client">
+
+1. Dans l'onglet <code className="action">Fermes de serveurs</code>, cliquez sur la ferme que vous avez créée pour afficher ses serveurs.
+2. Cliquez sur <code className="action">Ajouter un serveur</code>.
+3. Saisissez l'**adresse IPv4** du serveur backend, définissez son **Statut** et sélectionnez la **version ProxyProtocol**. Ces champs sont obligatoires.
+4. Laissez le **Port** du serveur vide pour hériter du port défini sur la ferme. Ne définissez un port que dans des cas avancés, car il remplace le port de la ferme pour ce serveur.
+5. Cliquez sur <code className="action">Ajouter un serveur</code> pour confirmer.
+
+:::warning
+Définissez la **version ProxyProtocol** sur `v1` afin que votre service SMTP puisse récupérer l'adresse IP source réelle des connexions entrantes. Postfix est compatible avec le protocole PROXY.
+:::
+
+Le serveur apparaît dans la liste des serveurs sous la ferme.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Ajoutez un serveur à la ferme TCP :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}/server"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-xxxxx` |
+| `farmId` | Oui | L'identifiant de la ferme TCP. | `12345` |
+| `address` (body) | Oui | Adresse IPv4 du serveur backend. | `203.0.113.10` |
+| `status` (body) | Oui | Statut administratif du serveur. | `active` |
+| `proxyProtocolVersion` (body) | Non | Version du protocole PROXY. Utilisez `v1` pour conserver l'IP source. | `v1` |
+
+Pour consulter ou gérer les serveurs existants :
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}/server"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}/server/\{serverId\}"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}/server/\{serverId\}"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="DELETE" route={"/ipLoadbalancing/\{serviceName\}/tcp/farm/\{farmId\}/server/\{serverId\}"} />
+
+</Tab>
+</Tabs>
+{/* CP-STEPS-END:add-mail-servers */}
+
+### Étape 3 — Créer le frontend TCP
+
+Le frontend expose votre service SMTP à Internet et transfère le trafic entrant vers la ferme.
+
+{/* CP-STEPS-START:create-tcp-frontend */}
+<Tabs>
+<Tab label="Console">
+
+1. Sélectionnez l'onglet <code className="action">Frontends</code> et cliquez sur <code className="action">Créer un frontend</code>.
+2. Sur la page **Créer un frontend**, sélectionnez **TCP** dans la liste déroulante **Protocole**.
+3. Définissez le **Port** sur `25` pour un service SMTP standard et sélectionnez la **Zone**. Pour exposer plusieurs ports, saisissez une liste séparée par des virgules (`25,587`) ou une plage au format `<port_de_début>-<port_de_fin>`.
+4. Dans la liste déroulante **Ferme par défaut**, sélectionnez la ferme créée à l'étape 1. La ferme et le frontend doivent utiliser la même zone.
+5. Si vous avez routé des Additional IP vers votre Load Balancer, vous pouvez rattacher le frontend à une ou plusieurs Additional IP spécifiques dans la section **Paramètres avancés**.
+6. Cliquez sur <code className="action">Créer le frontend</code> pour confirmer.
+
+Le frontend apparaît dans la liste sous l'onglet <code className="action">Frontends</code>.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Créez un frontend TCP :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/tcp/frontend"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-xxxxx` |
+| `port` (body) | Oui | Port d'écoute. Utilisez 25 pour le SMTP standard. | `25` |
+| `zone` (body) | Oui | Zone dans laquelle le frontend est créé. | `all` |
+| `defaultFarmId` (body) | Non | La ferme TCP vers laquelle router le trafic par défaut. | `12345` |
+
+Pour consulter ou gérer les frontends existants :
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/tcp/frontend"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="GET" route={"/ipLoadbalancing/\{serviceName\}/tcp/frontend/\{frontendId\}"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="PUT" route={"/ipLoadbalancing/\{serviceName\}/tcp/frontend/\{frontendId\}"} />
+
+<Api version="v1" section="/ipLoadbalancing" method="DELETE" route={"/ipLoadbalancing/\{serviceName\}/tcp/frontend/\{frontendId\}"} />
+
+</Tab>
+</Tabs>
+{/* CP-STEPS-END:create-tcp-frontend */}
+
+### Étape 4 — Appliquer la configuration
+
+Vos modifications sont mises en attente jusqu'à ce que vous les appliquiez. La configuration est alors appliquée en une seule fois à toutes les zones du service.
+
+{/* CP-STEPS-START:apply-configuration */}
+<Tabs>
+<Tab label="Console">
+
+Revenez à l'onglet <code className="action">Vue d'ensemble</code> de votre service Load Balancer et appliquez les modifications en attente. La configuration ne devient visible par vos utilisateurs qu'une fois appliquée.
+
+:::info
+Dans la section **Informations générales**, sous **Déploiement**, cliquez sur <code className="action">Appliquer N changements</code>, N correspondant au nombre de modifications en attente. Un seul clic applique la configuration en attente à toutes les zones du service.
+:::
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Appliquez (actualisez) la configuration en attente :
+
+<Api version="v1" section="/ipLoadbalancing" method="POST" route={"/ipLoadbalancing/\{serviceName\}/refresh"} />
+
+| Paramètre | Obligatoire | Description | Exemple |
+|---|---|---|---|
+| `serviceName` | Oui | L'identifiant de votre service Load Balancer. | `loadbalancer-xxxxx` |
+
+</Tab>
+</Tabs>
+{/* CP-STEPS-END:apply-configuration */}
+
+### Étape 5 — Configurer Postfix pour le protocole PROXY
+
+Pour rendre Postfix compatible avec le protocole PROXY transmis par le Load Balancer, ajoutez l'option suivante au fichier de configuration `main.cf` de Postfix sur chaque serveur backend :
+
+```bash
+smtp_upstream_proxy_protocol = haproxy
+```
+
+Redémarrez le démon Postfix pour appliquer la modification.
+
+:::tip
+La version du protocole PROXY configurée ici (`haproxy`) doit correspondre à la version ProxyProtocol définie sur le serveur à l'étape 2. Utilisez la version `v1` des deux côtés.
+:::
+
+### Étape 6 — Vérifier la configuration
+
+Après avoir réalisé les étapes ci-dessus, vous disposez d'un service Load Balancer fonctionnel placé devant vos serveurs SMTP. Vérifiez-le en vous connectant à l'adresse IP de votre Load Balancer comme s'il s'agissait d'un serveur SMTP.
+
+```console
+telnet <load-balancer-ip> 25
+```
+
+Une connexion réussie renvoie la bannière SMTP de l'un de vos serveurs de messagerie backend.
+
+## Aller plus loin
+
+Configurer les fermes de serveurs{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer les fermes de serveurs](/guides/network/load-balancer/configure-server-farms) */} — gérez les pools de backends et l'équilibrage de charge.
+
+Configurer les frontends{/* TODO(iplb-revamp): restore this link before the final merge, once the revamp guide lands → [Configurer les frontends](/guides/network/load-balancer/configure-frontends) */} — exposez vos services à Internet.
+
+[Configurer le Proxy Protocol](/guides/network/load-balancer/configure-proxy-protocol) — conservez les adresses IP source des clients.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
