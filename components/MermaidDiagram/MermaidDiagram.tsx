@@ -25,9 +25,9 @@ import { polishSvg } from './polish';
  *   — closes it. medium-zoom itself only handles <img>, and a diagram rendered
  *   as an <img> could not use the site font, so the same behaviour is
  *   reproduced here on the inline SVG.
- * - Theme: always the light Mermaid theme, on a light panel in the dark site
- *   theme — authors' colours stay as designed (measured: the dark Mermaid
- *   theme turned their labels light on their light fills, contrast 1.4).
+ * - Theme: always the light Mermaid theme, inverted by CSS in the dark site
+ *   theme — authors' colours keep their text/fill pairing (measured: the dark
+ *   Mermaid theme turned their labels light on their light fills, contrast 1.4).
  * - Clean-up (polish.ts): a gap opened in a frame title where an arrow crosses
  *   it, frames centred on their content — no text hidden, no block or arrow
  *   moved, the source untouched.

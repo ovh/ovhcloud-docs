@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.10.26
+
+### Fixes
+
+#### All regions
+- **components:** invert mermaid diagrams in dark mode instead of a white panel (#1079)
+
+### Documentation
+- EU: 9 guides across en, es, fr, it, pl
+
 ## 2026.10.23
 
 ### Maintenance
