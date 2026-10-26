@@ -1,79 +1,87 @@
 ---
 title: "Comment restaurer OPCP à partir d'une sauvegarde"
-lastUpdated: "2026-10-01"
+description: "Découvrez comment restaurer le plan de contrôle OPCP à partir d'une sauvegarde : bases de données, puis tfstate, PV et KMS avec Velero"
+lastUpdated: 2026-10-26
 ---
 
 ## Objectif
 
-Il existe différents scénarios dans lesquels vous pouvez avoir besoin de restaurer une sauvegarde. Cependant, OPCP ne permet pas de restaurer une partie seulement d'une sauvegarde : vous ne pouvez restaurer que la sauvegarde complète, avec l'ensemble de ses ressources.
+Il existe différents scénarios dans lesquels vous pouvez avoir besoin de restaurer une sauvegarde. Cependant, OPCP ne permet pas de restaurer une partie seulement d'une sauvegarde : vous ne pouvez restaurer que la sauvegarde complète, avec l'ensemble de ses ressources.
 
-La sauvegarde contient les types de ressources suivants :
+La sauvegarde contient les types de ressources suivants :
 
-- Bases de données
-- Ressources tfstate
+- bases de données
+- ressources `tfstate`
 - PV Kubernetes
-- Configuration du KMS
+- configuration du KMS
 
 :::danger
 Ce guide couvre uniquement le plan de contrôle. Toutes vos données et charges de travail doivent être restaurées séparément.
+
 :::
 
 :::warning
 Cette procédure peut prendre beaucoup de temps. Attendez-vous à passer la majeure partie du temps à attendre la fin des opérations.
+
 :::
 
 :::info
 Il est très utile d'exécuter les commandes dans une session `screen` ou `tmux`, afin de pouvoir suivre les logs ou corriger des problèmes dans une autre fenêtre. Les deux sont installés sur le contrôleur. Assurez-vous de savoir utiliser ces outils.
+
 :::
 
 ## Prérequis
 
-Plusieurs prérequis doivent être remplis avant de commencer la restauration à partir d'une sauvegarde :
+Avant de commencer la restauration, vous devez :
 
-- Un accès SSH à tous les contrôleurs OPCP, avec les droits `sudo`.
-- Les identifiants des sauvegardes à partir desquelles vous souhaitez restaurer.
-- Les parts de descellement (*unseal shares*) du KMS, qui ne figurent pas dans la sauvegarde elle-même car elles sont considérées comme des données très sensibles.
-- Un accès aux buckets S3[^1] dans lesquels sont stockées les sauvegardes des bases de données.
+- disposer d'un accès SSH à tous les contrôleurs OPCP, avec les droits `sudo`.
+- disposer des identifiants des sauvegardes à partir desquelles vous souhaitez restaurer.
+- disposer des parts de descellement (*unseal shares*) du KMS, qui ne figurent pas dans la sauvegarde elle-même, car elles sont considérées comme des données très sensibles.
+- disposer d'un accès aux buckets S3<sup>1</sup> dans lesquels sont stockées les sauvegardes des bases de données.
 
-### Préparer l'accès S3[^1]
+### Préparer l'accès S3
 
-Assurez-vous d'avoir accès aux buckets S3[^1] contenant les données de sauvegarde.
+Assurez-vous d'avoir accès aux buckets S3 contenant les données de sauvegarde.
 
-La première étape consiste à obtenir des identifiants disposant de droits complets en lecture, écriture et suppression sur le bucket S3[^1] contenant les sauvegardes des bases de données.
+Commencez par obtenir des identifiants disposant de droits complets en lecture, écriture et suppression sur le bucket S3 contenant les sauvegardes des bases de données.
 
 :::danger
-Soyez prudent avec ces identifiants : ils permettent de supprimer entièrement vos sauvegardes.
+Soyez prudent avec ces identifiants : ils permettent de supprimer entièrement vos sauvegardes.
+
 :::
 
-[`s3cmd`](https://s3tools.org/s3cmd) doit être installé et configuré sur votre poste de travail :
+Installez et configurez [`s3cmd`](https://s3tools.org/s3cmd) sur votre poste de travail :
 
 ```bash
 ACCESS_KEY_ID=your-access-key-id # remplacez par votre ID de clé d'accès
 SECRET_ACCESS_KEY=your-access-key-secret # remplacez par votre clé secrète
 REGION=your-s3-region # remplacez par votre région
+HOST_BASE=s3.gra.io.cloud.ovh.net # remplacez par l'hôte S3 de base fourni par votre fournisseur
+HOST_BUCKET="%(bucket)s.s3.gra.io.cloud.ovh.net" # remplacez par l'URL S3 fournie par votre fournisseur
 cat <<EOF > $HOME/.s3cfg
 [default]
 access_key = ${ACCESS_KEY_ID}
 secret_key = ${SECRET_ACCESS_KEY}
 bucket_location = ${REGION}
-host_base = s3.gra.io.cloud.ovh.net; remplacez par l'hôte S3 de base fourni par votre fournisseur
-host_bucket = %(bucket)s.s3.gra.io.cloud.ovh.net; remplacez par l'URL S3 fournie par votre fournisseur
+host_base = ${HOST_BASE}
+host_bucket = ${HOST_BUCKET}
 EOF
 ```
 
 :::info
-Consultez également la documentation de votre fournisseur S3[^1] concernant l'accès au stockage compatible S3[^1].
+Consultez également la documentation de votre fournisseur S3 concernant l'accès au stockage compatible S3.
+
 :::
 
-Vérifiez votre accès en exécutant :
+Vérifiez votre accès en exécutant :
 
 ```bash
 s3cmd ls
 ```
 
-Vous obtenez la liste de tous les buckets S3[^1] auxquels vous avez accès. Le résultat est similaire à ceci :
+Vous obtenez la liste de tous les buckets S3 auxquels vous avez accès. Le résultat est similaire à ceci :
 
-```
+```console
 2026-08-17 02:00  s3://dev-opcp-test-config
 2026-08-06 07:25  s3://dev-opcp-test-db
 2026-08-17 02:00  s3://dev-opcp-test-etcd-snapshots
@@ -84,20 +92,21 @@ Vous obtenez la liste de tous les buckets S3[^1] auxquels vous avez accès. Le r
 2026-08-17 14:31  s3://opcp-volumes-dev-opcp-test
 ```
 
-Deux buckets sont particulièrement importants :
+Deux buckets sont particulièrement importants :
 
-- Le bucket contenant les sauvegardes de vos bases de données
-- Le bucket contenant vos sauvegardes Velero (`tfstate`, `pvs`, `kms-autounsealer-shares`)
+- le bucket contenant les sauvegardes de vos bases de données
+- le bucket contenant vos sauvegardes Velero (`tfstate`, `pvs`, `kms-autounsealer-shares`)
 
-Exécutez `opcp-cli config edit` pour vérifier la présence d'entrées personnalisées. S'il n'y en a pas, utilisez les noms générés par défaut :
+Exécutez `opcp-cli config edit` pour vérifier la présence d'entrées personnalisées. S'il n'y en a pas, utilisez les noms générés par défaut :
 
-- bases de données : `opcp-pg-{stage}-{env}`
-- Velero : `opcp-volumes-{stage}-{env}`
+- bases de données : `opcp-pg-{stage}-{env}`
+- Velero : `opcp-volumes-{stage}-{env}`
 
 Les valeurs de `stage` et `env` se trouvent également dans la configuration d'OPCP (`opcp-cli config edit`).
 
 :::warning
 Assurez-vous d'avoir sauvegardé les parts de descellement du KMS en lieu sûr. Sinon, vous ne pourrez pas effectuer la restauration.
+
 :::
 
 ### Récupérer les identifiants des sauvegardes
@@ -106,30 +115,30 @@ Vous avez besoin d'un identifiant de sauvegarde pour les ressources `tfstate`, `
 
 #### Sur un OPCP en fonctionnement
 
-Récupérez vos dernières sauvegardes en exécutant :
+Récupérez vos dernières sauvegardes en exécutant :
 
 ```bash
 BACKUP_FILE="backups_velero_$(date +%s).json"
 BACKUP_NAMES=("tfstate-backup" "pvs-backup" "kms-autounsealer-shares-backup")
 velero backup get -o json > "${BACKUP_FILE}"
 for BACKUP_NAME in "${!BACKUP_NAMES[@]}"; do
-  echo "${BACKUP_NAME}:"
+  echo "${BACKUP_NAMES[$BACKUP_NAME]}:"
   jq -r < "${BACKUP_FILE}" "[ .items[] | select(.metadata.labels.\"velero.io/schedule-name\" == \"${BACKUP_NAMES[$BACKUP_NAME]}\") | {name: .metadata.name, ts: .metadata.creationTimestamp|strptime(\"%Y-%m-%dT%H:%M:%SZ\")|mktime}]|sort_by(.ts)|reverse[0]|.name"
-  echo "\n"
+  echo
 done
 ```
 
 #### Depuis le bucket S3
 
-Comme vous avez déjà préparé votre [accès S3](#préparer-laccès-s3), vous pouvez maintenant exécuter :
+Comme vous avez déjà préparé votre [accès S3](#préparer-laccès-s3), vous pouvez maintenant exécuter :
 
 ```bash
 s3cmd ls s3://<your-pv-bucket-name>/backups/ # remplacez <your-pv-bucket-name> par le nom de votre bucket
 ```
 
-Vous obtenez la liste de toutes les sauvegardes disponibles. Le suffixe numérique correspond à la date et à l'heure de création de la sauvegarde. Le résultat est similaire à ceci :
+Vous obtenez la liste de toutes les sauvegardes disponibles. Le suffixe numérique correspond à la date et à l'heure de création de la sauvegarde. Le résultat est similaire à ceci :
 
-```
+```console
                           DIR  s3://opcp-pv-dev-opcp-test/backups/kms-autounsealer-shares-backup-20261002080019/
                           DIR  s3://opcp-pv-dev-opcp-test/backups/pvs-backup-20261002080019/
                           DIR  s3://opcp-pv-dev-opcp-test/backups/tfstate-backup-20261002080019/
@@ -139,48 +148,51 @@ Vous obtenez la liste de toutes les sauvegardes disponibles. Le suffixe numériq
 
 :::info
 Ignorez la première étape si vous effectuez la restauration sur une nouvelle installation d'OPCP. Dans ce cas, il vous suffit d'ignorer la partie `opcp-cli deploy` de l'installation.
+
 :::
 
-La première étape consiste à [réinitialiser OPCP](how-to-reset-opcp), à l'exception de la dernière étape, le [redéploiement d'OPCP](how-to-reset-opcp#redéployer-le-contrôleur). Ignorez-la pour l'instant : elle est traitée plus loin dans ce guide, dans le cadre de la restauration.
+La première étape consiste à [réinitialiser OPCP](/guides/hosted-private-cloud/opcp/how-to-reset-opcp), à l'exception de la dernière étape, le [redéploiement d'OPCP](/guides/hosted-private-cloud/opcp/how-to-reset-opcp#redéployer-le-contrôleur). Ignorez-la pour l'instant : elle est traitée plus loin dans ce guide, pendant la restauration.
 
 ### Déplacer les sauvegardes des bases de données
 
-L'étape suivante consiste à déplacer les sauvegardes des bases de données au sein du bucket S3[^1]. Pour pouvoir être restaurées, elles doivent se trouver sous le préfixe `/recovery` :
+Déplacez ensuite les sauvegardes des bases de données au sein du bucket S3. Pour pouvoir être restaurées, elles doivent se trouver sous le préfixe `/recovery` :
 
 ```bash
 OPCP_DB_BACKUP_BUCKET=your-bucket-name # remplacez par le nom de votre bucket
 s3cmd cp --recursive --exclude "recovery/*" --exclude "archived-backups/*" "s3://${OPCP_DB_BACKUP_BUCKET}/" "s3://${OPCP_DB_BACKUP_BUCKET}/recovery/"
 ```
 
-Vérifiez que tous les fichiers ont bien été copiés :
+Vérifiez que tous les fichiers ont bien été copiés :
 
 ```bash
 s3cmd ls "s3://${OPCP_DB_BACKUP_BUCKET}/recovery/"
 ```
 
-Enfin, toutes les sauvegardes des bases de données doivent être déplacées de la racine vers le préfixe `/archived-backups` :
+Enfin, déplacez toutes les sauvegardes des bases de données de la racine vers le préfixe `/archived-backups` :
 
 ```bash
 s3cmd mv --recursive --exclude "recovery/*" --exclude "archived-backups/*" "s3://${OPCP_DB_BACKUP_BUCKET}/" "s3://${OPCP_DB_BACKUP_BUCKET}/archived-backups/$(date '+%Y-%m-%d_%Hh-%Mm')/"
 ```
 
-Vérifiez qu'il ne reste que les préfixes `/archived-backups` et `/recovery` à la racine :
+Vérifiez qu'il ne reste que les préfixes `/archived-backups` et `/recovery` à la racine :
 
 ```bash
 s3cmd ls "s3://${OPCP_DB_BACKUP_BUCKET}"
 ```
 
 :::info
-Soyez patient : la copie et le déplacement des données peuvent prendre du temps, car le volume peut être important.
+Soyez patient : la copie et le déplacement des données peuvent prendre du temps, car le volume peut être important.
+
 :::
 
 ### Préparer la configuration d'OPCP
 
 :::info
 Vous pouvez préparer la configuration d'OPCP en parallèle du [déplacement des sauvegardes des bases de données](#déplacer-les-sauvegardes-des-bases-de-données).
+
 :::
 
-Vous pouvez maintenant préparer la configuration d'OPCP. Exécutez `opcp-cli config edit` en tant que `root`, puis assurez-vous que les valeurs suivantes sont définies :
+Vous pouvez maintenant préparer la configuration d'OPCP. Exécutez `opcp-cli config edit` en tant que `root`, puis assurez-vous que les valeurs suivantes sont définies :
 
 ```yaml
 fleet_infra:
@@ -260,7 +272,7 @@ backups:
 
 ### Redéployer OPCP
 
-Une fois toutes les sauvegardes des bases de données déplacées et votre configuration prête, vous pouvez lancer un redéploiement :
+Une fois toutes les sauvegardes des bases de données déplacées et votre configuration prête, vous pouvez lancer un redéploiement :
 
 ```bash
 opcp-cli deploy --force-reconcile
@@ -268,9 +280,10 @@ opcp-cli deploy --force-reconcile
 
 :::warning
 Les artefacts doivent être dans la même version qu'au moment de la sauvegarde. Dans le cas contraire, des complications peuvent survenir.
+
 :::
 
-Une fois le déploiement terminé, vérifiez que les bases de données non gérées par OpenTofu sont restaurées :
+Une fois le déploiement terminé, vérifiez que les bases de données non gérées par OpenTofu sont restaurées :
 
 ```bash
 kubectl get Cluster -A
@@ -278,7 +291,7 @@ kubectl get Cluster -A
 
 Attendez que tous les clusters de bases de données non gérés par OpenTofu soient disponibles.
 
-```
+```console
 NAMESPACE   NAME          AGE    INSTANCES   READY   STATUS                     PRIMARY
 keycloak    keycloak-db   104s   1           1       Cluster in healthy state   keycloak-db-1
 kms         kms-db        104s   1           1       Cluster in healthy state   kms-db-1
@@ -290,40 +303,41 @@ Vous pouvez considérer que ces instances ont été restaurées à partir de la 
 :::info
 Cette étape peut prendre un certain temps.
 
-La restauration peut cependant rester bloquée à ce stade. Vous devez alors réinitialiser le contrôleur et nettoyer les sauvegardes des bases de données en exécutant la commande suivante sur votre machine :
+La restauration peut cependant rester bloquée à ce stade. Vous devez alors réinitialiser le contrôleur et nettoyer les sauvegardes des bases de données en exécutant la commande suivante sur votre machine :
 
 ```bash
 s3cmd rm --recursive --exclude "recovery/*" --exclude "archived-backups/*" "s3://${OPCP_DB_BACKUP_BUCKET}/" --force
 ```
 
 Une fois cette opération terminée, vous pouvez relancer un [redéploiement](#redéployer-opcp).
+
 :::
 
 ### Restaurer à partir des sauvegardes Velero
 
-Assurez-vous que Velero est en cours d'exécution :
+Assurez-vous que Velero est en cours d'exécution :
 
 ```bash
 kubectl get pods -n velero
 ```
 
-Le résultat est similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 NAME                      READY   STATUS    RESTARTS   AGE
 node-agent-pjvz8          1/1     Running   0          9m16s
 velero-8656858c7d-z7f8x   1/1     Running   0          9m16s
 ```
 
-Aucun tf-controller ne doit être présent. Vérifiez-le avec :
+Aucun tf-controller ne doit être présent. Vérifiez-le avec :
 
 ```bash
 tfctl get
 ```
 
-Le résultat est similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 NAMESPACE       NAME                            READY   MESSAGE PLAN PENDING    AGE
 flux-system     barbican                                        false           10 minutes
 flux-system     firmware                                        false           10 minutes
@@ -348,7 +362,7 @@ flux-system     placement-post-setup                            false           
 
 #### Restaurer les tfstate
 
-Pour restaurer les `tfstate`, exécutez les commandes suivantes :
+Pour restaurer les `tfstate`, exécutez les commandes suivantes :
 
 ```bash
 # 1. ensure_ks_ready : attendre que toutes les Kustomizations de flux-system soient Ready
@@ -381,10 +395,10 @@ done
 velero restore create --from-backup "<TF_STATE_BACKUP>" --wait
 
 # 5. Vérifier la restauration
-velero describe restore <restore-id>
+velero describe restore <restore-name>
 ```
 
-Une fois la restauration réussie, réactivez le `tofu-controller` et les ressources Terraform :
+Une fois la restauration réussie, réactivez le `tofu-controller` et les ressources Terraform :
 
 ```bash
 if flux get hr -n flux-system | grep -q "tofu-controller"; then
@@ -395,7 +409,7 @@ for tf in $(kubectl get Terraform -n flux-system -o jsonpath='{.items[*].metadat
 done
 ```
 
-Une fois le script terminé, supprimez ou commentez la variable `fleet_infra.vars.tofu_controller.suspend`, puis redéployez :
+Une fois le script terminé, supprimez ou commentez la variable `fleet_infra.vars.tofu_controller.suspend`, puis redéployez :
 
 ```bash
 opcp-cli config edit
@@ -403,13 +417,13 @@ opcp-cli config edit
 opcp-cli deploy --system
 ```
 
-Attendez que les tfstate soient entièrement réconciliés :
+Attendez que les `tfstate` soient entièrement réconciliés :
 
 ```bash
 tfctl get
 ```
 
-```
+```console
 NAMESPACE       NAME                            READY   MESSAGE                                                                       PLAN PENDING    AGE
 flux-system     barbican                        True    Applied successfully: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71      false           1 hour
 flux-system     firmware                        True    No drift: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71                  false           1 hour
@@ -432,15 +446,15 @@ flux-system     placement                       True    Applied successfully: ma
 flux-system     placement-post-setup            True    Plan no changes: main@sha1:dcb353f9106ff3399db519b54aef9ba019549d71           false           1 hour
 ```
 
-Attendez ensuite que toutes les bases de données soient opérationnelles :
+Attendez ensuite que toutes les bases de données soient opérationnelles :
 
 ```bash
 watch kubectl get cluster -A
 ```
 
-Le résultat est similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 NAMESPACE   NAME                  AGE   INSTANCES   READY   STATUS                     PRIMARY
 barbican    barbican-db           51m   1           1       Cluster in healthy state   barbican-db-1
 glance      glance-db             51m   1           1       Cluster in healthy state   glance-db-1
@@ -462,7 +476,7 @@ Vérifiez que toutes les ressources sont en bon état avec `flux get all -A`.
 
 #### Restaurer les PV
 
-Une fois les `tfstate` restaurés, vous pouvez poursuivre avec la restauration des PV :
+Une fois les `tfstate` restaurés, restaurez les PV :
 
 ```bash
 # 1. ensure_ks_ready
@@ -515,13 +529,13 @@ done
 velero restore create --from-backup "<PV_BACKUP>" --wait # PV_BACKUP est l'identifiant de la sauvegarde des PV, obtenu parmi vos sauvegardes disponibles lors de l'étape de préparation.
 ```
 
-Vérifiez l'état de la restauration :
+Vérifiez l'état de la restauration :
 
 ```bash
-velero describe restore <restore-id>
+velero describe restore <restore-name>
 ```
 
-Une fois la restauration réussie, réactivez les ressources Terraform et HelmRelease :
+Une fois la restauration réussie, réactivez les ressources Terraform et HelmRelease :
 
 ```bash
 if flux get hr -n flux-system | grep -q "tofu-controller"; then
@@ -537,13 +551,13 @@ flux resume hr -n kms ovhcloud-ssm
 :::info
 La restauration prend du temps et peut rester bloquée lors de la suppression des PVC. Suivez son avancement en exécutant `watch kubectl get pvc -A`.
 
-Si la suppression est bloquée, vérifiez si le PVC est encore monté quelque part :
+Si la suppression est bloquée, vérifiez si le PVC est encore monté quelque part :
 
 ```bash
 kubectl -n ironic describe pvc ironic-shared
 ```
 
-```
+```console
 Name:          ironic-shared
 Namespace:     ironic
 StorageClass:  ceph-filesystem
@@ -568,32 +582,33 @@ Used By:       ironic-conductor-5b6d784fd9-m7bsd
 Events:        <none>
 ```
 
-Supprimez tous les pods listés dans la section « Used By » avec `kubectl -n ironic delete pod ironic-http-5d4c5b8774-bfnsk` (en adaptant le nom du pod).
+Supprimez tous les pods listés dans la section `Used By` avec `kubectl -n ironic delete pod ironic-http-5d4c5b8774-bfnsk` (en adaptant le nom du pod).
+
 :::
 
-Une fois le script terminé, vous pouvez afficher les restaurations Velero :
+Une fois le script terminé, affichez les restaurations Velero :
 
 ```bash
 velero get restore
 ```
 
-Le résultat est similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 NAME                                           BACKUP                          STATUS      STARTED                         COMPLETED                       ERRORS   WARNINGS   CREATED                         SELECTOR
 pvs-backup-20260922080601-20260923094508       pvs-backup-20260922080601       Completed   2026-09-23 09:45:08 +0000 UTC   2026-09-23 09:46:26 +0000 UTC   0        0          2026-09-23 09:45:08 +0000 UTC   <none>
 tfstate-backup-20260922080601-20260923064848   tfstate-backup-20260922080601   Completed   2026-09-23 06:48:48 +0000 UTC   2026-09-23 06:48:50 +0000 UTC   0        0          2026-09-23 06:48:48 +0000 UTC   <none>
 ```
 
-Vous pouvez également consulter le détail de la restauration. Remplacez le nom de la restauration par le vôtre :
+Vous pouvez également consulter le détail de la restauration. Remplacez le nom de la restauration par le vôtre :
 
 ```bash
 velero describe restore --details pvs-backup-20260922080601-20260923094508
 ```
 
-Le résultat est similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 Name:         pvs-backup-20260922080601-20260923094508
 Namespace:    velero
 Labels:       <none>
@@ -665,15 +680,15 @@ Resource List:
 
 #### Restaurer le KMS
 
-Récupérez le nom du pod commençant par `ovhcloud-kms-setup-selfunseal` dans le namespace `kms` et consultez ses logs :
+Récupérez le nom du pod commençant par `ovhcloud-kms-setup-selfunseal` dans le namespace `kms` et consultez ses logs :
 
 ```bash
 kubectl logs -n kms ovhcloud-kms-setup-selfunseal-7vg52
 ```
 
-Vous devriez obtenir un résultat similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 Creating empty config file at /root/.ovh-kms/okms.yaml
 KMS status: Sealed
 KMS status: Sealed
@@ -684,15 +699,15 @@ Error: Seal key is incorrect or deprecated.
 ID="5d0385bc-1ab8-4260-bfb4-3377e2b27ca1", Request-ID:"OVHKMS.5d0385bc-1ab8-4260-bfb4-3377e2b27ca1", Code=33624076, System=SSM, Component=General, Category=Internal
 ```
 
-Cela s'explique par le fait que les secrets que vous venez de restaurer ne correspondent pas à l'instance SSM. Vous devez avoir conservé vos parts secrètes en lieu sûr. Si ce n'est pas le cas, le KMS ne peut pas être restauré.
+Cette erreur survient car les secrets que vous venez de restaurer ne correspondent pas à l'instance SSM. Vous devez avoir conservé vos parts de descellement du KMS en lieu sûr. Si ce n'est pas le cas, le KMS ne peut pas être restauré.
 
-Récupérez vos parts secrètes depuis leur emplacement sécurisé et adaptez-les en supprimant du fichier YAML les clés `creationTimestamp`, `uid` et `resourceVersion`, ainsi que `status` si elle est présente.
+Récupérez vos parts de descellement du KMS depuis leur emplacement sécurisé et adaptez-les en supprimant du fichier YAML les clés `creationTimestamp`, `uid` et `resourceVersion`, ainsi que `status` si elle est présente.
 
 Appliquez ensuite les secrets avec `kubectl apply -f`.
 
 Une fois cette opération réussie, supprimez le secret `kms-auto-unsealer-ccm-admin-certificate` avec `kubectl -n kms delete secret kms-auto-unsealer-ccm-admin-certificate`.
 
-Vous pouvez enfin lancer la restauration :
+Vous pouvez enfin lancer la restauration :
 
 ```bash
 # 1. Suspendre l'auto-unsealer et réduire ses réplicas à 0
@@ -703,13 +718,13 @@ kubectl scale --replicas=0 -n kms sts/kms-auto-unsealer
 velero restore create --from-backup "<KMS_SHARES_BACKUP>" --wait
 ```
 
-Vérifiez l'état de la restauration :
+Vérifiez l'état de la restauration :
 
 ```bash
-velero describe restore <restore-id>
+velero describe restore <restore-name>
 ```
 
-Une fois la restauration terminée avec succès, réactivez l'auto-unsealer et repassez-le à 1 réplica :
+Une fois la restauration terminée avec succès, réactivez l'auto-unsealer et repassez-le à 1 réplica :
 
 ```bash
 flux resume hr -n kms kms-auto-unsealer
@@ -718,15 +733,15 @@ kubectl scale --replicas=1 -n kms sts/kms-auto-unsealer
 
 Une fois cette opération terminée, exécutez `flux reconcile ks apps` pour vous assurer que tous les éléments du namespace `kms` sont mis à jour et redémarrés, à l'exception du pod `kms-db`.
 
-Une fois les parts restaurées, vous devez recréer le certificat Barbican. Vérifiez d'abord quel certificat recréer :
+Une fois les parts restaurées, vous devez recréer le certificat Barbican. Vérifiez d'abord quel certificat recréer :
 
 ```bash
 kubectl exec -ti -n kms kms-db-1 -- psql kms -c 'select * from kms_domains'
 ```
 
-Le résultat est similaire à ceci :
+Le résultat est similaire à ceci :
 
-```
+```console
 Defaulted container "postgres" out of: postgres, bootstrap-controller (init)
               domain_id               |                drk_id                | public_description | private_description |       created_at       |       updated_at       |          urn_prefix          | enabled | disabled_at | deleted | deleted_at
 --------------------------------------+--------------------------------------+--------------------+---------------------+------------------------+------------------------+------------------------------+---------+-------------+---------+------------
@@ -736,7 +751,7 @@ Defaulted container "postgres" out of: postgres, bootstrap-controller (init)
 (3 rows)
 ```
 
-Prenez le premier `domain_id` qui ne correspond pas au domaine interne (`00000000-…`), remplacez `<domain_id>` par cette valeur dans la commande ci-dessous, puis recréez le certificat avec `kubectl` :
+Prenez le premier `domain_id` qui ne correspond pas au domaine interne (`00000000-…`), remplacez `<domain_id>` par cette valeur dans la commande ci-dessous, puis recréez le certificat avec `kubectl` :
 
 ```bash
 kubectl apply -f - <<EOF
@@ -828,7 +843,7 @@ spec:
 EOF
 ```
 
-Suivez les logs du pod `kms-barbican-recreate-domain-cert` avec `k9s`. Une fois l'opération réussie, procédez au nettoyage :
+Suivez les logs du pod `kms-barbican-recreate-domain-cert` avec `k9s`. Une fois l'opération réussie, procédez au nettoyage :
 
 ```bash
 kubectl -n kms delete job kms-barbican-recreate-domain-cert
@@ -841,13 +856,13 @@ kubectl -n barbican delete rolebinding kms-barbican-recreate-domain-cert
 
 Redémarrez tous les pods du namespace `barbican`, à l'exception de `barbican-db-1`.
 
-Une fois toutes les bases de données restaurées, leurs identifiants ont été régénérés et ne correspondent plus au contenu de la table `cell_mappings` de la base `nova-api` :
+Une fois toutes les bases de données restaurées, leurs identifiants ont été régénérés et ne correspondent plus au contenu de la table `cell_mappings` de la base `nova-api` :
 
 ```bash
 kubectl -n nova exec -ti nova-api-db-1 -- psql --no-align --tuples-only nova -c "select database_connection from cell_mappings;"
 ```
 
-Comparez le résultat avec les identifiants actuels des bases de données :
+Comparez le résultat avec les identifiants actuels des bases de données :
 
 ```bash
 kubectl -n nova get secret nova-cell-nova-db-app -o json | jq -r '.data.uri' | base64 -d
@@ -856,7 +871,7 @@ kubectl -n nova get secret nova-cell0-db-app -o json | jq -r '.data.uri' | base6
 # postgresql://nova:PASS_NOVA_CELL0@nova-cell0-db-rw:5432/nova_cell0
 ```
 
-Mettez-les à jour si nécessaire :
+Mettez-les à jour si nécessaire :
 
 ```bash
 kubectl -n nova exec -ti nova-api-db-1 -- psql nova
@@ -864,7 +879,7 @@ kubectl -n nova exec -ti nova-api-db-1 -- psql nova
 # update cell_mappings set database_connection='postgresql://nova:PASS_NOVA_CELL0@nova-cell0-db-rw:5432/nova_cell0' where name='cell0';
 ```
 
-Une fois cette opération terminée, redémarrez le déploiement `nova-api` :
+Une fois cette opération terminée, redémarrez le déploiement `nova-api` :
 
 ```bash
 kubectl -n nova rollout restart deploy/nova-api
@@ -878,4 +893,4 @@ La restauration d'OPCP est maintenant terminée. Vérifiez que tous les services
 
 Échangez avec notre [communauté d'utilisateurs](/links/community).
 
-[^1]: S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services d'OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit à Amazon Technologies, Inc.
+[[fragment:s3-trademark]]
