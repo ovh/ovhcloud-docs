@@ -16,7 +16,9 @@
  *   - no arrow leaves or reaches a block by its corner; every arrowhead lies
  *     in line with the line behind it, square to its block, its tip not
  *     hidden under the block (flowcharts);
- *   - a click zooms the diagram, a click and Escape close the zoom.
+ *   - a click zooms the diagram, a click and Escape close the zoom;
+ *   - a theme switch there and back leaves the diagrams as drawn (the SVG
+ *     elements themselves, not rebuilt).
  * Exit code 1 on any failure.
  *
  * Browser: Playwright's Chromium (`pnpm exec playwright install chromium`), or
@@ -320,6 +322,47 @@ async function checkPage(
   await page.keyboard.press('Escape');
   if (await page.locator('.ovh-mermaid__zoom').count())
     failures.push(`${where} — Escape does not close the zoom`);
+  // a theme switch re-renders the page: the diagrams must stay as drawn
+  // (React used to rewrite them on every render; they blinked out meanwhile)
+  // — the switch in the window (another copy sits in the off-screen menu;
+  // on a narrow window, none: not checked there)
+  const toggled = () =>
+    page.evaluate(() => {
+      const sw = [
+        ...document.querySelectorAll<HTMLElement>('.rp-switch-appearance'),
+      ].find((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && r.left >= 0 && r.right <= window.innerWidth;
+      });
+      const dark = document.documentElement.classList.contains('rp-dark');
+      sw?.click();
+      return sw ? dark : null;
+    });
+  await page.evaluate(() => {
+    (window as unknown as { ovhSvgs: Element[] }).ovhSvgs = [
+      ...document.querySelectorAll('.ovh-mermaid__svg > svg'),
+    ];
+  });
+  let switched = 0;
+  for (let k = 0; k < 2; k++) {
+    const dark = await toggled();
+    if (dark === null) break;
+    await page.waitForFunction(
+      (d) => document.documentElement.classList.contains('rp-dark') !== d,
+      dark,
+    );
+    switched++;
+  }
+  if (switched) {
+    const kept = await page.evaluate(() => {
+      const before = (window as unknown as { ovhSvgs: Element[] }).ovhSvgs;
+      const now = [...document.querySelectorAll('.ovh-mermaid__svg > svg')];
+      return (
+        now.length === before.length && now.every((s, i) => s === before[i])
+      );
+    });
+    if (!kept) failures.push(`${where} — a theme switch rebuilds the diagrams`);
+  }
   return failures;
 }
 
@@ -346,7 +389,7 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `✓ ${checks} page × width checks — diagrams whole, centred, no title word under an arrow, no arrow end in a block corner, arrowheads square and whole, zoom OK`,
+    `✓ ${checks} page × width checks — diagrams whole, centred, no title word under an arrow, no arrow end in a block corner, arrowheads square and whole, zoom OK, theme switch keeps the diagrams`,
   );
 }
 

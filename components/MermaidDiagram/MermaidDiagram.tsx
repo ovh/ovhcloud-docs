@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   useEffect,
   useId,
+  useMemo,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -79,6 +80,10 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   const [ratio, setRatio] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
+  // React 19 compares dangerouslySetInnerHTML by object, not by markup: a new
+  // {__html} on each render rewrote the SVG whenever the page re-rendered — a
+  // theme switch does — and the diagram blinked out while it was rebuilt.
+  const html = useMemo(() => ({ __html: svg ?? '' }), [svg]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,7 +173,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
         <div
           className="ovh-mermaid__svg"
           // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG produced by Mermaid with securityLevel 'strict' (sanitised labels, no scripts)
-          dangerouslySetInnerHTML={{ __html: svg ?? '' }}
+          dangerouslySetInnerHTML={html}
         />
       </div>
       {zoomed &&
@@ -181,7 +186,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
               className="ovh-mermaid__zoom-svg"
               style={{ '--ovh-mermaid-ratio': ratio } as CSSProperties}
               // biome-ignore lint/security/noDangerouslySetInnerHtml: same Mermaid SVG, shown only while zoomed
-              dangerouslySetInnerHTML={{ __html: svg }}
+              dangerouslySetInnerHTML={html}
             />
           </div>,
           document.body,
