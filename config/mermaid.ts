@@ -26,7 +26,7 @@ export const MERMAID_MIN_EFFECTIVE_FONT_PX = 12;
  *  background (`style X fill:#e8f4f8` with no text colour): Mermaid's `dark`
  *  theme then draws their labels light on those light fills (measured contrast
  *  1.4 on lakehouse-manager-policy-tags-groups-example). In the dark site theme
- *  the diagram sits on a light panel instead (MermaidDiagram.css). */
+ *  the light rendering is inverted instead (MermaidDiagram.css). */
 export const MERMAID_THEME = 'default' as const;
 
 /** Every diagram type the installed Mermaid (10.9) sizes with `useMaxWidth`:
