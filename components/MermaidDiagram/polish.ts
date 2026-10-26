@@ -58,6 +58,11 @@ const HEAD_RUN = 20; // straight stretch before an arrowhead on a kept route (he
 const TAIL_RUN = 8; // straight stretch an arrow end without head leaves by
 const S_MIN = 10; // an S offset by less reads as a kink: drawn straight instead
 const HEAD_SKEW = 10; // beyond this angle (degrees) to its line, a head looks askew
+const LABEL_GAP = 3; // free space kept around a moved arrow label
+const LABEL_STEP = 2; // px along its arrow between two places tried for a label
+const LABEL_HEAD = 14; // the stretch of its own arrow a label keeps off: its head (12 px)
+const LABEL_SHIFT = 4; // px between two places tried aside of its arrow for a label
+const LABEL_HOLD = 8; // a label shifted aside keeps its arrow this far inside its edges
 
 /** Flowchart direction, from the diagram source: `flowchart LR`, `graph TD`… */
 export function flowDirection(code: string): 'vertical' | 'horizontal' | null {
@@ -115,6 +120,12 @@ export function polishSvg(
       refit = true;
     }
   }
+  // last, on the drawing kept, every kind of diagram (a state diagram is not
+  // redrawn above): a redraw or a move putting a label on another arrow or
+  // label was refused above, so only Mermaid's own overlaps are left here.
+  // Never inside the checks: a label slid aside would let a redraw through
+  // that was refused for the label it put on a block
+  if (clearLabels(svg)) refit = true;
   openTitleGaps(svg);
   if (refit) fitViewBox(svg);
 }
@@ -362,7 +373,9 @@ function tidyArrows(
       label: null,
     });
   }
-  // Mermaid centres each label on the middle of its arrow's route
+  // Mermaid centres each label on the middle of its arrow's route — not
+  // always: a label it ranked near an end is missed here, and one the redraw
+  // would leave behind is refused by flaws() (astray)
   for (const label of labels) {
     const t = translateOf(label);
     let best: { link: Link; d: number } | null = null;
@@ -521,14 +534,20 @@ function tidyChecked(
     if (!added.length) return;
     const culprits = new Set<string>();
     for (const f of added) {
-      const [kind, a] = f.split('|');
-      const id =
+      const [kind, a, b] = f.split('|');
+      const ids =
         kind === 'label'
-          ? labelled.get(a)
-          : kind === 'through' || kind === 'loose'
-            ? a
-            : undefined;
-      if (id && !skip.has(id)) culprits.add(id);
+          ? [labelled.get(a)]
+          : kind === 'over'
+            ? [labelled.get(a), b]
+            : kind === 'labels'
+              ? [labelled.get(a), labelled.get(b)]
+              : kind === 'astray'
+                ? [b]
+                : kind === 'through' || kind === 'loose'
+                  ? [a]
+                  : [];
+      for (const id of ids) if (id && !skip.has(id)) culprits.add(id);
     }
     svg.innerHTML = before;
     if (!culprits.size) return;
@@ -1138,7 +1157,8 @@ function centreStem(svg: SVGSVGElement, axis: Axis): boolean {
 }
 
 /** What is wrong in the drawing, one key per flaw: blocks overlapping, a
- *  frame cutting through a block or another frame, a label on a block, an
+ *  frame cutting through a block or another frame, a label on a block, on
+ *  another arrow than its own or on another label, or off its own arrow, an
  *  arrow through a block other than its own two or come loose from them. */
 function flaws(svg: SVGSVGElement): Set<string> {
   const out = new Set<string>();
@@ -1185,6 +1205,32 @@ function flaws(svg: SVGSVGElement): Set<string> {
   });
   for (const [l, bl] of labels)
     for (const [b, bb] of blocks) if (meet(bl, bb)) out.add(`label|${l}|${b}`);
+  labels.forEach(([l, bl], i) => {
+    for (const [m, bm] of labels.slice(i + 1))
+      if (meet(bl, bm)) out.add(`labels|${l}|${m}`);
+  });
+  const owner = new Map(
+    edgeLabels(svg).map((e) => [String(e.index), e.path] as const),
+  );
+  const paths = [
+    ...svg.querySelectorAll<SVGPathElement>('g.edgePaths path'),
+  ].map((p) => [p, pathPoints(svg, p, root).line] as const);
+  for (const [l, bl] of labels) {
+    const own = owner.get(l);
+    if (!own) continue;
+    const near = (q: Pt, d: number) =>
+      q.x > bl.x - d &&
+      q.x < bl.x + bl.width + d &&
+      q.y > bl.y - d &&
+      q.y < bl.y + bl.height + d;
+    for (const [p, ps] of paths) {
+      if (p !== own && ps.some((q) => near(q, -0.5)))
+        out.add(`over|${l}|${p.id}`);
+      // its own arrow no longer runs through it: left behind by a redraw
+      if (p === own && !ps.some((q) => near(q, 2)))
+        out.add(`astray|${l}|${p.id}`);
+    }
+  }
   for (const path of svg.querySelectorAll<SVGPathElement>('g.edgePaths path')) {
     const own = linkIds(path);
     const L = path.getTotalLength();
@@ -1215,6 +1261,178 @@ function flaws(svg: SVGSVGElement): Set<string> {
     }
   }
   return out;
+}
+
+interface EdgeLabel {
+  label: SVGGElement;
+  index: number; // its place among the drawing's labels: the flaws() keys
+  path: SVGPathElement | null; // the arrow it names
+}
+
+/** Every arrow label of the drawing with the arrow it names. Mermaid writes a
+ *  drawing's labels (g.edgeLabels) in the order of its arrows (g.edgePaths),
+ *  an empty one for an arrow without text: they are paired by place, not by
+ *  distance — a state diagram's label can sit 24 px off its own arrow, nearer
+ *  another one. Unpaired (null) when the two counts differ. */
+function edgeLabels(svg: SVGSVGElement): EdgeLabel[] {
+  return [
+    ...svg.querySelectorAll<SVGGElement>('g.edgeLabels > g.edgeLabel'),
+  ].map((label, index) => {
+    const group = label.parentElement;
+    const own = group
+      ? [...group.querySelectorAll(':scope > g.edgeLabel')]
+      : [];
+    const paths = group?.parentElement?.querySelectorAll<SVGPathElement>(
+      ':scope > g.edgePaths > path',
+    );
+    const path =
+      paths && paths.length === own.length ? paths[own.indexOf(label)] : null;
+    return { label, index, path };
+  });
+}
+
+/** An arrow sampled every LABEL_STEP px, in the coordinates of `ref` (line),
+ *  and the stretch its arrowheads cover, their tips included (heads). */
+function pathPoints(
+  svg: SVGSVGElement,
+  path: SVGPathElement,
+  ref: SVGGraphicsElement,
+): { line: Pt[]; heads: Pt[] } {
+  const m = path.getCTM();
+  const r = ref.getCTM();
+  if (!m || !r) return { line: [], heads: [] };
+  const k = r.inverse().multiply(m);
+  const at = (s: number): Pt => {
+    const q = path.getPointAtLength(s);
+    return new DOMPoint(q.x, q.y).matrixTransform(k);
+  };
+  const L = path.getTotalLength();
+  const n = Math.max(1, Math.ceil(L / LABEL_STEP));
+  const line = Array.from({ length: n + 1 }, (_, i) => at((L * i) / n));
+  const heads: Pt[] = [];
+  for (const which of ['start', 'end'] as const) {
+    if (!path.getAttribute(`marker-${which}`)) continue;
+    const s = (i: number) =>
+      which === 'start' ? (L * i) / n : L - (L * i) / n;
+    heads.push(...line.filter((_, i) => s(i) <= LABEL_HEAD));
+    // the tip, past the end of the line
+    const e = which === 'start' ? line[0] : line[n];
+    const b = at(which === 'start' ? Math.min(L, 1) : Math.max(0, L - 1));
+    const d = Math.hypot(e.x - b.x, e.y - b.y) || 1;
+    const tip = markerSetback(svg, path, which);
+    heads.push({
+      x: e.x + ((e.x - b.x) / d) * tip,
+      y: e.y + ((e.y - b.y) / d) * tip,
+    });
+  }
+  return { line, heads };
+}
+
+/** Moves an arrow label that lies over another arrow, a block, a frame title
+ *  or another label along its own arrow — or aside, its arrow still running
+ *  through it — to the nearest place where it lies over none of them, nor
+ *  over its own arrowheads: 3 px clear when it can.
+ *  Mermaid centres a label on its arrow's route whatever crosses there, and on
+ *  a state diagram even beside it, over the next arrow (measured on test
+ *  diagrams; none of the guides had one on 2026-10-26). A label that lies
+ *  over nothing is never moved; one with no free place on its arrow stays
+ *  where it is, the drawing marked data-ovh-labels="crowded" — the component
+ *  then lays it out again with more room (MERMAID_SPREADS). All diagram
+ *  kinds. Returns whether a moved label reaches past the drawing's frame,
+ *  which then needs a refit. */
+function clearLabels(svg: SVGSVGElement): boolean {
+  const ref = svg.querySelector<SVGGElement>('g.root') ?? svg;
+  const items = edgeLabels(svg).filter(
+    (e) => e.path && (e.label.textContent ?? '').trim() !== '',
+  );
+  if (!items.length) return false;
+  const boxes = new Map<EdgeLabel, DOMRect>();
+  for (const e of items) {
+    const b = bboxIn(e.label, ref);
+    if (b && b.width > 0) boxes.set(e, b);
+  }
+  const arrows = [
+    ...svg.querySelectorAll<SVGPathElement>('g.edgePaths path'),
+  ].map((p) => [p, pathPoints(svg, p, ref)] as const);
+  const nodes = [...svg.querySelectorAll<SVGGElement>('g.node')]
+    .map((n) => bboxIn(n, ref))
+    .filter((b): b is DOMRect => !!b && b.width > 0);
+  const obstacles = [
+    // a block holding others (a composite state) frames them: no obstacle
+    ...nodes.filter((b) => !nodes.some((o) => o !== b && holdsBox(b, o))),
+    ...[...svg.querySelectorAll<SVGGElement>('g.cluster-label')]
+      .map((l) => bboxIn(l, ref))
+      .filter((b): b is DOMRect => !!b && b.width > 0),
+  ];
+  // label e at r over nothing within `gap` px (negative: overlapping by
+  // more); its own arrowheads counted only for a place it would move to
+  const free = (e: EdgeLabel, r: DOMRect, gap: number, heads: boolean) => {
+    const [x0, x1] = [r.x - gap, r.x + r.width + gap];
+    const [y0, y1] = [r.y - gap, r.y + r.height + gap];
+    const hit = (q: Pt) => q.x > x0 && q.x < x1 && q.y > y0 && q.y < y1;
+    const meet = (o: DOMRect) =>
+      o.x < x1 && x0 < o.x + o.width && o.y < y1 && y0 < o.y + o.height;
+    return (
+      arrows.every(([p, a]) =>
+        p === e.path
+          ? !heads || !a.heads.some(hit)
+          : !a.line.some(hit) && !a.heads.some(hit),
+      ) &&
+      !obstacles.some(meet) &&
+      ![...boxes].some(([o, ob]) => o !== e && meet(ob))
+    );
+  };
+  let moved = false;
+  for (const e of items) {
+    const b = boxes.get(e);
+    if (!b || free(e, b, -0.5, false)) continue;
+    // places where the label still sits on its arrow: centred on one of its
+    // points, or shifted aside as long as that point stays inside it, its
+    // edges LABEL_HOLD px away — nearest first; 3 px clear, else just clear
+    const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    const nx = Math.floor(Math.max(0, b.width / 2 - LABEL_HOLD) / LABEL_SHIFT);
+    const ny = Math.floor(Math.max(0, b.height / 2 - LABEL_HOLD) / LABEL_SHIFT);
+    const places: Pt[] = [];
+    for (const q of arrows.find(([p]) => p === e.path)?.[1].line ?? [])
+      for (let i = -nx; i <= nx; i++)
+        for (let j = -ny; j <= ny; j++)
+          places.push({ x: q.x + i * LABEL_SHIFT, y: q.y + j * LABEL_SHIFT });
+    places.sort(
+      (p, q) =>
+        Math.hypot(p.x - c.x, p.y - c.y) - Math.hypot(q.x - c.x, q.y - c.y),
+    );
+    const at = (p: Pt) =>
+      new DOMRect(p.x - b.width / 2, p.y - b.height / 2, b.width, b.height);
+    let to: Pt | undefined;
+    for (const gap of [LABEL_GAP, 0]) {
+      to = places.find((p) => free(e, at(p), gap, true));
+      if (to) break;
+    }
+    if (!to) continue;
+    // the move, in the label's own coordinates (Mermaid only translates)
+    const m = (e.label.parentNode as SVGGElement | null)?.getCTM();
+    const r = ref.getCTM();
+    if (!m || !r) continue;
+    const k = m.inverse().multiply(r);
+    const p1 = new DOMPoint(c.x, c.y).matrixTransform(k);
+    const p2 = new DOMPoint(to.x, to.y).matrixTransform(k);
+    const t = translateOf(e.label);
+    e.label.setAttribute(
+      'transform',
+      `translate(${t.x + p2.x - p1.x}, ${t.y + p2.y - p1.y})`,
+    );
+    boxes.set(e, at(to));
+    moved = true;
+  }
+  // checked once all have moved: one may have cleared another
+  if ([...boxes].some(([e, b]) => !free(e, b, -0.5, false)))
+    svg.setAttribute('data-ovh-labels', 'crowded');
+  if (!moved) return false;
+  const vb = svg.viewBox.baseVal;
+  return (
+    !!vb?.width &&
+    !holdsBox(new DOMRect(vb.x, vb.y, vb.width, vb.height), svg.getBBox())
+  );
 }
 
 /** The drawing's frame fitted to its content again once the stem moved —

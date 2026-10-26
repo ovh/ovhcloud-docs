@@ -11,6 +11,8 @@
  *   - the WHOLE diagram is inside its frame (nothing hidden), ratio kept, and
  *     the page itself never scrolls horizontally;
  *   - no word of a frame title lies under an arrow;
+ *   - no arrow label lies over another arrow, a block or another label, and a
+ *     label on an arrow polish.ts redrew still lies on it (every diagram);
  *   - the content of every frame is centred in it (± 2 px);
  *   - a head column centred by polish.ts sits midway over its branches;
  *   - no arrow leaves or reaches a block by its corner; every arrowhead lies
@@ -32,11 +34,13 @@ const BASE = (process.env.MERMAID_E2E_BASE ?? 'http://localhost:3000').replace(
   '',
 );
 // Representative diagrams: frames with titles crossed by arrows, a frame whose
-// content Mermaid places off-centre, a group of blocks, a very wide LR diagram.
+// content Mermaid places off-centre, a group of blocks, a very wide LR diagram,
+// a state diagram with labelled transitions.
 const DEFAULT_PAGES = [
   '/guides/public-cloud/containers-orchestration/managed-kubernetes/understanding-mks-architecture',
   '/en/guides/public-cloud/containers-orchestration/managed-kubernetes/understanding-mks-architecture',
   '/guides/public-cloud/containers-orchestration/managed-kubernetes/vrack-custom-gateway',
+  '/guides/public-cloud/data-platform/tutorials-iot-fleet-monitoring',
 ];
 // MERMAID_E2E_PAGES=path1,path2 — e.g. against a single-locale build (/fr/guides/…)
 const PAGES = process.env.MERMAID_E2E_PAGES
@@ -138,6 +142,98 @@ async function checkPage(
               out.push(`${n}: title word « ${m[0]} » under an arrow`);
           }
         }
+      });
+      // arrow labels: over no other arrow, block or label; on its arrow when
+      // polish.ts redrew it. A label names the arrow at its place: Mermaid
+      // writes them in the same order (a state diagram's label can sit off its
+      // own arrow, nearer another one)
+      const byPath = new Map(
+        [...svg.querySelectorAll<SVGPathElement>('g.edgePaths path')].map(
+          (p) => {
+            const L = p.getTotalLength();
+            const m = p.getScreenCTM();
+            const k = Math.max(1, Math.ceil(L / 2));
+            return [
+              p,
+              m
+                ? Array.from({ length: k + 1 }, (_, i) => {
+                    const q = p.getPointAtLength((L * i) / k);
+                    return new DOMPoint(q.x, q.y).matrixTransform(m);
+                  })
+                : [],
+            ] as const;
+          },
+        ),
+      );
+      const labels = [
+        ...svg.querySelectorAll<SVGGElement>('g.edgeLabels > g.edgeLabel'),
+      ]
+        .filter((l) => (l.textContent ?? '').trim() !== '')
+        .map((l) => {
+          const sib = [
+            ...(l.parentElement?.querySelectorAll(':scope > g.edgeLabel') ??
+              []),
+          ];
+          const own = l.parentElement?.parentElement?.querySelectorAll(
+            ':scope > g.edgePaths > path',
+          );
+          return {
+            b: l.getBoundingClientRect(),
+            own: own && own.length === sib.length ? own[sib.indexOf(l)] : null,
+            name: (l.textContent ?? '').trim().slice(0, 40),
+          };
+        });
+      const blockBoxes = [...svg.querySelectorAll('g.node')]
+        .map((x) => x.getBoundingClientRect())
+        .filter((x) => x.width > 0);
+      labels.forEach(({ b, own, name }, i) => {
+        if (!own) {
+          out.push(`${n}: label « ${name} » not paired with its arrow`);
+          return;
+        }
+        for (const [p, ps] of byPath) {
+          if (
+            p !== own &&
+            ps.some(
+              (q) =>
+                q.x > b.left + 0.5 &&
+                q.x < b.right - 0.5 &&
+                q.y > b.top + 0.5 &&
+                q.y < b.bottom - 0.5,
+            )
+          )
+            out.push(`${n}: label « ${name} » over another arrow (${p.id})`);
+          if (
+            p === own &&
+            p.hasAttribute('data-ovh-tidy') &&
+            !ps.some(
+              (q) =>
+                q.x > b.left - 2 &&
+                q.x < b.right + 2 &&
+                q.y > b.top - 2 &&
+                q.y < b.bottom + 2,
+            )
+          )
+            out.push(`${n}: label « ${name} » left off its redrawn arrow`);
+        }
+        if (
+          blockBoxes.some(
+            (x) =>
+              b.left < x.right - 0.5 &&
+              x.left < b.right - 0.5 &&
+              b.top < x.bottom - 0.5 &&
+              x.top < b.bottom - 0.5,
+          )
+        )
+          out.push(`${n}: label « ${name} » over a block`);
+        for (const o of labels.slice(i + 1))
+          if (
+            b.left < o.b.right - 0.5 &&
+            o.b.left < b.right - 0.5 &&
+            b.top < o.b.bottom - 0.5 &&
+            o.b.top < b.bottom - 0.5
+          )
+            out.push(`${n}: label « ${name} » over label « ${o.name} »`);
       });
       // content centred in every frame
       svg.querySelectorAll('g.cluster').forEach((c) => {
@@ -389,7 +485,7 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `✓ ${checks} page × width checks — diagrams whole, centred, no title word under an arrow, no arrow end in a block corner, arrowheads square and whole, zoom OK, theme switch keeps the diagrams`,
+    `✓ ${checks} page × width checks — diagrams whole, centred, no title word under an arrow, no arrow end in a block corner, arrowheads square and whole, no label over another arrow, block or label, zoom OK, theme switch keeps the diagrams`,
   );
 }
 

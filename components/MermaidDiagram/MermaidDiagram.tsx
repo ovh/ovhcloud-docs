@@ -8,7 +8,12 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { MERMAID_CONFIG, MERMAID_THEME } from '../../config/mermaid';
+import {
+  MERMAID_CONFIG,
+  MERMAID_SPREADS,
+  MERMAID_THEME,
+  spreadConfig,
+} from '../../config/mermaid';
 import './MermaidDiagram.css';
 import { flowDirection, polishSvg } from './polish';
 
@@ -32,7 +37,9 @@ import { flowDirection, polishSvg } from './polish';
  * - Clean-up (polish.ts): a gap opened in a frame title where an arrow crosses
  *   it, frames centred on their content, the head column centred over its
  *   branches, arrows drawn straight or as one S, square to their blocks and
- *   off their corners — no text hidden, the source untouched.
+ *   off their corners, arrow labels slid off the other arrows — no text
+ *   hidden, the source untouched. A label with no free place: the diagram is
+ *   laid out again with more room (config/mermaid.ts, MERMAID_SPREADS).
  * - Invalid source: an explicit message plus the source, instead of a silent
  *   blank (the previous plugin rendered nothing).
  */
@@ -69,6 +76,35 @@ function polish(markup: string, code: string): string {
   }
 }
 
+/** Renders and polishes a diagram. While an arrow label is still left over
+ *  another arrow (polish.ts marks the drawing crowded), lays it out again with
+ *  more room (MERMAID_SPREADS): the first layout where every label is clear is
+ *  kept, else the natural one. Throws on an invalid source. */
+async function renderPolished(
+  mermaid: Mermaid,
+  id: string,
+  code: string,
+): Promise<string> {
+  let natural: string | null = null;
+  for (const spread of [null, ...MERMAID_SPREADS]) {
+    mermaid.initialize({
+      ...(spread ? spreadConfig(spread) : MERMAID_CONFIG),
+      theme: MERMAID_THEME,
+    });
+    let polished: string;
+    try {
+      polished = polish((await mermaid.render(id, code)).svg, code);
+    } catch (e) {
+      if (natural === null) throw e;
+      document.getElementById(`d${id}`)?.remove();
+      return natural; // never lose a diagram to a roomier layout
+    }
+    if (!polished.includes('data-ovh-labels="crowded"')) return polished;
+    natural ??= polished;
+  }
+  return natural ?? '';
+}
+
 interface MermaidDiagramProps {
   code: string;
 }
@@ -92,10 +128,8 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
       // Mermaid measures label widths while laying out: wait for the web font,
       // or boxes are sized for the fallback font and text overflows them.
       await document.fonts?.ready;
-      mermaid.initialize({ ...MERMAID_CONFIG, theme: MERMAID_THEME });
       try {
-        const result = await mermaid.render(id, code);
-        const polished = polish(result.svg, code);
+        const polished = await renderPolished(mermaid, id, code);
         if (!cancelled) {
           const vb = /viewBox="[\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)"/.exec(
             polished,
