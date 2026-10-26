@@ -1,7 +1,7 @@
 /**
  * Geometric clean-up of a Mermaid SVG, applied once right after rendering and
  * before display (components/MermaidDiagram). It never touches the diagram
- * source, a text, a block or an arrow: it only
+ * source, a text or a block, and moves an arrow only at its ends: it only
  *
  * 1. opens a gap in a frame title where an arrow crosses it — Mermaid draws
  *    titles under the arrows, so a crossing arrow hid their words (measured on
@@ -15,7 +15,35 @@
  *    widens a frame on one side when arrows leave an inner block (measured: up
  *    to 109 px off-centre). The frame rectangle is resized symmetrically around
  *    its content and its title re-centred; blocks and arrows stay where Mermaid
- *    put them. A frame never becomes narrower than its title.
+ *    put them. A frame never becomes narrower than its title;
+ * 3. tidies the arrows between rectangular blocks — Mermaid aims every arrow
+ *    at the block's centre and cuts it at the border: an arrow bound for a
+ *    block far to the side leaves from a corner (measured on
+ *    understanding-mks-architecture: 1 px from the corner of a 436 px block),
+ *    and an arrow that arrives slanted gets a slanted head, its corner hidden
+ *    under the block (on close ranks, a head askew of a still-bending line:
+ *    up to 57° on lakehouse-manager-policy-tags-groups-example). Between
+ *    neighbouring ranks with nothing in
+ *    between, an arrow is redrawn: a straight line when the blocks face each
+ *    other, otherwise one S — square to both sides. A longer arrow keeps
+ *    Mermaid's route, its ends made square to the side. The ends of a side
+ *    are kept in the order of where their arrows go (no crossing added), off
+ *    the corners and apart; an arrowhead alone on its side aims at the side's
+ *    middle (straight when the other block can face it, else one S); every
+ *    line stops where its head's tip touches the block. Labels follow their
+ *    arrow. Flowcharts only; a round block keeps Mermaid's radial ends, an
+ *    arrow the step cannot read is left as it is.
+ *    The stem of a flowchart — its head blocks, one per rank — is first
+ *    centred over the first rank that branches (Mermaid lines it up with one
+ *    branch), and each block alone on its rank in the tail is lined up under
+ *    the one block its only incoming arrow comes from (Mermaid leaves it
+ *    aside, too close for an S) — kept only if the move spoils nothing
+ *    (blocks, frames, labels, arrows checked before and after; both moves,
+ *    then each alone; the drawing's frame refitted).
+ *    Rejected on the way (2026-10-26): Mermaid 10.9's ELK renderer (dotted
+ *    links drawn solid, arrows across frame titles, the classes this clean-up
+ *    and the e2e check rely on dropped); Mermaid's curves with only their ends
+ *    moved (heads askew of a bending line, extra wiggles).
  *
  * Needs the SVG attached to the document (getBBox / getCTM): the caller mounts
  * it off-screen, calls polishSvg, and serialises the result.
@@ -23,11 +51,72 @@
 
 const GAP_SIDE = 10; // free space on each side of an arrow crossing a title
 const MIN_SIDE = 8; // smallest free space kept between a frame and its content
+const END_MARGIN = 12; // smallest distance between an arrow end and a block corner
+const END_SPACING = 8; // closer than this, two arrow ends on a side overlap
+const END_GAP = 24; // closer than this, ends on a side look bunched: all spaced evenly
+const HEAD_RUN = 20; // straight stretch before an arrowhead on a kept route (head: 12 px)
+const TAIL_RUN = 8; // straight stretch an arrow end without head leaves by
+const S_MIN = 10; // an S offset by less reads as a kink: drawn straight instead
+const HEAD_SKEW = 10; // beyond this angle (degrees) to its line, a head looks askew
 
-export function polishSvg(svg: SVGSVGElement): void {
-  // frames first: the title gaps are computed on the final frame geometry
+/** Flowchart direction, from the diagram source: `flowchart LR`, `graph TD`… */
+export function flowDirection(code: string): 'vertical' | 'horizontal' | null {
+  const m = /^\s*(?:flowchart|graph)\s+(TB|TD|BT|LR|RL)\b/im.exec(code);
+  if (!m) return null;
+  const d = m[1].toUpperCase();
+  return d === 'LR' || d === 'RL' ? 'horizontal' : 'vertical';
+}
+
+export function polishSvg(
+  svg: SVGSVGElement,
+  direction: 'vertical' | 'horizontal' | null = null,
+): void {
+  // frames first: the title gaps are computed on the final frame geometry;
+  // arrow ends before the gaps, which are computed on the final arrows
   centreFrames(svg);
+  let refit = false;
+  if (direction) {
+    // the arrows are redrawn and checked against Mermaid's own drawing; then
+    // the stem and tail moves, kept only if they spoil nothing more
+    const base = flaws(svg);
+    const before = svg.innerHTML;
+    const skip = new Set<string>();
+    tidyChecked(svg, direction, base, skip);
+    const plain = svg.innerHTML;
+    const known = flaws(svg);
+    // both moves, then each alone: the first that spoils nothing new stays
+    const moves = [
+      { attr: 'data-ovh-stem', done: 'centred', run: centreStem },
+      { attr: 'data-ovh-tail', done: 'aligned', run: alignTail },
+    ];
+    const tried = new Set<number>();
+    const seen = new Set<string>();
+    let kept: number[] | null = null;
+    for (const set of [[0, 1], [0], [1]]) {
+      svg.innerHTML = before;
+      const done = set.filter((k) => moves[k].run(svg, direction));
+      if (!done.length || seen.has(done.join())) continue;
+      seen.add(done.join());
+      for (const k of done) tried.add(k);
+      tidyArrows(svg, direction, skip);
+      if ([...flaws(svg)].every((f) => known.has(f))) {
+        kept = done;
+        break;
+      }
+    }
+    if (!kept) svg.innerHTML = plain;
+    for (const k of tried)
+      svg.setAttribute(
+        moves[k].attr,
+        kept?.includes(k) ? moves[k].done : 'kept',
+      );
+    if (kept?.length) {
+      svg.setAttribute('data-ovh-flow', direction);
+      refit = true;
+    }
+  }
   openTitleGaps(svg);
+  if (refit) fitViewBox(svg);
 }
 
 function centreFrames(svg: SVGSVGElement): void {
@@ -202,6 +291,991 @@ function openTitleGaps(svg: SVGSVGElement): void {
       rect.setAttribute('width', String(2 * half));
     }
   }
+}
+
+type Pt = { x: number; y: number };
+type Side = 'top' | 'bottom' | 'left' | 'right';
+
+type Axis = 'vertical' | 'horizontal';
+
+interface Link {
+  path: SVGPathElement;
+  pts: Pt[]; // the points Mermaid's basis curve was drawn through
+  ids: [string, string];
+  rects: [SVGRectElement | null, SVGRectElement | null]; // rectangular blocks
+  boxes: [DOMRect | null, DOMRect | null];
+  connector: boolean; // neighbouring ranks, nothing in between: redrawn whole
+  start: ArrowEnd | null;
+  end: ArrowEnd | null;
+  label: SVGGElement | null;
+}
+
+interface ArrowEnd {
+  link: Link;
+  which: 'start' | 'end';
+  key: string; // block id and side
+  box: DOMRect;
+  side: Side;
+  margin: number;
+  setback: number; // how far its arrowhead tip reaches past the line (0: none)
+  order: number; // where the arrow heads for, along the side: sorts the ends
+  want: number | null; // where it would rather sit: straight arrow, or Mermaid's spot
+  base: number | null; // that wish before a lone arrowhead's middle overrides it
+  pos: number;
+}
+
+function tidyArrows(
+  svg: SVGSVGElement,
+  axis: Axis,
+  skip: Set<string> = new Set(),
+): Map<string, string> {
+  const blocks = new Map<string, SVGRectElement>();
+  for (const n of svg.querySelectorAll<SVGGElement>('g.node')) {
+    const id = blockId(n);
+    const rect = n.querySelector<SVGRectElement>(
+      ':scope > rect.label-container',
+    );
+    if (id && rect) blocks.set(id, rect);
+  }
+  const nodes = [...svg.querySelectorAll<SVGGElement>('g.node')];
+  const allLabels = [
+    ...svg.querySelectorAll<SVGGElement>('g.edgeLabels > g.edgeLabel'),
+  ];
+  const labels = allLabels.filter((l) => (l.textContent ?? '').trim() !== '');
+  const links: Link[] = [];
+  for (const path of svg.querySelectorAll<SVGPathElement>('g.edgePaths path')) {
+    const [from, to] = linkIds(path);
+    if (!from || !to || from === to || skip.has(path.id)) continue;
+    const pts = basisPoints(path.getAttribute('d') ?? '');
+    if (!pts) continue; // not a curve this step can redraw faithfully
+    const ra = blocks.get(from);
+    const rb = blocks.get(to);
+    links.push({
+      path,
+      pts,
+      ids: [from, to],
+      rects: [ra ?? null, rb ?? null],
+      boxes: [ra ? bboxIn(ra, path) : null, rb ? bboxIn(rb, path) : null],
+      connector: false,
+      start: null,
+      end: null,
+      label: null,
+    });
+  }
+  // Mermaid centres each label on the middle of its arrow's route
+  for (const label of labels) {
+    const t = translateOf(label);
+    let best: { link: Link; d: number } | null = null;
+    for (const link of links) {
+      if (link.label || label.closest('g.root') !== link.path.closest('g.root'))
+        continue;
+      const m = polylineMiddle(link.pts);
+      const d = Math.hypot(m.x - t.x, m.y - t.y);
+      if (d < 20 && (!best || d < best.d)) best = { link, d };
+    }
+    if (best) best.link.label = label;
+  }
+  // which arrow each label follows, by the label's place in the drawing — for
+  // flaws(), whose label keys use that place
+  const labelled = new Map<string, string>();
+  for (const link of links)
+    if (link.label)
+      labelled.set(String(allLabels.indexOf(link.label)), link.path.id);
+
+  const groups = new Map<string, ArrowEnd[]>();
+  for (const link of links) {
+    const [a, b] = link.boxes;
+    // neighbouring ranks: a straight arrow when the blocks face each other,
+    // otherwise one S — unless that would cross another block or a label
+    const sep = a && b ? separation(a, b, axis) : 0;
+    if (a && b && sep) {
+      const probe = connectorPath(
+        ...provisionalEnds(a, b, axis, sep),
+        axis,
+        0,
+        0,
+      );
+      link.connector = !crosses(link, probe, nodes, labels, a, b);
+    }
+    for (const which of ['start', 'end'] as const) {
+      const box = link.boxes[which === 'start' ? 0 : 1];
+      if (!box) continue;
+      const own =
+        which === 'start' ? link.pts[0] : link.pts[link.pts.length - 1];
+      const toward =
+        which === 'start' ? link.pts[1] : link.pts[link.pts.length - 2];
+      const side: Side = link.connector
+        ? facingSide(axis, which === 'start' ? sep : -sep)
+        : sideToward(box, toward);
+      const horizontalSide = side === 'top' || side === 'bottom';
+      const along = (p: Pt) => (horizontalSide ? p.x : p.y);
+      const [lo, hi] = horizontalSide
+        ? [box.x, box.x + box.width]
+        : [box.y, box.y + box.height];
+      const i = which === 'start' ? 0 : 1;
+      const rx = Number(link.rects[i]?.getAttribute('rx') ?? 0) || 0;
+      // off the corner by a share of the side: 12 px reads as the corner on a
+      // 436 px block
+      const margin = Math.max(END_MARGIN + rx, Math.min(30, (hi - lo) / 10));
+      const other = link.boxes[which === 'start' ? 1 : 0];
+      let order = along(toward);
+      // a kept route: in line with where it goes next, so it needs no hook;
+      // too far past the side for that, it takes a free spot
+      const next = Math.min(Math.max(along(toward), lo + margin), hi - margin);
+      let want: number | null =
+        Math.abs(along(toward) - next) <= margin ? next : null;
+      if (link.connector && other) {
+        const [olo, ohi] = horizontalSide
+          ? [other.x, other.x + other.width]
+          : [other.y, other.y + other.height];
+        order = (olo + ohi) / 2;
+        const from = Math.max(lo, olo) + margin;
+        const to = Math.min(hi, ohi) - margin;
+        want = to >= from ? (from + to) / 2 : null;
+      }
+      const end: ArrowEnd = {
+        link,
+        which,
+        key: `${link.ids[i]} ${side}`,
+        box,
+        side,
+        margin,
+        setback: markerSetback(svg, link.path, which),
+        order,
+        want,
+        base: want,
+        pos: along(own),
+      };
+      link[which] = end;
+      const list = groups.get(end.key) ?? [];
+      list.push(end);
+      groups.set(end.key, list);
+    }
+  }
+
+  // an arrowhead alone on its side aims at the side's middle; the other end
+  // of a connector faces it when its own side allows — a straight arrow.
+  // Where that bends the line right under a head (blocks too close for an S
+  // with straight ends), that arrow keeps its spot: second pass.
+  const span = (e: ArrowEnd) =>
+    e.side === 'top' || e.side === 'bottom'
+      ? [e.box.x, e.box.x + e.box.width]
+      : [e.box.y, e.box.y + e.box.height];
+  const lone = new Set<ArrowEnd>();
+  for (const ends of groups.values())
+    if (ends.length === 1 && ends[0].setback) lone.add(ends[0]);
+  for (let pass = 0; pass < 2; pass++) {
+    for (const ends of groups.values()) for (const e of ends) e.want = e.base;
+    for (const e of lone) {
+      const [lo, hi] = span(e);
+      e.want = (lo + hi) / 2;
+    }
+    for (const e of lone) {
+      const o = e.which === 'start' ? e.link.end : e.link.start;
+      if (!e.link.connector || !o || lone.has(o) || e.want === null) continue;
+      const [lo, hi] = span(o);
+      o.want =
+        e.want >= lo + o.margin && e.want <= hi - o.margin ? e.want : null;
+    }
+    for (const ends of groups.values()) placeEnds(ends);
+    // an S barely off straight reads as a kink: the lone head gives way
+    for (const link of links) {
+      const { start, end } = link;
+      if (!link.connector || !start || !end) continue;
+      const gap = end.pos - start.pos;
+      if (gap === 0 || Math.abs(gap) >= S_MIN) continue;
+      const [e, o] = lone.has(end)
+        ? [end, start]
+        : lone.has(start)
+          ? [start, end]
+          : [null, null];
+      if (!e || !o) continue;
+      const [lo, hi] = span(e);
+      if (o.pos >= lo + e.margin && o.pos <= hi - e.margin) e.pos = o.pos;
+    }
+    for (const link of links) drawLink(link, axis);
+    const askew = [...lone].filter(
+      (e) => headSkew(e.link.path, e.which) > HEAD_SKEW,
+    );
+    if (!askew.length) break;
+    for (const e of askew) lone.delete(e);
+  }
+  return labelled;
+}
+
+/** tidyArrows, checked with flaws() against Mermaid's drawing (base): an
+ *  arrow that now runs through a block, comes loose from one or puts its
+ *  label on one is left as Mermaid drew it (added to skip) and the others
+ *  redrawn again; a new flaw no single arrow accounts for leaves every arrow
+ *  as Mermaid drew it. */
+function tidyChecked(
+  svg: SVGSVGElement,
+  axis: Axis,
+  base: Set<string>,
+  skip: Set<string>,
+): void {
+  const before = svg.innerHTML;
+  for (let pass = 0; pass < 4; pass++) {
+    const labelled = tidyArrows(svg, axis, skip);
+    const added = [...flaws(svg)].filter((f) => !base.has(f));
+    if (!added.length) return;
+    const culprits = new Set<string>();
+    for (const f of added) {
+      const [kind, a] = f.split('|');
+      const id =
+        kind === 'label'
+          ? labelled.get(a)
+          : kind === 'through' || kind === 'loose'
+            ? a
+            : undefined;
+      if (id && !skip.has(id)) culprits.add(id);
+    }
+    svg.innerHTML = before;
+    if (!culprits.size) return;
+    for (const id of culprits) skip.add(id);
+  }
+  svg.innerHTML = before;
+}
+
+function drawLink(link: Link, axis: Axis): void {
+  if (!link.start && !link.end) return;
+  // tells the e2e check which arrows this step answers for
+  link.path.setAttribute('data-ovh-tidy', '');
+  if (link.connector && link.start && link.end)
+    link.path.setAttribute(
+      'd',
+      connectorPath(
+        endPoint(link.start),
+        endPoint(link.end),
+        axis,
+        link.start.setback ? HEAD_RUN / 2 + 4 : 0,
+        link.end.setback ? HEAD_RUN / 2 + 4 : 0,
+      ),
+    );
+  else link.path.setAttribute('d', routePath(link, axis));
+  if (link.label) {
+    const L = link.path.getTotalLength();
+    const m = link.path.getPointAtLength(L / 2);
+    link.label.setAttribute('transform', `translate(${m.x}, ${m.y})`);
+  }
+}
+
+/** Angle, in degrees, between an arrowhead and the line just behind it (the
+ *  head is 12 px long): the head follows the line's very end, so a line still
+ *  bending there leaves the head askew of the line the reader sees. */
+function headSkew(path: SVGPathElement, which: 'start' | 'end'): number {
+  const L = path.getTotalLength();
+  if (L < 30) return 0;
+  const P = (t: number) => path.getPointAtLength(t);
+  const [tip, back, base, behind] =
+    which === 'end'
+      ? [P(L), P(L - 0.5), P(L - 13), P(L - 15)]
+      : [P(0), P(0.5), P(13), P(15)];
+  const a = Math.atan2(tip.y - back.y, tip.x - back.x);
+  const b = Math.atan2(base.y - behind.y, base.x - behind.x);
+  const d = Math.abs(a - b) * (180 / Math.PI);
+  return Math.min(d, 360 - d);
+}
+
+/** Spots for the ends on one block side, in the order of where their arrows
+ *  go (no crossing added): the straight arrows and Mermaid's good spots stay,
+ *  the others share the free stretches evenly; ends crowded against a corner
+ *  or against each other are all spaced evenly instead. */
+function placeEnds(ends: ArrowEnd[]): void {
+  const { box, side, margin } = ends[0];
+  const horizontalSide = side === 'top' || side === 'bottom';
+  const [lo, hi] = horizontalSide
+    ? [box.x, box.x + box.width]
+    : [box.y, box.y + box.height];
+  ends.sort((a, b) => a.order - b.order);
+  let last = Number.NEGATIVE_INFINITY;
+  for (const e of ends) {
+    if (e.want !== null && e.want - last < END_SPACING) e.want = null;
+    if (e.want !== null) last = e.want;
+  }
+  for (let i = 0; i < ends.length; ) {
+    const w = ends[i].want;
+    if (w !== null) {
+      ends[i].pos = w;
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < ends.length && ends[j].want === null) j++;
+    const from = i > 0 ? ends[i - 1].pos : lo;
+    const to = j < ends.length ? (ends[j].want as number) : hi;
+    const step = (to - from) / (j - i + 1);
+    for (let k = i; k < j; k++) ends[k].pos = from + step * (k - i + 1);
+    i = j;
+  }
+  const crowded = ends.some(
+    (e, i) =>
+      e.pos < lo + margin - 0.5 ||
+      e.pos > hi - margin + 0.5 ||
+      (i > 0 && e.pos - ends[i - 1].pos < END_GAP),
+  );
+  if (crowded) {
+    const step = (hi - lo) / (ends.length + 1);
+    ends.forEach((e, i) => {
+      e.pos = lo + step * (i + 1);
+    });
+  }
+}
+
+/** Where the line of an arrow end stops: on its spot on the block side, set
+ *  back by the length its arrowhead reaches past the line, so that the tip
+ *  touches the block instead of hiding under it. */
+function endPoint(e: ArrowEnd): Pt {
+  const out = e.side === 'bottom' || e.side === 'right' ? 1 : -1;
+  const line = {
+    top: e.box.y,
+    bottom: e.box.y + e.box.height,
+    left: e.box.x,
+    right: e.box.x + e.box.width,
+  }[e.side];
+  const across = line + out * e.setback;
+  return e.side === 'top' || e.side === 'bottom'
+    ? { x: e.pos, y: across }
+    : { x: across, y: e.pos };
+}
+
+/** A straight line when both ends face each other, otherwise one S square to
+ *  both sides, with a straight stretch under each arrowhead. */
+function connectorPath(
+  s: Pt,
+  e: Pt,
+  axis: Axis,
+  runS: number,
+  runE: number,
+): string {
+  const f = (v: number) => String(Math.round(v * 1000) / 1000);
+  const pt = (q: Pt) => `${f(q.x)},${f(q.y)}`;
+  const flow = (q: Pt) => (axis === 'vertical' ? q.y : q.x);
+  const cross = (q: Pt) => (axis === 'vertical' ? q.x : q.y);
+  const make = (fl: number, cr: number): Pt =>
+    axis === 'vertical' ? { x: cr, y: fl } : { x: fl, y: cr };
+  if (Math.abs(cross(s) - cross(e)) < 0.5) return `M${pt(s)}L${pt(e)}`;
+  const dir = Math.sign(flow(e) - flow(s));
+  const span = Math.abs(flow(e) - flow(s));
+  const fit = span >= runS + runE + 16;
+  const s1 = make(flow(s) + dir * (fit ? runS : 0), cross(s));
+  const e1 = make(flow(e) - dir * (fit ? runE : 0), cross(e));
+  const mid = (flow(s1) + flow(e1)) / 2;
+  return `M${pt(s)}L${pt(s1)}C${pt(make(mid, cross(s1)))},${pt(make(mid, cross(e1)))},${pt(e1)}L${pt(e)}`;
+}
+
+/** Mermaid's route, its ends moved to their spots and made square to the
+ *  side: a straight stretch (20 px under an arrowhead, 8 px otherwise, at most
+ *  a third of the way), the Mermaid points inside that stretch dropped —
+ *  except the two that keep an untouched far end arriving straight. */
+function routePath(link: Link, axis: Axis): string {
+  const { pts } = link;
+  const inner = pts.slice(1, -1);
+  const stretch = (e: ArrowEnd) => {
+    const at = endPoint(e);
+    const out = e.side === 'bottom' || e.side === 'right' ? 1 : -1;
+    const dir =
+      e.side === 'top' || e.side === 'bottom'
+        ? { x: 0, y: out }
+        : { x: out, y: 0 };
+    const away = (p: Pt) => (p.x - at.x) * dir.x + (p.y - at.y) * dir.y;
+    // entering a block by its flank, the route comes along its own column and
+    // turns once, square to the side: the points between that column and
+    // the block — aimed at where the end used to be — are dropped
+    const flank = (axis === 'vertical') === (dir.x !== 0);
+    const reach = inner.length ? Math.max(...inner.map(away)) : 0;
+    const room = flank
+      ? reach
+      : away(e.which === 'start' ? pts[1] : pts[pts.length - 2]);
+    const run = Math.max(
+      0,
+      Math.min(e.setback ? HEAD_RUN : TAIL_RUN, room / 3),
+    );
+    const step = (k: number) => ({
+      x: at.x + dir.x * run * k,
+      y: at.y + dir.y * run * k,
+    });
+    const corner =
+      flank && reach > 3 * run
+        ? dir.x !== 0
+          ? { x: at.x + dir.x * reach, y: at.y }
+          : { x: at.x, y: at.y + dir.y * reach }
+        : null;
+    const inside = (p: Pt) => away(p) < (corner ? reach - 2 : 2 * run + 4);
+    return { at, run, step, inside, corner };
+  };
+  const st = link.start && stretch(link.start);
+  const en = link.end && stretch(link.end);
+  const n = inner.length;
+  // the points near a moved end go, except the two that keep an untouched
+  // far end arriving straight
+  let kept = inner.map((p, i) => ({ p, i }));
+  if (st) {
+    const out = kept.findIndex(({ p }) => !st.inside(p));
+    const first = out < 0 ? kept.length : out;
+    kept = kept.filter(({ i }, k) => k >= first || (!en && i >= n - 2));
+  }
+  if (en) {
+    let last = -1;
+    kept.forEach(({ p }, k) => {
+      if (!en.inside(p)) last = k;
+    });
+    kept = kept.filter(({ i }, k) => k <= last || (!st && i < 2));
+  }
+  const lead = (s: typeof st) =>
+    s
+      ? [
+          ...(s.run > 1 ? [s.step(1), s.step(2)] : []),
+          ...(s.corner ? [s.corner] : []),
+        ]
+      : [];
+  return basisPath([
+    ...(st ? [st.at, ...lead(st)] : [pts[0]]),
+    ...kept.map(({ p }) => p),
+    ...(en ? [...lead(en).reverse(), en.at] : [pts[pts.length - 1]]),
+  ]);
+}
+
+/** +1 when block b lies wholly after block a along the flow, −1 before, 0 when
+ *  they share a rank. */
+function separation(a: DOMRect, b: DOMRect, axis: Axis): number {
+  const [a0, a1, b0, b1] =
+    axis === 'vertical'
+      ? [a.y, a.y + a.height, b.y, b.y + b.height]
+      : [a.x, a.x + a.width, b.x, b.x + b.width];
+  if (a1 <= b0 - 4) return 1;
+  if (b1 <= a0 - 4) return -1;
+  return 0;
+}
+
+function facingSide(axis: Axis, sep: number): Side {
+  if (axis === 'vertical') return sep > 0 ? 'bottom' : 'top';
+  return sep > 0 ? 'right' : 'left';
+}
+
+/** The ends a connector would get alone: middle of the blocks' overlap, or
+ *  each block's middle — to test it against the other blocks and labels. */
+function provisionalEnds(
+  a: DOMRect,
+  b: DOMRect,
+  axis: Axis,
+  sep: number,
+): [Pt, Pt] {
+  const v = axis === 'vertical';
+  const [alo, ahi, blo, bhi] = v
+    ? [a.x, a.x + a.width, b.x, b.x + b.width]
+    : [a.y, a.y + a.height, b.y, b.y + b.height];
+  const lo = Math.max(alo, blo);
+  const hi = Math.min(ahi, bhi);
+  const [ca, cb] =
+    hi - lo >= 2 * END_MARGIN
+      ? [(lo + hi) / 2, (lo + hi) / 2]
+      : [(alo + ahi) / 2, (blo + bhi) / 2];
+  const fa = v
+    ? sep > 0
+      ? a.y + a.height
+      : a.y
+    : sep > 0
+      ? a.x + a.width
+      : a.x;
+  const fb = v
+    ? sep > 0
+      ? b.y
+      : b.y + b.height
+    : sep > 0
+      ? b.x
+      : b.x + b.width;
+  return v
+    ? [
+        { x: ca, y: fa },
+        { x: cb, y: fb },
+      ]
+    : [
+        { x: fa, y: ca },
+        { x: fb, y: cb },
+      ];
+}
+
+/** Whether a path drawn with `d` next to the link's own would run through a
+ *  block other than its two, or through another arrow's label. */
+function crosses(
+  link: Link,
+  d: string,
+  nodes: SVGGElement[],
+  labels: SVGGElement[],
+  a: DOMRect,
+  b: DOMRect,
+): boolean {
+  const probe = link.path.cloneNode() as SVGPathElement;
+  probe.setAttribute('d', d);
+  link.path.parentNode?.appendChild(probe);
+  try {
+    const obstacles = [
+      ...nodes.map((n) => bboxIn(n, link.path)),
+      ...labels
+        .filter((l) => l !== link.label)
+        .map((l) => bboxIn(l, link.path)),
+    ].filter(
+      (r): r is DOMRect =>
+        !!r &&
+        r.width > 0 &&
+        !(Math.abs(r.x - a.x) < 1 && Math.abs(r.y - a.y) < 1) &&
+        !(Math.abs(r.x - b.x) < 1 && Math.abs(r.y - b.y) < 1),
+    );
+    const L = probe.getTotalLength();
+    for (let k = 1; k < 40; k++) {
+      const q = probe.getPointAtLength((L * k) / 40);
+      if (
+        obstacles.some(
+          (r) =>
+            q.x > r.x - 2 &&
+            q.x < r.x + r.width + 2 &&
+            q.y > r.y - 2 &&
+            q.y < r.y + r.height + 2,
+        )
+      )
+        return true;
+    }
+    return false;
+  } finally {
+    probe.remove();
+  }
+}
+
+/** How far the tip of the arrow's start or end marker reaches past the line
+ *  (Mermaid's arrowheads: 4.8 px at the end, 5.4 px at the start). */
+function markerSetback(
+  svg: SVGSVGElement,
+  path: SVGPathElement,
+  which: 'start' | 'end',
+): number {
+  const ref = path.getAttribute(
+    which === 'start' ? 'marker-start' : 'marker-end',
+  );
+  const id = ref ? /#([^)]+)\)/.exec(ref)?.[1] : undefined;
+  const marker = id
+    ? svg.querySelector<SVGMarkerElement>(`marker[id="${CSS.escape(id)}"]`)
+    : null;
+  const shape = marker?.querySelector('path')?.getAttribute('d');
+  // a plain triangle in absolute moves (Mermaid's arrowheads); relative or
+  // arc commands (cross, circle markers) cannot be read this way: no setback
+  if (!marker || !shape || !/^[\sMLZz\d.,-]+$/.test(shape)) return 0;
+  const vb = (marker.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number);
+  const scale = Number(marker.getAttribute('markerWidth')) / (vb[2] || 1);
+  const xs = (shape.match(/-?\d*\.?\d+/g) ?? [])
+    .map(Number)
+    .filter((_, i) => i % 2 === 0);
+  if (!xs.length || !scale) return 0;
+  const tip = which === 'start' ? Math.min(...xs) : Math.max(...xs);
+  return Math.abs(tip - Number(marker.getAttribute('refX'))) * scale;
+}
+
+/** A block's id in the diagram source, from Mermaid's `flowchart-<id>-<n>`. */
+function blockId(el: Element): string | undefined {
+  return /^flowchart-(.+)-\d+$/.exec(el.id)?.[1];
+}
+
+/** The source ids of an arrow's two ends, from Mermaid's LS- / LE- classes. */
+function linkIds(path: Element): [string | undefined, string | undefined] {
+  const cls = path.getAttribute('class') ?? '';
+  return [/(?:^|\s)LS-(\S+)/.exec(cls)?.[1], /(?:^|\s)LE-(\S+)/.exec(cls)?.[1]];
+}
+
+/** Whether box o holds box i (1 px slack). */
+function holdsBox(o: DOMRect, i: DOMRect): boolean {
+  return (
+    i.x >= o.x - 1 &&
+    i.y >= o.y - 1 &&
+    i.x + i.width <= o.x + o.width + 1 &&
+    i.y + i.height <= o.y + o.height + 1
+  );
+}
+
+function translateOf(el: Element): Pt {
+  const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)\s*\)/.exec(
+    el.getAttribute('transform') ?? '',
+  );
+  return m ? { x: Number(m[1]), y: Number(m[2]) } : { x: 0, y: 0 };
+}
+
+/** The point halfway along a polyline — where Mermaid centres an edge label. */
+function polylineMiddle(p: Pt[]): Pt {
+  const seg = p.slice(1).map((q, i) => Math.hypot(q.x - p[i].x, q.y - p[i].y));
+  let half = seg.reduce((s, l) => s + l, 0) / 2;
+  for (let i = 0; i < seg.length; i++) {
+    if (half <= seg[i]) {
+      const t = seg[i] ? half / seg[i] : 0;
+      return {
+        x: p[i].x + (p[i + 1].x - p[i].x) * t,
+        y: p[i].y + (p[i + 1].y - p[i].y) * t,
+      };
+    }
+    half -= seg[i];
+  }
+  return p[p.length - 1];
+}
+
+/** Side of the block a kept route leaves or reaches it by: the one facing
+ *  where the route goes next — sideways when that point lies further aside
+ *  than above or below. */
+function sideToward(box: DOMRect, q: Pt): Side {
+  const r = box.x + box.width;
+  const b = box.y + box.height;
+  const dx = q.x > r ? q.x - r : q.x < box.x ? box.x - q.x : 0;
+  const dy = q.y > b ? q.y - b : q.y < box.y ? box.y - q.y : 0;
+  if (dx > dy) return q.x > box.x ? 'right' : 'left';
+  return q.y > box.y + box.height / 2 ? 'bottom' : 'top';
+}
+
+/** The top-level blocks and frames of a flowchart with their boxes, and its
+ *  ranks: Mermaid centres the blocks of a rank on one line across the flow. */
+function rankLayout(svg: SVGSVGElement, axis: Axis) {
+  const root = svg.querySelector<SVGGElement>('g.root');
+  // a subgraph Mermaid renders in its own nested root escapes the ranks below:
+  // nothing is moved in such a drawing
+  if (!root || root.querySelector('g.root')) return null;
+  const v = axis === 'vertical';
+  const nodes = [
+    ...root.querySelectorAll<SVGGElement>(':scope > g.nodes > g.node'),
+  ];
+  const clusters = [
+    ...root.querySelectorAll<SVGGElement>(':scope > g.clusters > g.cluster'),
+  ];
+  const boxes = new Map<Element, DOMRect>();
+  for (const n of nodes) {
+    const b = bboxIn(n, root);
+    if (b) boxes.set(n, b);
+  }
+  for (const c of clusters) {
+    const r = c.querySelector<SVGRectElement>(':scope > rect');
+    const b = r && bboxIn(r, root);
+    if (b) boxes.set(c, b);
+  }
+  const bx = (e: Element) => boxes.get(e) as DOMRect;
+  const flow = (b: DOMRect) => (v ? b.y + b.height / 2 : b.x + b.width / 2);
+  const cross = (b: DOMRect) => (v ? b.x + b.width / 2 : b.y + b.height / 2);
+  const ranks: SVGGElement[][] = [];
+  for (const n of nodes
+    .filter((n) => boxes.has(n))
+    .sort((a, b) => flow(bx(a)) - flow(bx(b)))) {
+    const last = ranks[ranks.length - 1];
+    if (last && Math.abs(flow(bx(last[0])) - flow(bx(n))) < 1.5) last.push(n);
+    else ranks.push([n]);
+  }
+  return { root, v, nodes, clusters, boxes, bx, cross, ranks };
+}
+
+/** Moves a block, its label and frame transforms, along the cross axis. */
+function shiftAcross(el: Element, d: number, v: boolean): void {
+  const t = translateOf(el);
+  el.setAttribute(
+    'transform',
+    v ? `translate(${t.x + d}, ${t.y})` : `translate(${t.x}, ${t.y + d})`,
+  );
+}
+
+/** The frames holding a block, or null when one of them holds other blocks
+ *  too (it cannot follow the block without moving them). */
+function framesOnlyHolding(
+  block: SVGGElement,
+  layout: NonNullable<ReturnType<typeof rankLayout>>,
+): SVGGElement[] | null {
+  const { nodes, clusters, boxes, bx } = layout;
+  const out: SVGGElement[] = [];
+  for (const c of clusters) {
+    if (!boxes.has(c) || !holdsBox(bx(c), bx(block))) continue;
+    if (
+      nodes.some((n) => n !== block && boxes.has(n) && holdsBox(bx(c), bx(n)))
+    )
+      return null;
+    out.push(c);
+  }
+  return out;
+}
+
+/** Lines up the tail of a flowchart — each rectangular block alone on its
+ *  rank after the last rank that branches — under the one block its only
+ *  incoming arrow comes from, in the rank just before: that arrow then runs
+ *  straight into the block's middle. Mermaid leaves such a block aside
+ *  (understanding-mks-architecture: the Load Balancer 92 px off Internet, too
+ *  close for an S with straight ends). A frame holding only that block moves
+ *  with it; anything else and the block stays. */
+function alignTail(svg: SVGSVGElement, axis: Axis): boolean {
+  const layout = rankLayout(svg, axis);
+  if (!layout) return false;
+  const { root, v, nodes, boxes, bx, cross, ranks } = layout;
+  let last = -1;
+  ranks.forEach((r, i) => {
+    if (r.length > 1) last = i;
+  });
+  if (last < 0) return false;
+  const links = [
+    ...root.querySelectorAll<SVGPathElement>(':scope > g.edgePaths > path'),
+  ].map((p) => {
+    const [from, to] = linkIds(p);
+    return { from, to, readable: !!basisPoints(p.getAttribute('d') ?? '') };
+  });
+  let moved = false;
+  for (let i = last + 1; i < ranks.length; i++) {
+    const block = ranks[i][0];
+    if (!block.querySelector(':scope > rect.label-container')) continue;
+    const id = blockId(block);
+    const incoming = links.filter((l) => l.to === id && l.from !== id);
+    if (incoming.length !== 1) continue;
+    // its arrows get redrawn on the new spot: they must be ones tidyArrows reads
+    if (links.some((l) => (l.from === id || l.to === id) && !l.readable))
+      continue;
+    const source = nodes.find((n) => blockId(n) === incoming[0].from);
+    if (!source || !ranks[i - 1].includes(source)) continue;
+    const d = cross(bx(source)) - cross(bx(block));
+    if (Math.abs(d) < 2) continue;
+    const frames = framesOnlyHolding(block, layout);
+    if (!frames) continue;
+    shiftAcross(block, d, v);
+    for (const c of frames) {
+      const r = c.querySelector(':scope > rect');
+      const k = v ? 'x' : 'y';
+      if (r) r.setAttribute(k, String(Number(r.getAttribute(k)) + d));
+      const l = c.querySelector(':scope > g.cluster-label');
+      if (l) shiftAcross(l, d, v);
+    }
+    const b = bx(block);
+    boxes.set(
+      block,
+      v
+        ? new DOMRect(b.x + d, b.y, b.width, b.height)
+        : new DOMRect(b.x, b.y + d, b.width, b.height),
+    );
+    moved = true;
+  }
+  return moved;
+}
+
+/** Centres the stem of a flowchart — the blocks alone on their rank at its
+ *  head, before the first rank that branches — over that rank, midway
+ *  between its outer blocks: Mermaid's layout lines the stem up with one of
+ *  the branches instead (understanding-mks-architecture: 170 px off). Frames
+ *  holding only stem blocks move with them, and so do the arrows and labels
+ *  between stem blocks; the other arrows are redrawn by tidyArrows, then
+ *  polishSvg keeps the move only if flaws() finds nothing new. False when
+ *  there is nothing to move or a case this step leaves alone: no stem, stem
+ *  blocks not in one column, a frame shared with other blocks, an arrow it
+ *  cannot read. */
+function centreStem(svg: SVGSVGElement, axis: Axis): boolean {
+  const layout = rankLayout(svg, axis);
+  if (!layout) return false;
+  const { root, v, nodes, clusters, boxes, bx, cross, ranks } = layout;
+  const branch = ranks.findIndex((r) => r.length > 1);
+  if (branch < 1) return false;
+  const stem = ranks.slice(0, branch).map((r) => r[0]);
+  // tidyArrows redraws only arrows on rectangular blocks: a moved diamond or
+  // round block would keep Mermaid's arrow ends where it used to be
+  if (stem.some((n) => !n.querySelector(':scope > rect.label-container')))
+    return false;
+  const at = stem.map((n) => cross(bx(n)));
+  if (Math.max(...at) - Math.min(...at) > 2) return false;
+  const tips = ranks[branch].map((n) => cross(bx(n)));
+  const dx = (Math.min(...tips) + Math.max(...tips)) / 2 - at[0];
+  if (Math.abs(dx) < 2) return false;
+  const frames: SVGGElement[] = [];
+  for (const c of clusters) {
+    if (!boxes.has(c)) continue;
+    const held = nodes.filter((n) => boxes.has(n) && holdsBox(bx(c), bx(n)));
+    if (!held.some((n) => stem.includes(n))) continue;
+    if (held.some((n) => !stem.includes(n))) return false;
+    frames.push(c);
+  }
+  const ids = new Set<string>([
+    ...stem.map((n) => blockId(n) ?? ''),
+    ...frames.map((c) => c.id),
+  ]);
+  const shift = (p: Pt): Pt =>
+    v ? { x: p.x + dx, y: p.y } : { x: p.x, y: p.y + dx };
+  const labels = [
+    ...root.querySelectorAll<SVGGElement>(
+      ':scope > g.edgeLabels > g.edgeLabel',
+    ),
+  ];
+  const redraw: [SVGPathElement, string][] = [];
+  const carried = new Set<Element>();
+  for (const path of root.querySelectorAll<SVGPathElement>(
+    ':scope > g.edgePaths > path',
+  )) {
+    const [from, to] = linkIds(path);
+    const inStem = [from, to].map((id) => !!id && ids.has(id));
+    if (!inStem[0] && !inStem[1]) continue;
+    // every arrow on a moved block gets redrawn: it must be readable
+    const pts = basisPoints(path.getAttribute('d') ?? '');
+    if (!pts) return false;
+    if (!inStem[0] || !inStem[1]) continue;
+    redraw.push([path, basisPath(pts.map(shift))]);
+    // its label follows: the nearest one not already taken
+    const mid = polylineMiddle(pts);
+    let best: { l: Element; d: number } | null = null;
+    for (const l of labels) {
+      if (carried.has(l)) continue;
+      const t = translateOf(l);
+      const d = Math.hypot(t.x - mid.x, t.y - mid.y);
+      if (d < 20 && (!best || d < best.d)) best = { l, d };
+    }
+    if (best) carried.add(best.l);
+  }
+  const move = (el: Element) => {
+    const t = shift(translateOf(el));
+    el.setAttribute('transform', `translate(${t.x}, ${t.y})`);
+  };
+  for (const n of stem) move(n);
+  for (const c of frames) {
+    const r = c.querySelector(':scope > rect');
+    const k = v ? 'x' : 'y';
+    if (r) r.setAttribute(k, String(Number(r.getAttribute(k)) + dx));
+    const l = c.querySelector(':scope > g.cluster-label');
+    if (l) move(l);
+  }
+  for (const [path, d] of redraw) path.setAttribute('d', d);
+  for (const l of carried) move(l);
+  return true;
+}
+
+/** What is wrong in the drawing, one key per flaw: blocks overlapping, a
+ *  frame cutting through a block or another frame, a label on a block, an
+ *  arrow through a block other than its own two or come loose from them. */
+function flaws(svg: SVGSVGElement): Set<string> {
+  const out = new Set<string>();
+  const root = svg.querySelector<SVGGElement>('g.root');
+  if (!root) return out;
+  // the whole drawing, subgraphs Mermaid nests in their own root included
+  const blocks: [string, DOMRect][] = [];
+  for (const n of svg.querySelectorAll<SVGGElement>('g.node')) {
+    const id = blockId(n);
+    const b = bboxIn(n, root);
+    if (id && b) blocks.push([id, b]);
+  }
+  const frames: [string, DOMRect][] = [];
+  for (const c of svg.querySelectorAll<SVGGElement>('g.cluster')) {
+    const r = c.querySelector<SVGRectElement>(':scope > rect');
+    const b = r && bboxIn(r, root);
+    if (b) frames.push([c.id, b]);
+  }
+  // labels keyed by their place in the drawing: texts repeat (OK, ÉCHEC…)
+  const labels: [string, DOMRect][] = [];
+  svg
+    .querySelectorAll<SVGGElement>('g.edgeLabels > g.edgeLabel')
+    .forEach((l, i) => {
+      const b = bboxIn(l, root);
+      if ((l.textContent ?? '').trim() && b && b.width > 0)
+        labels.push([String(i), b]);
+    });
+  const meet = (a: DOMRect, b: DOMRect) =>
+    a.x < b.x + b.width - 0.5 &&
+    b.x < a.x + a.width - 0.5 &&
+    a.y < b.y + b.height - 0.5 &&
+    b.y < a.y + a.height - 0.5;
+  blocks.forEach(([a, ba], i) => {
+    for (const [b, bb] of blocks.slice(i + 1))
+      if (meet(ba, bb)) out.add(`block|${a}|${b}`);
+  });
+  for (const [f, bf] of frames)
+    for (const [b, bb] of blocks)
+      if (meet(bf, bb) && !holdsBox(bf, bb)) out.add(`frame|${f}|${b}`);
+  frames.forEach(([f, bf], i) => {
+    for (const [g, bg] of frames.slice(i + 1))
+      if (meet(bf, bg) && !holdsBox(bf, bg) && !holdsBox(bg, bf))
+        out.add(`frames|${f}|${g}`);
+  });
+  for (const [l, bl] of labels)
+    for (const [b, bb] of blocks) if (meet(bl, bb)) out.add(`label|${l}|${b}`);
+  for (const path of svg.querySelectorAll<SVGPathElement>('g.edgePaths path')) {
+    const own = linkIds(path);
+    const L = path.getTotalLength();
+    const ends = [path.getPointAtLength(0), path.getPointAtLength(L)];
+    own.forEach((id, k) => {
+      const b = blocks.find(([i]) => i === id)?.[1];
+      if (
+        b &&
+        (ends[k].x < b.x - 10 ||
+          ends[k].x > b.x + b.width + 10 ||
+          ends[k].y < b.y - 10 ||
+          ends[k].y > b.y + b.height + 10)
+      )
+        out.add(`loose|${path.id}|${id}`);
+    });
+    for (let k = 1; k < 60; k++) {
+      const q = path.getPointAtLength((L * k) / 60);
+      for (const [id, b] of blocks)
+        if (
+          id !== own[0] &&
+          id !== own[1] &&
+          q.x > b.x + 1 &&
+          q.x < b.x + b.width - 1 &&
+          q.y > b.y + 1 &&
+          q.y < b.y + b.height - 1
+        )
+          out.add(`through|${path.id}|${id}`);
+    }
+  }
+  return out;
+}
+
+/** The drawing's frame fitted to its content again once the stem moved —
+ *  Mermaid's 8 px padding — so that no empty band is left on one side. */
+function fitViewBox(svg: SVGSVGElement): void {
+  const b = svg.getBBox();
+  const pad = 8;
+  const w = b.width + 2 * pad;
+  const h = b.height + 2 * pad;
+  svg.setAttribute('viewBox', `${b.x - pad} ${b.y - pad} ${w} ${h}`);
+  if (svg.hasAttribute('width')) svg.setAttribute('width', String(w));
+  if (svg.hasAttribute('height')) svg.setAttribute('height', String(h));
+  if (/max-width/.test(svg.getAttribute('style') ?? ''))
+    svg.style.maxWidth = `${w}px`;
+}
+
+/** The points a d3 `curveBasis` path was drawn through — Mermaid's default
+ *  flowchart curve. Each cubic segment's two control points give the two
+ *  points it was built from, exactly. Null when the path is not such a curve
+ *  (another `curve` setting): redrawing it would change the arrow. */
+function basisPoints(d: string): Pt[] | null {
+  const tokens = d.match(/[MLC]|-?\d*\.?\d+(?:e-?\d+)?/gi) ?? [];
+  const cmds: { c: string; n: number[] }[] = [];
+  for (const t of tokens) {
+    if (/^[MLC]$/i.test(t)) cmds.push({ c: t.toUpperCase(), n: [] });
+    else if (cmds.length) cmds[cmds.length - 1].n.push(Number(t));
+  }
+  const shape = cmds.map((c) => c.c).join('');
+  let pts: Pt[];
+  if (/^ML$/.test(shape)) {
+    pts = [
+      { x: cmds[0].n[0], y: cmds[0].n[1] },
+      { x: cmds[1].n[0], y: cmds[1].n[1] },
+    ];
+  } else if (/^MLC+L$/.test(shape)) {
+    pts = [];
+    cmds.slice(2, -1).forEach(({ n }, j) => {
+      const [c1x, c1y, c2x, c2y] = n;
+      pts[j] = { x: 2 * c1x - c2x, y: 2 * c1y - c2y };
+      pts[j + 1] = { x: 2 * c2x - c1x, y: 2 * c2y - c1y };
+    });
+  } else return null;
+  // the rebuilt curve must be the original one, or the step stays out
+  const a = basisPath(pts).match(/-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
+  const b = d.match(/-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
+  if (a.length !== b.length) return null;
+  if (a.some((v, i) => Math.abs(Number(v) - Number(b[i])) > 0.01)) return null;
+  return pts;
+}
+
+/** d3 `curveBasis` through the points — the curve Mermaid draws its arrows with. */
+function basisPath(p: Pt[]): string {
+  const f = (v: number) => String(Math.round(v * 1000) / 1000);
+  const pt = (q: Pt) => `${f(q.x)},${f(q.y)}`;
+  const bez = (a: Pt, b: Pt, c: Pt) =>
+    `C${f((2 * a.x + b.x) / 3)},${f((2 * a.y + b.y) / 3)},${f((a.x + 2 * b.x) / 3)},${f((a.y + 2 * b.y) / 3)},${f((a.x + 4 * b.x + c.x) / 6)},${f((a.y + 4 * b.y + c.y) / 6)}`;
+  if (p.length === 2) return `M${pt(p[0])}L${pt(p[1])}`;
+  const n = p.length - 1;
+  let d = `M${pt(p[0])}L${f((5 * p[0].x + p[1].x) / 6)},${f((5 * p[0].y + p[1].y) / 6)}`;
+  for (let i = 2; i <= n; i++) d += bez(p[i - 2], p[i - 1], p[i]);
+  return `${d}${bez(p[n - 1], p[n], p[n])}L${pt(p[n])}`;
 }
 
 function rectOf(cluster: Element): DOMRect | null {

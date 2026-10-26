@@ -9,7 +9,7 @@ import {
 import { createPortal } from 'react-dom';
 import { MERMAID_CONFIG, MERMAID_THEME } from '../../config/mermaid';
 import './MermaidDiagram.css';
-import { polishSvg } from './polish';
+import { flowDirection, polishSvg } from './polish';
 
 /**
  * Renders one ```mermaid block (wired by plugins/remarkMermaid — authors never
@@ -29,8 +29,9 @@ import { polishSvg } from './polish';
  *   theme — authors' colours keep their text/fill pairing (measured: the dark
  *   Mermaid theme turned their labels light on their light fills, contrast 1.4).
  * - Clean-up (polish.ts): a gap opened in a frame title where an arrow crosses
- *   it, frames centred on their content — no text hidden, no block or arrow
- *   moved, the source untouched.
+ *   it, frames centred on their content, the head column centred over its
+ *   branches, arrows drawn straight or as one S, square to their blocks and
+ *   off their corners — no text hidden, the source untouched.
  * - Invalid source: an explicit message plus the source, instead of a silent
  *   blank (the previous plugin rendered nothing).
  */
@@ -47,9 +48,10 @@ function loadMermaid(): Promise<Mermaid> {
 // diagram can never leak into another rendered at the same moment.
 let renderQueue: Promise<unknown> = Promise.resolve();
 
-/** Applies polishSvg (title gaps under crossing arrows, frames centred) on
- *  an off-screen copy — measuring needs a laid-out SVG — and returns its markup. */
-function polish(markup: string): string {
+/** Applies polishSvg (title gaps under crossing arrows, frames centred, the
+ *  stem centred, arrows redrawn square to their blocks) on an off-screen
+ *  copy — measuring needs a laid-out SVG — and returns its markup. */
+function polish(markup: string, code: string): string {
   const host = document.createElement('div');
   host.style.cssText =
     'position:absolute;left:-100000px;top:0;visibility:hidden;';
@@ -57,7 +59,7 @@ function polish(markup: string): string {
   document.body.appendChild(host);
   try {
     const el = host.querySelector('svg');
-    if (el) polishSvg(el);
+    if (el) polishSvg(el, flowDirection(code));
     return host.innerHTML;
   } catch {
     return markup; // never lose a diagram to the clean-up
@@ -88,7 +90,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
       mermaid.initialize({ ...MERMAID_CONFIG, theme: MERMAID_THEME });
       try {
         const result = await mermaid.render(id, code);
-        const polished = polish(result.svg);
+        const polished = polish(result.svg, code);
         if (!cancelled) {
           const vb = /viewBox="[\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)"/.exec(
             polished,
