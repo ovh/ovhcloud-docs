@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.10.27
+
+### Fixes
+
+#### EU
+- drop the standalone <br/> lines from the web hosting version legend (#1095)
+
+#### All regions
+- **styles:** show the hand cursor on the collapse header only (#1096)
+
+### Documentation
+- EU: 64 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.26.1
 
 ### Fixes
