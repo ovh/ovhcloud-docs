@@ -1,3 +1,4 @@
+import { ProductBanner } from '@components/ProductBanner';
 import { useI18n, useLocation, usePageData } from '@rspress/core/runtime';
 import { IconMenu, SvgWrapper } from '@rspress/core/theme';
 import { HomeFooter } from '@theme-original';
@@ -10,6 +11,7 @@ import { HomeFeature } from 'theme/components/HomeFeature';
 import { HomeHero } from 'theme/components/HomeHero';
 import { HomeQuickstart } from 'theme/components/HomeQuickstart';
 import { HomeUsecases } from 'theme/components/HomeUsecases';
+import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { Sidebar } from 'theme/components/Sidebar';
 import './HomeLayout.scss';
 
@@ -90,11 +92,21 @@ function useHomeSidebarMenu() {
   };
 }
 
+interface HomeBannerFrontmatter {
+  banner?: boolean;
+  goFurther?: { title?: string; items?: { title: string; link: string }[] };
+}
+
 export function HomeLayout(props: HomeLayoutProps) {
   const { beforeHero, afterHero, beforeFeatures, afterFeatures } = props;
   const {
     page: { frontmatter, routePath },
   } = usePageData();
+  const t = useI18n();
+  // US universe pages use the product-landing banner and "Go further" block
+  // (same frontmatter keys as LandingLayout) so both kinds of page open and
+  // close the same way. The home pages set neither and keep their hero.
+  const { banner, goFurther } = frontmatter as HomeBannerFrontmatter;
 
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } = useHomeSidebarMenu();
 
@@ -116,7 +128,13 @@ export function HomeLayout(props: HomeLayoutProps) {
           <div className="relative">
             <div className="pb-12">
               {beforeHero}
-              <HomeHero frontmatter={frontmatter} routePath={routePath} />
+              {banner ? (
+                <div className="rp-home-banner">
+                  <ProductBanner />
+                </div>
+              ) : (
+                <HomeHero frontmatter={frontmatter} routePath={routePath} />
+              )}
               {afterHero}
               {beforeFeatures}
               <HomeFeature frontmatter={frontmatter} routePath={routePath} />
@@ -124,6 +142,14 @@ export function HomeLayout(props: HomeLayoutProps) {
               <HomeExplore />
               <HomeQuickstart />
               <HomeUsecases />
+              {goFurther?.items && goFurther.items.length > 0 && (
+                <div className="rp-home-go-further">
+                  <OverviewGoFurther
+                    title={goFurther.title || t('overview.goFurtherTitle')}
+                    items={goFurther.items}
+                  />
+                </div>
+              )}
             </div>
             <HomeFooter />
           </div>

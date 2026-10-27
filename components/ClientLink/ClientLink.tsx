@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import './ClientLink.css';
 
 export type MailClient = 'outlook' | 'gmail' | 'thunderbird' | 'mail';
@@ -39,6 +40,9 @@ export function ClientLink({ client, href, children }: ClientLinkProps) {
   const localizeHref = useLocalizeHref();
   const isExternal = href.startsWith('http://') || href.startsWith('https://');
   const resolvedHref = isExternal ? href : localizeHref(href);
+  if (process.env.__SSR_MD__) {
+    return <MdLinkItem href={resolvedHref} title={children} />;
+  }
   return (
     <a
       href={resolvedHref}

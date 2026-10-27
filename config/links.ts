@@ -1300,7 +1300,7 @@ export const externalLinks: LinkMap = {
     pt: 'https://www.ovhcloud.com/pt/identity-security-operations/service-logs/',
   },
   'manager-telecom': {
-    fr: 'https://www.ovh.com/auth?onsuccess=https%3A%2F%2Fwww.ovhtelecom.fr%2Fmanager&ovhSubsidiary=fr',
+    fr: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A%2F%2Fmanager.eu.ovhcloud.com%2F%23%2Ftelecom&ovhSubsidiary=fr',
   },
   'network/additional-ip': {
     fr: 'https://www.ovhcloud.com/fr/network/additional-ip/',
@@ -1472,6 +1472,15 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/public-cloud/ai-endpoints/catalog/whisper-large-v3/',
     pl: 'https://www.ovhcloud.com/pl/public-cloud/ai-endpoints/catalog/whisper-large-v3/',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/ai-endpoints/catalog/whisper-large-v3/',
+  },
+  'public-cloud/ai-endpoints-special-conditions': {
+    fr: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-fr.pdf',
+    en: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-gb.pdf',
+    de: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-de.pdf',
+    es: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-es.pdf',
+    it: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-it.pdf',
+    pl: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-pl.pdf',
+    pt: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-pt.pdf',
   },
   'public-cloud/analytics': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/cloud-analytics/',
@@ -1686,6 +1695,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-cloud/management-interfaces/',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/management-interfaces/',
   },
+  'public-cloud/mongodb': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/mongodb/',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/mongodb/',
+    de: 'https://www.ovhcloud.com/de/public-cloud/mongodb/',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/mongodb/',
+    it: 'https://www.ovhcloud.com/it/public-cloud/mongodb/',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/mongodb/',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/mongodb/',
+  },
   'public-cloud/network': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/network/',
     en: 'https://www.ovhcloud.com/en-gb/public-cloud/network/',
@@ -1776,6 +1794,24 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#kafka',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#kafka',
   },
+  'public-cloud/prices-kafka-connect': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#kafka-connect',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#kafka-connect',
+    de: 'https://www.ovhcloud.com/de/public-cloud/prices/#kafka-connect',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/prices/#kafka-connect',
+    it: 'https://www.ovhcloud.com/it/public-cloud/prices/#kafka-connect',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#kafka-connect',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#kafka-connect',
+  },
+  'public-cloud/prices-kafka-mirrormaker': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#kafka-mirrormaker',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#kafka-mirrormaker',
+    de: 'https://www.ovhcloud.com/de/public-cloud/prices/#kafka-mirrormaker',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/prices/#kafka-mirrormaker',
+    it: 'https://www.ovhcloud.com/it/public-cloud/prices/#kafka-mirrormaker',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#kafka-mirrormaker',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#kafka-mirrormaker',
+  },
   'public-cloud/prices-load-balancer': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#load-balancer',
     en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#load-balancer',
@@ -1784,6 +1820,15 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/public-cloud/prices/#load-balancer',
     pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#load-balancer',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#load-balancer',
+  },
+  'public-cloud/prices-mongodb': {
+    fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#mongodb',
+    en: 'https://www.ovhcloud.com/en-gb/public-cloud/prices/#mongodb',
+    de: 'https://www.ovhcloud.com/de/public-cloud/prices/#mongodb',
+    es: 'https://www.ovhcloud.com/es-es/public-cloud/prices/#mongodb',
+    it: 'https://www.ovhcloud.com/it/public-cloud/prices/#mongodb',
+    pl: 'https://www.ovhcloud.com/pl/public-cloud/prices/#mongodb',
+    pt: 'https://www.ovhcloud.com/pt/public-cloud/prices/#mongodb',
   },
   'public-cloud/prices-network': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/prices/#network',
@@ -2812,6 +2857,13 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/web-hosting/uc-wordpress-website/',
     pl: 'https://www.ovhcloud.com/pl/web-hosting/uc-wordpress-website/',
     pt: 'https://www.ovhcloud.com/pt/web-hosting/uc-wordpress-website/',
+  },
+  // Offer page published in fr / es-es / pl only: the other locales fall back
+  // to the FR page on purpose.
+  'web/managed-hosting-wordpress': {
+    fr: 'https://www.ovhcloud.com/fr/managed-hosting-wordpress/',
+    es: 'https://www.ovhcloud.com/es-es/managed-hosting-wordpress/',
+    pl: 'https://www.ovhcloud.com/pl/managed-hosting-wordpress/',
   },
   'web/ms365': {
     fr: 'https://www.ovhcloud.com/fr/microsoft-365/',
