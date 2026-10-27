@@ -108,7 +108,7 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
     const bodyOf = (p: LlmsPage) => {
       let b = bodies.get(p.route);
       if (b === undefined) {
-        b = renderFullPage(p);
+        b = renderFullPage(p, siteUrl);
         bodies.set(p.route, b);
       }
       return b;

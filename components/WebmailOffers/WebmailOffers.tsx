@@ -1,6 +1,7 @@
 import { useLang } from '@rspress/core/runtime';
 import type { CSSProperties } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import './WebmailOffers.css';
 
 const MailIcon = () => (
@@ -161,6 +162,24 @@ export function WebmailOffers() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
   const localizeHref = useLocalizeHref();
+  // `.md` export: one link per webmail with its plans, then the note.
+  if (process.env.__SSR_MD__) {
+    return (
+      <>
+        <ul>
+          {CARDS.map((c) => (
+            <MdLinkItem
+              key={c.key}
+              href={localizeHref(c.href)}
+              title={c.tech}
+              description={`${t.taglines[c.key]} ${t.offersLabel}: ${c.offers.join(', ')}.`}
+            />
+          ))}
+        </ul>
+        <p>{t.note}</p>
+      </>
+    );
+  }
   return (
     <div className="webmail-offers">
       <div className="webmail-offers__grid">
