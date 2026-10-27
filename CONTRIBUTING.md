@@ -467,6 +467,36 @@ For external URLs that are the same for everyone (GitHub, third-party docs), use
 [Plesk documentation](https://docs.plesk.com/)
 ```
 
+## Third-party tools and products
+
+This section applies when you propose a third-party tool, service or website **in which you have an interest**: you build, sell or maintain it, or you work for or are paid by its publisher. It does not cover content produced under an OVHcloud partner or certification programme (for example certified OPCP solutions or the AI Partners Ecosystem), which follows that programme's own process.
+
+### Disclose your interest
+
+State your interest in the pull request description. A pull request with an undisclosed interest will be closed.
+
+### When a tool can be mentioned
+
+- **It is established.** It shows independent signs of adoption: third-party reviews, coverage, use by an active community, or documentation by other vendors. A product's own website, or entries made by its publisher, do not count.
+- **It is identifiable.** The publisher or project behind it is clearly named. Online services also state their terms of use and privacy policy.
+- **In a list, it brings something new.** When a guide already lists several equivalent tools, a new entry must do something the listed ones cannot.
+- **It does not over-reach.** If the publisher's application obtains delegated access to the reader's OVHcloud account (for example through OAuth), it asks only for the rights the task in the guide requires.
+
+### Guides maintained by a publisher
+
+A guide dedicated to your own product is accepted only if the product meets the criteria above and the guide:
+
+- includes the `[[fragment:support-scope]]` fragment and states that the product is outside OVHcloud support;
+- names its maintainer and how to reach them;
+- does not contradict OVHcloud recommendations made elsewhere in the documentation.
+
+These guides are reviewed every six months. If one is out of date and its maintainer does not update it within 30 days of being asked, it is unpublished. OVHcloud may remove such a guide at any time, in particular if the product's permissions, pricing or terms change.
+
+### What we will decline
+
+- Links added mainly to gain visibility or search ranking.
+- Tools that do not yet show independent adoption, whatever their quality. You are welcome to come back once they do.
+
 ## Sidebar
 
 The sidebar is a single tree in [config/sidebar/index.md](config/sidebar/index.md). After editing it:

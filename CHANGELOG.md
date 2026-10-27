@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026.10.26.1
+
+### Fixes
+
+#### EU
+- restore the PHP 5.3 column and realign the Stable and Legacy rows (#1089)
+
+#### All regions
+- **components:** tidy mermaid arrows and labels (#1081)
+
+### Documentation
+- EU: 23 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
 ## 2026.10.26
 
 ### Fixes
