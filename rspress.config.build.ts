@@ -10,7 +10,6 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
-import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
@@ -28,6 +27,7 @@ import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkMermaid } from './plugins/remarkMermaid';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
@@ -126,13 +126,7 @@ export default defineConfig({
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
-  plugins: [
-    pluginLastUpdatedFromFrontmatter(),
-    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
-    // the plugin's `loose` default: diagrams are contributor-written, so no
-    // click callbacks or raw HTML in labels.
-    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
-  ],
+  plugins: [pluginLastUpdatedFromFrontmatter()],
 
   builderConfig: {
     logLevel: 'error',
@@ -183,6 +177,33 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
+        // Cookie policy for a region the CMP does not cover yet (see
+        // config/regions.ts `cookieScript`).
+        ...(regionConfig.cookieScript
+          ? [
+              // The container calls jQuery as soon as it runs, so jQuery must
+              // run first. Both are deferred: deferred scripts run in document
+              // order. Not async: at SSG, Unhead sorts <head> by script type
+              // and moves async scripts ahead of every other one, whatever
+              // their order here.
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: regionConfig.cookieScript,
+                  defer: true,
+                  'data-analytics': '',
+                },
+              },
+            ]
+          : []),
         // The consent manager and the analytics it injects only exist in
         // regions that run them (config/regions.ts `consentManager`).
         ...(regionConfig.consentManager
@@ -231,14 +252,14 @@ export default defineConfig({
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
-        // Hide the language switcher on single-locale regions (e.g. US).
+        // Regions served without a /{locale}/ URL segment (none today).
         __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
         // Region values consumed by theme/components/SEOHead, which runs in the
         // browser and cannot import config/regions. Without these, the US build
         // would emit canonical/hreflang pointing at the EU origin.
         __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
         __LOCALES__: JSON.stringify(regionConfig.locales),
-        __HTML_LANG__: JSON.stringify(htmlLangFor(regionConfig, locale)),
+        __HTML_LANG_MAP__: JSON.stringify(regionConfig.htmlLang ?? {}),
         // The sibling site, so each region's pages can advertise the other in
         // their hreflang cluster (see theme/components/SEOHead).
         __PEER_SITE_URL__: JSON.stringify(peerRegion(REGION)?.siteUrl ?? ''),
@@ -251,12 +272,20 @@ export default defineConfig({
         __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
         // Whether the CMP and its analytics run (see config/regions.ts).
         __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
+        // Whether guides end with the page feedback form (see config/regions.ts).
+        __PAGE_FEEDBACK__: JSON.stringify(regionConfig.pageFeedback),
+        // Survey opened by theme/components/SurveyWidget (see config/regions.ts).
+        __SURVEY_URL__: JSON.stringify(regionConfig.surveyUrl),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
         __FOOTER_CORPORATE_URL__: JSON.stringify(regionConfig.corporateUrl),
         __FOOTER_LEGAL_NOTICE__: JSON.stringify(regionConfig.legalNotice ?? ''),
         __FOOTER_LINKS__: JSON.stringify(regionConfig.footerLinks ?? []),
+        // Fixed language label for single-locale regions (see config/regions.ts).
+        __LOCALE_INDICATOR__: JSON.stringify(
+          regionConfig.localeIndicator ?? null,
+        ),
       },
     },
     resolve: {
@@ -300,6 +329,9 @@ export default defineConfig({
   markdown: {
     crossCompilerCache: true,
     remarkPlugins: [
+      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
+      // column — config/mermaid.ts). Source passed verbatim.
+      remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
@@ -318,6 +350,7 @@ export default defineConfig({
       path.join(BASE_DIR, 'components/CardGrid/CardGrid.tsx'),
       path.join(BASE_DIR, 'components/CategoryColumns/CategoryColumns.tsx'),
       path.join(BASE_DIR, 'components/Banner/Banner.tsx'),
+      path.join(BASE_DIR, 'components/MermaidDiagram/MermaidDiagram.tsx'),
     ],
     link: {
       checkDeadLinks: true,

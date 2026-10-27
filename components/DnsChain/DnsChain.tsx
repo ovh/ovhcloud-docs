@@ -1,6 +1,7 @@
 import { useLang } from '@rspress/core/runtime';
 import { Fragment, type ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import './DnsChain.css';
 
 const svg = {
@@ -254,6 +255,21 @@ export function DnsChain() {
   const lang = useLang();
   const localizeHref = useLocalizeHref();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the chain as a numbered list (see MdLinkItem).
+  if (process.env.__SSR_MD__) {
+    return (
+      <ol>
+        {t.nodes.map((node, i) => (
+          <MdLinkItem
+            key={node.title}
+            href={localizeHref(HREFS[i])}
+            title={node.title}
+            description={node.desc}
+          />
+        ))}
+      </ol>
+    );
+  }
   return (
     <div className="dns-chain">
       {t.nodes.map((node, i) => (

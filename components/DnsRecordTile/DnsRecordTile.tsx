@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
 import { type DnsRecord, DnsRecordIcon } from '../DnsRecordIcon';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import './DnsRecordTile.css';
 
 /** Role family that drives the tile's accent color. */
@@ -37,6 +38,15 @@ export function DnsRecordTile({
   description,
 }: DnsRecordTileProps) {
   const localizeHref = useLocalizeHref();
+  if (process.env.__SSR_MD__) {
+    return (
+      <MdLinkItem
+        href={localizeHref(href)}
+        title={title}
+        description={description}
+      />
+    );
+  }
   return (
     <a className="dns-tile" data-category={category} href={localizeHref(href)}>
       <span className="dns-tile__icon" aria-hidden="true">
