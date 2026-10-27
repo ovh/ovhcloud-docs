@@ -17,10 +17,12 @@ import type { Locale } from '../shared';
  * `account-menu` is not a universe in the Control Panel's top navigation: the account
  * and billing screens are reached from the user menu, so its "label" is instruction
  * text rather than something to click.
+ * `private-cloud` is the Console's (v8) top-bar entry, for products that exist only there.
  */
 export type UniverseId =
   | 'web-cloud'
   | 'hosted-private-cloud'
+  | 'private-cloud'
   | 'bare-metal-cloud'
   | 'public-cloud'
   | 'network'
