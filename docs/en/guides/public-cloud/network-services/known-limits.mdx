@@ -1,6 +1,6 @@
 ---
 title: Public Cloud Network Services - Known limits
-description: Requirements and limits to respect
+description: Known limits of Public Cloud network services (Private Network, Public IPs, Gateway, Load Balancer, Security Group) and how to work around them
 lastUpdated: 2026-10-27
 ---
 
@@ -12,9 +12,9 @@ For a given Public Cloud project, you can attach only one vRack. If you wish to 
 
 ### IPs used by services
 
-When a service is spawned in a subnet, it is using some IPs from the subnet CIDR. The following table provides the number of IPs used by each service. If the subnet has a "small" number of available IPs, this can have impact. If all L3 services are in use, the total number of IPs used will be 7. We advise to use at least a `/28` mask.
+When a service is spawned in a subnet, it uses some IPs from the subnet CIDR. The following table provides the number of IPs used by each service. If the subnet has a "small" number of available IPs, this can have impact. If all L3 services are in use, the total number of IPs used will be 7. We advise to use at least a `/28` mask.
 
-| Used IPs by the service: | In DHCP allocation pool | Outside of allocation pool (gateway_ip) |
+| Service | In DHCP allocation pool | Outside of allocation pool (gateway_ip) |
 | :---: | :---: | :---: |
 | DHCP | 2 | |
 | Public Cloud Gateway | 1 | 1 |
@@ -37,7 +37,7 @@ openstack port list --network <PRIVATE_NETWORK_ID> --device-owner network:dhcp -
 Then check the newly created port that should be inside the updated IP allocation pool with:
 
 ```bash
-openstack port list --network <PRIVATE_NETWORK_UID> --device-owner network:dhcp
+openstack port list --network <PRIVATE_NETWORK_ID> --device-owner network:dhcp
 +--------------------------------------+------+-------------------+---------------------------------------------------------------------------+--------+
 | ID                                   | Name | MAC Address       | Fixed IP Addresses                                                        | Status |
 +--------------------------------------+------+-------------------+---------------------------------------------------------------------------+--------+
@@ -48,7 +48,7 @@ openstack port list --network <PRIVATE_NETWORK_UID> --device-owner network:dhcp
 
 ### No cross-region IP or MAC collision check
 
-When Private Networks in several regions share the same VLAN ID, they form one private network segment, but each region manages its own addresses and nothing checks them across regions. Two regions can use the same CIDR with overlapping allocation pools, and two ports in two regions can get the same fixed IP or the same MAC address. The conflict is accepted at creation and only shows up later, as a duplicate address.
+When Private Networks in several regions share the same VLAN ID, they form one private network segment, but each region manages its own addresses: IP and MAC address uniqueness is not enforced across regions. Two regions can use the same CIDR with overlapping allocation pools, and two ports in two regions can get the same fixed IP or the same MAC address. No error is returned at creation; the conflict only shows up later, as a duplicate address.
 
 **Mitigation:** Keep the addressing plan disjoint — one CIDR per region, or one shared CIDR with split allocation pools — and choose fixed IPs inside the region's own range.
 
@@ -60,7 +60,7 @@ Nothing prevents a Public Cloud instance from getting a private IP address alrea
 
 ### No vRack in a Local Zone
 
-A Local Zone is not connected to the vRack. A Private Network created there stays confined to the Local Zone: it cannot be routed to Private Networks of other regions, nor connected to other OVHcloud products (Bare Metal servers, Hosted Private Cloud). For the same reason, it has no VLAN ID.
+A [Local Zone](/guides/public-cloud/compute/local-zones-capabilities-limitations) is not connected to the vRack. A Private Network created there stays confined to the Local Zone: it cannot be routed to Private Networks of other regions, nor connected to other OVHcloud products (Bare Metal servers, Hosted Private Cloud). For the same reason, it has no VLAN ID.
 
 **Mitigation:** None within the Local Zone — a workload that needs vRack connectivity or a multi-region L2 domain must run in a standard region.
 
@@ -68,7 +68,7 @@ A Local Zone is not connected to the vRack. A Private Network created there stay
 
 ### OpenStack router and Floating IP routing conflict
 
-The Ext-Net network uses the reserved subnet `172.31.0.0/17` internally for gateway ports on compute nodes that handle Floating IPs locally. If a private customer subnet overlaps with this range, routing conflicts may occur, preventing Floating IP traffic from working correctly.
+The `172.31.0.0/17` range is reserved for Floating IP routing on the Ext-Net network. If one of your private subnets overlaps with this range, routing conflicts may occur, preventing Floating IP traffic from working correctly.
 
 :::warning
 Avoid using any CIDR within the `172.31.0.0/17` range for your private subnets when Floating IPs are in use. Use a different private address range (e.g. `10.0.0.0/8` or `192.168.0.0/16`) to prevent routing conflicts.
@@ -77,7 +77,7 @@ Avoid using any CIDR within the `172.31.0.0/17` range for your private subnets w
 
 ### No Floating IP in a Local Zone
 
-Floating IPs are not available in a Local Zone. Public connectivity relies entirely on each instance's Basic IP, which is bound to the instance: no public address can be moved from one instance to another.
+[Floating IPs](/guides/public-cloud/network-services/attach-floating-ip-to-instance) are not available in a Local Zone. Public connectivity relies entirely on each instance's Basic IP, which is bound to the instance: no public address can be moved from one instance to another.
 
 **Mitigation:** None for a movable address — the Basic IP still routes ingress and egress without a Gateway.
 
@@ -91,7 +91,7 @@ In the EU-WEST-PAR and EU-SOUTH-MIL regions, an instance created with a Basic IP
 
 A Floating IP only carries inbound traffic. An instance with a Floating IP and no Gateway on its Subnet is reachable from the internet, but cannot open outbound connections.
 
-**Mitigation:** Attach a Gateway to the Subnet — on the OVHcloud API it is a prerequisite of the Floating IP attachment itself.
+**Mitigation:** Attach a [Gateway](/guides/public-cloud/network-services/getting-started-gateway) to the Subnet — on the OVHcloud API it is a prerequisite of the Floating IP attachment itself.
 
 ## Gateway
 
@@ -105,43 +105,39 @@ You cannot create a Gateway in a Local Zone, so no Subnet there can get outbound
 
 A Gateway can be attached to Subnets of several Private Networks, but not to two Subnets whose address ranges overlap, such as two `10.0.0.0/24` Subnets in two different Private Networks: the second attachment fails. Private Networks that reuse the same addressing plan need one Gateway each.
 
-**Mitigation:** Use one Gateway per Private Network whose Subnets overlap, each with its own public IP, or keep a disjoint addressing plan across the Private Networks that must share a Gateway. A Gateway left in error should be deleted and recreated.
+**Mitigation:** Use one Gateway per Private Network whose Subnets overlap, each with its own public IP, or keep a disjoint addressing plan across the Private Networks that must share a Gateway.
 
 ### A Gateway does not route traffic between Private Networks
 
 A Gateway attached to Subnets of several Private Networks gives them outbound internet access and a shared public IP, but it does not connect those Private Networks to each other: it cannot be used to make instances of two Private Networks communicate.
 
-**Mitigation:** None known.
-
 ### Exactly one public IP per Gateway
 
 A Gateway always has exactly one public IP, assigned automatically. You cannot create a Gateway without a public IP, add a second one, or choose the address.
 
-**Mitigation:** None known.
-
 ## Load Balancer
 
-### Default quotas and limitations
+### Default quotas
 
 | Resource | Default quota |
 | --- | --- |
-| **Maximum number of load balancers** | 10 |
-| **Maximum number of listeners** | 100 |
-| **Maximum number of pools** | 100 |
-| **Maximum number of members** | 500 |
-| **Maximum number of health monitors** | 100 |
-| **Maximum number of L7 policies** | 50 |
-| **Maximum number of L7 rules** | 250 |
+| Maximum number of load balancers | 10 |
+| Maximum number of listeners | 100 |
+| Maximum number of pools | 100 |
+| Maximum number of members | 500 |
+| Maximum number of health monitors | 100 |
+| Maximum number of L7 policies | 50 |
+| Maximum number of L7 rules | 250 |
 
 ### ICMP traffic towards Load Balancer IP
 
-The traffic towards Load Balancer IP (private IP or floating IP) is filtered. Which means the `ping` on these IPs will not answer.
+Traffic towards the Load Balancer IP (private IP or Floating IP) is filtered, which means that these IPs do not answer `ping` requests.
 
 ### One-call Load Balancer creation fails with an HTTPS listener
 
-Creating a Load Balancer and a TERMINATED_HTTPS listener in the same request fails.
+Creating a Load Balancer and a `TERMINATED_HTTPS` listener in the same request fails.
 
-**Mitigation:** Create the Load Balancer with an HTTP listener (or none) first, then create the `terminatedHTTPS` listener separately with an OPAQUE PKCS#12 secret.
+**Mitigation:** Create the Load Balancer with an HTTP listener (or none) first, then create the `TERMINATED_HTTPS` listener separately with an `OPAQUE` PKCS#12 secret.
 
 ### Floating IP created with the Load Balancer outlives it
 
@@ -151,15 +147,15 @@ Deleting a Load Balancer removes its listeners, pools, members, health monitors 
 
 ### Certificate for an IP address refused
 
-A TERMINATED_HTTPS listener refuses a certificate issued for an IP address only, such as a Let's Encrypt IP certificate: the certificate must name a domain. A Load Balancer reached only by its public IP cannot serve a publicly trusted certificate.
+A `TERMINATED_HTTPS` listener refuses a certificate issued for an IP address only, such as a Let's Encrypt IP certificate: the certificate must name a domain. A Load Balancer reached only by its public IP cannot serve a publicly trusted certificate.
 
 **Mitigation:** Point a domain name at the Load Balancer's Floating IP and certify that name.
 
 ### TLS certificate accepted only as a PKCS#12 secret
 
-A TERMINATED_HTTPS listener only accepts a certificate stored as a single secret containing a PKCS#12 bundle (certificate, private key and optional chain). Other formats are refused, with error messages that do not say what is expected.
+A `TERMINATED_HTTPS` listener only accepts a certificate stored as a single secret containing a PKCS#12 bundle (certificate, private key and optional chain). Other formats are refused.
 
-**Mitigation:** Bundle the certificate, key and chain into a PKCS#12 file and store it as one OPAQUE secret.
+**Mitigation:** Bundle the certificate, key and chain into a PKCS#12 file and store it as one `OPAQUE` secret. See how to [configure a third-party certificate on a Load Balancer](/guides/public-cloud/network-services/load-balancer-third-party-certificat).
 
 ### No built-in Let's Encrypt certificate
 
@@ -187,13 +183,13 @@ A Subnet cannot hold two Private Endpoints for the same service.
 
 The region's default Security Group, applied when an instance is created without an explicit Security Group, allows all inbound traffic.
 
-**Mitigation:** Always create instances with an explicit, restrictive Security Group.
+**Mitigation:** Always create instances with an explicit, restrictive [Security Group](/guides/public-cloud/compute/setup-security-group). Do not modify or delete the `default` group itself: automated tasks on the infrastructure can reset it.
 
 ### One Security Group set per instance, instances only
 
-This limitation applies to the OVHcloud API — Security Groups are not yet exposed in the Console. Security Groups apply to the instance as a whole: its public and private interfaces always get the same filtering, and there is no per-interface Security Group. A Security Group cannot be applied to a Load Balancer, a Gateway or a Private Endpoint.
+This limitation applies to Security Groups managed through the OVHcloud API. Security Groups apply to the instance as a whole: its public and private interfaces always get the same filtering, and there is no per-interface Security Group. A Security Group cannot be applied to a Load Balancer, a Gateway or a Private Endpoint.
 
-**Mitigation:** Use the OpenStack/Neutron API directly if you need per-port Security Group assignment.
+**Mitigation:** Use the OpenStack API directly if you need per-port Security Group assignment.
 
 ## General
 
