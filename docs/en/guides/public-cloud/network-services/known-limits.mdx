@@ -1,50 +1,28 @@
 ---
 title: Public Cloud Network Services - Known limits
 description: Requirements and limits to respect
-lastUpdated: 2026-06-01
+lastUpdated: 2026-10-27
 ---
 
 import Api from '@components/Api';
 
+## Private Network
 
-## vRack and Public Cloud projects
+### One vRack per Public Cloud project
 
 For a given Public Cloud project, you can attach only one vRack. If you wish to build private connectivity between 2 (or more) Public Cloud projects, you should attach the same vRack to those Public Cloud projects.
 
-## Load Balancer Floating IP in the OVHcloud Control Panel
-
-Currently, the Load Balancer details page in the OVHcloud Control Panel doesn't mention the Floating IP associated to a Load Balancer.
-
-You can find this information:
-
-- in [Horizon](/guides/public-cloud/cross-functional/introducing-horizon).
-- using the [OpenStack CLI](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment) by doing `openstack floating ip list` and `openstack loadbalancer list`.
-- using the OVHcloud API:
-
-<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/region/\{regionName\}/loadbalancing/loadbalancer/\{loadBalancerId\}"} />
-
-
-## IPs used by services
+### IPs used by services
 
 When a service is spawned in a subnet, it is using some IPs from the subnet CIDR. The following table provides the number of IPs used by each service. If the subnet has a "small" number of available IPs, this can have impact. If all L3 services are in use, the total number of IPs used will be 7. We advise to use at least a `/28` mask.
 
-| Used IPs by the service:| In DHCP allocation pool |	Outside of allocation pool (gateway_ip) |
+| Used IPs by the service: | In DHCP allocation pool | Outside of allocation pool (gateway_ip) |
 | :---: | :---: | :---: |
-| DHCP |	2 | |	
-| Public Cloud Gateway | 1	| 1 |
-| Public Cloud Load Balancer (Octavia)	| 3 | |	
+| DHCP | 2 | |
+| Public Cloud Gateway | 1 | 1 |
+| Public Cloud Load Balancer (Octavia) | 3 | |
 
-## ICMP traffic towards Load Balancer IP
-
-The traffic towards Load Balancer IP (private IP or floating IP) is filtered. Which means the `ping` on these IPs will not answer.
-
-## Instance bandwidth
-
-To achieve the maximum bandwidth provided with each instance you may need to use **multi-flow**.
-
-For example, when using iperf to test your instance bandwidth, you can enable multi-flow by adding the `-P n` or `--parallel n` option. If n = 1 (which is the default if this option is omitted), you are testing bandwidth with a single flow. To achieve maximum bandwidth, you should increase the value of n.
-
-## Subnet allocation pool update
+### Subnet allocation pool update
 
 When updating an allocation pool, e.g. from `[10.0.0.2:10.0.0.255]` to `[10.0.0.128:10.0.0.255]`, **all IPs already used prior to the allocation pool update are kept even if they are not in the new allocation pool.**
 
@@ -70,7 +48,27 @@ openstack port list --network <PRIVATE_NETWORK_UID> --device-owner network:dhcp
 +--------------------------------------+------+-------------------+---------------------------------------------------------------------------+--------+
 ```
 
-## OpenStack router and Floating IP routing conflict
+### No cross-region IP or MAC collision check
+
+When Private Networks in several regions share the same VLAN ID, they form one private network segment, but each region manages its own addresses and nothing checks them across regions. Two regions can use the same CIDR with overlapping allocation pools, and two ports in two regions can get the same fixed IP or the same MAC address. The conflict is accepted at creation and only shows up later, as a duplicate address.
+
+**Mitigation:** Keep the addressing plan disjoint — one CIDR per region, or one shared CIDR with split allocation pools — and choose fixed IPs inside the region's own range.
+
+### No IP address conflict detection with other vRack products
+
+Nothing prevents a Public Cloud instance from getting a private IP address already used, on the same vRack, by another OVHcloud product (Bare Metal server, Hosted Private Cloud…). The conflict is not detected, and only shows up later as a duplicate address.
+
+**Mitigation:** Keep the other products' addresses out of the Subnet's allocation pools.
+
+### No vRack in a Local Zone
+
+A Local Zone is not connected to the vRack. A Private Network created there stays confined to the Local Zone: it cannot be routed to Private Networks of other regions, nor connected to other OVHcloud products (Bare Metal servers, Hosted Private Cloud). For the same reason, it has no VLAN ID.
+
+**Mitigation:** None within the Local Zone — a workload that needs vRack connectivity or a multi-region L2 domain must run in a standard region.
+
+## Public IPs
+
+### OpenStack router and Floating IP routing conflict
 
 The Ext-Net network uses the reserved subnet `172.31.0.0/17` internally for gateway ports on compute nodes that handle Floating IPs locally. If a private customer subnet overlaps with this range, routing conflicts may occur, preventing Floating IP traffic from working correctly.
 
@@ -78,6 +76,134 @@ The Ext-Net network uses the reserved subnet `172.31.0.0/17` internally for gate
 Avoid using any CIDR within the `172.31.0.0/17` range for your private subnets when Floating IPs are in use. Use a different private address range (e.g. `10.0.0.0/8` or `192.168.0.0/16`) to prevent routing conflicts.
 
 :::
+
+### No Floating IP in a Local Zone
+
+Floating IPs are not available in a Local Zone. Public connectivity relies entirely on each instance's Basic IP, which is bound to the instance: no public address can be moved from one instance to another.
+
+**Mitigation:** None for a movable address — the Basic IP still routes ingress and egress without a Gateway.
+
+### No IPv6 on Basic IP in EU-WEST-PAR and EU-SOUTH-MIL
+
+In the EU-WEST-PAR and EU-SOUTH-MIL regions, an instance created with a Basic IP as its public connectivity only gets IPv4, while in the other regions its public interface carries both an IPv4 and an IPv6 address. These two regions use a separate public network for IPv6, `ext-net-v6`, to which the instance is not attached.
+
+**Mitigation:** Attach the instance to the `ext-net-v6` network through OpenStack.
+
+### No Internet egress through a Floating IP alone
+
+A Floating IP only carries inbound traffic. An instance with a Floating IP and no Gateway on its Subnet is reachable from the internet, but cannot open outbound connections.
+
+**Mitigation:** Attach a Gateway to the Subnet — on the OVHcloud API it is a prerequisite of the Floating IP attachment itself.
+
+## Gateway
+
+### No Gateway in a Local Zone
+
+You cannot create a Gateway in a Local Zone, so no Subnet there can get outbound internet access through a Gateway.
+
+**Mitigation:** A Basic IP on each instance routes both directions without a Gateway — per instance, not shared.
+
+### One Gateway cannot serve Subnets with overlapping CIDRs
+
+A Gateway can be attached to Subnets of several Private Networks, but not to two Subnets whose address ranges overlap, such as two `10.0.0.0/24` Subnets in two different Private Networks: the second attachment fails. Private Networks that reuse the same addressing plan need one Gateway each.
+
+**Mitigation:** Use one Gateway per Private Network whose Subnets overlap, each with its own public IP, or keep a disjoint addressing plan across the Private Networks that must share a Gateway. A Gateway left in error should be deleted and recreated.
+
+### A Gateway does not route traffic between Private Networks
+
+A Gateway attached to Subnets of several Private Networks gives them outbound internet access and a shared public IP, but it does not connect those Private Networks to each other: it cannot be used to make instances of two Private Networks communicate.
+
+**Mitigation:** None known.
+
+### Exactly one public IP per Gateway
+
+A Gateway always has exactly one public IP, assigned automatically. You cannot create a Gateway without a public IP, add a second one, or choose the address.
+
+**Mitigation:** None known.
+
+## Load Balancer
+
+### Load Balancer Floating IP not shown in the OVHcloud Console
+
+Currently, the Load Balancer details page in the OVHcloud Console doesn't mention the Floating IP associated to a Load Balancer.
+
+You can find this information:
+
+- in [Horizon](/guides/public-cloud/cross-functional/introducing-horizon).
+- using the [OpenStack CLI](/guides/public-cloud/cross-functional/compute-prepare-openstack-api-environment) by doing `openstack floating ip list` and `openstack loadbalancer list`.
+- using the OVHcloud API:
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/region/\{regionName\}/loadbalancing/loadbalancer/\{loadBalancerId\}"} />
+
+### ICMP traffic towards Load Balancer IP
+
+The traffic towards Load Balancer IP (private IP or floating IP) is filtered. Which means the `ping` on these IPs will not answer.
+
+### One-call Load Balancer creation fails with an HTTPS listener
+
+Creating a Load Balancer and a TERMINATED_HTTPS listener in the same request fails.
+
+**Mitigation:** Create the Load Balancer with an HTTP listener (or none) first, then create the `terminatedHTTPS` listener separately with an OPAQUE PKCS#12 secret.
+
+### Floating IP created with the Load Balancer outlives it
+
+Deleting a Load Balancer removes its listeners, pools, members, health monitors and L7 policies, but not a Floating IP created at the same time as the Load Balancer. The Floating IP stays in your project, and is still billed.
+
+**Mitigation:** Delete the Floating IP explicitly after deleting the Load Balancer.
+
+### Certificate for an IP address refused
+
+A TERMINATED_HTTPS listener refuses a certificate issued for an IP address only, such as a Let's Encrypt IP certificate: the certificate must name a domain. A Load Balancer reached only by its public IP cannot serve a publicly trusted certificate.
+
+**Mitigation:** Point a domain name at the Load Balancer's Floating IP and certify that name.
+
+### TLS certificate accepted only as a PKCS#12 secret
+
+A TERMINATED_HTTPS listener only accepts a certificate stored as a single secret containing a PKCS#12 bundle (certificate, private key and optional chain). Other formats are refused, with error messages that do not say what is expected.
+
+**Mitigation:** Bundle the certificate, key and chain into a PKCS#12 file and store it as one OPAQUE secret.
+
+### No built-in Let's Encrypt certificate
+
+The Load Balancer does not obtain or renew Let's Encrypt certificates by itself. You obtain the certificate with your own ACME client, store it, and replace it on the listener at every renewal, before it expires.
+
+**Mitigation:** Automate renewal with an ACME client whose deploy hook stores the new certificate as a PKCS#12 secret and swaps it on the listener; keep port 80 open to Let's Encrypt.
+
+## Private Endpoint
+
+### A Private Endpoint is effectively immutable
+
+Only the name and the description of a Private Endpoint can be changed. The service, the Subnet, the private IP and the public DNS setting are chosen at creation: changing them means deleting and recreating the endpoint, which gets a new private IP unless you set it explicitly.
+
+**Mitigation:** Pin the private IP address at creation, so a recreated endpoint keeps the same address.
+
+### One Private Endpoint per service and Subnet
+
+A Subnet cannot hold two Private Endpoints for the same service.
+
+**Mitigation:** Place the second endpoint in another Subnet.
+
+## Security Group
+
+### The default Security Group is permissive
+
+The region's default Security Group, applied when an instance is created without an explicit Security Group, allows all inbound traffic.
+
+**Mitigation:** Always create instances with an explicit, restrictive Security Group.
+
+### One Security Group set per instance, instances only
+
+Security Groups apply to the instance as a whole: its public and private interfaces always get the same filtering, and there is no per-interface Security Group. A Security Group cannot be applied to a Load Balancer, a Gateway or a Private Endpoint.
+
+**Mitigation:** None known.
+
+## General
+
+### Instance bandwidth
+
+To achieve the maximum bandwidth provided with each instance you may need to use **multi-flow**.
+
+For example, when using iperf to test your instance bandwidth, you can enable multi-flow by adding the `-P n` or `--parallel n` option. If n = 1 (which is the default if this option is omitted), you are testing bandwidth with a single flow. To achieve maximum bandwidth, you should increase the value of n.
 
 ## We want your feedback!
 
