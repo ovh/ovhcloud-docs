@@ -1,6 +1,10 @@
 import { useFrontmatter, useI18n, useLang } from '@rspress/core/runtime';
 
 const PdfIcon = () => (
+  // Multi-page stack with a download arrow: this button downloads a whole
+  // product's documentation as one PDF, so the icon reads as "many pages,
+  // saved" rather than a single file. The previous version drew "PDF"
+  // letterforms inside a 16px document, which turned to mush at this size.
   <svg
     aria-hidden="true"
     width="14"
@@ -9,22 +13,34 @@ const PdfIcon = () => (
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
+    {/* Back page, offset to suggest a stack */}
     <path
-      d="M4 1h5l4 4v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Z"
+      d="M5.5 3.5V2.25A1.25 1.25 0 0 1 6.75 1h3.5L13.5 4.25v6.5a1.25 1.25 0 0 1-1.25 1.25H11"
       stroke="currentColor"
-      strokeWidth="1.3"
-    />
-    <path
-      d="M9 1v4h4"
-      stroke="currentColor"
-      strokeWidth="1.3"
+      strokeWidth="1.2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+    {/* Front page */}
     <path
-      d="M5 9h2.5a1 1 0 0 0 0-2H5v4m4-4h2m-1 0v4"
+      d="M3.75 4h3.5L10.5 7.25v6.5A1.25 1.25 0 0 1 9.25 15h-5.5A1.25 1.25 0 0 1 2.5 13.75V5.25A1.25 1.25 0 0 1 3.75 4Z"
       stroke="currentColor"
-      strokeWidth="1.1"
+      strokeWidth="1.2"
+      strokeLinejoin="round"
+    />
+    {/* Folded corner of the front page */}
+    <path
+      d="M7 4.25v3.25h3.25"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    {/* Download arrow */}
+    <path
+      d="M6.5 9.75v2.75m0 0L5.25 11.25M6.5 12.5l1.25-1.25"
+      stroke="currentColor"
+      strokeWidth="1.2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />

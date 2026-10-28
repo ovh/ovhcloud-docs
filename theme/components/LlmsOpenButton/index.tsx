@@ -38,6 +38,12 @@ export function LlmsOpenButton() {
       rel="noopener noreferrer"
       className="rp-llms-button"
       title={t('llmsOpenButton.title')}
+      // Keeps the label out of the Pagefind index: this toolbar renders
+      // inside `.rp-doc` right after the <h1>, so without this the text
+      // leaked into the excerpt of every search result. The sibling PDF /
+      // "Ask AI" controls are already covered by the `button` exclude
+      // selector in scripts/combine-builds.ts; this <a> was not.
+      data-pagefind-ignore
     >
       <MdIcon />
       <span>{t('llmsOpenButton.label')}</span>

@@ -87,9 +87,16 @@ export async function downloadCached(
   digest: string,
   outPath: string,
 ): Promise<boolean> {
-  const res = await fetch(cacheUrl(locale, productRef, digest), {
-    headers: { authorization: `Bearer ${ART.token}` },
-  });
+  let res: Response;
+  try {
+    res = await fetch(cacheUrl(locale, productRef, digest), {
+      headers: { authorization: `Bearer ${ART.token}` },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`⚠️  cache probe ${locale}/${productRef}: ${message}`);
+    return false;
+  }
   if (!res.ok) {
     if (res.status !== 404) {
       console.warn(
@@ -98,8 +105,16 @@ export async function downloadCached(
     }
     return false;
   }
+  let body: ArrayBuffer;
+  try {
+    body = await res.arrayBuffer();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`⚠️  cache probe ${locale}/${productRef}: ${message}`);
+    return false;
+  }
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+  fs.writeFileSync(outPath, Buffer.from(body));
   return true;
 }
 
@@ -110,11 +125,19 @@ export async function uploadCached(
   digest: string,
   pdfPath: string,
 ): Promise<void> {
-  const res = await fetch(cacheUrl(locale, productRef, digest), {
-    method: 'PUT',
-    headers: { authorization: `Bearer ${ART.token}` },
-    body: new Uint8Array(fs.readFileSync(pdfPath)),
-  });
+  const body = new Uint8Array(fs.readFileSync(pdfPath));
+  let res: Response;
+  try {
+    res = await fetch(cacheUrl(locale, productRef, digest), {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${ART.token}` },
+      body,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`⚠️  cache upload ${locale}/${productRef}: ${message}`);
+    return;
+  }
   if (!res.ok) {
     console.warn(`⚠️  cache upload ${locale}/${productRef}: HTTP ${res.status}`);
   }

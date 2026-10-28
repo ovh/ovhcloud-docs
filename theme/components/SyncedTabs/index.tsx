@@ -203,8 +203,9 @@ function useKeepTabAnchored(rootRef: React.RefObject<HTMLDivElement | null>) {
     }
 
     const labelTop = () =>
-      root.querySelector<HTMLElement>('.rp-tabs__label')?.getBoundingClientRect()
-        .top ?? null;
+      root
+        .querySelector<HTMLElement>('.rp-tabs__label')
+        ?.getBoundingClientRect().top ?? null;
     let before: number | null = null;
 
     // Capture phase (before React swaps): remember the row's viewport position.

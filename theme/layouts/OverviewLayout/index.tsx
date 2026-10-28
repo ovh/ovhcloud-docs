@@ -93,9 +93,6 @@ function useOverviewSidebarMenu() {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') setIsSidebarOpen(false);
-              }}
               className="rp-sidebar-menu__mask"
               aria-label="Close sidebar"
             />,

@@ -2,21 +2,33 @@
  * Worker thread: pre-processes HTML and MD files in a single locale directory.
  *
  * HTML: Boosts h1 weight for Pagefind and cleans header-anchor "#" symbols.
- * MD:   Injects frontmatter from source MDX (title, description, url, lang)
+ * MD:   Cleans the Markdown Rspress emits (scripts/lib/llms/clean-md.ts) and
+ *       injects frontmatter from source MDX (title, description, url, lang)
  *       for LLM consumption.
  *
- * Input (workerData):  { dir: string, locale: string, siteUrl: string, docsDir: string }
- * Output (message):    { html: number, md: number }
+ * Input (workerData):  { dir, locale, siteUrl, docsDir, basePath? }
+ *   basePath: URL prefix of `dir` — `/<locale>` (default, multi-locale
+ *   region) or `''` for a single-locale region served at the domain root.
+ * Output (message):    { html: number, md: number, residue: string[] }
+ *   residue: components or directives left in the cleaned `.md` (see
+ *   findResidue), as `<page>: <tag>`.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
+import YAML from 'yaml';
+import { contentSubdir, regionConfig } from '../config/regions';
+import { cleanMarkdown, findResidue } from './lib/llms/clean-md';
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static']);
 
+const residue: string[] = [];
+
 /**
- * Extract frontmatter fields from an MDX file.
+ * Extract the top-level scalar frontmatter fields of an MDX file, as
+ * single-line strings. A real YAML parse: the previous line-based regex read a
+ * block scalar (`description: >-` + indented lines) as the literal ">-".
  */
 function readMdxFrontmatter(mdxPath: string): Record<string, string> | null {
   try {
@@ -24,16 +36,35 @@ function readMdxFrontmatter(mdxPath: string): Record<string, string> | null {
     const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
     if (!match) return null;
 
+    const data = YAML.parse(match[1]) as Record<string, unknown> | null;
     const fields: Record<string, string> = {};
-    for (const line of match[1].split('\n')) {
-      const kv = line.match(/^(\w+):\s*"?(.+?)"?\s*$/);
-      if (kv) {
-        fields[kv[1]] = kv[2];
+    for (const [key, value] of Object.entries(data ?? {})) {
+      if (typeof value === 'string' || typeof value === 'number') {
+        fields[key] = String(value).replace(/\s+/g, ' ').trim();
       }
     }
     return fields;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Locale the source is actually written in. A language fallback is a locale's
+ * `.mdx` symlinked to another locale's file (usually `en`); its `.md` must not
+ * claim the locale it is merely served under.
+ */
+function contentLocale(
+  mdxPath: string,
+  docsDir: string,
+  locale: string,
+): string {
+  try {
+    if (!fs.lstatSync(mdxPath).isSymbolicLink()) return locale;
+    const real = path.relative(docsDir, fs.realpathSync(mdxPath));
+    return real.split(path.sep)[0] || locale;
+  } catch {
+    return locale;
   }
 }
 
@@ -149,7 +180,8 @@ function processDir(
       // Read the source MDX frontmatter once — reused for the Pagefind title
       // meta (below) and the .md frontmatter injection (further down).
       const slug = entry.name.replace(/\.html$/, '');
-      const relativePath = `${basePath}/${slug}`.replace(`/${locale}/`, '');
+      // Path below the locale root (`guides/…`), whatever the URL prefix.
+      const relativePath = `${basePath}/${slug}`.slice(rootBase.length + 1);
       const mdxPath = path.join(docsDir, locale, `${relativePath}.mdx`);
       const fm = readMdxFrontmatter(mdxPath);
       const title = fm?.title || '';
@@ -159,15 +191,24 @@ function processDir(
       // `guides/`) carry filters; non-guide pages (home, etc.) get none.
       // Values are the stable path slugs — the search UI maps them to
       // locale-translated labels at render time (see config/sidebar/index.md).
+      // On a region whose guides sit at the locale root (US) there is no
+      // leading `guides/` segment, so the universe is segment 0 and every
+      // index below shifts by one.
+      const subdir = contentSubdir(regionConfig);
       const pathSegments = relativePath.split('/');
+      const hasPrefix = subdir !== '';
+      const offset = hasPrefix ? 1 : 0;
+      const inGuides = !hasPrefix || pathSegments[0] === subdir;
       const universe =
-        pathSegments[0] === 'guides' && pathSegments.length >= 3
-          ? pathSegments[1]
+        inGuides && pathSegments.length >= 2 + offset
+          ? pathSegments[offset]
           : '';
       // A product exists only when there's a segment BETWEEN universe and the
-      // final slug (guides/<universe>/<product>/<slug> → length ≥ 4).
+      // final slug (<universe>/<product>/<slug> → at least three left).
       const product =
-        universe && pathSegments.length >= 4 ? pathSegments[2] : '';
+        universe && pathSegments.length >= 3 + offset
+          ? pathSegments[offset + 1]
+          : '';
 
       // Inject, in a single pass over the `.rp-doc` root:
       //   1. The Pagefind result title (`data-pagefind-meta="title:…"`).
@@ -286,30 +327,41 @@ function processDir(
       if (mdContent.startsWith('---\n')) continue; // Already has frontmatter
 
       const description = fm?.description || '';
-      const lastUpdated = fm?.lastUpdated || fm?.updated || '';
+      const lastUpdated = fm?.lastUpdated || '';
       const url = `${siteUrl}${basePath}/${slug}`;
+      const lang = contentLocale(mdxPath, docsDir, locale);
+      // The source recovers the FAQ questions and tab labels the render
+      // flattened; a page without one (generated) is cleaned without it.
+      const source = fs.existsSync(mdxPath)
+        ? fs.readFileSync(mdxPath, 'utf-8')
+        : undefined;
+      const body = cleanMarkdown(mdContent, { locale: lang, source, siteUrl });
+      for (const r of findResidue(body)) residue.push(`${relativePath}: ${r}`);
 
       const lines = ['---'];
-      if (title) lines.push(`title: "${title.replace(/"/g, '\\"')}"`);
+      // JSON strings are valid YAML double-quoted scalars (escapes included).
+      if (title) lines.push(`title: ${JSON.stringify(title)}`);
       if (description)
-        lines.push(`description: "${description.replace(/"/g, '\\"')}"`);
+        lines.push(`description: ${JSON.stringify(description)}`);
       lines.push(`url: ${url}`);
-      lines.push(`lang: ${locale}`);
+      lines.push(`lang: ${lang}`);
       if (lastUpdated) lines.push(`lastUpdated: ${lastUpdated}`);
       lines.push('---', '');
 
-      fs.writeFileSync(mdPath, lines.join('\n') + mdContent);
+      fs.writeFileSync(mdPath, lines.join('\n') + body);
       md++;
     }
   }
   return { html, md };
 }
 
-const { dir, locale, siteUrl, docsDir } = workerData as {
+const { dir, locale, siteUrl, docsDir, basePath } = workerData as {
   dir: string;
   locale: string;
   siteUrl: string;
   docsDir: string;
+  basePath?: string;
 };
-const counts = processDir(dir, locale, siteUrl, docsDir, `/${locale}`);
-parentPort?.postMessage(counts);
+const rootBase = basePath ?? `/${locale}`;
+const counts = processDir(dir, locale, siteUrl, docsDir, rootBase);
+parentPort?.postMessage({ ...counts, residue });

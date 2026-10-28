@@ -7,6 +7,7 @@
  */
 
 import type { SidebarGroup, SidebarItem } from '@rspress/core';
+import { regionConfig } from '../regions';
 
 export type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 
@@ -15,6 +16,10 @@ export type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 // -------------------------------------------------------------------
 
 const localizedUrls: Record<string, Record<Locale, string>> = {
+  // The roadmap/changelog is a SINGLE worldwide page, only translated — there is
+  // no per-region edition (`us.ovhcloud.com/roadmap-changelog/` and
+  // `/changelog/` both 404). Regions that should not point at it turn the link
+  // off with `productChangelog: false` in config/regions.ts (the US does).
   changelog: {
     fr: 'https://www.ovhcloud.com/fr/roadmap-changelog/',
     en: 'https://www.ovhcloud.com/en-gb/roadmap-changelog/',
@@ -33,11 +38,15 @@ const localizedUrls: Record<string, Record<Locale, string>> = {
 export function getHeaderItems(locale: Locale): SidebarItem[] {
   return [
     { sectionHeaderText: 'sidebar.documentation' } as SidebarItem,
-    { text: 'sidebar.apiReference', link: 'https://api.eu.ovhcloud.com/console/' },
-    {
-      text: 'sidebar.productChangelog',
-      link: localizedUrls.changelog[locale],
-    },
+    { text: 'sidebar.apiReference', link: regionConfig.apiConsoleUrl },
+    ...(regionConfig.productChangelog
+      ? [
+          {
+            text: 'sidebar.productChangelog',
+            link: localizedUrls.changelog[locale],
+          },
+        ]
+      : []),
     { text: 'sidebar.eLearning', link: '/guides/e-learning' },
     { text: 'sidebar.migration', link: '/guides/migration' },
   ];

@@ -8,8 +8,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { OverviewCTA } from 'theme/components/OverviewCTA';
 import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
+import { PageToolbar } from 'theme/components/PageToolbar';
 import { ProductPdfButton } from 'theme/components/ProductPdfButton';
 import { Sidebar } from 'theme/components/Sidebar';
+import { SiteFooter } from 'theme/components/SiteFooter';
 import { usePageTitle } from 'theme/hooks/usePageTitle';
 import './index.scss';
 
@@ -84,7 +86,6 @@ function useLandingSidebarMenu() {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              onKeyUp={() => setIsSidebarOpen(false)}
               className="rp-sidebar-menu__mask"
               aria-label="Close sidebar"
             />,
@@ -158,10 +159,18 @@ export function LandingLayout(props: LandingLayoutProps) {
               </div>
             )}
 
-            {/* Whole-product PDF download — shown only when the page declares a
-                `pdf:` frontmatter ref (the button returns null otherwise). The
-                Ask-AI/llms cluster is intentionally absent from landing pages, so
-                this is mounted directly here rather than via that slot. */}
+            {/* Page-header actions: the same "View as Markdown" / "Save as
+                PDF" / "Ask AI" cluster classic guide pages get. Classic pages
+                receive it from the MDX `h1`; this layout renders its own H1,
+                so it is mounted explicitly. */}
+            <div className="rp-landing-toolbar">
+              <PageToolbar />
+            </div>
+
+            {/* Whole-product PDF download — a separate, opt-in feature: shown
+                only when the page declares a `pdf:` frontmatter ref (the
+                button returns null otherwise), as on OPCP. Kept alongside
+                the toolbar above, not replaced by it. */}
             <div className="rp-landing-pdf">
               <ProductPdfButton />
             </div>
@@ -198,6 +207,12 @@ export function LandingLayout(props: LandingLayoutProps) {
           </main>
         </div>
       </div>
+      {/* This layout renders its own page body and never reaches the DocLayout
+          afterDoc slot, so the legal footer is mounted here too. It sits
+          OUTSIDE rp-doc-layout__container, which lays its children out as a
+          row: inside it, the footer became a column beside the sidebar and
+          rendered at the top of the page. */}
+      <SiteFooter />
     </>
   );
 }

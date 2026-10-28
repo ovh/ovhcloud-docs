@@ -76,7 +76,6 @@ function useELearningCourseSidebarMenu() {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              onKeyUp={() => setIsSidebarOpen(false)}
               className="rp-sidebar-menu__mask"
               aria-label="Close sidebar"
             />,

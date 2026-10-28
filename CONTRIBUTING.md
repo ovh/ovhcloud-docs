@@ -16,7 +16,7 @@ For build & dev-server setup, see [README.md](README.md). For repo architecture,
 | Sidebar / order | Per-section `_meta.json` / Pelican config | Single source [config/sidebar/index.md](config/sidebar/index.md) |
 | Internal links | `/pages/...`, `/products/...` | `/guides/...` |
 | Locale-aware external links | Hand-written per locale | `/links/<key>` resolved at build from [config/links.ts](config/links.ts) |
-| Admonitions | `> [!warning]` blockquotes | `:::warning ... :::` (blockquote style still works) |
+| Admonitions | `> [!warning]` blockquotes | `:::warning ... :::` |
 | Tabs / FAQ / API blocks | Hugo shortcodes | MDX components, imported at top of file |
 
 ## Folder layout — one tree per locale
@@ -32,8 +32,8 @@ pages/public_cloud/compute/getting_started/
 ```
 
 New:
-- [docs/en/guides/public-cloud/compute/compute-getting-started.mdx](docs/en/guides/public-cloud/compute/compute-getting-started.mdx)
-- [docs/fr/guides/public-cloud/compute/compute-getting-started.mdx](docs/fr/guides/public-cloud/compute/compute-getting-started.mdx)
+- [docs/en/guides/public-cloud/compute/getting-started.mdx](docs/en/guides/public-cloud/compute/getting-started.mdx)
+- [docs/fr/guides/public-cloud/compute/getting-started.mdx](docs/fr/guides/public-cloud/compute/getting-started.mdx)
 
 Locales under [docs/](docs/): `de`, `en`, `es`, `fr`, `it`, `pl`, `pt`.
 
@@ -92,14 +92,14 @@ It creates the `.mdx` files for every selected locale, wires the entry into [con
 ### Renaming an existing slug
 
 > :::danger
-> **Avoid renaming slugs.** A published slug is a public URL. Renaming it breaks every external link, bookmark, and search engine result pointing at the guide, and requires redirections to be added (in CDN config, in [config/links.ts](config/links.ts), and potentially in legacy `ovh/docs` redirects). Treat a rename as a **last resort** — only when the existing slug is wrong (typo, misleading, or actively harmful for SEO). For everything else (clarity, style, personal preference), leave the slug alone.
+> **Avoid renaming slugs.** A published slug is a public URL. Renaming it breaks every external link, bookmark, and search engine result pointing at the guide, and requires redirections to be added (in [docs/public/301.map](docs/public/301.map), or [docs-us/public/301.map](docs-us/public/301.map) for the US site: `source destination;`, one line per locale, no trailing slash — and potentially in the legacy Puppet redirects). Treat a rename as a **last resort** — only when the existing slug is wrong (typo, misleading, or actively harmful for SEO). For everything else (clarity, style, personal preference), leave the slug alone.
 
 If you have confirmed with the docs team that a rename is genuinely necessary:
 
 1. `git mv` the `.mdx` file under each of the 7 locales.
 2. Update its entry in [config/sidebar/index.md](config/sidebar/index.md).
 3. Search-and-replace every occurrence of `/guides/.../old-slug` in the repo.
-4. Add a redirect from the old path to the new one so external links don't 404.
+4. Add a redirect from the old path to the new one in `301.map` so external links don't 404.
 5. Run `pnpm sidebar:check` to confirm nothing is dangling.
 
 There is no one-shot CLI for arbitrary single renames; [scripts/rename-slugs.ts](scripts/rename-slugs.ts) only performs bulk renames driven by an SEO report.
@@ -157,7 +157,7 @@ lastUpdated: 2025-09-09
 
 ### Admonitions
 
-RSPress fences are preferred:
+Use RSPress fences:
 
 ```mdx
 :::warning
@@ -173,7 +173,7 @@ Hidden content
 :::
 ```
 
-The legacy GitHub-style blockquote syntax (`> [!warning]`) still renders, so existing copy-pastes keep working.
+Do not use the GitHub-style blockquote syntax (`> [!INFO]`, `> [!warning]`). A callout inside a `:::details` fence does not render; for a collapsible that holds one, use `<details>` HTML.
 
 All seven callout types are supported. Each appears with its own icon and color in the rendered output:
 
@@ -337,6 +337,22 @@ import Api from '@components/Api';
 
 Escape path parameters as `\{serviceName\}` inside the `route={"…"}` expression. The pill renders block-like: introduce it with a full sentence ending in a colon ("… using the following API call:") — never place it mid-sentence. For an endpoint link *inside* running text or a table cell, use `<ApiLink section route method>` instead — that one is auto-registered, no import (see [Zone-aware API links](#zone-aware-api-links--apilink--createtoken)).
 
+To target **Kimsufi / So you Start** specific endpoints (not the OVHcloud API), add `brands` — a list of brands, same shape as `regions` (default `['ovh']`) — and drop `version`, which the `ks`/`sys` brands don't have (no versioned API like OVHcloud's):
+
+```mdx
+<!-- All 4: So you Start EU/CA + Kimsufi EU/CA -->
+<Api brands={['sys', 'ks']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
+```
+
+Some API calls are available on So you Start endpoints only, not on Kimsufi endpoints:
+
+```mdx
+<!-- So you Start only (EU/CA) -->
+<Api brands={['sys']} section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/install/compatibleTemplates"} />
+```
+
+`'ovh'`, `'ks'` and `'sys'` are independently selectable — mix them freely (e.g. `brands={['ovh', 'sys']}` for OVHcloud + So you Start only, or `brands={['ks']}` for Kimsufi only). Defaults to `brands={['ovh']}` (the standard EU/CA OVHcloud console, whose `version` defaults to `'v1'` if omitted), offering both EU and CA unless restricted with `regions` — e.g. `regions={["eu"]}` on a `brands={['sys']}` call shows only So you Start EU. Note `regions` is validated against a Kimsufi/So you Start-specific EU/CA set when `brands` includes `ks`/`sys`, kept separate from the OVHcloud regions so the two can diverge (e.g. if OVH later adds a third zone that Kimsufi/So you Start never will).
+
 ### Other components
 
 Import from `@components/...` at the top of the MDX file:
@@ -353,7 +369,7 @@ import Tooltip from '@components/Tooltip';
 | `LinkCard` | Card link with title + description; auto-detects internal vs external |
 | `Carousel` | Scrollable carousel of items (title, details, link, icon) |
 | `GuidedTour` | Interactive guided tour (screenshots + spotlight annotations) |
-| `Tooltip` | Hover tooltip — `<Tooltip content="**markdown** allowed">word</Tooltip>` |
+| `Tooltip` | Hover tooltip. Glossary-backed: `<Tooltip term="vrack">vRack</Tooltip>` (canonical key from [config/glossary/en.yaml](config/glossary/en.yaml); aliases are not lookup keys). One-off note: `<Tooltip content="**markdown** allowed">word</Tooltip>`. **Do not hand-tag glossary terms** — tagging happens during the proofread pass. |
 | `AIChatbot` | Federated AI chatbot module (rare; usually only on landing pages) |
 
 See [components/](components/) for the full list of props.
@@ -394,7 +410,7 @@ To add a new key, edit [config/links.ts](config/links.ts) and add a row with one
 
 ### Zone-aware API links — `<ApiLink>` / `<CreateToken>`
 
-Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://eu.api.ovh.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
+Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://api.eu.ovhcloud.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
 
 ```mdx
 <!-- Generic reference to the API / the API console -->
@@ -412,6 +428,18 @@ Retrieve them with the <ApiLink section="/me" method="GET" route={"/me/logs/audi
 
 Without props, `<ApiLink>` targets the API gateway page (`https://api.{eu|ca}.ovhcloud.com/`), which links onward to the console — use that for any generic mention. Console links are only ever section/operation deep links via the props above; never hardcode a console URL. Do **not** use `/links/api` or `/links/console` — they are zone-blind and deprecated. **This is enforced at build time**: a hardcoded API root/console/createToken URL (or one of the deprecated keys) fails the build with a pointer to this section.
 
+`<ApiLink>` also supports the same `brands`/`regions` props as `<Api>` (see [API endpoint blocks](#api-endpoint-blocks) above), for an inline link to a **Kimsufi / So you Start** endpoint instead of the OVHcloud API:
+
+```mdx
+<!-- So you Start + Kimsufi, both regions — picker offers all 4 -->
+Consult it in <ApiLink brands={['sys', 'ks']} method="GET" route={"/dedicated/server/\{serviceName\}"}>the Kimsufi/So you Start console</ApiLink>.
+
+<!-- So you Start only, EU only — no picker, direct link -->
+See <ApiLink brands={['sys']} regions={["eu"]} method="GET" route={"/dedicated/server/\{serviceName\}"}>this endpoint</ApiLink>.
+```
+
+Same rule as `<Api>`: drop `version` when `brands` doesn't include `ovh` (it has no effect and triggers a dev-only console warning), and `regions` is validated against the Kimsufi/So you Start EU/CA set, not the OVHcloud one.
+
 **EU and CA API schemas differ per route.** Before deep-linking an operation (with `<Api>` or `<ApiLink>`), check it exists in both `https://api.eu.ovhcloud.com/1.0/<section>.json` and `https://api.ca.ovhcloud.com/1.0/<section>.json` — a console deep link to an operation the zone doesn't have falls back to the section root. If only one zone has it, add `regions={["eu"]}` (renders a plain single-zone link). EU-only *products* (SMS, Email Pro, …) are restricted automatically — no prop needed.
 
 Deliberate exceptions — keep these as plain URLs, do **not** convert to components:
@@ -426,6 +454,7 @@ Pick the component by what you are pointing at:
 | The OVHcloud API / the console in general | `<ApiLink>` | hardcoded URLs, `/links/api\|console` |
 | A **specific endpoint** the reader should call, as its own display element | `<Api version="v1" section="…" method="GET" route={"…"} />` after a full sentence ending in a colon | a mid-sentence pill; prose like "open the console and navigate to the `/dedicated/server` section in the left-hand menu" |
 | A **section or operation as an inline text link** (running prose, table cells) | `<ApiLink section="…" [method="GET" route={"…"}]>your link text</ApiLink>` | hardcoded `?section=` console URLs |
+| Either of the above, but on a **So you Start / Kimsufi** endpoint | add `brands={['sys', 'ks']}` (or `['sys']`/`['ks']`), drop `version` | hardcoded `kimsufi.com`/`soyoustart.com` console URLs |
 | Token creation with rights | `<CreateToken rights="…">` | hardcoded `createToken` URLs |
 
 Also skip "log in to the API console first" steps — the gateway and console are public pages, and the console offers authentication itself, both globally (the `Authentication` sidebar entry) and contextually on each operation. The sign-in mechanics are covered once in [First steps with the OVHcloud APIs](docs/en/guides/manage-and-operate/api/first-steps.mdx); do not repeat them per guide. See the [format reference §10/§10b](docs/en/internal/format-reference.mdx) for working examples of all three components.
@@ -437,6 +466,36 @@ For external URLs that are the same for everyone (GitHub, third-party docs), use
 ```mdx
 [Plesk documentation](https://docs.plesk.com/)
 ```
+
+## Third-party tools and products
+
+This section applies when you propose a third-party tool, service or website **in which you have an interest**: you build, sell or maintain it, or you work for or are paid by its publisher. It does not cover content produced under an OVHcloud partner or certification programme (for example certified OPCP solutions or the AI Partners Ecosystem), which follows that programme's own process.
+
+### Disclose your interest
+
+State your interest in the pull request description. A pull request with an undisclosed interest will be closed.
+
+### When a tool can be mentioned
+
+- **It is established.** It shows independent signs of adoption: third-party reviews, coverage, use by an active community, or documentation by other vendors. A product's own website, or entries made by its publisher, do not count.
+- **It is identifiable.** The publisher or project behind it is clearly named. Online services also state their terms of use and privacy policy.
+- **In a list, it brings something new.** When a guide already lists several equivalent tools, a new entry must do something the listed ones cannot.
+- **It does not over-reach.** If the publisher's application obtains delegated access to the reader's OVHcloud account (for example through OAuth), it asks only for the rights the task in the guide requires.
+
+### Guides maintained by a publisher
+
+A guide dedicated to your own product is accepted only if the product meets the criteria above and the guide:
+
+- includes the `[[fragment:support-scope]]` fragment and states that the product is outside OVHcloud support;
+- names its maintainer and how to reach them;
+- does not contradict OVHcloud recommendations made elsewhere in the documentation.
+
+These guides are reviewed every six months. If one is out of date and its maintainer does not update it within 30 days of being asked, it is unpublished. OVHcloud may remove such a guide at any time, in particular if the product's permissions, pricing or terms change.
+
+### What we will decline
+
+- Links added mainly to gain visibility or search ranking.
+- Tools that do not yet show independent adoption, whatever their quality. You are welcome to come back once they do.
 
 ## Sidebar
 

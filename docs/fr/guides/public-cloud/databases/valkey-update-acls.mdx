@@ -1,0 +1,195 @@
+---
+title: Gérer les utilisateurs et les ACLs de Public Cloud Databases pour Valkey
+description: Découvrez comment créer des utilisateurs et définir leurs ACLs (clés, catégories, commandes, canaux) depuis l'espace client OVHcloud ou l'API OVHcloud
+lastUpdated: 2026-10-13
+---
+
+import Api from '@components/Api';
+
+
+## Objectif
+
+Ce guide explique comment créer les utilisateurs de votre service Public Cloud Databases pour Valkey et comment définir ou modifier leurs listes de contrôle d'accès (ACLs), depuis l'espace client OVHcloud ou avec l'API OVHcloud.
+
+## Prérequis
+
+- Disposer d'un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud
+- Disposer d'un service Valkey fonctionnant sur votre Public Cloud Databases OVHcloud (le guide « [Premiers pas avec les bases de données Public Cloud](/guides/public-cloud/databases/getting-started) » peut vous aider à répondre à ce prérequis)
+- Avoir accès à l'<ApiLink>API OVHcloud</ApiLink>. Si vous n'avez jamais utilisé l'API OVHcloud, suivez ce tutoriel : [Premiers pas avec les API OVHcloud](/guides/manage-and-operate/api/first-steps).
+
+[[cpnav:publiccloud-databases]]
+
+## En pratique
+
+### Comprendre les champs d'ACL
+
+Chaque utilisateur Valkey dispose de quatre champs d'ACL. Chaque champ est une liste de valeurs. Ils suivent les règles d'ACL de Valkey, décrites dans la documentation officielle : [https://valkey.io/topics/acl/](https://valkey.io/topics/acl/).
+
+| Champ | Ce qu'il contrôle | Syntaxe | Exemple |
+|---|---|---|---|
+| **Clés** (*keys*) | Les clés auxquelles l'utilisateur peut accéder | Un motif de clé, `*` correspondant à un nombre quelconque de caractères | `cache:*` (toutes les clés commençant par `cache:`) |
+| **Catégories** (*categories*) | Des groupes de commandes que l'utilisateur peut ou ne peut pas exécuter | `+@<catégorie>` pour autoriser, `-@<catégorie>` pour interdire | `+@read`, `+@write`, `+@connection`, `-@dangerous` |
+| **Commandes** (*commands*) | Des commandes individuelles que l'utilisateur peut ou ne peut pas exécuter | `+<commande>` pour autoriser, `-<commande>` pour interdire | `+get`, `-flushall` |
+| **Channels** (*channels*) | Les canaux Pub/Sub auxquels l'utilisateur peut accéder | Un motif de canal | `news:*` |
+
+Par exemple, un utilisateur disposant des ACLs suivantes peut lire et écrire les clés commençant par `cache:` et publier sur les canaux commençant par `news:` ou s'y abonner, mais ne peut pas exécuter `FLUSHALL` :
+
+- Clés : `cache:*`
+- Catégories : `+@read`, `+@write`, `+@connection`, `+@pubsub`
+- Commandes : `-flushall`
+- Channels : `news:*`
+
+Gardez à l'esprit les points suivants :
+
+- Un motif de canal ne suffit pas pour utiliser Pub/Sub : l'utilisateur a également besoin des commandes Pub/Sub, par exemple avec la catégorie `+@pubsub`. Sans elle, `PUBLISH` est refusé, même sur un canal autorisé.
+- `FUNCTION` et `FCALL` ne figurent pas dans la liste des commandes autorisables une à une : pour autoriser les fonctions Lua, utilisez la catégorie `+@scripting`, qui couvre aussi `EVAL` et `EVALSHA`.
+- La catégorie `+@connection` autorise les commandes de connexion comme `PING` et `HELLO`, utiles pour tester une connexion.
+- Lorsqu'aucun canal n'est fourni pour un nouvel utilisateur, l'ACL de canal par défaut est définie par le paramètre avancé `valkey_acl_channels_default` (`allchannels` ou `resetchannels`). Consultez [Paramètres avancés de Public Cloud Databases pour Valkey](/guides/public-cloud/databases/valkey-advanced-parameters-references).
+- Les modifications d'ACL s'appliquent immédiatement : les clients connectés n'ont pas besoin de se reconnecter.
+- Un utilisateur nommé `default` existe sur chaque nouveau service.
+
+Les catégories et commandes autorisées peuvent être listées avec l'API (consultez [Lister les catégories et commandes autorisées](#lister-les-catégories-et-commandes-autorisées)). Les catégories disponibles sont : `all`, `admin`, `bitmap`, `blocking`, `connection`, `dangerous`, `fast`, `geo`, `hash`, `hyperloglog`, `keyspace`, `list`, `pubsub`, `read`, `scripting`, `set`, `slow`, `sortedset`, `stream`, `string`, `transaction` et `write`.
+
+### Depuis l'espace client OVHcloud
+
+Sélectionnez votre service Valkey, puis ouvrez l'onglet <code className="action">Utilisateurs</code>. Le tableau liste les utilisateurs du service avec leurs clés, catégories, commandes et canaux.
+
+#### Créer un utilisateur
+
+1. Cliquez sur <code className="action">Ajouter un utilisateur</code>.
+2. Saisissez le **Nom d'utilisateur** : 3 à 32 caractères parmi les lettres, chiffres, points (`.`), underscores (`_`) et tirets (`-`), sans commencer par un point ou un tiret.
+3. Dans les champs **Clés**, **Catégories**, **Commandes** et **Channels**, saisissez chaque valeur puis appuyez sur `Entrée` (ou cliquez sur le bouton <code className="action">+</code>) pour l'ajouter à la liste. Les catégories et les commandes doivent commencer par `+` ou `-`.
+
+    L'espace client n'accepte que des lettres minuscules et `@` après le signe `+` ou `-`. Les commandes dont le nom contient un chiffre ou un underscore, comme `+georadius_ro` ou `+bitfield_ro`, ne peuvent pas être saisies dans l'espace client : ajoutez-les via l'API (voir ci-dessous).
+4. Cliquez sur <code className="action">Créer un utilisateur</code>.
+
+Le mot de passe du nouvel utilisateur est affiché une seule fois, à la fin de la création. Notez-le : il ne pourra pas être récupéré par la suite. Si vous le perdez, régénérez-le (voir ci-dessous).
+
+#### Modifier les ACLs d'un utilisateur
+
+Dans le tableau des utilisateurs, cliquez sur le bouton <code className="action">...</code> en fin de ligne de l'utilisateur, puis sur <code className="action">Modifier</code>. Ajoutez ou retirez des valeurs dans les quatre champs, puis cliquez sur <code className="action">Modifier</code> pour confirmer. Les nouvelles ACLs s'appliquent immédiatement.
+
+#### Régénérer le mot de passe d'un utilisateur
+
+Dans le tableau des utilisateurs, cliquez sur le bouton <code className="action">...</code> en fin de ligne de l'utilisateur, puis sur <code className="action">Regénérer le mot de passe</code> et confirmez. Le nouveau mot de passe est affiché une seule fois : notez-le et mettez à jour toutes les applications qui utilisent cet utilisateur.
+
+### Depuis l'API OVHcloud
+
+#### Récupérer les identifiants du service, du cluster et de l'utilisateur
+
+Récupérez l'identifiant de votre projet Public Cloud, également appelé **serviceName** :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project"} />
+
+Récupérez l'identifiant de votre service Valkey, également appelé **clusterId** :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/valkey"} />
+
+Listez les utilisateurs du service :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/user"} />
+
+Récupérez le détail d'un utilisateur, dont l'identifiant est également appelé **userId** :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/user/\{userId\}"} />
+
+Exemple de réponse :
+
+```json
+{
+  "createdAt": "2026-10-06T15:36:54.91456+02:00",
+  "id": "aaaaaaaa-1234-56ab-78cd-123456abcdef",
+  "status": "READY",
+  "username": "app-cache",
+  "keys": ["cache:*"],
+  "categories": ["+@read", "+@write", "+@connection", "+@pubsub"],
+  "commands": ["-flushall"],
+  "channels": ["news:*"]
+}
+```
+
+#### Lister les catégories et commandes autorisées
+
+Récupérez les catégories autorisées dans le champ `categories` :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/capabilities/categories"} />
+
+Récupérez les commandes autorisées dans le champ `commands` :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/capabilities/commands"} />
+
+Ces deux appels renvoient une liste de noms sans les préfixes `+`, `-` ou `@`, par exemple `"read"` pour la catégorie ou `"get"` pour la commande.
+
+#### Créer un utilisateur
+
+Utilisez l'appel API suivant :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/user"} />
+
+Exemple de corps de requête :
+
+```json
+{
+  "name": "app-cache",
+  "keys": ["cache:*"],
+  "categories": ["+@read", "+@write", "+@connection", "+@pubsub"],
+  "commands": ["-flushall"],
+  "channels": ["news:*"]
+}
+```
+
+Seul `name` est obligatoire. La réponse contient le mot de passe du nouvel utilisateur. Il n'est affiché qu'une seule fois : notez-le.
+
+#### Modifier les ACLs d'un utilisateur
+
+Utilisez l'appel API suivant :
+
+<Api version="v1" section="/cloud" method="PUT" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/user/\{userId\}"} />
+
+Indiquez les nouvelles valeurs des quatre listes dans le corps de la requête. Chaque liste remplace la liste actuelle : incluez donc toutes les valeurs que vous souhaitez conserver :
+
+```json
+{
+  "keys": ["cache:*", "session:*"],
+  "categories": ["+@read", "+@write", "+@connection"],
+  "commands": ["-flushall"],
+  "channels": ["news:*"]
+}
+```
+
+Les nouvelles ACLs s'appliquent immédiatement.
+
+#### Régénérer le mot de passe d'un utilisateur
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/valkey/\{clusterId\}/user/\{userId\}/credentials/reset"} />
+
+La réponse contient le nouveau mot de passe. Il n'est affiché qu'une seule fois.
+
+### Vérifier les ACLs d'un utilisateur
+
+Connectez-vous avec l'utilisateur, par exemple avec `valkey-cli` (consultez [Se connecter avec la CLI au service Public Cloud Databases pour Valkey](/guides/public-cloud/databases/valkey-connect-cli)), puis exécutez des commandes autorisées et non autorisées. Avec l'utilisateur de l'exemple ci-dessus :
+
+```bash
+valkey-cli --tls -u valkeys://<username>:<password>@<host>:<port>
+```
+
+```console
+> SET cache:greeting "hello"
+OK
+> SET other:greeting "hello"
+(error) NOPERM No permissions to access a key
+> FLUSHALL
+(error) NOPERM User app-cache has no permissions to run the 'flushall' command
+> PUBLISH sports:live "goal"
+(error) NOPERM No permissions to access a channel
+```
+
+Si le mot de passe est incorrect, la connexion est refusée avec `WRONGPASS invalid username-password pair or user is disabled.`
+
+## Votre avis nous intéresse !
+
+Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+
+[[fragment:professional-services]]
+
+Vous êtes sur Discord ? Rejoignez notre chaîne via [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) et interagissez directement avec l’équipe qui développe notre service de bases de données !

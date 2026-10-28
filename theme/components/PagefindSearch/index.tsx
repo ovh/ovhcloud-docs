@@ -237,6 +237,14 @@ const UI_STRINGS: Record<Locale, UiStrings> = {
   },
 };
 
+// Build-time define (`source.define` in rspress.config.ts and
+// rspress.config.build.ts), guarded like theme/components/LanguageSwitcher.
+// Single-locale regions (e.g. US) are served at the domain root with a single
+// Pagefind index at /pagefind/ (scripts/combine-builds.ts), not one per locale.
+declare const __SINGLE_LOCALE__: boolean | undefined;
+const SINGLE_LOCALE =
+  typeof __SINGLE_LOCALE__ !== 'undefined' && __SINGLE_LOCALE__ === true;
+
 function getLocale(): Locale {
   // Guard for SSR/SSG where `document` is undefined (this module renders on the
   // server too). Falls back to the default locale; the client re-resolves.
@@ -812,9 +820,13 @@ export function PagefindSearch() {
       const dynamicImport = new Function('u', 'return import(u)') as (
         u: string,
       ) => Promise<PagefindApi>;
-      // Load the per-locale Pagefind index (each locale has its own bundle)
-      const locale = getLocale();
-      const pf = await dynamicImport(`/${locale}/pagefind/pagefind.js`);
+      // Load the per-locale Pagefind index (each locale has its own bundle),
+      // or the region's single root index.
+      const pf = await dynamicImport(
+        SINGLE_LOCALE
+          ? '/pagefind/pagefind.js'
+          : `/${getLocale()}/pagefind/pagefind.js`,
+      );
       if (!pf?.search) throw new Error('Pagefind search API not found');
       // Disable page-length penalty so short focused guides aren't
       // outranked by long hub pages that merely reference them.
@@ -1025,9 +1037,8 @@ export function PagefindSearch() {
               </div>
 
               <div className="pagefind-filters">
-                <div
+                <fieldset
                   className="pagefind-filter-row"
-                  role="group"
                   aria-label={t.filterByUniverse}
                 >
                   <button
@@ -1077,11 +1088,10 @@ export function PagefindSearch() {
                       </button>
                     );
                   })}
-                </div>
+                </fieldset>
                 {productOptions.length > 0 && (
-                  <div
+                  <fieldset
                     className="pagefind-filter-row pagefind-filter-row--products"
-                    role="group"
                     aria-label={t.filterByProduct}
                   >
                     {productOptions.map((p) => (
@@ -1097,7 +1107,7 @@ export function PagefindSearch() {
                         {p.label}
                       </button>
                     ))}
-                  </div>
+                  </fieldset>
                 )}
               </div>
 

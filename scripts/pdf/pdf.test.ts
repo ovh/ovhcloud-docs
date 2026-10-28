@@ -19,7 +19,7 @@ import {
   relinkCrossGuide,
   stripInteractiveWidgets,
 } from './assemble-book';
-import { computeDigest } from './pdf-cache';
+import { computeDigest, downloadCached, uploadCached } from './pdf-cache';
 import { readFrontmatterValue } from './resolve-product';
 
 test('extractArticle walks balanced <div> nesting to the article end', () => {
@@ -121,4 +121,90 @@ test('computeDigest folds referenced images and the footer logo into the key', (
   fs.writeFileSync(path.join(imageRoot, 'logo-ovhcloud-light.png'), 'logo-v2');
   assert.notEqual(computeDigest(html, imageRoot), b);
   fs.rmSync(imageRoot, { recursive: true, force: true });
+});
+
+test('uploadCached logs transport failures without rejecting', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-test-cache-'));
+  const pdfPath = path.join(dir, 'guide.pdf');
+  fs.writeFileSync(pdfPath, 'rendered PDF');
+
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  globalThis.fetch = async () => {
+    throw new Error('simulated cache transport failure');
+  };
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  try {
+    await assert.doesNotReject(uploadCached('en', 'guide', 'digest', pdfPath));
+    assert.deepEqual(warnings, [
+      '⚠️  cache upload en/guide: simulated cache transport failure',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('downloadCached treats transport failures as cache misses', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  globalThis.fetch = async () => {
+    throw new Error('simulated cache transport failure');
+  };
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  try {
+    assert.equal(
+      await downloadCached(
+        'en',
+        'guide',
+        'digest',
+        path.join(os.tmpdir(), 'unused.pdf'),
+      ),
+      false,
+    );
+    assert.deepEqual(warnings, [
+      '⚠️  cache probe en/guide: simulated cache transport failure',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
+test('downloadCached treats response body failures as cache misses', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error('simulated response transport failure'));
+        },
+      }),
+    );
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  try {
+    assert.equal(
+      await downloadCached(
+        'en',
+        'guide',
+        'digest',
+        path.join(os.tmpdir(), 'unused.pdf'),
+      ),
+      false,
+    );
+    assert.deepEqual(warnings, [
+      '⚠️  cache probe en/guide: simulated response transport failure',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
 });

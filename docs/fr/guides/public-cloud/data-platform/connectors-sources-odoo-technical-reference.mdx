@@ -1,0 +1,249 @@
+---
+title: "Odoo : référence technique"
+description: Ceci est le complément technique de la documentation principale du connecteur Odoo
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Ceci est le complément technique de la documentation principale du [connecteur Odoo](/guides/public-cloud/data-platform/connectors-sources-odoo). Il couvre les internes de l'authentification, la référence complète des endpoints, la pagination, les limites de débit, le format de sortie, le langage de filtre de domaine, la compatibilité des versions et les limitations, tout ce qui est nécessaire pour intégrer le connecteur dans un pipeline de données.
+
+## Authentification
+
+### Protocole
+
+Le connecteur utilise **JSON-RPC 2.0** via `POST {url}/jsonrpc`. Toutes les requêtes sont envoyées à un unique endpoint avec des corps JSON différents.
+
+### Identifiants
+
+| Champ | Requis | Description |
+|-------|----------|-------------|
+| `url` | Oui | URL de l'instance Odoo (par ex. `https://mycompany.odoo.com`) |
+| `login` | Oui | E-mail de l'utilisateur Odoo |
+| `api_key` | Oui | Clé API générée depuis votre profil Odoo |
+| `database` | Non | Auto-détecté depuis le sous-domaine `*.odoo.com`. Requis pour un déploiement auto-hébergé. |
+
+### Flux d'authentification
+
+1. `configure()` appelle `authenticate(db, login, api_key)` via JSON-RPC
+2. Renvoie `uid` (identifiant utilisateur entier)
+3. Chaque appel suivant transmet `(db, uid, api_key)` : sans état, pas de cookie de session
+
+### Exigence Odoo Online
+
+L'accès à l'API externe nécessite le **plan Custom** sur Odoo Online. Les plans Free et Standard n'incluent pas l'accès à l'API. Voir [Odoo Pricing](https://www.odoo.com/pricing).
+
+## Architecture
+
+Le connecteur renvoie le JSON brut de l'API JSON-RPC Odoo. La platform prend le relais à partir de là. Elle découvre automatiquement le schéma à partir du payload JSON, aplatit les objets imbriqués en colonnes, et stocke le résultat dans le lakehouse, interrogeable via Trino. Tout nouveau champ apparaissant dans votre instance Odoo apparaît automatiquement lors de la prochaine extraction.
+
+Le connecteur lui-même est responsable de l'authentification (appel JSON-RPC `authenticate` pour obtenir un `uid`), du routage des endpoints, de l'extraction des données (un unique appel `search_read` partagé par chaque modèle), de l'introspection de schéma (`fields_get`), de la pagination par décalage (offset), et des tentatives en cas de limite de débit.
+
+Étant donné que chaque modèle Odoo est accessible via le même appel JSON-RPC `search_read`, le connecteur utilise un unique chemin d'extraction pour les 26 modèles prédéfinis, l'endpoint `custom_model`, et tout modèle exposé via `model_fields`. Ajouter un nouveau modèle consiste simplement à ajouter son nom dans le menu déroulant. Aucun code spécifique par modèle n'est nécessaire.
+
+## Référence des endpoints
+
+### models
+
+Extrait des enregistrements depuis l'un des 26 modèles Odoo prédéfinis.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `object_type` | select | Oui | Modèle Odoo (26 options) |
+| `fields_filter` | tags | Non | Champs spécifiques à inclure (vide = tous) |
+| `domain_filter` | text | Non | Filtre de domaine Odoo au format JSON (vide = tous les enregistrements) |
+| `max_items` | number | Non | Nombre maximum d'enregistrements (vide = tous) |
+
+**Appel API** : `execute_kw(model, "search_read", [domain], {fields, limit, offset, order})`
+
+**Pagination** : par décalage (offset) (limit=80, l'offset augmente de 80)
+
+**Sortie** : JSON brut, liste de dictionnaires tels que renvoyés par l'API Odoo.
+
+**Modèles prédéfinis (26) :**
+
+| Domaine | Modèles |
+|--------|--------|
+| Contacts | `res.partner` |
+| CRM | `crm.lead`, `crm.stage`, `crm.team` |
+| Ventes | `sale.order`, `sale.order.line` |
+| Achats | `purchase.order`, `purchase.order.line` |
+| Facturation | `account.move`, `account.move.line`, `account.journal` |
+| Produits | `product.template`, `product.product`, `product.category` |
+| Inventaire | `stock.picking`, `stock.move`, `stock.warehouse`, `stock.location` |
+| RH | `hr.employee`, `hr.department` |
+| Projets | `project.project`, `project.task` |
+| Système | `res.users`, `res.company`, `res.country`, `res.currency` |
+
+### custom_model
+
+Extrait des enregistrements depuis tout modèle Odoo qui n'est pas dans la liste prédéfinie.
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `model_name` | text | Oui | Nom technique complet du modèle (par ex. `helpdesk.ticket`) |
+| `fields_filter` | tags | Non | Champs spécifiques |
+| `domain_filter` | text | Non | Filtre de domaine au format JSON |
+| `max_items` | number | Non | Nombre maximum d'enregistrements |
+
+**Appel API** : identique à `models` : `execute_kw(model_name, "search_read", ..)`
+
+**Sortie** : JSON brut, même format que `models`.
+
+**Cas d'usage** : `helpdesk.ticket`, `mrp.production`, `fleet.vehicle`, `event.event`, ou tout modèle personnalisé.
+
+### model_fields
+
+Renvoie les définitions de champs pour tout modèle Odoo (introspection de schéma).
+
+| Paramètre | Type | Requis | Description |
+|-----------|------|----------|-------------|
+| `model_name` | text | Oui | Modèle à inspecter (par ex. `res.partner`) |
+
+**Appel API** : `execute_kw(model_name, "fields_get", [], {attributes: [string, type, required, help, readonly, relation]})`
+
+**Sortie** : JSON brut, liste de dictionnaires, chacun avec `field_name`, `string` (libellé), `type`, `required`, `help`, `readonly`, `relation` (pour les champs relationnels).
+
+**Cas d'usage** : découvrir les champs disponibles et leurs types avant de configurer `fields_filter` sur une extraction `models` ou `custom_model`.
+
+## Pagination
+
+Le connecteur utilise une seule stratégie de pagination pour tous les modèles :
+
+### Par décalage (offset)
+
+```
+Call 1: search_read(domain, {limit: 80, offset: 0, order: "id asc"})
+Call 2: search_read(domain, {limit: 80, offset: 80, order: "id asc"})
+Call 3: search_read(domain, {limit: 80, offset: 160, order: "id asc"})
+...until returned records < 80
+```
+
+- **Taille de page** : 80 (recommandé par Odoo)
+- **Ordre** : toujours `id asc` pour une pagination cohérente
+- **Condition d'arrêt** : moins d'enregistrements renvoyés que la taille de page
+- **max_items** : lorsqu'il est défini, la pagination s'arrête dès que suffisamment d'enregistrements sont collectés, et le résultat est tronqué à exactement `max_items`
+
+## Limites de débit
+
+Consultez la documentation de votre instance Odoo pour connaître les limites exactes.
+
+| Environnement | Limite approximative |
+|-------------|-------------------|
+| Odoo Online (SaaS) | Varie selon le plan, consultez la [documentation Odoo](https://www.odoo.com/documentation) |
+| Odoo.sh | Varie, consultez la configuration de votre instance |
+| Auto-hébergé | Dépend des ressources du serveur |
+
+Le connecteur gère automatiquement les erreurs `429 Too Many Requests` : il lit l'en-tête `Retry-After` et attend avant de réessayer. Repli sur 10 secondes si l'en-tête est absent.
+
+## Format de sortie
+
+### JSON brut (sortie du connecteur)
+
+Le connecteur renvoie le JSON brut de l'API Odoo. Chaque enregistrement est un dictionnaire avec tous les champs demandés.
+
+Exemple (`res.partner`) :
+```json
+{
+  "id": 8,
+  "name": "Acme Corp",
+  "email": "contact@acme.com",
+  "phone": "+33 1 23 45 67 89",
+  "is_company": true,
+  "country_id": [75, "France"],
+  "category_id": [1, 3]
+}
+```
+
+### Champs relationnels
+
+Les champs relationnels Odoo sont renvoyés comme suit :
+
+- **Many2one** : `[id, display_name]` (par ex. `"country_id": [75, "France"]`)
+- **One2many / Many2many** : liste d'ID (par ex. `"category_id": [1, 3]`)
+
+La platform aplatit ces champs automatiquement.
+
+### Sortie aplatie (lakehouse)
+
+La platform aplatit les objets imbriqués en colonnes avec des underscores :
+
+| JSON brut | Colonne lakehouse |
+|----------|-----------------|
+| `id` | `id` |
+| `name` | `name` |
+| `country_id` | `country_id` (aplati depuis un tableau) |
+
+## Référence du filtre de domaine
+
+Odoo utilise la **notation polonaise (préfixe)** pour les filtres de domaine. Le connecteur les accepte sous forme de chaîne JSON.
+
+### Syntaxe
+
+Chaque critère est `[field, operator, value]`. Plusieurs critères sont combinés par un ET (AND) par défaut.
+
+### Opérateurs
+
+| Opérateur | Description |
+|----------|-------------|
+| `=`, `!=` | Égal / différent de |
+| `>`, `>=`, `<`, `<=` | Comparaison |
+| `in`, `not in` | Appartenance à un ensemble |
+| `like`, `ilike` | Correspondance de motif (ilike = insensible à la casse) |
+| `not like`, `not ilike` | Correspondance de motif négative |
+| `=like`, `=ilike` | SQL LIKE sans encadrement automatique |
+| `child_of`, `parent_of` | Relations hiérarchiques |
+
+### Opérateurs logiques
+
+| Opérateur | Arité | Description |
+|----------|-------|-------------|
+| `&` | Binaire | ET (AND, implicite par défaut) |
+| `\|` | Binaire | OU (OR) |
+| `!` | Unaire | NON (NOT) |
+
+### Exemples
+
+```json
+// Active companies
+[["is_company", "=", true], ["active", "=", true]]
+
+// Sales orders over 1000
+[["state", "=", "sale"], ["amount_total", ">", 1000]]
+
+// Leads OR opportunities
+["|", ["type", "=", "lead"], ["type", "=", "opportunity"]]
+
+// Invoices from 2024
+[["invoice_date", ">=", "2024-01-01"], ["invoice_date", "<=", "2024-12-31"]]
+```
+
+## Compatibilité des versions
+
+Testé et pris en charge sur **Odoo 14 à 19** (y compris Odoo Online saas~19.2).
+
+| Version Odoo | Statut | Prise en charge de la clé API |
+|-------------|--------|-----------------|
+| 14–18 | Entièrement pris en charge | Oui |
+| 19 | Entièrement pris en charge (testé sur saas~19.2) | Oui |
+
+Les 26 modèles prédéfinis sont stables sur Odoo 14–19. Si un modèle n'existe pas sur votre instance (selon les applications installées), utilisez `model_fields` pour vérifier sa disponibilité.
+
+## Limitations
+
+- **Pas de champs codés en dur.** Le connecteur renvoie tout ce que fournit l'API. Les noms de champs et les types dépendent de votre version Odoo et des modules installés.
+- **Champs restreints.** Certains modèles ont des champs restreints à des groupes d'utilisateurs spécifiques (par ex., `project.project.stage_id`). Utilisez `fields_filter` pour les exclure, ou accordez le groupe requis à votre utilisateur API.
+- **Champs binaires.** Les champs comme `image_1920` renvoient des données encodées en base64, qui peuvent être très volumineuses. Utilisez `fields_filter` pour exclure les champs image lorsqu'ils ne sont pas nécessaires.
+- **Accès API Odoo Online.** Nécessite le plan Custom. Les plans Free et Standard bloquent l'accès à l'API externe.
+- **Pas d'extraction par webhook/push.** Le connecteur utilise uniquement une extraction par pull (JSON-RPC search_read).
+- **Une seule méthode d'authentification.** Clé API uniquement. OAuth2 n'est pas pris en charge.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

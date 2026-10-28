@@ -1,0 +1,153 @@
+---
+title: Extrayez vos données de paiement Stripe avec le connecteur Data Platform
+description: "Le connecteur Stripe extrait les données de votre compte Stripe : clients, charges, intentions de paiement, abonnements, factures, produits, transactions de solde"
+lastUpdated: 2026-09-14
+---
+
+## Objectif
+
+Le connecteur Stripe extrait les données de votre compte Stripe : clients, charges, intentions de paiement, abonnements, factures, produits, transactions de solde, événements, et plus encore.
+
+**76 ressources d'endpoint** regroupées en 12 groupes de domaine + 4 endpoints filtrés + 3 endpoints autonomes + un endpoint **custom** pour tout chemin de ressource Stripe.
+
+Le connecteur renvoie le JSON brut de l'API Stripe. La platform aplatit automatiquement les objets imbriqués en colonnes et stocke le résultat dans le lakehouse. Aucune définition manuelle de schéma n'est nécessaire.
+
+## 1. Obtenir une clé API Stripe
+
+### Créer un compte
+
+1. Inscrivez-vous sur [dashboard.stripe.com/register](https://dashboard.stripe.com/register), gratuit, sans carte bancaire requise
+2. Chaque compte démarre avec un **sandbox** (mode Test), accès API complet, sans frais réels
+
+### Obtenir la clé secrète
+
+1. Connectez-vous à votre Stripe Dashboard
+2. Assurez-vous que le bouton **Test mode** est activé (en haut à droite du dashboard)
+3. Allez dans **Developers** > **API Keys**
+4. Copiez la **Secret key** : elle commence par `sk_test_` en mode test, `sk_live_` en mode live
+
+:::info
+**Important :** utilisez la **Secret key** (`sk_test_...` / `sk_live_...`), pas la Publishable key (`pk_*`). La Publishable key est côté client uniquement et ne peut pas appeler la plupart des endpoints de l'API.
+:::
+
+## 2. Configurer les identifiants
+
+Collez votre clé secrète dans le champ **Clé API Stripe** :
+
+```
+sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Le connecteur utilise l'authentification par Bearer token. Aucune configuration de scope n'est nécessaire. La clé secrète dispose d'un accès API complet.
+
+## 3. Endpoints disponibles
+
+Le connecteur est organisé en 20 endpoints. La plupart regroupent des ressources liées avec un menu déroulant « Resource Type ».
+
+### Groupes de domaine (12)
+
+| Endpoint | Ressources incluses | Remarques |
+|----------|-----------------|-------|
+| **core** | customers, charges, payment_intents, balance_transactions, payouts, refunds, disputes, setup_intents, events, files, file_links, webhook_endpoints, payment_method_configurations, payment_method_domains | Ressources de paiement principales |
+| **products** | products, prices, coupons, promotion_codes, tax_codes, tax_rates, shipping_rates | Catalogue et tarification |
+| **billing** | subscriptions, subscription_schedules, invoices, invoice_items, invoice_rendering_templates, credit_notes, plans, quotes, billing_meters, billing_alerts, billing_credit_grants | Facturation récurrente |
+| **checkout** | checkout_sessions, payment_links | Parcours de paiement hébergés |
+| **connect** | accounts, application_fees, transfers, top_ups, country_specs | Marketplace / platform |
+| **radar** | early_fraud_warnings, reviews, value_lists | Détection de fraude (Stripe Radar) |
+| **issuing** | authorizations, cardholders, cards, transactions, disputes, personalization_designs, physical_bundles | Nécessite Stripe Issuing |
+| **treasury** | transactions, transaction_entries, outbound/inbound transfers, outbound/received payments, credits/debits, reversals | Nécessite Stripe Treasury + un Financial Account ID |
+| **terminal** | locations, readers, configurations | Nécessite Stripe Terminal |
+| **identity** | verification_sessions, verification_reports | Nécessite Stripe Identity |
+| **climate** | orders, suppliers, products | Nécessite Stripe Climate |
+| **reporting** | report_runs, report_types, sigma_scheduled_query_runs | Rapports et Sigma |
+
+### Endpoints filtrés (nécessitent un ID parent)
+
+| Endpoint | Paramètre requis | Objectif |
+|----------|-------------------|---------|
+| **payment_methods** | Customer ID (cus_xxx) | Moyens de paiement rattachés à un client |
+| **setup_attempts** | Setup Intent ID (seti_xxx) | Tentatives de configuration pour un setup intent |
+| **subscription_items** | Subscription ID (sub_xxx) | Lignes au sein d'un abonnement |
+| **financial_connections_transactions** | Account ID (fca_xxx) | Transactions sur un compte lié |
+
+### Endpoints autonomes
+
+| Endpoint | Objectif |
+|----------|---------|
+| **financial_connections_accounts** | Comptes bancaires liés (Financial Connections) |
+| **tax_registrations** | Enregistrements fiscaux par juridiction |
+| **treasury_financial_accounts** | Comptes financiers Treasury (aucun filtre nécessaire) |
+
+### Endpoint personnalisé
+
+| Endpoint | Paramètre requis | Objectif |
+|----------|-------------------|---------|
+| **custom** | Resource Path | Tout endpoint de liste Stripe non couvert ci-dessus |
+
+Exemples de valeurs de Resource Path : `issuing/settlements`, `treasury/statements`, `capital/financing_offers`. Le préfixe `/v1/` est optionnel. Le connecteur l'ajoute s'il est absent.
+
+## 4. Ajouter une source Stripe sur Data Platform
+
+1. Dans les **Connectors** de la Data Platform, trouvez **Stripe** dans le source store et cliquez sur **Select**.
+2. Collez la clé secrète de l'[étape 1](#1-obtenir-une-clé-api-stripe) dans le champ **Clé API Stripe**.
+3. Cliquez sur **Connect** pour vérifier les identifiants. Le connecteur appelle `GET /v1/balance` comme contrôle de santé.
+4. Cliquez sur **Add an Endpoint**, choisissez un endpoint dans le menu déroulant (par ex. `core`, `billing`, `custom`), et le cas échéant sélectionnez un **Resource Type** (par ex. `customers`) et les éventuels paramètres requis (par ex. Customer ID pour `payment_methods`, Resource Path pour `custom`).
+5. Répétez l'étape 4 pour chaque endpoint supplémentaire que vous souhaitez ingérer dans cette source. Chacun devient une table distincte dans le lakehouse.
+6. Nommez la source et cliquez sur **Create**.
+
+:::warning
+Le **nom technique** ne peut pas être modifié après la création de la source. Il est utilisé lors de l'ouverture de la source via le [SDK Python de la Data Platform](/guides/public-cloud/data-platform/landing-page-developers-python-sdk).
+:::
+
+## 5. Exemple rapide : extraire les clients
+
+1. **Endpoint** : `core`
+2. **Resource Type** : `customers`
+3. **Max Items** : `100` (ou vide pour tout extraire)
+
+Le connecteur renvoie le JSON brut de Stripe. La platform aplatit automatiquement les objets imbriqués (par ex. `address.country` devient une colonne `address_country`) et stocke le résultat dans le lakehouse.
+
+## 6. Bonnes pratiques
+
+### Utiliser `max_items` lors des tests
+
+Lors de la mise en place d'une nouvelle table, définissez `max_items` à `10` ou `100` pour vérifier rapidement le résultat. Stripe a une pagination généreuse (100 par page, total illimité), donc une extraction volumineuse peut prendre du temps sur les comptes avec beaucoup de données.
+
+### Extraire `events` pour un audit trail complet
+
+L'endpoint `events` du groupe `core` contient chaque changement d'état de votre compte : client créé, abonnement mis à jour, charge remboursée, etc. C'est la meilleure source pour un journal d'audit incrémental.
+
+### Extraire les pipelines comme tables de référence
+
+Les endpoints `products`, `prices`, `plans` et `coupons` fournissent des données de référence statiques. Extrayez-les séparément et joignez-les avec `charges`, `subscriptions` ou `invoices` pour vos analyses.
+
+### Utiliser `balance_transactions` pour le reporting financier
+
+`balance_transactions` contient chaque mouvement sur votre solde Stripe, charges, remboursements, frais, virements, ajustements, le tout dans un seul flux unifié. C'est généralement le meilleur point de départ pour la réconciliation.
+
+### Secret key vs Restricted key
+
+Pour de l'analyse en lecture seule, vous pouvez créer une **Restricted API key** (préfixe `rk_test_` / `rk_live_`) avec uniquement les permissions `Read` sur les ressources dont vous avez besoin. C'est plus sûr qu'une Secret key complète. Allez dans **Developers > API Keys > Restricted keys > Create restricted key**.
+
+## 7. Limitations
+
+- **Préfixes de type statiques** : chaque objet Stripe a un préfixe d'ID typé (`cus_`, `ch_`, `sub_`, `pi_`, `in_`, etc.), conservez-les pour effectuer des jointures entre les tables.
+- **Les timestamps sont en secondes Unix**, pas au format ISO 8601. Convertissez-les dans votre traitement en aval.
+- **Certains endpoints nécessitent un produit Stripe spécifique** (Issuing, Treasury, Terminal, Identity, Climate). Si le produit n'est pas activé sur votre compte, Stripe renvoie une erreur 400 et l'extraction échoue. Le connecteur n'ignore ni ne relance cette erreur.
+- **L'activation des produits Stripe** est gérée depuis votre Stripe Dashboard, en dehors de ce connecteur.
+- **Mode Test vs mode Live** : la Secret key détermine quelles données sont extraites. Une clé `sk_test_` ne voit que les données du sandbox ; une clé `sk_live_` ne voit que les données de production. Elles sont totalement isolées.
+- **Particularité de la Reports API** : `/v1/reporting/report_types` rejette le paramètre `limit`. Le connecteur relance automatiquement la requête sans ce paramètre. Aucune action nécessaire de votre part.
+
+:::info
+Pour des informations techniques détaillées (internes de l'authentification, référence complète des endpoints, pagination, limites de débit, format de sortie, limitations), consultez la [référence technique Stripe](/guides/public-cloud/data-platform/connectors-sources-stripe-technical-reference).
+:::
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

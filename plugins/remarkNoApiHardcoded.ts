@@ -6,7 +6,13 @@ import { externalLinks } from '../config/links';
 // Only the fully-migrated BARE forms are banned. Console deep links
 // (`?section=…` / `#/…`) are intentionally still allowed — they migrate in a
 // later phase; widen these patterns when that happens.
-const FORBIDDEN_PATTERNS: { regex: RegExp; label: string; hint: string }[] = [
+// Exported: scripts/lib/glossary.ts reuses these to reject API URLs in
+// glossary YAML definitions (invisible to this MDX-only plugin).
+export const FORBIDDEN_PATTERNS: {
+  regex: RegExp;
+  label: string;
+  hint: string;
+}[] = [
   {
     regex: /^https:\/\/(?:eu|ca)\.api\.ovh\.com\/?$/i,
     label: 'zone-hardcoded API root URL',
