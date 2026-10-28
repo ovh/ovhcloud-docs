@@ -34,13 +34,13 @@ const euNavItems: NavItemConfig[] = [
   {
     text: 'nav.customerAccount',
     links: {
-      fr: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=FR',
-      en: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=GB',
-      de: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=DE',
-      es: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=ES',
-      it: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=IT',
-      pl: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=PL',
-      pt: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=PT',
+      fr: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=FR',
+      en: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=GB',
+      de: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=DE',
+      es: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=ES',
+      it: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=IT',
+      pl: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=PL',
+      pt: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=PT',
     },
   },
   {

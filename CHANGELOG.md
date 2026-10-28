@@ -1,16 +1,146 @@
 # Changelog
 
+## 2026.10.27
+
+### Fixes
+
+#### EU
+- drop the standalone <br/> lines from the web hosting version legend (#1095)
+
+#### All regions
+- **styles:** show the hand cursor on the collapse header only (#1096)
+
+### Documentation
+- EU: 64 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+### Fixes
+
+#### EU
+- restore the PHP 5.3 column and realign the Stable and Legacy rows (#1089)
+
+#### All regions
+- **components:** tidy mermaid arrows and labels (#1081)
+
+### Documentation
+- EU: 23 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26
+
+### Fixes
+
+#### All regions
+- **components:** invert mermaid diagrams in dark mode instead of a white panel (#1079)
+
+### Documentation
+- EU: 9 guides across en, es, fr, it, pl
+
+## 2026.10.23
+
+### Maintenance
+
+#### EU
+- **public-cloud:** set lastUpdated to merge date of #952 (2026-10-23) (#1067)
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.21
+
+### Fixes
+
+#### EU
+- **callouts:** prune old formats (#1053)
+
+### Documentation
+- EU: 86 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.20
+
+### Features
+
+#### EU
+- **components:** render mermaid diagrams whole with click-to-zoom, check their source at commit (#1032)
+
+#### All regions
+- **theme:** open the region's survey from the survey widget (#1031)
+
+### Fixes
+
+#### EU
+- **okms:** backup guide: fix the backup regions and lowercase the region names (#1023)
+- correct Terraform registry links in Terraform guide (#1020)
+
+#### All regions
+- **husky:** stop the Mermaid block from failing commits without a diagram (#1051)
+
+### Documentation
+- EU: 418 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.16.1
+
+### Features
+
+#### EU
+- **databases:** update mongodb documentations (#992)
+- **block:** update about encryption (#988)
+
+### Fixes
+
+#### EU
+- **db:** remove eol versions from guides (#993)
+- **db:** update sentences about pricing (#991)
+
+#### All regions
+- **retrievability:** restore probe coverage lost to the cleaned .md export (#1042)
+- **llms:** clean the per-page Markdown export (#1028)
+
+### Maintenance
+
+#### EU
+- **cpnav:** add missing blank lines around CP-NAV tokens (#1030)
+
+#### All regions
+- **build:** upgrade Rspress to 2.0.23
+
+### Documentation
+- EU: 1258 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.16
 
 ### Features
 
 #### All regions
+- **build:** load the Commanders Act cookie policy on the US site
 - **us:** add a Zendesk delta-resync script
 - **us:** drop the page feedback form on the US site
 
 ### Fixes
 
+#### EU
+- point the Cloud Disk Array manager link at /public-cloud/
+
 #### All regions
+- move legacy ovh.com manager, sign-in and API hosts to ovhcloud.com
 - **us:** keep each guide's image paths with its resync base
 - **us:** make the resync reusable and image-aware
 
@@ -21,8 +151,8 @@
 - **i18n:** sort the homeExploreProductPage key
 
 ### Documentation
-- EU: 317 guides across de, en, es, fr, it, pl, pt
-- US: 258 guides across en
+- EU: 454 guides across de, en, es, fr, it, pl, pt
+- US: 483 guides across en
 
 ## 2026.10.15
 

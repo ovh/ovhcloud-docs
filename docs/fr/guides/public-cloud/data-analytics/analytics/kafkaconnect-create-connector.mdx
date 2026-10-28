@@ -1,0 +1,169 @@
+---
+title: Kafka Connect - Comment relier Kafka Connect à Kafka et créer un connecteur
+description: Découvrez comment relier un service Kafka Connect à votre service Kafka, créer un connecteur qui copie un topic vers MongoDB et le gérer avec l'API OVHcloud
+lastUpdated: 2026-10-20
+---
+
+import Api from '@components/Api';
+
+## Objectif
+
+Kafka Connect déplace des données entre vos topics Kafka et des systèmes externes grâce à des connecteurs prêts à l'emploi : les connecteurs source font entrer des données dans Kafka, les connecteurs sink copient les données de Kafka vers un autre système.
+
+Ce guide explique comment relier un service Kafka Connect à votre service Kafka, puis comment créer, suivre et gérer un connecteur avec l'API OVHcloud. L'exemple copie les messages d'un topic Kafka dans une collection Public Cloud Databases pour MongoDB.
+
+## Prérequis
+
+- Disposer d'un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud
+- Disposer d'un [service Kafka](/guides/public-cloud/data-analytics/analytics/kafka-create-cluster) avec un topic, ici `orders`, dont les messages sont des documents JSON
+- Disposer d'un service Kafka Connect dans le même projet Public Cloud
+- Disposer d'un service Public Cloud Databases pour MongoDB et d'un utilisateur MongoDB ayant le rôle `readWrite` sur la base cible (pour l'exemple)
+- Disposer d'un accès à l'[API OVHcloud](/guides/manage-and-operate/api/first-steps)
+
+## En pratique
+
+### Étape 1 - Relier Kafka Connect à votre service Kafka
+
+Kafka Connect lit et écrit dans un service Kafka du même projet grâce à une intégration. Créez-la sur votre service Kafka Connect :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/integration"} />
+
+```json
+{
+  "type": "kafkaConnect",
+  "sourceServiceId": "<ID du service Kafka>",
+  "destinationServiceId": "<ID du service Kafka Connect>"
+}
+```
+
+L'intégration est prête immédiatement :
+
+```json
+{
+  "id": "<ID de l'intégration>",
+  "sourceServiceId": "<ID du service Kafka>",
+  "destinationServiceId": "<ID du service Kafka Connect>",
+  "type": "kafkaConnect",
+  "status": "READY"
+}
+```
+
+Kafka Connect crée ensuite 3 topics sur votre service Kafka pour stocker sa configuration, ses offsets et son état : `__connect_configs-<ID de l'intégration>`, `__connect_offsets-<ID de l'intégration>` et `__connect_status-<ID de l'intégration>`. Ces topics restent sur votre service Kafka après la suppression du service Kafka Connect.
+
+### Étape 2 - Autoriser Kafka Connect à joindre le système cible
+
+Un connecteur se connecte au système externe depuis un nœud de votre service Kafka Connect. Pour un service Kafka Connect public, trouvez l'adresse IP de chaque nœud en résolvant son nom d'hôte, affiché dans le champ `nodes` du détail du service :
+
+```bash
+dig +short kafkaconnect-xxxxxxxx-xxxxxxxxx-1.database.cloud.ovh.net
+```
+
+Ajoutez ensuite ces adresses IP aux IP autorisées du service cible, ici le service MongoDB. Ces adresses IP peuvent changer au fil du temps : si le connecteur ne parvient plus à joindre le système cible, résolvez à nouveau les noms d'hôte et mettez à jour les IP autorisées. Pour plus d'informations, consultez le guide « [Capacités et limitations pour Analytics avec Kafka Connect](/guides/public-cloud/databases/kafkaconnect-capabilities) ».
+
+### Étape 3 - Choisir un connecteur
+
+Listez les connecteurs disponibles sur votre service Kafka Connect, puis consultez le détail de chacun :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/capabilities/connector"} />
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/capabilities/connector/\{connectorId\}"} />
+
+```json
+{
+  "id": "<ID de la capacité du connecteur>",
+  "name": "MongoDB Kafka Sink Connector",
+  "author": "MongoDB",
+  "documentationUrl": "https://docs.mongodb.com/kafka-connector/current/",
+  "preview": false,
+  "type": "sink",
+  "version": "1.16.0",
+  "latest": true
+}
+```
+
+Conservez l'`id` du connecteur à utiliser. Le champ `documentationUrl` renvoie vers la documentation du connecteur, qui liste ses propriétés de configuration. Vous pouvez aussi parcourir la [liste des connecteurs disponibles](/guides/public-cloud/databases/kafkaconnect-available-connectors).
+
+### Étape 4 - Créer le connecteur
+
+Créez le connecteur avec l'`id` de sa capacité, un nom et sa configuration :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector"} />
+
+```json
+{
+  "name": "orders-to-mongodb",
+  "connectorId": "<ID de la capacité du connecteur>",
+  "configuration": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+    "topics": "orders",
+    "connection.uri": "mongodb+srv://<utilisateur>:<mot de passe>@<hôte MongoDB>/admin?replicaSet=replicaset&tls=true",
+    "database": "shop",
+    "collection": "orders",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}
+```
+
+Dans cette configuration :
+
+- `topics` est le topic Kafka à lire ;
+- `connection.uri`, `database` et `collection` définissent où les messages sont écrits dans MongoDB ;
+- les convertisseurs lisent les clés des messages comme des chaînes de caractères et leurs valeurs comme des documents JSON sans schéma.
+
+Kafka Connect vérifie la configuration à la création du connecteur. Si le système cible est injoignable, par exemple parce que l'adresse IP de Kafka Connect n'est pas encore autorisée, l'API renvoie une erreur `400` avec le message `Unable to connect to the server.`
+
+:::warning
+La configuration d'un connecteur, y compris les mots de passe qu'elle contient, est renvoyée en clair par l'API. Utilisez un utilisateur dédié, avec uniquement les permissions nécessaires au connecteur.
+:::
+
+Chaque message du topic `orders` est désormais écrit sous forme de document dans la collection `shop.orders`. Par exemple, le message `{"amount":42}` devient le document `{ "_id": ObjectId("<ID du document>"), "amount": 42 }`.
+
+### Étape 5 - Suivre le connecteur
+
+Dans les appels suivants, `connectorId` est l'`id` renvoyé à la création du connecteur, et non l'ID de la capacité utilisé à l'étape précédente. Consultez l'état du connecteur, puis listez ses tâches et l'état de chacune :
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}"} />
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}/task"} />
+
+<Api version="v1" section="/cloud" method="GET" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}/task/\{taskId\}"} />
+
+```json
+{"id":0,"trace":"","status":"RUNNING"}
+```
+
+Les tâches effectuent le travail du connecteur : un connecteur fonctionne lorsque ses tâches sont à l'état `RUNNING`.
+
+### Étape 6 - Mettre en pause, reprendre, redémarrer ou supprimer le connecteur
+
+Mettez en pause, reprenez, redémarrez ou supprimez un connecteur :
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}/pause"} />
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}/resume"} />
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}/restart"} />
+
+<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/database/kafkaConnect/\{clusterId\}/connector/\{connectorId\}"} />
+
+:::info
+Après une pause, vérifiez l'état des tâches : elles passent à `PAUSED`, alors que l'état du connecteur lui-même peut rester `RUNNING`.
+:::
+
+## Aller plus loin
+
+[Capacités et limitations pour Analytics avec Kafka Connect](/guides/public-cloud/databases/kafkaconnect-capabilities)
+
+[Connecteurs disponibles pour Kafka Connect](/guides/public-cloud/databases/kafkaconnect-available-connectors)
+
+## Votre avis nous intéresse !
+
+Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+
+[[fragment:professional-services]]
+
+Vous êtes sur Discord ? Rejoignez notre chaîne via [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) et interagissez directement avec l'équipe qui développe notre service Analytics !
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

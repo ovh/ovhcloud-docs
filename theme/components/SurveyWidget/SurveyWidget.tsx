@@ -3,7 +3,9 @@ import { useI18n, useLang } from '@rspress/core/runtime';
 import { useEffect, useState } from 'react';
 import './SurveyWidget.scss';
 
-const SURVEY_URL = 'https://s.elq.fr/ovhabp/LfDet1p?%23+Version=';
+// The region's survey, with an optional `{lang}` token (see config/regions.ts).
+declare const __SURVEY_URL__: string;
+
 const STORAGE_KEY = 'surveyWidget:dismissed';
 
 function hasBeenDismissed(): boolean {
@@ -37,7 +39,11 @@ export function SurveyWidget() {
 
   const handleRespond = (e: React.MouseEvent<HTMLButtonElement>) => {
     trackClick('cta-answer-survey', e.currentTarget);
-    window.open(`${SURVEY_URL}${lang}`, '_blank', 'noopener,noreferrer');
+    window.open(
+      __SURVEY_URL__.replace('{lang}', lang),
+      '_blank',
+      'noopener,noreferrer',
+    );
     markAsDismissed();
     setDismissed(true);
   };

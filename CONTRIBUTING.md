@@ -16,7 +16,7 @@ For build & dev-server setup, see [README.md](README.md). For repo architecture,
 | Sidebar / order | Per-section `_meta.json` / Pelican config | Single source [config/sidebar/index.md](config/sidebar/index.md) |
 | Internal links | `/pages/...`, `/products/...` | `/guides/...` |
 | Locale-aware external links | Hand-written per locale | `/links/<key>` resolved at build from [config/links.ts](config/links.ts) |
-| Admonitions | `> [!warning]` blockquotes | `:::warning ... :::` (blockquote style still works) |
+| Admonitions | `> [!warning]` blockquotes | `:::warning ... :::` |
 | Tabs / FAQ / API blocks | Hugo shortcodes | MDX components, imported at top of file |
 
 ## Folder layout — one tree per locale
@@ -157,7 +157,7 @@ lastUpdated: 2025-09-09
 
 ### Admonitions
 
-RSPress fences are preferred:
+Use RSPress fences:
 
 ```mdx
 :::warning
@@ -173,7 +173,7 @@ Hidden content
 :::
 ```
 
-The legacy GitHub-style blockquote syntax (`> [!warning]`) still renders, so existing copy-pastes keep working.
+Do not use the GitHub-style blockquote syntax (`> [!INFO]`, `> [!warning]`). A callout inside a `:::details` fence does not render; for a collapsible that holds one, use `<details>` HTML.
 
 All seven callout types are supported. Each appears with its own icon and color in the rendered output:
 
@@ -410,7 +410,7 @@ To add a new key, edit [config/links.ts](config/links.ts) and add a row with one
 
 ### Zone-aware API links — `<ApiLink>` / `<CreateToken>`
 
-Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://eu.api.ovh.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
+Links to the OVHcloud API depend on the reader's **commercial zone** (EU / CA), not the page locale — a locale-keyed `/links/` entry cannot express that, and a hardcoded `https://api.eu.ovhcloud.com/…` URL sends CA/APAC readers to an auth they cannot log in to. Use the zone-aware components instead (they follow the same zone selection as `<ManagerLink>`). Both are **globally registered — do not add an import**:
 
 ```mdx
 <!-- Generic reference to the API / the API console -->
@@ -466,6 +466,36 @@ For external URLs that are the same for everyone (GitHub, third-party docs), use
 ```mdx
 [Plesk documentation](https://docs.plesk.com/)
 ```
+
+## Third-party tools and products
+
+This section applies when you propose a third-party tool, service or website **in which you have an interest**: you build, sell or maintain it, or you work for or are paid by its publisher. It does not cover content produced under an OVHcloud partner or certification programme (for example certified OPCP solutions or the AI Partners Ecosystem), which follows that programme's own process.
+
+### Disclose your interest
+
+State your interest in the pull request description. A pull request with an undisclosed interest will be closed.
+
+### When a tool can be mentioned
+
+- **It is established.** It shows independent signs of adoption: third-party reviews, coverage, use by an active community, or documentation by other vendors. A product's own website, or entries made by its publisher, do not count.
+- **It is identifiable.** The publisher or project behind it is clearly named. Online services also state their terms of use and privacy policy.
+- **In a list, it brings something new.** When a guide already lists several equivalent tools, a new entry must do something the listed ones cannot.
+- **It does not over-reach.** If the publisher's application obtains delegated access to the reader's OVHcloud account (for example through OAuth), it asks only for the rights the task in the guide requires.
+
+### Guides maintained by a publisher
+
+A guide dedicated to your own product is accepted only if the product meets the criteria above and the guide:
+
+- includes the `[[fragment:support-scope]]` fragment and states that the product is outside OVHcloud support;
+- names its maintainer and how to reach them;
+- does not contradict OVHcloud recommendations made elsewhere in the documentation.
+
+These guides are reviewed every six months. If one is out of date and its maintainer does not update it within 30 days of being asked, it is unpublished. OVHcloud may remove such a guide at any time, in particular if the product's permissions, pricing or terms change.
+
+### What we will decline
+
+- Links added mainly to gain visibility or search ranking.
+- Tools that do not yet show independent adoption, whatever their quality. You are welcome to come back once they do.
 
 ## Sidebar
 
