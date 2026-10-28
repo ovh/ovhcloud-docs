@@ -1,5 +1,79 @@
 # Changelog
 
+## 2026.10.27
+
+### Fixes
+
+#### EU
+- drop the standalone <br/> lines from the web hosting version legend (#1095)
+
+#### All regions
+- **styles:** show the hand cursor on the collapse header only (#1096)
+
+### Documentation
+- EU: 64 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+### Fixes
+
+#### EU
+- restore the PHP 5.3 column and realign the Stable and Legacy rows (#1089)
+
+#### All regions
+- **components:** tidy mermaid arrows and labels (#1081)
+
+### Documentation
+- EU: 23 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26
+
+### Fixes
+
+#### All regions
+- **components:** invert mermaid diagrams in dark mode instead of a white panel (#1079)
+
+### Documentation
+- EU: 9 guides across en, es, fr, it, pl
+
+## 2026.10.23
+
+### Maintenance
+
+#### EU
+- **public-cloud:** set lastUpdated to merge date of #952 (2026-10-23) (#1067)
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.21
+
+### Fixes
+
+#### EU
+- **callouts:** prune old formats (#1053)
+
+### Documentation
+- EU: 86 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.20
 
 ### Features
@@ -10,8 +84,17 @@
 #### All regions
 - **theme:** open the region's survey from the survey widget (#1031)
 
+### Fixes
+
+#### EU
+- **okms:** backup guide: fix the backup regions and lowercase the region names (#1023)
+- correct Terraform registry links in Terraform guide (#1020)
+
+#### All regions
+- **husky:** stop the Mermaid block from failing commits without a diagram (#1051)
+
 ### Documentation
-- EU: 3 guides across en, fr
+- EU: 418 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.10.16.1
 

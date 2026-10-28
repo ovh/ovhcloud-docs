@@ -1473,6 +1473,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-cloud/ai-endpoints/catalog/whisper-large-v3/',
     pt: 'https://www.ovhcloud.com/pt/public-cloud/ai-endpoints/catalog/whisper-large-v3/',
   },
+  'public-cloud/ai-endpoints-special-conditions': {
+    fr: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-fr.pdf',
+    en: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-gb.pdf',
+    de: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-de.pdf',
+    es: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-es.pdf',
+    it: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-it.pdf',
+    pl: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-pl.pdf',
+    pt: 'https://contract.eu.ovhapis.com/1.0/pdf/Conditions_particulieres_OVH_Stack-pt.pdf',
+  },
   'public-cloud/analytics': {
     fr: 'https://www.ovhcloud.com/fr/public-cloud/cloud-analytics/',
     en: 'https://www.ovhcloud.com/en-gb/public-cloud/cloud-analytics/',
