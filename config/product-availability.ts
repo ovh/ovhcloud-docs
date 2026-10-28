@@ -33,6 +33,10 @@ export const PRODUCT_AVAILABILITY: Record<string, string[]> = {
   'microsoft-office': ['eu', 'ca', 'apac'],
   'web-hosting-100m': ['eu'],
 
+  // Managed Backup for VMware — CP-NAV privatecloud-managed-backup-vmware. Sold in
+  // Europe and Canada only (author of PR #1026, 2026-10-28).
+  'managed-backup-vmware': ['eu', 'ca'],
+
   // Telecom — FR/EU-only universe (SMS, Internet access, OverTheBox, Fax, VoIP).
   // Repo-only: intentionally ABSENT from the zone-adapt YAML (do not "sync" them
   // back in) — listing them there would make /zone-adapt stamp `availableIn`,
