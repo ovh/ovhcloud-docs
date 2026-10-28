@@ -2,6 +2,7 @@ import { useI18n } from '@rspress/core/runtime';
 import { IconArrowDown, SvgWrapper } from '@rspress/core/theme';
 import clsx from 'clsx';
 import { useState } from 'react';
+import { NavScreenFixedLocale } from 'theme/components/Nav/FixedLocale';
 import { useLangsMenu } from 'theme/components/Nav/hooks';
 import { useLocaleAvailability } from 'theme/hooks/useLocaleAvailability';
 import '@rspress/core/dist/theme/components/NavScreen/NavScreenLangs.css';
@@ -32,7 +33,9 @@ export function NavScreenLangs() {
   const t = useI18n();
   const { resolveLocaleSwitchUrl } = useLocaleAvailability();
 
-  if (items.length <= 1) return null;
+  if (items.length <= 1) {
+    return <NavScreenFixedLocale title={t('languagesText')} />;
+  }
 
   return (
     <>

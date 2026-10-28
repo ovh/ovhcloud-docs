@@ -7,7 +7,7 @@ import { Head, useLang, useLocation } from '@rspress/core/runtime';
 declare const __SITE_URL__: string | undefined;
 declare const __LOCALES__: readonly string[] | undefined;
 declare const __SINGLE_LOCALE__: boolean | undefined;
-declare const __HTML_LANG__: string | undefined;
+declare const __HTML_LANG_MAP__: Record<string, string> | undefined;
 declare const __PEER_SITE_URL__: string | undefined;
 declare const __PEER_LOCALES__: readonly string[] | undefined;
 declare const __PEER_LOCALE_PREFIX__: boolean | undefined;
@@ -23,14 +23,20 @@ const LOCALES: readonly string[] =
     ? __LOCALES__
     : ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'];
 
-// Single-locale regions (e.g. US) are served at the domain root, with no
-// /{locale}/ URL segment.
+// Regions built without a /{locale}/ URL segment, served at the domain root.
+// Both sites carry the segment today; kept for an unprefixed region.
 const SINGLE_LOCALE =
   typeof __SINGLE_LOCALE__ !== 'undefined' && __SINGLE_LOCALE__ === true;
 
-// BCP 47 tag for this region's locale (`en-us` on the US site, `en` worldwide).
-const HTML_LANG =
-  typeof __HTML_LANG__ !== 'undefined' ? __HTML_LANG__ : undefined;
+// BCP 47 overrides for this region's locales (`en` -> `en-us` on the US site).
+// Locales absent from the map use their code, as on the worldwide site.
+const HTML_LANG_MAP: Record<string, string> =
+  typeof __HTML_LANG_MAP__ !== 'undefined' ? __HTML_LANG_MAP__ : {};
+const hrefLangFor = (locale: string) => HTML_LANG_MAP[locale] ?? locale;
+
+// True when this site's English is a regional variant (`en-us`): x-default
+// then belongs to the peer's generic English rather than to this site.
+const REGIONAL_ENGLISH = hrefLangFor('en') !== 'en';
 
 // The sibling documentation site. The US and worldwide sites are regional
 // variants of the same corpus, so each must advertise the other in its
@@ -63,10 +69,12 @@ const DEFAULT_LOCALE = LOCALES_SET.has('en') ? 'en' : (LOCALES[0] ?? 'en');
  *   /{locale}/; in dev the default locale has NO prefix (e.g. /guides/foo)
  *   while the others do (e.g. /en/guides/foo). We rely on useLang() (always
  *   the active locale) and strip the prefix from the pathname when present.
- * - Single-locale regions (US): served at the domain root, so there is no
- *   prefix to strip. The canonical must point at the region's own origin —
- *   emitting the EU origin would make the US site declare itself canonically
- *   as the EU one and it would be dropped from the index.
+ *   The US site follows the same scheme (`/en/…`) so a second locale can be
+ *   added without moving URLs. The canonical must point at the region's own
+ *   origin — emitting the EU origin would make the US site declare itself
+ *   canonically as the EU one and it would be dropped from the index.
+ * - Unprefixed regions (none today): served at the domain root, so there is
+ *   no prefix to strip.
  *
  * Cross-site hreflang: the US and worldwide sites are regional variants of the
  * same documentation, so each page advertises the whole cluster — its own tag
@@ -105,8 +113,8 @@ export function SEOHead() {
   // This region's own alternates: every locale it serves, tagged with its BCP
   // 47 variant where it has one.
   const ownAlternates = SINGLE_LOCALE
-    ? [{ hrefLang: HTML_LANG ?? currentLocale, href: localeUrl(currentLocale) }]
-    : LOCALES.map((l) => ({ hrefLang: l, href: localeUrl(l) }));
+    ? [{ hrefLang: hrefLangFor(currentLocale), href: localeUrl(currentLocale) }]
+    : LOCALES.map((l) => ({ hrefLang: hrefLangFor(l), href: localeUrl(l) }));
 
   // The peer site's alternates, emitted on the HOME PAGE ONLY.
   //
@@ -130,7 +138,7 @@ export function SEOHead() {
   // x-default points at the generic (non-region-specific) English page: the
   // worldwide site's English when we are the US site, our own otherwise.
   const xDefaultHref =
-    isHome && SINGLE_LOCALE && PEER_SITE_URL && PEER_LOCALES.includes('en')
+    isHome && REGIONAL_ENGLISH && PEER_SITE_URL && PEER_LOCALES.includes('en')
       ? peerUrl('en')
       : localeUrl(DEFAULT_LOCALE);
 

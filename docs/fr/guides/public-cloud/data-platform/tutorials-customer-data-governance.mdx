@@ -1,0 +1,402 @@
+---
+title: Gouverner un jeu de données clients avec les policy tags, les vues et le Time Travel
+description: Découvrez comment protéger une table clients contenant des données personnelles avec les policy tags, les groupes IAM, une vue gouvernée et le Time Travel
+lastUpdated: 2026-10-20
+---
+
+## Objectif
+
+Ce guide vous explique comment protéger une table clients contenant des données personnelles avec les policy tags, les groupes IAM, une vue gouvernée et le Time Travel. Vous classez ses colonnes avec les [policy tags](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags), restreignez chaque équipe avec les [groupes IAM](/guides/public-cloud/data-platform/iam-groups) et des conditions CEL, publiez une [vue](/guides/public-cloud/data-platform/lakehouse-manager-views) qui donne aux analystes une version moins précise des données, et annulez une erreur destructive avec le [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel).
+
+À la fin, vous disposerez d'une table clients classée colonne par colonne, de trois équipes dont l'accès correspond à leurs besoins, d'une vue gouvernée pour les analystes, et d'une méthode testée pour restaurer la table après une suppression accidentelle.
+
+## Prérequis
+
+Pour suivre ce guide, vous devez :
+
+- disposer d'un projet Data Platform. Ce guide utilise un projet nommé `customer-governance`.
+- disposer d'un compte administrateur sur ce projet.
+- disposer d'un second compte, non administrateur, pour un utilisateur de test : le compte d'une autre personne ou une autre de vos adresses, par exemple `user+governance-test@example.com`.
+- télécharger le fichier clients :
+
+| **Type** | **Nom** |
+| --- | --- |
+| Clients, 5 000 enregistrements fictifs | <a className="rp-link" href="/images/public-cloud/data-platform/getting-further/customer-data-governance/resources/customers.parquet" download>customers.parquet</a> |
+
+:::info
+**À propos des données :** `customers.parquet` est dérivé de [Nemotron-Personas-USA](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA), de NVIDIA, sous licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.fr). Il conserve un échantillon de 5 000 adultes ; les noms sont extraits du champ `persona`, et les e-mails, numéros de téléphone et SSN sont synthétiques (domaine `example.com`, numéros 555-0100 à 555-0199, zone de SSN 000).
+:::
+
+Avant de commencer, nous vous recommandons de lire les guides sur les [policy tags](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags) et les [conditions CEL](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-cel-conditions). Ce guide suppose que vous êtes à l'aise avec les principaux composants de la Data Platform.
+
+## Ce que vous allez construire
+
+| Étape | Composant | Résultat |
+|---|---|---|
+| 1. Charger les clients | [Connectors](/guides/public-cloud/data-platform/connectors-sources-upload-files), [Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-tables) | Table `crm.customers`, 5 000 lignes |
+| 2. Classer les colonnes | [Policy Tags](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags) | Chaque colonne a un niveau de sensibilité |
+| 3. Définir les règles d'accès | [Identity Access Manager](/guides/public-cloud/data-platform/iam-roles-conditions) | Trois rôles, trois groupes, trois conditions CEL |
+| 4. Vérifier les règles | [Explorer](/guides/public-cloud/data-platform/lakehouse-manager-explorer), utilisateur de test | Chaque groupe ne lit que ce qu'il doit lire |
+| 5. Publier une vue pour les analystes | [Vues](/guides/public-cloud/data-platform/lakehouse-manager-views), conditions CEL | Tranches d'âge et codes postaux à 3 chiffres au lieu des valeurs exactes |
+| 6. Annuler une erreur | [Action SQL](/guides/public-cloud/data-platform/dpe-actions-sql), [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) | 591 clients supprimés restaurés |
+
+Trois groupes accèdent à la table `crm.customers` à des niveaux différents : *Analysts* ne voit que les colonnes `low`, *Customer Support* les colonnes `low` et `medium`, et *Data Stewards* toutes les colonnes. La vue gouvernée `customer_profiles`, construite sur la même table, donne aux Analysts une version moins précise de l'âge et du code postal.
+
+## En pratique
+
+### Étape 1 : charger les clients
+
+#### Créer la source
+
+1. Allez dans **Connectors** > **Sources** > **New Source** et cliquez sur **File Upload** en bas de la fenêtre.
+
+    <img className="thumbnail" alt="La fenêtre New source listant les types de sources, avec le bouton File Upload en bas" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/01-new-source-picker.png" loading="lazy" />
+
+2. Renommez la source `customers`.
+3. Déposez `customers.parquet` dans la zone *Files*, puis cliquez sur **Create**.
+
+    <img className="thumbnail" alt="La source File Upload customers en cours de création, avec customers.parquet dans la zone Files" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/02-file-upload-source.png" loading="lazy" />
+
+#### Vérifier les types
+
+Allez dans **Connectors** > **Analyzer** et ouvrez `customers.parquet` dans la source `customers`. L'[extraction des métadonnées](/guides/public-cloud/data-platform/connectors-analyzer-extract-metadata) démarre automatiquement. Vérifiez ces 2 colonnes :
+
+- `zipcode` doit être en **String** : des codes postaux comme `02760` perdraient leur zéro initial sous forme de nombres.
+- `age` est en **Double**, ce qui convient aux tranches d'âge de l'étape 5.
+
+<img className="thumbnail" alt="L'Analyzer sur customers.parquet, listant les attributs détectés avec age en Double et les autres colonnes en String" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/04-analyzer-types.png" loading="lazy" />
+
+#### Créer le dataset et la table
+
+Un dataset dédié isole les règles de ce guide du reste du projet : le policy tag que vous lui attribuez à l'étape 2 s'applique à toutes les tables qu'il contient.
+
+1. Allez dans **Lakehouse Manager** > **Datasets** > **New Dataset**, nommez-le `crm` et cliquez sur **Create**.
+
+    <img className="thumbnail" alt="La fenêtre New dataset avec le nom crm et le moteur de stockage Lakehouse Manager" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/05-new-dataset.png" loading="lazy" />
+
+2. Allez dans **Tables**, cliquez sur la flèche du bouton **New table** et sélectionnez **Create from a Connectors source**.
+3. Sélectionnez `customers.parquet` dans la source `customers` et cliquez sur **Next**.
+
+    <img className="thumbnail" alt="La fenêtre Create table avec customers.parquet sélectionné dans la source customers" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/06-new-table-source.png" loading="lazy" />
+
+4. Nommez la table `customers`, sélectionnez le dataset `crm`, laissez les 3 options automatiques activées et cliquez sur **Create**.
+
+    <img className="thumbnail" alt="L'étape 2 de Create table, avec customers dans crm et les options automatiques activées" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/07-new-table-options.png" loading="lazy" />
+
+    Une fois le chargement terminé, la table `customers` affiche **16** attributs et **5k** lignes.
+
+    <img className="thumbnail" alt="La liste des tables affichant customers dans crm avec 16 attributs et 5k lignes" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/08-table-loaded.png" loading="lazy" />
+
+### Étape 2 : classer les colonnes
+
+Les règles d'accès de l'étape 3 lisent un [policy tag](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags) sur chaque colonne pour décider qui peut la lire.
+
+#### Consulter le tag de sensibilité
+
+Allez dans **Lakehouse Manager** > **Policy Tags** et cliquez sur `sensitivity`. Le projet fournit cette clé avec trois valeurs, que ce guide utilise ainsi :
+
+| Valeur | Signification |
+|---|---|
+| `low` | Données métier, lisibles par tous |
+| `medium` | Identifie ou permet de joindre une personne, seule ou combinée |
+| `high` | Donnée de catégorie particulière, identifiant officiel, texte libre qui révèle l'identité |
+
+<img className="thumbnail" alt="Les valeurs high, medium et low de la clé de tag sensitivity" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/10-sensitivity-values.png" loading="lazy" />
+
+#### Taguer le dataset
+
+Taguez le dataset `low` : toute colonne sans tag propre en hérite.
+
+Allez dans **Datasets**, ouvrez `crm`, puis l'onglet *Policy Tags*, cliquez sur **+ Add policy tag**, sélectionnez la clé `sensitivity`, puis la valeur `low`. Les modifications sont enregistrées automatiquement.
+
+<img className="thumbnail" alt="L'onglet Policy Tags du dataset crm avec le tag sensitivity: low" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/11-dataset-policy-tag.png" loading="lazy" />
+
+#### Taguer les colonnes
+
+Allez dans **Tables**, ouvrez `customers`, puis l'onglet *Policy Tags*. Dans *Column-level policy tags*, pour chaque colonne ci-dessous, cliquez sur **+ Add policy tag**, puis sélectionnez `sensitivity` et sa valeur :
+
+| Sensibilité | Colonnes | Action |
+|---|---|---|
+| `medium` | `age`, `sex`, `marital_status`, `city`, `zipcode`, `first_name`, `last_name`, `email`, `phone` | Ajouter `sensitivity: medium` |
+| `high` | `ssn`, `cultural_background`, `persona` | Ajouter `sensitivity: high` |
+| `low` | `uuid`, `state`, `occupation`, `education_level` | Rien : hérité du dataset |
+
+<img className="thumbnail" alt="L'onglet Policy Tags de la table customers, avec ses tags de colonnes medium et high" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/12-table-policy-tags.png" loading="lazy" />
+
+Les tags s'appliquent immédiatement, sans reconstruire la table.
+
+### Étape 3 : définir les règles d'accès
+
+L'accès combine deux types de [rôles](/guides/public-cloud/data-platform/iam-roles-conditions), tous deux créés dans l'IAM du **projet** :
+
+- un **rôle de base** permet d'ouvrir l'interface et d'exécuter des requêtes, sans accéder aux données ;
+- un **rôle de données** donne accès aux données via *Advanced Data Access Control*, limité par une condition CEL définie sur chaque groupe.
+
+#### Créer les rôles
+
+Allez dans **Identity Access Manager** > **Roles** > **New role** et créez les 3 rôles ci-dessous en ajoutant leurs permissions avec **Add permission**, puis cliquez sur **Create**.
+
+| Rôle | Service | Ressource | Action |
+|---|---|---|---|
+| `Lakehouse Explorer` | Data Manager | `*` | Read |
+| | Data Manager | explorer | Run, History |
+| | Query Builder Legacy | `*` | Read |
+| | Analytics Manager | `*` | Read |
+| | Analytics Manager | Query | Run, History, Write |
+| `Customer Data Reader` | Advanced Data Access Control | `*` | Read |
+| `Customer Data Steward` | Advanced Data Access Control | `*` | Read, Write, Delete |
+
+<img className="thumbnail" alt="Le rôle Lakehouse Explorer avec ses huit permissions Data Manager, Query Builder Legacy et Analytics Manager" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/13-lakehouse-explorer-role.png" loading="lazy" />
+
+`Lakehouse Explorer` n'a aucune permission Advanced Data Access Control : à lui seul, il ne donne accès à aucune donnée.
+
+<img className="thumbnail" alt="Le rôle Customer Data Reader avec la seule permission Advanced Data Access Control, ressource *, action Read" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/15-customer-data-reader-role.png" loading="lazy" />
+
+#### Créer les groupes
+
+Chaque groupe associe un rôle de données à une condition CEL :
+
+| Groupe | Rôle de données | Colonnes lisibles |
+|---|---|---|
+| Analysts | `Customer Data Reader` | `low` |
+| Customer Support | `Customer Data Reader` | `low` et `medium` |
+| Data Stewards | `Customer Data Steward` | `low`, `medium` et `high` |
+
+Le contrôle d'accès descend du dataset à la table, puis à l'attribut, et chaque niveau doit être validé. Dans les conditions ci-dessous, les deux premières lignes laissent passer chaque groupe par `crm` et `customers`. La troisième détermine les niveaux de colonnes que le groupe peut lire. La quatrième sert à la vue de l'[étape 5](#étape-5-publier-une-vue-pour-les-analystes) : une vue ne peut pas encore porter de policy tag, le contrôle d'accès traite donc la vue et ses colonnes comme des ressources sans tag. Sans cette ligne, toute vue est refusée, même une vue construite uniquement sur des colonnes `low`. Elle n'ouvre pas d'autres ressources : les tables de `crm` héritent de `low` via le dataset, et un dataset sans tag reste refusé.
+
+:::info
+**Remarque :** CEL compare les chaînes exactement : `"low"` ne correspond pas à `"Low"`.
+:::
+
+**Analysts** :
+
+```text
+Service == "adac" && (
+  (PolicyTags.sensitivity == "low" && Resource == "dataset")
+  || (PolicyTags.sensitivity == "low" && Resource == "table")
+  || (PolicyTags.sensitivity == "low" && Resource == "attribute")
+  || (!has(PolicyTags.sensitivity) && Resource != "dataset")
+)
+```
+
+**Customer Support** :
+
+```text
+Service == "adac" && (
+  (PolicyTags.sensitivity == "low" && Resource == "dataset")
+  || (PolicyTags.sensitivity == "low" && Resource == "table")
+  || (PolicyTags.sensitivity in ["low", "medium"] && Resource == "attribute")
+  || (!has(PolicyTags.sensitivity) && Resource != "dataset")
+)
+```
+
+**Data Stewards** :
+
+```text
+Service == "adac" && (
+  (PolicyTags.sensitivity == "low" && Resource == "dataset")
+  || (PolicyTags.sensitivity == "low" && Resource == "table")
+  || (PolicyTags.sensitivity in ["low", "medium", "high"] && Resource == "attribute")
+  || (!has(PolicyTags.sensitivity) && Resource != "dataset")
+)
+```
+
+Pour chaque groupe :
+
+1. Allez dans **Groups** > **New group** et nommez le groupe.
+2. Dans *Roles & Conditions*, cliquez sur **+ Add** et sélectionnez son rôle de données.
+3. Cliquez sur le lien de condition à côté du rôle, collez la condition du groupe donnée ci-dessus et cliquez sur **Confirm**.
+
+    <img className="thumbnail" alt="L'éditeur de condition du rôle Customer Data Reader dans le groupe Analysts, avec la condition CEL collée" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/18-analysts-condition.png" loading="lazy" />
+
+4. Cliquez sur **Create**.
+
+<img className="thumbnail" alt="La liste des groupes avec Analysts, Customer Support et Data Stewards" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/22-groups.png" loading="lazy" />
+
+### Étape 4 : vérifier les règles avec un utilisateur de test
+
+Les administrateurs ne sont pas limités par les policy tags : faites donc les vérifications avec l'utilisateur de test. Le compte administrateur modifie les groupes de l'utilisateur de test, qui exécute les requêtes dans **Lakehouse Manager** > **Explorer**, en mode SQL.
+
+#### Créer l'utilisateur de test
+
+1. Dans l'IAM de l'organisation, invitez l'utilisateur de test via son adresse e-mail et ajoutez-le au groupe **Viewers**.
+2. Dans l'IAM du projet, allez dans **Users** > **+ New User** et ajoutez la même adresse en tant que *Team Member*.
+3. Sur la page de l'utilisateur, ajoutez uniquement le rôle `Lakehouse Explorer` et le groupe **Analysts**, puis cliquez sur **Save**.
+
+    <img className="thumbnail" alt="L'utilisateur de test dans l'IAM du projet, membre du groupe Analysts avec le seul rôle Lakehouse Explorer" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/23-test-user.png" loading="lazy" />
+
+4. Acceptez l'invitation et connectez-vous avec l'utilisateur de test dans une fenêtre de navigation privée.
+
+:::warning
+**Ne donnez pas à l'utilisateur de test le rôle par défaut `DM & AM Editor`.** Il inclut Advanced Data Access Control / Read sans condition et lit toutes les colonnes, quels que soient leurs tags.
+:::
+
+:::info
+**Remarque :** un changement de groupe ou de rôle prend effet en 30 secondes environ, sans déconnexion : rechargez la page de l'utilisateur de test avant de relancer la requête.
+:::
+
+#### Vérifier le groupe Analysts
+
+Avec l'utilisateur de test, exécutez :
+
+| Requête | Résultat |
+|---|---|
+| `SELECT uuid, state, occupation FROM crm.customers` | Succès |
+| `SELECT zipcode FROM crm.customers` | Erreur |
+| `SELECT * FROM crm.customers` | Erreur |
+
+<img className="thumbnail" alt="L'Explorer renvoyant uuid, state et occupation à l'Analyst" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/24-analyst-success.png" loading="lazy" />
+
+<img className="thumbnail" alt="L'Explorer renvoyant Access Denied: Cannot select from columns [zipcode] à l'Analyst" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/25-analyst-zipcode-error.png" loading="lazy" />
+
+Un policy tag refuse l'accès au lieu de masquer les valeurs : une seule colonne refusée fait échouer toute la requête.
+
+#### Vérifier le groupe Customer Support
+
+Avec le compte administrateur, allez dans **Identity Access Manager** > **Users**, ouvrez l'utilisateur de test. Dans *Groups*, cliquez sur l'icône de corbeille de la ligne **Analysts**, puis sur **+ Add**, sélectionnez **Customer Support** et cliquez sur **Save**.
+
+:::info
+**Remarque :** retirez toujours le groupe précédent. Les droits s'additionnent : un utilisateur dans **Data Stewards** et **Analysts** lit toutes les colonnes.
+:::
+
+Avec l'utilisateur de test, exécutez :
+
+| Requête | Résultat |
+|---|---|
+| `SELECT first_name, last_name, email, phone, zipcode FROM crm.customers` | Succès |
+| `SELECT ssn FROM crm.customers` | Erreur |
+| `SELECT persona FROM crm.customers` | Erreur |
+
+#### Vérifier le groupe Data Stewards
+
+Avec le compte administrateur, remplacez **Customer Support** par **Data Stewards** de la même façon. Avec l'utilisateur de test, exécutez :
+
+| Requête | Résultat |
+|---|---|
+| `SELECT * FROM crm.customers` | Succès |
+| `SELECT first_name, last_name, persona FROM crm.customers LIMIT 5` | Succès |
+
+<img className="thumbnail" alt="L'Explorer renvoyant first_name, last_name et persona au Data Steward, persona commençant par le nom complet" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/28-steward-persona.png" loading="lazy" />
+
+Le texte de `persona` commence par le nom complet du client et cite souvent son âge : c'est pourquoi la colonne est taguée `high`.
+
+### Étape 5 : publier une vue pour les analystes
+
+Les Analysts ne peuvent lire ni l'âge ni le code postal. La [vue](/guides/public-cloud/data-platform/lakehouse-manager-views) `customer_profiles` leur donne à la place une tranche d'âge et les trois premiers chiffres du code postal.
+
+#### Créer la vue
+
+1. Avec le compte administrateur, allez dans **Lakehouse Manager** > **Views** > **New view**.
+2. Nommez la vue `customer_profiles`, sélectionnez le dataset cible `crm` et collez cette définition SQL :
+
+    ```sql
+    SELECT
+        uuid,
+        state,
+        substr(zipcode, 1, 3) AS zip3,
+        CASE
+            WHEN age < 25 THEN '18-24'
+            WHEN age < 35 THEN '25-34'
+            WHEN age < 45 THEN '35-44'
+            WHEN age < 55 THEN '45-54'
+            WHEN age < 65 THEN '55-64'
+            ELSE '65+'
+        END AS age_band,
+        occupation,
+        education_level
+    FROM customers
+    ```
+
+    <img className="thumbnail" alt="La fenêtre Create a new view avec customer_profiles, le dataset crm et la définition SQL" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/29-new-view.png" loading="lazy" />
+
+3. Cliquez sur **Create**. La vue affiche le statut **Valid**.
+
+#### Vérifier la vue
+
+L'utilisateur de test est dans **Data Stewards**. Exécutez ces requêtes, puis remettez-le dans **Customer Support**, puis dans **Analysts**, et réexécutez-les à chaque fois :
+
+| Requête | Analysts | Customer Support | Data Stewards |
+|---|---|---|---|
+| `SELECT * FROM crm.customer_profiles` | Succès | Succès | Succès |
+| `SELECT zipcode FROM crm.customers` | Erreur | Succès | Succès |
+
+<img className="thumbnail" alt="L'Explorer renvoyant la vue customer_profiles à l'Analyst, avec les colonnes zip3 et age_band" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/31-analyst-view.png" loading="lazy" />
+
+:::warning
+Une vue peut exposer n'importe quelle colonne de sa table source : toute personne qui peut créer une vue dans `crm` décide de ce que lisent les analystes. Réservez la création de vues aux gestionnaires des données (*data stewards*). `Lakehouse Explorer` ne peut pas créer de vues.
+:::
+
+### Étape 6 : annuler une erreur avec le Time Travel
+
+Chaque modification d'une table du Lakehouse Manager crée un snapshot, et le [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) ramène la table à n'importe quel snapshot encore conservé.
+
+#### Faire l'erreur
+
+1. Avec le compte administrateur, exécutez ce comptage dans l'Explorer : il renvoie 5 000 clients, dont 591 en Californie.
+
+    ```sql
+    SELECT count(*) AS customers, count_if(state = 'CA') AS california FROM crm.customers
+    ```
+
+2. Allez dans **Data Processing Engine** > **Actions** > **New action**, créez une *SQL Action* et nommez-la `Delete California customers`.
+3. Dans le panneau *Tables*, cliquez sur `customers` dans `crm` pour copier son nom complet, de la forme `catalog.schema.table`, par exemple `"db_mv0m4qnl_crm"."crm".customers`. Une [action SQL](/guides/public-cloud/data-platform/dpe-actions-sql) a besoin de ce nom complet.
+4. Saisissez cette requête en remplaçant `<catalog>.crm.customers` par le nom complet copié, puis cliquez sur **Validate** :
+
+    ```sql
+    DELETE FROM <catalog>.crm.customers WHERE state = 'CA'
+    ```
+
+    La simulation affiche **591 rows would be deleted**.
+
+    <img className="thumbnail" alt="L'action SQL Delete California customers après validation, indiquant que 591 lignes seraient supprimées lors de la simulation" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/32-delete-validation.png" loading="lazy" />
+
+5. Cliquez sur **Create**, puis lancez l'action avec **Run**. Relancez le comptage : il renvoie maintenant 4 409 clients, aucun en Californie.
+
+#### Restaurer la table
+
+1. Allez dans **Lakehouse Manager** > **Tables**, ouvrez `customers`, puis l'onglet *Time Travel*. Le dernier snapshot est **Data deleted**, au-dessus de deux snapshots **Data inserted**.
+
+    <img className="thumbnail" alt="L'onglet Time Travel de customers, avec un snapshot Data deleted au-dessus de deux Data inserted" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/33-time-travel-history.png" loading="lazy" />
+
+2. Vérifiez un snapshot avant de le restaurer, à l'aide de son ID (colonne *Snapshot ID*) :
+
+    ```sql
+    SELECT count(*) AS customers, count_if(state = 'CA') AS california
+    FROM customers FOR VERSION AS OF <snapshot ID>
+    ```
+
+    Le snapshot **Data inserted** le plus récent contient 5 000 clients. Le plus ancien est vide : il enregistre la création de la table, avant le chargement.
+
+3. Cliquez sur l'icône de rollback (↻) du snapshot **Data inserted** le plus récent, puis sur **Rollback to snapshot**.
+
+    <img className="thumbnail" alt="La fenêtre Rollback to snapshot avec l'ID du snapshot, sa date de création et le message d'avertissement" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/34-rollback-confirmation.png" loading="lazy" />
+
+    Une ligne **Data rollbacked** apparaît en haut de l'historique ; le snapshot **Data deleted** y reste. Relancez le comptage : il renvoie à nouveau 5 000 clients, dont 591 en Californie.
+
+    <img className="thumbnail" alt="L'onglet Time Travel après le rollback, avec Data rollbacked au-dessus de tout l'historique" src="/images/public-cloud/data-platform/getting-further/customer-data-governance/picts/35-time-travel-rolled-back.png" loading="lazy" />
+
+## Bon à savoir
+
+- **Les policy tags refusent, ils ne masquent pas.** Une requête qui inclut une colonne refusée échoue entièrement. Pour donner des données moins précises à une équipe, publiez une vue.
+- **Le rôle par défaut `DM & AM Editor` contourne les policy tags.** Il inclut Advanced Data Access Control / Read sans condition. Donnez aux consommateurs de données un rôle de base personnalisé sans aucune permission Advanced Data Access Control.
+- **Vous ne pouvez pas vous ajouter à un groupe.** L'IAM empêche les utilisateurs de s'attribuer des droits.
+- **Les droits s'additionnent.** Un utilisateur dans plusieurs groupes, ou avec plusieurs rôles, obtient l'accès dès que l'un d'eux l'autorise.
+- **Vérifiez un snapshot avant d'y revenir.** Le plus ancien snapshot d'une table peut être vide : il enregistre la création de la table, avant tout chargement de données.
+- **La validation montre l'impact d'une modification.** Dans une action SQL, **Validate** exécute la requête en simulation et donne le nombre de lignes concernées, avant toute modification.
+- **Le Time Travel a une limite de temps.** Les snapshots sont conservés 14 jours par défaut, entre 7 et 28 jours selon le réglage du dataset ou de la table. Au-delà, vous ne pouvez plus annuler une erreur de cette façon.
+
+## Ce que vous avez construit
+
+Vous disposez d'une table clients classée colonne par colonne, de trois équipes dont l'accès correspond à leurs besoins, d'une vue gouvernée qui donne aux analystes des données moins précises, et d'un moyen d'annuler une erreur destructive. La même démarche s'applique à toute table contenant des données personnelles : classer, définir les rôles, tester avec un utilisateur non administrateur, et garder le Time Travel à portée de main.
+
+Pour approfondir, consultez le guide « [Tests et résolution des problèmes](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-testing) » des policy tags, l'[exemple d'accès d'équipe avec des groupes](/guides/public-cloud/data-platform/lakehouse-manager-policy-tags-groups-example) et les [réglages de rétention du Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel#gérer-la-rétention-des-snapshots).
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
