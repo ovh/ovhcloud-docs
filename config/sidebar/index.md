@@ -2781,17 +2781,18 @@
                 + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
         + [Managed Backup for VMware](products/storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware)
             + [Getting started](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-getting-started)
-                + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started)
-                + [Managed Backup for VMware - Protecting your virtual machines](storage-and-backup/managed-backup-for-vmware/tag-vm)
-                + [Managed Backup for VMware - Backing up and restoring from the VBR console](storage-and-backup/managed-backup-for-vmware/backup-restore)
-                + [Managed Backup for VMware - Monitoring your protection in the OVHcloud Control Panel](storage-and-backup/managed-backup-for-vmware/monitor-protection)
+                + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started){label=Getting started}
+                + [Managed Backup for VMware - Protecting your virtual machines](storage-and-backup/managed-backup-for-vmware/tag-vm){label=Protecting your virtual machines}
+                + [Managed Backup for VMware - Backing up and restoring from the VBR console](storage-and-backup/managed-backup-for-vmware/backup-restore){label=Backing up and restoring from the VBR console}
+                + [Managed Backup for VMware - Monitoring your protection in the OVHcloud Control Panel](storage-and-backup/managed-backup-for-vmware/monitor-protection){label=Monitoring your protection in the OVHcloud Control Panel}
+                + [Managed Backup for VMware - Migrating from Veeam Managed Backup](storage-and-backup/managed-backup-for-vmware/migrate){label=Migrating from Veeam Managed Backup}
             + [Key concepts](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-key-concepts)
-                + [Managed Backup for VMware - Security and guarantees of your backups](storage-and-backup/managed-backup-for-vmware/security)
+                + [Managed Backup for VMware - Security and guarantees of your backups](storage-and-backup/managed-backup-for-vmware/security){label=Security and guarantees of your backups}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-troubleshooting)
-                + [Managed Backup for VMware - FAQ and troubleshooting](storage-and-backup/managed-backup-for-vmware/faq)
+                + [Managed Backup for VMware - FAQ and troubleshooting](storage-and-backup/managed-backup-for-vmware/faq){label=FAQ and troubleshooting}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-additional-resources)
-                + [Managed Backup for VMware - Understanding your billing](storage-and-backup/managed-backup-for-vmware/billing)
-                + [Managed Backup for VMware - Terminating and reactivating a service](storage-and-backup/managed-backup-for-vmware/terminate)
+                + [Managed Backup for VMware - Understanding your billing](storage-and-backup/managed-backup-for-vmware/billing){label=Understanding your billing}
+                + [Managed Backup for VMware - Terminating and reactivating a service](storage-and-backup/managed-backup-for-vmware/terminate){label=Terminating and reactivating a service}
         + [Veeam Enterprise Plus](products/storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus)
             + [Overview](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview)
             + [Getting started](storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus-getting-started)
