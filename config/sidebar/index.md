@@ -1162,6 +1162,7 @@
                 + [Managing Helm charts in the OVHcloud Managed Private Registry](public-cloud/containers-orchestration/managed-private-registry/helm-charts)
                 + [Deploying a Helm chart from your private registry in Kubernetes](public-cloud/containers-orchestration/managed-private-registry/deploy-chart-from-kubernetes-registry)
                 + [Configuring Proxy Cache on an OVHcloud Managed Private Registry](public-cloud/containers-orchestration/managed-private-registry/configure-proxy-cache)
+                + [Replicating an OVHcloud Managed Private Registry to another region](public-cloud/containers-orchestration/managed-private-registry/configure-replication)
                 + [Migrate Helm Charts from Chartmuseum to OCI](public-cloud/containers-orchestration/managed-private-registry/migrate-helm-charts)
             + [Security](public-cloud-containers-orchestration-managed-private-registry-security)
                 + [Configure access control using OVHcloud IAM on an OVHcloud Managed Private Registry](public-cloud/containers-orchestration/managed-private-registry/managed-private-registry-iam-authentication)
