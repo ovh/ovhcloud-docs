@@ -108,6 +108,12 @@ export interface CpNavLocation {
  */
 export interface CpNavKey {
   universe: UniverseId;
+  /**
+   * The destination is in the Console (v8), not the Control Panel, so the block is
+   * headed with `consoleHeading`. Only for products that exist only in the Console,
+   * until the keys are repointed at its GA.
+   */
+  console?: true;
   locations: CpNavLocation[];
 }
 
@@ -115,6 +121,8 @@ export interface CpNavKey {
 export interface CpNavFrame {
   /** The `###` heading. */
   heading: string;
+  /** The `###` heading of a block whose keys are all in the Console (v8). */
+  consoleHeading: string;
   /** Bold label of the direct-link bullet, colon and spacing included. */
   directLink: string;
   /** Bold label of the navigation-path bullet, colon and spacing included. */
