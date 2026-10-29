@@ -2852,7 +2852,7 @@
             + [Introduction to the OVHcloud Load Balancer](network/load-balancer/use-presentation)
             + [Load Balancer FAQ](network/load-balancer/create-faq)
         + [Getting Started](network-load-balancer-getting-started)
-            + [Managing your Load Balancer service via the Control Panel](network/load-balancer/use-lb)
+            + [Managing your Load Balancer service in the OVHcloud Console](network/load-balancer/use-lb)
             + [Order a free SSL certificate](network/load-balancer/order-freecertificate)
             + [Load Balancer API Quick Reference](network/load-balancer/use-api-reference)
             + [OVHcloud Load Balancer TCP / HTTP / HTTPS Logs Forwarding](network/load-balancer/use-api-logs-customers)
