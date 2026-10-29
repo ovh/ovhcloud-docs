@@ -17,10 +17,9 @@ export type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
 
 const localizedUrls: Record<string, Record<Locale, string>> = {
   // The roadmap/changelog is a SINGLE worldwide page, only translated — there is
-  // no per-region edition. The US region therefore keeps the `en-gb` URL on
-  // purpose; `us.ovhcloud.com/roadmap-changelog/` and `/changelog/` both 404.
-  // Do not "fix" this by regionalising it the way apiConsoleUrl and
-  // corporateUrl are: here the EU URL is the correct destination.
+  // no per-region edition (`us.ovhcloud.com/roadmap-changelog/` and
+  // `/changelog/` both 404). Regions that should not point at it turn the link
+  // off with `productChangelog: false` in config/regions.ts (the US does).
   changelog: {
     fr: 'https://www.ovhcloud.com/fr/roadmap-changelog/',
     en: 'https://www.ovhcloud.com/en-gb/roadmap-changelog/',
@@ -40,10 +39,14 @@ export function getHeaderItems(locale: Locale): SidebarItem[] {
   return [
     { sectionHeaderText: 'sidebar.documentation' } as SidebarItem,
     { text: 'sidebar.apiReference', link: regionConfig.apiConsoleUrl },
-    {
-      text: 'sidebar.productChangelog',
-      link: localizedUrls.changelog[locale],
-    },
+    ...(regionConfig.productChangelog
+      ? [
+          {
+            text: 'sidebar.productChangelog',
+            link: localizedUrls.changelog[locale],
+          },
+        ]
+      : []),
     { text: 'sidebar.eLearning', link: '/guides/e-learning' },
     { text: 'sidebar.migration', link: '/guides/migration' },
   ];
