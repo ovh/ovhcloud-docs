@@ -610,6 +610,7 @@
             + [How to setup an instance using the OpenStack CLI](hosted-private-cloud/opcp/how-to-setup-instance-from-cli)
             + [How to setup LACP on a Node](hosted-private-cloud/opcp/how-to-setup-lacp-on-node)
             + [How to setup trunk on a Node](hosted-private-cloud/opcp/setup-trunk-on-node)
+            + [How to expose Neutron networks outside OPCP with the Connectivity API](hosted-private-cloud/opcp/how-to-use-connectivity-api)
             + [How to setup Softraid on a Node](hosted-private-cloud/opcp/how-to-setup-softraid-on-node)
             + [How to see node inventory](hosted-private-cloud/opcp/how-to-see-node-inventory)
             + [How to handle the NetBox rack elevation](hosted-private-cloud/opcp/how-to-handle-rack-elevation)
