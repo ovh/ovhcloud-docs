@@ -1,7 +1,7 @@
 ---
 title: Security Overview for Public Cloud Databases
 description: Public Cloud Databases security overview
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-29
 ---
 
 import Api from '@components/Api';
@@ -21,6 +21,12 @@ In addition to [the responsibility model for Public Cloud Database services](/gu
 - SOC 2 type 1
 - CSA type 1
 - C5 type 1
+
+### 1.1 Obtaining certification reports
+
+Certificates and audit reports are not published in this documentation. As an OVHcloud customer, you can request access to them from your OVHcloud sales contact. Access to some reports may be subject to conditions.
+
+The list of OVHcloud certifications is available on the [certifications page](/links/company/certifications).
 
 ## 2.Best pratices to be deployed on the service
 
@@ -109,7 +115,7 @@ You can troubleshoot your IAM policy configuration and analyse actions [by using
 
 Once a VM is created by OVHcloud, on which the customer Database engines run, a TLS certificate is generated and used by the customer to access their database.
 
-To protect yourself against server impersonation, configure your clients to verify the certificate presented by the service, using the CA certificate provided in the service's connection information.
+To protect yourself against server impersonation, configure your clients to verify the certificate presented by the service. The certification authority to trust depends on the engine: see [7.4](#74-encryption-in-transit).
 
 ### 7.3 Passwords of database users
 
@@ -120,6 +126,40 @@ The password of a database user is shown only once: in the response to its creat
 Each reset generates a new password and the previous one stops working immediately. The response carries no operation identifier. If you lose the response to a reset, try to connect with the previous password. If it is refused, the reset was applied: run a new reset to get a password you can use.
 
 On PostgreSQL, creating a user or resetting its password writes neither the password nor its SCRAM verifier to the service logs.
+
+### 7.4 Encryption in transit
+
+#### Ports, protocols and TLS versions
+
+| Engine | Port | Protocol | Unencrypted connections refused by the server | TLS versions accepted | Server certificate signed by |
+| --- | --- | --- | --- | --- | --- |
+| PostgreSQL | Specific to each service, shown in the Control Panel and the API | PostgreSQL protocol | Yes | TLS 1.2, TLS 1.3 | The CA of your Public Cloud project |
+| MySQL | Specific to each service, shown in the Control Panel and the API | MySQL protocol | No, see below | TLS 1.2, TLS 1.3 | The CA of your Public Cloud project |
+| MongoDB | 27017 | MongoDB protocol. The `mongodb+srv://` URI finds the nodes through DNS SRV records | Yes | TLS 1.2, TLS 1.3 | A public certification authority |
+| Valkey | Specific to each service, shown in the Control Panel and the API | Valkey protocol (RESP) | Yes | TLS 1.2, TLS 1.3 | A public certification authority |
+
+TLS 1.0 and TLS 1.1 are refused by all four engines.
+
+**MySQL**: the server accepts unencrypted connections. The connection URI provided in the Control Panel and the API contains `ssl-mode=REQUIRED`, so a client that uses it connects with TLS. A client that does not require TLS can connect without encryption: the passwords are not sent in clear text, but the queries and their results are. To have the server refuse unencrypted connections for a user, run the following statement with the administrator user of the service:
+
+```sql
+ALTER USER '<username>'@'%' REQUIRE SSL;
+```
+
+The user's unencrypted connection attempts are then refused with an `Access denied` error. The setting is kept when the user's password is reset with the API. It applies to one user only: run it again for each user you create.
+
+#### Verify the identity of the server
+
+Encryption alone does not protect you against a server impersonating your service. Configure your clients to verify the server certificate and its hostname:
+
+| Engine | Client setting | Guide |
+| --- | --- | --- |
+| PostgreSQL | `sslmode=verify-full` and `sslrootcert` set to the CA certificate of your project | [Secure the TLS connection](/guides/public-cloud/databases/postgresql-secure-connection-tls) |
+| MySQL | `--ssl-mode=VERIFY_IDENTITY` and `--ssl-ca` set to the CA certificate of your project | [Connect using the CLI](/guides/public-cloud/databases/mysql-connect-cli) |
+| MongoDB | `tls=true`, already present in the URI provided. Certificate verification is enabled by default in MongoDB drivers: do not disable it with `tlsAllowInvalidCertificates` or `tlsInsecure` | [Connection strings](/guides/public-cloud/databases/mongodb-connection-strings) |
+| Valkey | The `valkeys://` scheme (or the `--tls` option), with certificate verification kept enabled | [Connect using the CLI](/guides/public-cloud/databases/valkey-connect-cli) |
+
+For PostgreSQL and MySQL, download the CA certificate of your project from the **Certificate** field of the `Connection information` section, in the <code className="action">Dashboard</code> tab of your service, or with the API (route `/certificates` of your service). For MongoDB and Valkey, there is no certificate to download: the certification authority is already in the trust store of your system.
 
 ## 8.Features and options available at service delivery
 
@@ -200,7 +240,18 @@ To display the description, status and dates of a maintenance operation, use the
 
 ## 9.Reversibility
 
-You can import and export your data following the recommendations provided by the vendors for each database engine technology. For example, see the [MongoDB Compass import and export guide](https://www.mongodb.com/docs/compass/import-export/).
+You can import and export your data with the standard tools of each engine. The reversibility policy of each product line lists the features you can migrate, with their formats and tools:
+
+| Engine | Export tools | Reversibility policy |
+| --- | --- | --- |
+| PostgreSQL | `pg_dump` and `pg_restore` | [Managed Relational Database](/guides/account-and-service-management/reversibility/rdb-mysql-postgre) |
+| MySQL | `mysqldump` | [Managed Relational Database](/guides/account-and-service-management/reversibility/rdb-mysql-postgre) |
+| MongoDB | `mongodump` and `mongoexport` | [Managed Document Database](/guides/account-and-service-management/reversibility/ddb-mongo) |
+| Valkey | A Valkey client, for example `SCAN` then `DUMP` on each key | [Managed In-Memory Database](/guides/account-and-service-management/reversibility/idb-reversibility-policy) |
+
+The automated backups made by OVHcloud cannot be downloaded. To export the data of a backup, [restore it](/guides/public-cloud/databases/restore-backup) to a new service, then export it with the tools above.
+
+Export your data before deleting your service: see [9.1](#91-erasure-of-customer-data).
 
 ### 9.1 Erasure of customer data
 
@@ -211,13 +262,62 @@ For MongoDB, deleting a service immediately deletes all its data, including its 
 
 ## 10.Questions frequently asked in security audits
 
+### 10.1 Encryption
+
 | Question | Answer |
 | --- | --- |
 | Are the nodes and the backups encrypted at rest? | Yes, on every plan. See [8.2.1](#821-encryption-made-by-the-ovhcloud-teams). |
+| Can I bring my own encryption keys? | No. See [8.2.1](#821-encryption-made-by-the-ovhcloud-teams). |
+| Is data encrypted in use? | Only on MongoDB Advanced plans, with Client-Side Field Level Encryption. See [8.2.2](#822-in-use-encryption-on-client-side). |
+| Which TLS versions are accepted? | TLS 1.2 and TLS 1.3. TLS 1.0 and TLS 1.1 are refused. See [7.4](#74-encryption-in-transit). |
+| Does the server refuse unencrypted connections? | Yes on PostgreSQL, MongoDB and Valkey. On MySQL, only for the users you configure with `REQUIRE SSL`. See [7.4](#74-encryption-in-transit). |
+| How do I verify the identity of the server? | See [7.4](#74-encryption-in-transit) for the client setting of each engine. |
+
+### 10.2 Access and authentication
+
+| Question | Answer |
+| --- | --- |
+| Who can connect to the service? | Only the IP addresses and CIDR blocks you authorise. See [2.1](#21-recommandations-once-the-service-is-delivered). |
 | Can a password be read again after its creation or reset? | No. See [7.3](#73-passwords-of-database-users). |
+| How is access to the Control Panel and the API secured? | With two-factor authentication, SSO and IAM policies. See [7.1](#71-control-plane). |
+
+### 10.3 Network
+
+| Question | Answer |
+| --- | --- |
+| Which ports and protocols are used? | See [7.4](#74-encryption-in-transit). |
+| Can the service be reached through a private network only? | Yes, with the vRack option. See [8.4](#84-vrack-option). |
+| Can I run vulnerability scans on the service? | Yes, without informing OVHcloud beforehand. See [2.2](#22-vulnerability-scans). |
+
+### 10.4 Backups
+
+| Question | Answer |
+| --- | --- |
+| How often are backups made, and where are they stored? | It depends on the engine and the plan. See [4.2](#42-customer-data-backups). |
+| Can I download the backups made by OVHcloud? | No. Restore a backup to a new service, then export its data. See [9](#9reversibility). |
+
+### 10.5 Deletion and reversibility
+
+| Question | Answer |
+| --- | --- |
+| How do I export my data? | With the standard tools of each engine. See [9](#9reversibility). |
+| What remains after a service is deleted? | See [9.1](#91-erasure-of-customer-data). |
+
+### 10.6 Logs and maintenance
+
+| Question | Answer |
+| --- | --- |
+| Which logs are available? | See [5](#5logs). |
 | Can the PostgreSQL logs contain data? | Yes, in slow and failing statements. See [5.1](#51-content-of-the-postgresql-logs) for the parameters that reduce what the logs contain. |
 | Can a maintenance operation change roles or privileges? | No. See [8.6](#86-maintenance). |
-| What remains after a service is deleted? | See [9.1](#91-erasure-of-customer-data). |
+| How do I know which maintenance operations were applied? | They are listed in the Control Panel and the API. See [8.6](#86-maintenance). |
+
+### 10.7 Certifications
+
+| Question | Answer |
+| --- | --- |
+| Which certifications cover the service? | See [1](#1certifications). |
+| How do I obtain the certification reports? | See [1.1](#11-obtaining-certification-reports). |
 | Is the service covered by the HDS certification? | See [8.5](#85-hds-option) and the [list of HDS-certified products](/guides/account-and-service-management/account-information/hds-certification). |
 
 ## Go further

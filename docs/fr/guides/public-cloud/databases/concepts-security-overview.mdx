@@ -1,7 +1,7 @@
 ---
 title: Présentation de la sécurité des bases de données Public Cloud
 description: Présentation de la sécurité de Public Cloud Databases
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-29
 ---
 
 import Api from '@components/Api';
@@ -21,6 +21,12 @@ En complément [du modèle de responsabilité pour les services Public Cloud Dat
 - SOC 2 type 1
 - CSA type 1
 - C5 type 1
+
+### 1.1 Obtenir les rapports de certification
+
+Les certificats et les rapports d'audit ne sont pas publiés dans cette documentation. En tant que client OVHcloud, vous pouvez en demander l'accès à votre contact commercial OVHcloud. L'accès à certains rapports peut être soumis à conditions.
+
+La liste des certifications d'OVHcloud est disponible sur la [page des certifications](/links/company/certifications).
 
 ## 2.Bonnes pratiques à déployer sur le service
 
@@ -109,7 +115,7 @@ Vous pouvez diagnostiquer la configuration de votre politique IAM et analyser le
 
 Une fois qu'une VM est créée par OVHcloud, sur laquelle les moteurs de base de données du client s'exécutent, un certificat TLS est généré et utilisé par le client pour accéder à sa base de données.
 
-Pour vous protéger contre l'usurpation du serveur, configurez vos clients pour qu'ils vérifient le certificat présenté par le service à l'aide du certificat CA fourni dans les informations de connexion du service.
+Pour vous protéger contre l'usurpation du serveur, configurez vos clients pour qu'ils vérifient le certificat présenté par le service. L'autorité de certification à approuver dépend du moteur : voir [7.4](#74-chiffrement-en-transit).
 
 ### 7.3 Mots de passe des utilisateurs de base de données
 
@@ -120,6 +126,40 @@ Le mot de passe d'un utilisateur de base de données n'est affiché qu'une seule
 Chaque réinitialisation génère un nouveau mot de passe et le précédent cesse immédiatement de fonctionner. La réponse ne porte aucun identifiant d'opération. Si vous perdez la réponse d'une réinitialisation, essayez de vous connecter avec l'ancien mot de passe. S'il est refusé, la réinitialisation a été appliquée : relancez une réinitialisation pour obtenir un mot de passe utilisable.
 
 Sur PostgreSQL, la création d'un utilisateur ou la réinitialisation de son mot de passe n'écrit ni le mot de passe ni son vérificateur SCRAM dans les logs du service.
+
+### 7.4 Chiffrement en transit
+
+#### Ports, protocoles et versions de TLS
+
+| Moteur | Port | Protocole | Connexions non chiffrées refusées par le serveur | Versions de TLS acceptées | Certificat du serveur signé par |
+| --- | --- | --- | --- | --- | --- |
+| PostgreSQL | Propre à chaque service, affiché dans l'espace client et l'API | Protocole PostgreSQL | Oui | TLS 1.2, TLS 1.3 | La CA de votre projet Public Cloud |
+| MySQL | Propre à chaque service, affiché dans l'espace client et l'API | Protocole MySQL | Non, voir ci-dessous | TLS 1.2, TLS 1.3 | La CA de votre projet Public Cloud |
+| MongoDB | 27017 | Protocole MongoDB. L'URI `mongodb+srv://` trouve les nœuds grâce aux enregistrements DNS SRV | Oui | TLS 1.2, TLS 1.3 | Une autorité de certification publique |
+| Valkey | Propre à chaque service, affiché dans l'espace client et l'API | Protocole Valkey (RESP) | Oui | TLS 1.2, TLS 1.3 | Une autorité de certification publique |
+
+TLS 1.0 et TLS 1.1 sont refusés par les quatre moteurs.
+
+**MySQL** : le serveur accepte les connexions non chiffrées. L'URI de connexion fournie dans l'espace client et l'API contient `ssl-mode=REQUIRED` : un client qui l'utilise se connecte donc en TLS. Un client qui n'exige pas TLS peut se connecter sans chiffrement : les mots de passe ne circulent pas en clair, mais les requêtes et leurs résultats, si. Pour que le serveur refuse les connexions non chiffrées d'un utilisateur, exécutez l'instruction suivante avec l'utilisateur administrateur du service :
+
+```sql
+ALTER USER '<username>'@'%' REQUIRE SSL;
+```
+
+Les tentatives de connexion non chiffrées de cet utilisateur sont alors refusées avec une erreur `Access denied`. Le réglage est conservé quand le mot de passe de l'utilisateur est réinitialisé avec l'API. Il ne s'applique qu'à un utilisateur : exécutez-le à nouveau pour chaque utilisateur que vous créez.
+
+#### Vérifier l'identité du serveur
+
+Le chiffrement seul ne vous protège pas contre un serveur qui usurperait l'identité de votre service. Configurez vos clients pour qu'ils vérifient le certificat du serveur et son nom d'hôte :
+
+| Moteur | Réglage du client | Guide |
+| --- | --- | --- |
+| PostgreSQL | `sslmode=verify-full` et `sslrootcert` pointant vers le certificat CA de votre projet | [Sécuriser la connexion TLS](/guides/public-cloud/databases/postgresql-secure-connection-tls) |
+| MySQL | `--ssl-mode=VERIFY_IDENTITY` et `--ssl-ca` pointant vers le certificat CA de votre projet | [Se connecter avec la CLI](/guides/public-cloud/databases/mysql-connect-cli) |
+| MongoDB | `tls=true`, déjà présent dans l'URI fournie. La vérification du certificat est activée par défaut dans les pilotes MongoDB : ne la désactivez pas avec `tlsAllowInvalidCertificates` ou `tlsInsecure` | [Format des chaînes de connexion](/guides/public-cloud/databases/mongodb-connection-strings) |
+| Valkey | Le schéma `valkeys://` (ou l'option `--tls`), en gardant la vérification du certificat activée | [Se connecter avec la CLI](/guides/public-cloud/databases/valkey-connect-cli) |
+
+Pour PostgreSQL et MySQL, téléchargez le certificat CA de votre projet depuis le champ **Certificat** de la section `Informations de connection`, dans l'onglet <code className="action">Dashboard</code> de votre service, ou avec l'API (route `/certificates` de votre service). Pour MongoDB et Valkey, il n'y a aucun certificat à télécharger : l'autorité de certification figure déjà dans le magasin de certificats de votre système.
 
 ## 8.Fonctionnalités et options disponibles à la livraison du service
 
@@ -200,7 +240,18 @@ Pour afficher la description, le statut et les dates d'une maintenance, utilisez
 
 ## 9.Réversibilité
 
-Vous pouvez importer et exporter vos données en suivant les recommandations fournies par les éditeurs pour chaque technologie de moteur de base de données. Par exemple, pour MongoDB, consultez le [guide d'import et d'export de MongoDB Compass](https://www.mongodb.com/docs/compass/import-export/).
+Vous pouvez importer et exporter vos données avec les outils standards de chaque moteur. La politique de réversibilité de chaque gamme de produits liste les fonctionnalités que vous pouvez migrer, avec leurs formats et leurs outils :
+
+| Moteur | Outils d'export | Politique de réversibilité |
+| --- | --- | --- |
+| PostgreSQL | `pg_dump` et `pg_restore` | [Managed Relational Database](/guides/account-and-service-management/reversibility/rdb-mysql-postgre) |
+| MySQL | `mysqldump` | [Managed Relational Database](/guides/account-and-service-management/reversibility/rdb-mysql-postgre) |
+| MongoDB | `mongodump` et `mongoexport` | [Managed Document Database](/guides/account-and-service-management/reversibility/ddb-mongo) |
+| Valkey | Un client Valkey, par exemple `SCAN` puis `DUMP` sur chaque clé | [Managed In-Memory Database](/guides/account-and-service-management/reversibility/idb-reversibility-policy) |
+
+Les sauvegardes automatiques réalisées par OVHcloud ne sont pas téléchargeables. Pour exporter les données d'une sauvegarde, [restaurez-la](/guides/public-cloud/databases/restore-backup) sur un nouveau service, puis exportez-les avec les outils ci-dessus.
+
+Exportez vos données avant de supprimer votre service : voir [9.1](#91-suppression-des-données-client).
 
 ### 9.1 Suppression des données client
 
@@ -211,13 +262,62 @@ Pour MongoDB, la suppression d'un service supprime immédiatement toutes ses don
 
 ## 10.Questions fréquentes des audits de sécurité
 
+### 10.1 Chiffrement
+
 | Question | Réponse |
 | --- | --- |
 | Les nœuds et les sauvegardes sont-ils chiffrés au repos ? | Oui, sur toutes les offres. Voir [8.2.1](#821-chiffrement-effectué-par-les-équipes-ovhcloud). |
+| Puis-je fournir mes propres clés de chiffrement ? | Non. Voir [8.2.1](#821-chiffrement-effectué-par-les-équipes-ovhcloud). |
+| Les données sont-elles chiffrées en cours d'utilisation ? | Uniquement sur les offres MongoDB Advanced, avec le chiffrement côté client au niveau des champs (Client-Side Field Level Encryption). Voir [8.2.2](#822-chiffrement-en-cours-dutilisation-côté-client). |
+| Quelles versions de TLS sont acceptées ? | TLS 1.2 et TLS 1.3. TLS 1.0 et TLS 1.1 sont refusés. Voir [7.4](#74-chiffrement-en-transit). |
+| Le serveur refuse-t-il les connexions non chiffrées ? | Oui sur PostgreSQL, MongoDB et Valkey. Sur MySQL, seulement pour les utilisateurs que vous configurez avec `REQUIRE SSL`. Voir [7.4](#74-chiffrement-en-transit). |
+| Comment vérifier l'identité du serveur ? | Voir [7.4](#74-chiffrement-en-transit) pour le réglage du client de chaque moteur. |
+
+### 10.2 Accès et authentification
+
+| Question | Réponse |
+| --- | --- |
+| Qui peut se connecter au service ? | Uniquement les adresses IP et les blocs CIDR que vous autorisez. Voir [2.1](#21-recommandations-une-fois-le-service-livré). |
 | Un mot de passe peut-il être relu après sa création ou sa réinitialisation ? | Non. Voir [7.3](#73-mots-de-passe-des-utilisateurs-de-base-de-données). |
+| Comment l'accès à l'espace client et à l'API est-il sécurisé ? | Par la double authentification, le SSO et les politiques IAM. Voir [7.1](#71-plan-de-contrôle). |
+
+### 10.3 Réseau
+
+| Question | Réponse |
+| --- | --- |
+| Quels ports et protocoles sont utilisés ? | Voir [7.4](#74-chiffrement-en-transit). |
+| Le service peut-il être joint uniquement par un réseau privé ? | Oui, avec l'option vRack. Voir [8.4](#84-option-vrack). |
+| Puis-je lancer des scans de vulnérabilité sur le service ? | Oui, sans prévenir OVHcloud au préalable. Voir [2.2](#22-scans-de-vulnérabilité). |
+
+### 10.4 Sauvegardes
+
+| Question | Réponse |
+| --- | --- |
+| À quelle fréquence les sauvegardes sont-elles faites, et où sont-elles stockées ? | Cela dépend du moteur et de l'offre. Voir [4.2](#42-sauvegardes-des-données-client). |
+| Puis-je télécharger les sauvegardes réalisées par OVHcloud ? | Non. Restaurez une sauvegarde sur un nouveau service, puis exportez ses données. Voir [9](#9réversibilité). |
+
+### 10.5 Suppression et réversibilité
+
+| Question | Réponse |
+| --- | --- |
+| Comment exporter mes données ? | Avec les outils standards de chaque moteur. Voir [9](#9réversibilité). |
+| Que reste-t-il après la suppression d'un service ? | Voir [9.1](#91-suppression-des-données-client). |
+
+### 10.6 Logs et maintenances
+
+| Question | Réponse |
+| --- | --- |
+| Quels logs sont disponibles ? | Voir [5](#5logs). |
 | Les logs PostgreSQL peuvent-ils contenir des données ? | Oui, ceux des requêtes lentes et en erreur. Voir [5.1](#51-contenu-des-logs-postgresql) pour les paramètres qui les réduisent. |
 | Une maintenance peut-elle modifier les rôles ou les privilèges ? | Non. Voir [8.6](#86-maintenances). |
-| Que reste-t-il après la suppression d'un service ? | Voir [9.1](#91-suppression-des-données-client). |
+| Comment savoir quelles maintenances ont été appliquées ? | Elles sont listées dans l'espace client et l'API. Voir [8.6](#86-maintenances). |
+
+### 10.7 Certifications
+
+| Question | Réponse |
+| --- | --- |
+| Quelles certifications couvrent le service ? | Voir [1](#1certifications). |
+| Comment obtenir les rapports de certification ? | Voir [1.1](#11-obtenir-les-rapports-de-certification). |
 | Le service est-il couvert par la certification HDS ? | Voir [8.5](#85-option-hds) et la [liste des produits certifiés HDS](/guides/account-and-service-management/account-information/hds-certification). |
 
 ## Aller plus loin
