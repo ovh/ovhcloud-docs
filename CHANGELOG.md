@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.29.1
+
+### Fixes
+
+#### All regions
+- **deps:** patch the open Dependabot advisories (#1127)
+- **deps:** patch the open Dependabot advisories
+
 ## 2026.10.29
 
 ### Features
