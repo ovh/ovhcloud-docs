@@ -2778,7 +2778,7 @@
                 + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started){label=Getting started}
                 + [Managed Backup for VMware - Protecting your virtual machines](storage-and-backup/managed-backup-for-vmware/tag-vm){label=Protecting your virtual machines}
                 + [Managed Backup for VMware - Backing up and restoring from the VBR console](storage-and-backup/managed-backup-for-vmware/backup-restore){label=Backing up and restoring from the VBR console}
-                + [Managed Backup for VMware - Monitoring your protection in the OVHcloud Control Panel](storage-and-backup/managed-backup-for-vmware/monitor-protection){label=Monitoring your protection in the OVHcloud Control Panel}
+                + [Managed Backup for VMware - Monitoring your protection in the OVHcloud Console](storage-and-backup/managed-backup-for-vmware/monitor-protection){label=Monitoring your protection in the OVHcloud Console}
                 + [Managed Backup for VMware - Migrating from Veeam Managed Backup](storage-and-backup/managed-backup-for-vmware/migrate){label=Migrating from Veeam Managed Backup}
             + [Key concepts](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-key-concepts)
                 + [Managed Backup for VMware - Security and guarantees of your backups](storage-and-backup/managed-backup-for-vmware/security){label=Security and guarantees of your backups}
