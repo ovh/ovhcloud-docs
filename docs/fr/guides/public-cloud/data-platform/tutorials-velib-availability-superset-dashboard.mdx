@@ -1,0 +1,345 @@
+---
+title: Construire un dashboard de disponibilité des Vélib' dans Superset
+description: "Découvrez comment construire un dashboard Superset sur l'historique des Vélib' : vélos disponibles maintenant, rythme de la journée, stations à problèmes et tendances jour après jour"
+lastUpdated: 2026-10-22
+---
+
+## Objectif
+
+Ce guide vous explique comment construire un dashboard Superset sur l'historique des Vélib' : où trouver un vélo maintenant, comment le réseau respire au fil de la journée, quelles stations sont souvent vides ou pleines, et comment chaque journée se compare aux autres.
+
+C'est la deuxième partie de « [Collecter la disponibilité des Vélib' toutes les heures, uniquement en SQL](/guides/public-cloud/data-platform/tutorials-velib-availability) ». Superset interroge le Lakehouse via [Trino](/guides/public-cloud/data-platform/connectors-consumers-trino) : tout le SQL de cette page est donc en **dialecte Trino**.
+
+## Prérequis
+
+Pour suivre ce guide, vous devez :
+
+- Disposer de la table `velib_raw` et des cinq vues créées dans « [Collecter la disponibilité des Vélib' toutes les heures, uniquement en SQL](/guides/public-cloud/data-platform/tutorials-velib-availability#étape-7--modéliser-les-données-avec-des-vues) ».
+- Disposer d'une application Apache Superset connectée à votre projet. Si vous ne l'avez pas encore déployée, suivez le guide « [Déployer Apache Superset sur la Data Platform OVHcloud](/guides/public-cloud/data-platform/tutorials-install-apache-superset) ».
+- Disposer d'un dataset Superset par vue, `station_current`, `network_hourly`, `station_profile` et `velib_daily`, créés à l'[étape 8 du guide de collecte](/guides/public-cloud/data-platform/tutorials-velib-availability#étape-8--connecter-superset).
+- Idéalement, disposer d'une semaine de collecte : les graphiques des onglets *Daily rhythm* et *Trends* se remplissent au fil des jours.
+
+## Ce que vous allez construire
+
+À la fin de cette partie, votre dashboard ressemble à ceci :
+
+<img className="thumbnail" alt="L'onglet Now du dashboard Vélib' availability, avec les quatre tuiles de chiffres clés, la carte des stations par statut et le tableau des stations vides" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-dashboard-now.png" loading="lazy" />
+
+Données cartographiques © les contributeurs d'[OpenStreetMap](https://www.openstreetmap.org/copyright).
+
+| Onglet | Contenu | Dataset |
+|---|---|---|
+| *Now* | 4 tuiles, carte des stations, tableau des stations vides | `station_current` |
+| *Daily rhythm* | vélos heure par heure, journée type, vélos électriques et mécaniques, deux heatmaps | `network_hourly` |
+| *Stations* | les plus souvent vides, les plus souvent pleines, bornes hors service par commune | `station_profile` |
+| *Trends* | heures-stations vides par jour, chiffres quotidiens | `velib_daily` |
+
+Chaque graphique suit le même chemin dans Superset : **Charts** > **+ Chart**, choisissez le dataset et le type de graphique, renseignez les paramètres, cliquez sur **Create chart**, puis sur **Save** avec le nom du graphique et le dashboard `Vélib' availability`. Le premier graphique enregistré crée le dashboard ; vous disposez les graphiques dans ses onglets à l'[étape 5](#étape-5--assembler-le-dashboard).
+
+:::info
+**Remarque :** vos graphiques ressembleront aux captures, mais pas avec les mêmes valeurs : les chiffres dépendent du moment et de la durée de votre collecte. L'onglet *Now* est complet dès la première collecte. Les onglets *Daily rhythm*, *Stations* et *Trends* ne prennent une forme semblable que quelques jours plus tard : d'ici là, les courbes sont courtes, les heatmaps ont des cellules vides et les classements bougent encore.
+:::
+
+## En pratique
+
+### Étape 1 : construire l'onglet Now
+
+Ces graphiques utilisent le dataset `station_current` : une ligne par station, à la dernière collecte.
+
+#### Chiffres clés
+
+Les quatre tuiles utilisent le type de graphique *Big Number*.
+
+| Tuile | Metric | Subheader | Number format |
+|---|---|---|---|
+| Bikes available now | Onglet *Simple* : colonne `bikes`, agrégat `SUM` | `bikes in stations, latest collection` | `,d` |
+| Electric bikes | *Custom SQL* : `SUM(ebike) * 1e0 / NULLIF(SUM(bikes), 0)` | `of available bikes are electric` | `.1%` |
+| Empty stations | *Custom SQL* : `SUM(CASE WHEN bikes = 0 AND is_open THEN 1 ELSE 0 END)` | `open stations with no bike` | `,d` |
+| Docks out of service | *Custom SQL* : `SUM(CASE WHEN is_open THEN out_of_service_docks ELSE 0 END)` | `docks neither free nor holding a bike` | `,d` |
+
+Valeurs attendues, au moment de la rédaction : environ **19 000** vélos, environ **40 %** de vélos électriques, environ **100** stations vides et plus de **1 000** bornes hors service. Les chiffres changent à chaque collecte.
+
+`1e0` évite une division entière, qui renverrait 0. Une station fermée n'est pas comptée comme vide, et dans une station fermée toutes les bornes paraissent indisponibles : les deux dernières tuiles ne comptent que les stations ouvertes.
+
+<img className="thumbnail" alt="Le graphique Big Number Bikes available now avec la métrique SUM(bikes), qui affiche 18 931" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-bikes-available-now.png" loading="lazy" />
+
+#### Stations by status
+
+La carte montre chaque station, colorée selon son état à la dernière collecte.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *deck.gl Scatterplot* |
+| Longitude & Latitude | `lon` et `lat` |
+| Row limit | `10000` |
+| Ignore null locations | coché |
+| Categorical Color | `status` |
+| Minimum Radius | `3` |
+| Tooltip contents | vide |
+| Customize tooltips template | vide |
+
+Utilisez *deck.gl Scatterplot* : c'est le seul type de carte qui dessine un point par station avec une couleur par catégorie. *MapBox* demande une clé Mapbox, donc un compte tiers. Les cartes en grille et en hexagones regroupent les stations dans des cellules, et perdent la station.
+
+<img className="thumbnail" alt="Le graphique deck.gl Scatterplot Stations by status avec Categorical Color sur status, et la carte de Paris avec un point par station coloré en Closed, Available, Empty ou Full" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-stations-by-status.png" loading="lazy" />
+
+Données cartographiques © les contributeurs d'[OpenStreetMap](https://www.openstreetmap.org/copyright).
+
+#### Empty stations right now
+
+Le tableau donne les détails que la carte ne peut pas afficher dans une infobulle.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Table* |
+| Query mode | **Raw records** |
+| Columns | `station_name`, `commune`, `capacity`, `free_docks`, `out_of_service_docks` |
+| Filters | `status` égal à `Empty` |
+| Ordering | `capacity`, décroissant |
+| Row limit | `250` |
+
+**Raw records** affiche une ligne par station, sans regroupement. Le tri par capacité fait remonter les plus grandes stations vides : ce sont elles qui laissent le plus d'usagers sans vélo.
+
+Le tableau contient autant de lignes que la tuile *Empty stations* en affiche. Pour chaque station, `free_docks` plus `out_of_service_docks` égale `capacity` : une station vide n'a aucun vélo, donc chaque borne est soit libre, soit hors service.
+
+<img className="thumbnail" alt="Le tableau Empty stations right now en mode Raw records, filtré sur le statut Empty et trié par capacité" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-empty-stations-right-now.png" loading="lazy" />
+
+### Étape 2 : construire l'onglet Daily rhythm
+
+Ces graphiques utilisent le dataset `network_hourly` : une ligne par heure pour tout le réseau. Ils se remplissent au fil de la collecte.
+
+#### Bikes in stations, hour by hour
+
+Le réseau respire : les vélos disponibles baissent quand ils roulent, et reviennent la nuit.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Line Chart* |
+| X-axis | `collected_hour_paris` |
+| Time grain | `Hour` |
+| Metrics | Onglet *Simple* : colonne `bikes`, agrégat `MAX` |
+| Filters | `collected_hour_paris` : **Last week** |
+
+`network_hourly` contient déjà une ligne par heure : l'agrégat ne regroupe rien, et `MAX` renvoie la valeur de l'heure. Le filtre garde les sept derniers jours, soit 168 points, pour que le graphique reste lisible à mesure que la collecte s'allonge.
+
+<img className="thumbnail" alt="Le graphique en courbe Bikes in stations, hour by hour sur la dernière semaine, avec un pic au-dessus de 20 000 vélos chaque nuit et une baisse chaque jour" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-bikes-hour-by-hour.png" loading="lazy" />
+
+Ce graphique montre ce qui s'est réellement passé, jour après jour. Le suivant fait la moyenne de tous les jours en une journée type.
+
+#### Typical day
+
+La journée moyenne, heure par heure, avec une courbe pour les jours de semaine et une pour le week-end.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Line Chart* |
+| X-axis | `hour_of_day` |
+| Metrics | Onglet *Simple* : colonne `bikes`, agrégat `AVG` |
+| Dimensions | `day_type` |
+| X-axis sort | valeur de l'axe, croissant |
+
+L'axe X est l'heure de la journée, de 0 à 23 : tous les 8 h sont regroupés, quel que soit le jour, et la moyenne donne le nombre type de vélos disponibles à 8 h. La courbe *Weekend* apparaît d'elle-même dès que la collecte couvre un samedi.
+
+En semaine, la courbe baisse à l'heure de pointe du matin, vers 9 h, et plus encore à celle du soir, vers 18 h.
+
+<img className="thumbnail" alt="Le graphique en courbe Typical day de 0 à 23 heures, avec une courbe pour la semaine et une pour le week-end, toutes deux au plus bas vers 18 h" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-typical-day.png" loading="lazy" />
+
+#### Electric and mechanical bikes
+
+Deux courbes, une par type de vélo, pour comparer leurs variations.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Line Chart* |
+| X-axis | `collected_hour_paris` |
+| Time grain | `Hour` |
+| Metrics | Onglet *Simple* : `MAX` de `mechanical`, puis `MAX` de `ebike` |
+| Filters | `collected_hour_paris` : **Last week** |
+
+La courbe des vélos électriques varie bien plus que celle des mécaniques, entre la nuit et les heures de pointe.
+
+<img className="thumbnail" alt="Le graphique en courbe Electric and mechanical bikes sur la dernière semaine, où la courbe des vélos électriques varie bien plus que celle des mécaniques" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-electric-and-mechanical-bikes.png" loading="lazy" />
+
+#### When is it hard to find a bike?
+
+Une heatmap du jour de la semaine en fonction de l'heure, colorée selon la part de stations vides. Les cellules les plus sombres sont les créneaux où il est le plus difficile de trouver un vélo.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Heatmap* |
+| X-axis | `hour_of_day` |
+| Y-axis | `day_of_week` |
+| Metric | *Custom SQL* : `AVG(empty_stations * 1e0 / stations)` |
+| Sort X Axis | **Axis ascending** |
+| Sort Y Axis | **Axis descending** |
+| Normalize Across | `heatmap` |
+| Number format | `.1%` |
+| Y-axis title | `Day of week (1 = Monday)` |
+
+La métrique divise les stations vides par les stations ouvertes : la part reste comparable quand quelques stations ferment ou rouvrent. `1e0` évite une division entière.
+
+Triez les deux axes par leur valeur : l'ordre par défaut suit les résultats de la requête, et **Metric ascending** trie les heures selon leur part de stations vides. **Axis ascending** range les heures de 0 à 23, et **Axis descending** sur l'axe Y place le lundi en haut, comme un calendrier.
+
+En semaine, les cellules les plus sombres arrivent en fin de matinée, entre 9 h et 11 h, avec jusqu'à environ 10 % de stations vides. Les nuits et le week-end sont les plus clairs.
+
+Ce n'est pas en contradiction avec la journée type, où le moins de vélos sont garés vers 18 h. Le soir, il y a moins de vélos en station, mais le matin, ils sont plus mal répartis : la heatmap suivante montre que les stations pleines ont elles aussi leur pic en fin de matinée. Certaines stations se vident pendant que d'autres se remplissent, et le nombre de stations vides mesure ce déséquilibre, pas le nombre de vélos.
+
+<img className="thumbnail" alt="La heatmap When is it hard to find a bike? des jours de la semaine en fonction des heures, plus sombre en semaine entre 9 h et 11 h" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-heatmap-empty-stations.png" loading="lazy" />
+
+#### When is it hard to return a bike?
+
+La heatmap miroir : la part de stations ouvertes sans borne libre, où les usagers ne peuvent pas rendre leur vélo.
+
+Le plus rapide est d'enregistrer le graphique précédent sous un nouveau nom, avec **...** > **Save as**, puis de changer la métrique et le nom.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Heatmap* |
+| X-axis | `hour_of_day` |
+| Y-axis | `day_of_week` |
+| Metric | *Custom SQL* : `AVG(full_stations * 1e0 / stations)` |
+| Sort X Axis | **Axis ascending** |
+| Sort Y Axis | **Axis descending** |
+| Normalize Across | `heatmap` |
+| Number format | `.1%` |
+
+Gardez les mêmes tris que pour la première heatmap, pour que les deux se lisent cellule par cellule. Chaque heatmap a sa propre échelle de couleurs, de son minimum à son maximum : comparez les valeurs, pas seulement les couleurs.
+
+Les stations pleines n'ont pas leur pic aux mêmes heures que les stations vides : les cellules les plus sombres arrivent la nuit en semaine, puis en fin de matinée, avec jusqu'à environ 5,5 % de stations pleines.
+
+<img className="thumbnail" alt="La heatmap When is it hard to return a bike?, plus sombre les nuits de semaine et en fin de matinée en semaine" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-heatmap-full-stations.png" loading="lazy" />
+
+### Étape 3 : construire l'onglet Stations
+
+Ces graphiques utilisent le dataset `station_profile` : une ligne par station, sur toute la collecte. Tous trois utilisent le type de graphique *Bar Chart*, en orientation **Horizontal** : elle laisse de la place pour les noms.
+
+#### Most often empty
+
+Les dix stations qui passent le plus de temps sans aucun vélo.
+
+| Paramètre | Valeur |
+|---|---|
+| X-axis | `station_name` |
+| Metrics | Onglet *Simple* : colonne `empty_hours_pct`, agrégat `MAX` |
+| Row limit | `10` |
+| X-axis sort | par la métrique, décroissant |
+| Orientation | **Horizontal**, dans l'onglet *Customize* |
+| Axis title | `Share of hours with no bike (%)` |
+
+`station_profile` contient déjà une ligne par station : `MAX` renvoie la part de la station.
+
+Le graphique classe les dix stations selon leur part d'heures sans vélo.
+
+<img className="thumbnail" alt="Le graphique en barres horizontales Most often empty, qui classe dix stations selon leur part d'heures sans vélo" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-most-often-empty.png" loading="lazy" />
+
+#### Most often full
+
+Les dix stations où les usagers ne peuvent pas rendre leur vélo, faute de borne libre.
+
+| Paramètre | Valeur |
+|---|---|
+| X-axis | `station_name` |
+| Metrics | Onglet *Simple* : colonne `full_hours_pct`, agrégat `MAX` |
+| Row limit | `10` |
+| X-axis sort | par la métrique, décroissant |
+| Orientation | **Horizontal**, dans l'onglet *Customize* |
+| Axis title | `Share of hours with no free dock (%)` |
+
+Le plus rapide est d'enregistrer le graphique précédent sous un nouveau nom, avec **...** > **Save as**, puis de changer la métrique, le titre de l'axe et le nom. Le graphique classe les dix stations selon leur part d'heures sans borne libre.
+
+<img className="thumbnail" alt="Le graphique en barres horizontales Most often full, qui classe dix stations selon leur part d'heures sans borne libre" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-most-often-full.png" loading="lazy" />
+
+#### Docks out of service by commune
+
+Une vue de maintenance : où se trouvent les bornes en panne, rapportées au nombre de bornes de chaque commune.
+
+| Paramètre | Valeur |
+|---|---|
+| X-axis | `commune` |
+| Metrics | *Custom SQL* : `SUM(avg_out_of_service_docks) * 1e0 / SUM(capacity)` |
+| Filters | *Custom SQL*, clause **HAVING** : `COUNT(*) >= 5` |
+| Row limit | `15` |
+| X-axis sort | par la métrique, décroissant |
+| Orientation | **Horizontal**, dans l'onglet *Customize* |
+| Number format | `.1%` |
+
+Une part plutôt qu'un nombre de bornes : les communes comptent des nombres de stations très différents, et les plus grandes écraseraient les autres en valeur absolue. Le filtre `HAVING` s'applique après le regroupement par commune, et écarte les communes de moins de 5 stations, où une seule borne en panne les ferait monter en tête.
+
+Le graphique classe les communes selon leur part de bornes hors service.
+
+<img className="thumbnail" alt="Le graphique en barres horizontales Docks out of service by commune avec le filtre HAVING COUNT(*) >= 5, qui classe quinze communes selon leur part de bornes hors service" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-docks-out-of-service-by-commune.png" loading="lazy" />
+
+### Étape 4 : construire l'onglet Trends
+
+Ces graphiques utilisent le dataset `velib_daily` : une ligne par jour pour tout le réseau. Ils demandent plusieurs jours de collecte.
+
+#### Empty station-hours per day
+
+Une barre par jour : le total des heures passées vides par l'ensemble des stations, un indicateur de la difficulté à trouver un vélo ce jour-là.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Bar Chart* |
+| X-axis | `day` |
+| Time grain | `Day` |
+| Metrics | Onglet *Simple* : colonne `empty_station_hours`, agrégat `MAX` |
+| Dimensions | `day_type` |
+| Filters | *Custom SQL*, clause **WHERE** : `observed_hours >= 23` |
+
+Seuls les jours complets comptent : un jour avec quelques heures de collecte aurait moins d'heures vides, et ne serait pas comparable. Le seuil de 23 heures plutôt que 24 tolère une heure manquée. La dimension `day_type` colore différemment la semaine et le week-end : le week-end reste bien en dessous de la semaine.
+
+De nombreux facteurs font varier ces chiffres d'un jour à l'autre : la météo, car la pluie et le froid éloignent les usagers du vélo, les vacances scolaires, les jours fériés, les grèves ou perturbations des transports en commun, qui envoient plus d'usagers vers les Vélib', et les grands événements. Un jour férié, comme le 11 novembre, apparaît comme un jour de semaine, mais devrait ressembler à un dimanche. Comparez des jours semblables, et lisez une évolution sur plusieurs jours plutôt que sur une seule barre.
+
+<img className="thumbnail" alt="Le graphique en barres Empty station-hours per day, avec les jours de semaine entre environ 1 300 et 2 000 heures-stations vides et le week-end plus bas" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-empty-station-hours-per-day.png" loading="lazy" />
+
+#### Daily figures
+
+Le tableau complet des chiffres quotidiens, pour lire les valeurs exactes derrière les graphiques.
+
+| Paramètre | Valeur |
+|---|---|
+| Chart type | *Table* |
+| Query mode | **Raw records** |
+| Columns | `day`, `day_type`, `observed_hours`, `min_bikes`, `max_bikes`, `daily_swing`, `avg_fill_rate_pct`, `empty_station_hours`, `peak_empty_stations` |
+| Ordering | `day`, décroissant |
+| Row limit | `100` |
+| Show cell bars | décoché, dans l'onglet *Customize* |
+| Timestamp format | `%Y-%m-%d`, dans l'onglet *Customize* |
+
+Contrairement au graphique précédent, le tableau garde les jours incomplets : la colonne `observed_hours` montre quels jours sont complets, et révèle un jour avec des collectes manquantes. Le premier jour de collecte, qui commence à midi, et le jour en cours affichent moins de 24 heures observées.
+
+En semaine, le réseau passe d'environ 20 000 vélos garés la nuit à environ 17 000 à l'heure la plus chargée : quelque 3 000 à 4 000 vélos roulent au pic.
+
+<img className="thumbnail" alt="Le tableau Daily figures en mode Raw records, une ligne par jour avec les heures observées, le plus petit et le plus grand nombre de vélos et l'écart de la journée" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-daily-figures.png" loading="lazy" />
+
+### Étape 5 : assembler le dashboard
+
+1. Ouvrez **Dashboards**, puis le dashboard `Vélib' availability`, et cliquez sur **Edit dashboard**.
+2. Depuis *Layout elements*, ajoutez un composant *Tabs* avec quatre onglets : `Now`, `Daily rhythm`, `Stations` et `Trends`.
+3. Depuis *Charts*, placez les graphiques dans chaque onglet :
+
+| Onglet | Graphiques, dans l'ordre | Disposition |
+|---|---|---|
+| *Now* | Bikes available now, Electric bikes, Empty stations, Docks out of service, Stations by status, Empty stations right now | les quatre tuiles sur une ligne, puis la carte et le tableau en pleine largeur |
+| *Daily rhythm* | Bikes in stations, hour by hour, Typical day, Electric and mechanical bikes, When is it hard to find a bike?, When is it hard to return a bike? | la chronologie en pleine largeur, la journée type et les vélos électriques côte à côte, puis les deux heatmaps en pleine largeur |
+| *Stations* | Most often empty, Most often full, Docks out of service by commune | les deux classements côte à côte, puis les communes en pleine largeur |
+| *Trends* | Empty station-hours per day, Daily figures | le graphique en pleine largeur, puis le tableau |
+
+4. Cliquez sur **Save**.
+
+<img className="thumbnail" alt="L'onglet Daily rhythm du dashboard, avec la chronologie heure par heure, la journée type et les vélos électriques côte à côte, et les deux heatmaps" src="/images/public-cloud/data-platform/getting-further/velib-availability/picts/superset-dashboard-daily-rhythm.png" loading="lazy" />
+
+## Ce que vous avez construit
+
+Vous disposez d'un dashboard en quatre onglets qui transforme un historique brut des Vélib' en réponses : où trouver un vélo maintenant, quand le réseau est sous tension, quelles stations font le plus souvent défaut à leurs usagers, et comment chaque journée se compare aux autres.
+
+À partir de là, vous pouvez ajouter des filtres de dashboard sur `commune`, ou appliquer le même pipeline à une autre API publique qui ne donne qu'un état actuel. Pour un autre dashboard Superset construit sur la Data Platform, consultez « [Construire un dashboard des ventes d'une boutique en ligne dans Superset](/guides/public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard) ».
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
