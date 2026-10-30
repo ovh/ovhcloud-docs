@@ -20,6 +20,7 @@ import { regionConfig } from './config/regions';
 import type { Locale } from './config/shared';
 import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
+import { swapMermaidJsYaml } from './plugins/mermaidJsYaml';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkMermaid } from './plugins/remarkMermaid';
@@ -258,19 +259,23 @@ export default defineConfig({
       },
     },
     tools: {
-      rspack: {
-        // react-router guards a code path with Vite's `import.meta.hot`. Rspack
-        // implements HMR through `import.meta.webpackHot`, so it reports `hot`
-        // as an unknown `import.meta` property and substitutes `undefined` —
-        // which is exactly what the guard wants (the branch is dead outside
-        // Vite, and it is additionally gated on `isSpaMode`, never set here).
-        // Harmless, but printed on every dev start, so filter it out.
-        //
-        // Not needed in rspress.config.build.ts: that config sets
-        // `logLevel: 'error'`, which already hides build warnings.
-        // Remove once react-router stops shipping the Vite-only guard.
-        ignoreWarnings: [/Accessing unknown `import\.meta` property 'hot'/],
-      },
+      rspack: [
+        // Mermaid's bundled js-yaml swapped for the js-yaml package
+        swapMermaidJsYaml(__dirname),
+        {
+          // react-router guards a code path with Vite's `import.meta.hot`. Rspack
+          // implements HMR through `import.meta.webpackHot`, so it reports `hot`
+          // as an unknown `import.meta` property and substitutes `undefined` —
+          // which is exactly what the guard wants (the branch is dead outside
+          // Vite, and it is additionally gated on `isSpaMode`, never set here).
+          // Harmless, but printed on every dev start, so filter it out.
+          //
+          // Not needed in rspress.config.build.ts: that config sets
+          // `logLevel: 'error'`, which already hides build warnings.
+          // Remove once react-router stops shipping the Vite-only guard.
+          ignoreWarnings: [/Accessing unknown `import\.meta` property 'hot'/],
+        },
+      ],
     },
   },
   globalStyles: path.join(__dirname, 'styles/index.css'),
@@ -288,8 +293,8 @@ export default defineConfig({
   locales: [...activeLocales],
   markdown: {
     remarkPlugins: [
-      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
-      // column — config/mermaid.ts). Source passed verbatim.
+      // ```mermaid → <MermaidDiagram> (scaled down to the column when wider —
+      // config/mermaid.ts). Source passed verbatim.
       remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
@@ -351,7 +356,6 @@ export default defineConfig({
   ssg: { experimentalWorker: true },
   llms: true,
   themeConfig: {
-    outline: { level: [2, 5] },
     enableScrollToTop: true,
     hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter

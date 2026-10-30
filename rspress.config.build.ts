@@ -25,6 +25,7 @@ import type { Locale } from './config/shared';
 import { locales } from './config/shared';
 import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
+import { swapMermaidJsYaml } from './plugins/mermaidJsYaml';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkMermaid } from './plugins/remarkMermaid';
@@ -131,6 +132,8 @@ export default defineConfig({
   builderConfig: {
     logLevel: 'error',
     plugins: [pluginSass()],
+    // Mermaid's bundled js-yaml swapped for the js-yaml package
+    tools: { rspack: swapMermaidJsYaml(BASE_DIR) },
     html: {
       // jQuery loaded statically so window.jQuery is available globally
       // before ovh_delta.js runs. ovh_delta.js itself is loaded dynamically
@@ -329,8 +332,8 @@ export default defineConfig({
   markdown: {
     crossCompilerCache: true,
     remarkPlugins: [
-      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
-      // column — config/mermaid.ts). Source passed verbatim.
+      // ```mermaid → <MermaidDiagram> (scaled down to the column when wider —
+      // config/mermaid.ts). Source passed verbatim.
       remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
@@ -391,7 +394,6 @@ export default defineConfig({
   ssg: { experimentalWorker: true },
 
   themeConfig: {
-    outline: { level: [2, 5] },
     enableScrollToTop: true,
     hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
