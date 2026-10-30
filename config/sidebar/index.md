@@ -616,6 +616,7 @@
             + [How the Ironic to NetBox synchronisation works](hosted-private-cloud/opcp/netbox-ironic-synchronisation)
             + [How to access the NetBox API with a token](hosted-private-cloud/opcp/netbox-api-access)
             + [How to use Terraform](hosted-private-cloud/opcp/use-terraform)
+            + [How to manage the OPCP configuration with opcp-cli](hosted-private-cloud/opcp/how-to-manage-configuration)
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
             + [How to back up the OPCP controller data](hosted-private-cloud/opcp/how-to-create-a-backup)
             + [How to upgrade OPCP](hosted-private-cloud/opcp/how-to-upgrade-opcp)

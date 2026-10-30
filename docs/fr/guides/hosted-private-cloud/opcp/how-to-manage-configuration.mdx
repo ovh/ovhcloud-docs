@@ -1,0 +1,162 @@
+---
+title: Comment gérer la configuration d'OPCP avec opcp-cli
+description: Modifiez la configuration de déploiement et la configuration matérielle de votre OPCP avec opcp-cli, puis appliquez vos modifications au plan de contrôle
+lastUpdated: 2026-10-29
+---
+
+:::warning
+Si votre OPCP est managé par OVHcloud, contactez OVHcloud avant d'appliquer une modification au plan de contrôle.
+:::
+
+## Objectif
+
+Sur une plateforme **OVHcloud On-Prem Cloud Platform (OPCP)**, l'outil `opcp-cli` installé sur vos contrôleurs gère la configuration du plan de contrôle.
+
+**Ce guide explique comment modifier la configuration de votre OPCP avec `opcp-cli` et appliquer vos modifications.**
+
+## Prérequis
+
+- Disposer d'un service [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) actif.
+- Disposer d'un accès SSH à votre contrôleur OPCP avec votre compte `opcp-admin`, qui peut exécuter `opcp-cli` avec `sudo`, que votre OPCP soit managé par OVHcloud ou non (consultez le guide [Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management)).
+
+## En pratique
+
+Lancez chaque commande `opcp-cli` avec `sudo`. Toutes les commandes et options sont décrites dans `opcp-cli --help`.
+
+La configuration est stockée sur le contrôleur dans deux fichiers, que vous modifiez uniquement avec `opcp-cli` :
+
+| Fichier | Contenu | Commande |
+|---------|---------|----------|
+| `/opt/opcp/config/opcp-deployment-config.yaml` | Paramètres de la plateforme : environnement, version d'OPCP, sauvegardes, serveurs NTP, etc. | `opcp-cli config edit` |
+| `/opt/opcp/config/opcp-hardware-config.yaml` | Matériel : contrôleurs, IP virtuelle OOB, baies et équipements déclarés dans NetBox | `opcp-cli config edit --hardware` |
+
+Une modification n'a aucun effet tant que vous ne l'avez pas appliquée (étape 2).
+
+### 1. Modifier la configuration
+
+```bash
+sudo opcp-cli config edit
+```
+
+Le fichier s'ouvre dans `vi`. N'écrivez que les clés que vous modifiez : les autres paramètres conservent leur valeur par défaut, sauf dans les listes qui remplacent leur valeur par défaut. Si une clé existe déjà dans le fichier, modifiez-la plutôt que de l'ajouter une seconde fois.
+
+Lorsque vous l'enregistrez et le fermez, `opcp-cli` vérifie que le YAML est valide et que les champs obligatoires sont renseignés. Si la vérification échoue, vos modifications sont tout de même enregistrées : relancez la commande pour corriger le fichier avant de l'appliquer.
+
+:::warning
+Une erreur de syntaxe YAML bloque toutes les commandes `opcp-cli`, y compris `config edit`. Si votre OPCP n'est pas managé par OVHcloud, corrigez le fichier avec `sudo vi` ou restaurez une copie précédente depuis `/opt/opcp/backup/opcp-cli/config/`. Sinon, contactez le support OVHcloud.
+:::
+
+:::warning
+Certains paramètres ne peuvent pas être modifiés après l'installation, comme `env`, `region`, `stage`, `org`, `site`, `location` ou `base_dns_name`. Avant de modifier une valeur, consultez la section *Récapitulatif* du guide [Prérequis techniques pour le déploiement](/guides/hosted-private-cloud/opcp/opcp-prerequisites).
+:::
+
+Pour changer de version d'OPCP, suivez le guide [Comment mettre à jour OPCP](/guides/hosted-private-cloud/opcp/how-to-upgrade-opcp).
+
+### 2. Appliquer vos modifications
+
+Vérifiez que les versions configurée et déployée de votre OPCP correspondent. Si elles diffèrent, suivez plutôt le guide [Comment mettre à jour OPCP](/guides/hosted-private-cloud/opcp/how-to-upgrade-opcp).
+
+```bash
+sudo opcp-cli version
+```
+
+Appliquez ensuite vos modifications :
+
+```bash
+sudo opcp-cli deploy --system
+```
+
+Le déploiement peut durer plus de 10 minutes. Il copie la configuration sur les autres contrôleurs et en enregistre une copie datée dans `/opt/opcp/backup/opcp-cli/config/`. Les journaux détaillés se trouvent dans `/var/log/opcp-cli/opcp-cli.log`. Ne supprimez pas les fichiers d'installation de `/opt/opcp/artifacts` : le déploiement en a besoin.
+
+La plateforme converge ensuite vers la nouvelle configuration en quelques minutes. Vérifiez qu'elle est en bonne santé avec `opcp-diag` :
+
+```bash
+sudo opcp-diag run
+```
+
+Si la sortie contient l'avertissement `Following kustomizations are unready`, suivi de la liste des composants concernés, un déploiement est encore en cours. Le cas échéant, patientez quelques minutes puis relancez `opcp-diag`.
+
+## Exemples de configuration
+
+Appliquez chacune des modifications ci-dessous avec `sudo opcp-cli deploy --system` (étape 2). Sauf mention contraire, elles se font dans la configuration de déploiement avec `sudo opcp-cli config edit` (étape 1). Les flux réseau à ouvrir sont listés dans le guide [Prérequis techniques pour le déploiement](/guides/hosted-private-cloud/opcp/opcp-prerequisites).
+
+### Configuration matérielle
+
+:::warning
+Ne modifiez jamais la configuration matérielle, sauf pour étendre votre plateforme à plusieurs baies ou ajouter des équipements réseau.
+:::
+
+```bash
+sudo opcp-cli config edit --hardware
+```
+
+### Autorité de certification de confiance
+
+Si la plateforme doit se connecter à un service dont le certificat est signé par votre propre autorité de certification (CA), par exemple un annuaire LDAP en LDAPS, copiez le certificat de la CA (format PEM, extension `.crt`) sur le contrôleur, puis exécutez :
+
+```bash
+sudo opcp-cli secrets certificates trust-ca --ca-crt-path <chemin-de-votre-ca>.crt --name <nom-de-la-ca>
+```
+
+Le nom n'accepte que des lettres minuscules, des chiffres et des tirets. Le contrôleur fait immédiatement confiance à la CA, Keycloak en quelques minutes, et les autres composants de la plateforme à leur prochain redémarrage. Appliquez la modification (étape 2) pour l'ajouter sur les autres contrôleurs.
+
+### Sauvegardes S3
+
+Suivez le guide [Comment mettre à jour les buckets S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets).
+
+### Serveurs NTP
+
+```yaml
+ntp:
+  servers:
+    - "<votre-serveur-ntp-1>"
+    - "<votre-serveur-ntp-2>"
+```
+
+Indiquez des adresses IP ou des noms DNS. Pour un nom DNS qui pointe vers plusieurs serveurs, utilisez la clé `pools` à la place de `servers`.
+
+### Résolveurs DNS
+
+```yaml
+public_forward_resolvers:
+  - "<ip-de-votre-resolveur-dns-1>"
+  - "<ip-de-votre-resolveur-dns-2>"
+```
+
+Cette liste remplace le résolveur par défaut : listez tous les résolveurs à utiliser.
+
+### Transfert des logs vers un serveur syslog
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true
+      syslog:
+        enabled: true
+        endpoints:
+          - host: "<votre-serveur-syslog>"
+            port: "514"
+            mode: tcp
+```
+
+Écrivez le port entre guillemets. Le `mode` est `tcp` (par défaut) ou `tls` : l'UDP n'est pas pris en charge. Ajoutez une entrée par serveur syslog.
+
+### Endpoints autorisés pour Keycloak
+
+Keycloak ne peut joindre que les services externes listés dans `keycloak.allowedEndpoints`, comme votre annuaire LDAP.
+
+```yaml
+keycloak:
+  allowedEndpoints:
+    - host: "<votre-serveur-ldap>"
+      port: 636
+```
+
+Ajoutez une entrée par hôte et par port TCP. Les plages réseau ne sont pas prises en charge.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d’utilisateurs](/links/community).
