@@ -1,0 +1,461 @@
+---
+title: "Observabilité sur OPCP"
+description: "Découvrez la pile d'observabilité d'OPCP : métriques avec Prometheus et Grafana Mimir, logs avec Loki et Grafana Alloy, tableaux de bord, durées de rétention et droits d'accès"
+lastUpdated: 2026-10-27
+---
+
+## Objectif
+
+Votre **OVHcloud On-Prem Cloud Platform (OPCP)** intègre une pile d'observabilité qui collecte, stocke et expose les métriques et les logs de l'ensemble de la plateforme : le plan de contrôle, les services OpenStack, le cluster Ceph, les serveurs bare metal et les hyperviseurs de calcul.
+
+Ce guide décrit cette pile : les composants qui la constituent, les interfaces auxquelles vous pouvez accéder, la durée de conservation de vos données et les comportements que vous pouvez adapter à vos besoins.
+
+## Prérequis
+
+- Un service [On-Prem Cloud Platform](/links/hosted-private-cloud/onprem-cloud-platform) livré et opérationnel
+- Un compte Keycloak disposant au minimum du rôle `dc_operator` (voir [Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management))
+- Le nom de domaine de base (`base_dns_name`) attribué à votre plateforme lors de la livraison
+
+## En pratique
+
+### Architecture de l'observabilité
+
+La pile repose intégralement sur des composants open source issus des projets Grafana Labs et Prometheus. Elle se divise en deux chaînes indépendantes — l'une pour les métriques, l'autre pour les logs — qui convergent vers une interface **Grafana** unique.
+
+#### Chaîne des métriques
+
+| Étape | Composant | Rôle |
+|---|---|---|
+| Collecte | **Prometheus** (plan de contrôle) | Interroge le plan de contrôle, les services OpenStack, Ceph et les serveurs bare metal |
+| Collecte | **Grafana Alloy** (nœuds de calcul) | Interroge les hyperviseurs et leurs charges de travail |
+| Stockage | **Grafana Mimir** | Backend de métriques longue durée, scalable horizontalement, adossé au stockage objet<sup>1</sup> |
+| Consultation | **Grafana** | Tableaux de bord et requêtes ponctuelles |
+
+Les deux collecteurs transmettent leurs séries à Mimir via le protocole `remote_write` de Prometheus, sur le point d'entrée `metrics.<base_dns_name>`. Mimir constitue donc le point unique où les métriques de toute la plateforme — plan de contrôle *et* calcul — sont consolidées.
+
+Les exportateurs qui alimentent cette chaîne comprennent notamment `node-exporter` (hôtes), `kube-state-metrics` (charges de travail du plan de contrôle), `openstack-exporter` (services OpenStack), les exportateurs Ceph, `blackbox-exporter` (sondage de points d'entrée) et `x509-certificate-exporter` (expiration des certificats).
+
+#### Chaîne des logs
+
+| Étape | Composant | Rôle |
+|---|---|---|
+| Collecte | **Grafana Alloy** | Agent présent sur chaque nœud du plan de contrôle : collecte le journal `systemd` et les logs des conteneurs |
+| Stockage | **Loki** | Backend d'agrégation de logs |
+| Consultation | **Grafana** | Exploration des logs et corrélation avec les métriques |
+
+Alloy transmet ses flux à Loki sur le point d'entrée `loki.<base_dns_name>`. Les logs des nœuds de calcul ne sont pas envoyés à Loki par défaut : consultez [Centraliser les logs des nœuds de calcul dans Loki](#compute-logs-loki).
+
+#### Alerting
+
+Des règles d'alerte sont livrées avec la plateforme et couvrent le plan de contrôle, les services OpenStack, Ceph, les contrôleurs bare metal (BMC), le moteur GitOps et les certificats. Elles sont évaluées de manière centralisée par le **ruler Mimir**, qui les lit depuis la plateforme et les évalue sur les métriques consolidées.
+
+Les alertes actives sont transmises à **Alertmanager**, qui prend en charge la déduplication, les mises en silence et le routage des notifications vers votre système d'astreinte. Alertmanager est un composant optionnel qui n'est pas déployé par défaut : lorsqu'il est activé sur votre plateforme, son interface est publiée sur `alertmanager.<base_dns_name>`. Dans le cas contraire, les règles sont bien évaluées mais aucune notification n'est émise. Pour envoyer les notifications vers vos propres outils, consultez [Envoyer les notifications d'alerte](#alert-notifications).
+
+### Accéder aux interfaces
+
+Toutes les interfaces ci-dessous sont publiées sous le nom de domaine de base de votre plateforme et sont protégées par une authentification **Keycloak**.
+
+| Interface | Adresse | Usage |
+|---|---|---|
+| **Grafana** | `https://grafana.<base_dns_name>` | Tableaux de bord, exploration des métriques et des logs. L'interface que vous utiliserez au quotidien |
+| **Prometheus** | `https://prometheus.<base_dns_name>` | Vue brute du collecteur du plan de contrôle : cibles, état de collecte, requêtes court terme |
+| **Alertmanager** | `https://alertmanager.<base_dns_name>` | Alertes actives et mises en silence. Publiée uniquement si les notifications d'alerte sont activées sur votre plateforme |
+
+Deux points d'entrée supplémentaires sont utilisés pour l'ingestion : ils acceptent les écritures des agents de la plateforme et ne sont pas des interfaces consultables.
+
+- `https://metrics.<base_dns_name>` — ingestion des métriques dans Mimir. Lorsque l'[API de requête en lecture seule](#external-grafana) est activée, il sert également les requêtes PromQL sous `/prometheus`
+- `https://loki.<base_dns_name>` — ingestion des logs dans Loki
+
+:::warning
+Ne dirigez pas d'agents tiers vers les points d'entrée d'ingestion sans en avoir convenu au préalable avec OVHcloud. Le volume de métriques est plafonné à l'échelle de la plateforme, et une source non prévue peut épuiser le budget d'ingestion des services dont dépend votre plateforme.
+:::
+
+### Droits d'accès
+
+L'accès à Grafana est déterminé par le rôle que détient votre compte dans Keycloak. La correspondance est réévaluée à chaque connexion, et un compte ne disposant d'aucun rôle d'observabilité se voit refuser l'accès.
+
+| Rôle Keycloak | Permission Grafana | Actions possibles |
+|---|---|---|
+| `dc_operator` | Viewer | Consulter les tableaux de bord existants et exécuter des requêtes |
+| `it_admin` | Editor | Idem, plus la création et la modification de tableaux de bord |
+| `master_admin` | Administrateur Grafana | Idem, plus l'administration de l'instance Grafana |
+
+Le rôle `reader` dispose d'un accès en lecture à Prometheus mais pas à Grafana. La matrice complète, pour l'ensemble des applications de la plateforme, est documentée dans [Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management).
+
+### Explorer vos données dans Grafana
+
+#### Sources de données
+
+Trois sources de données sont provisionnées dans Grafana :
+
+| Source de données | Contenu | Quand l'utiliser |
+|---|---|---|
+| **Mimir** *(par défaut)* | Toutes les métriques de la plateforme, plan de contrôle et calcul | Presque toujours : analyse de tendance, dimensionnement, investigation historique |
+| **Prometheus** | Le tampon court terme du collecteur du plan de contrôle | Débogage en direct, vérification qu'une cible est bien collectée |
+| **Loki** | Logs des nœuds et des conteneurs | Lecture des logs, corrélation d'un incident avec ses métriques |
+
+Mimir étant la source de données par défaut, un nouveau panneau interroge le stockage consolidé et à longue rétention tant que vous ne changez pas ce réglage. Mimir et Prometheus utilisent tous deux PromQL : une requête écrite pour l'un s'exécute telle quelle sur l'autre.
+
+#### Dossiers de tableaux de bord
+
+Les tableaux de bord livrés avec la plateforme sont organisés en dossiers :
+
+| Dossier | Contenu |
+|---|---|
+| **Openstack** | Services OpenStack, dont les répartiteurs de charge Octavia |
+| **Ceph** | Cluster Ceph, pools, OSD, hôtes et passerelle de stockage objet |
+| **Kubernetes** | Charges de travail du plan de contrôle, consommation de ressources par namespace et par charge de travail |
+| **Node exporter** | Vue système des hôtes : processeur, mémoire, disques, réseau |
+| **Control plane components** | Composants internes du plan de contrôle |
+| **Observability** | Santé de la pile d'observabilité elle-même, dont la cardinalité des métriques |
+
+Vous pouvez créer vos propres tableaux de bord avec un compte `it_admin` ou supérieur. Rangez-les dans un dossier qui vous est propre : les dossiers listés ci-dessus sont réconciliés avec la plateforme et toute modification manuelle y est annulée.
+
+### Rétention des données
+
+Chaque étage de la chaîne conserve les données pendant une durée différente. La valeur qui compte pour l'analyse historique est celle de Mimir.
+
+| Données | Emplacement | Rétention par défaut |
+|---|---|---|
+| Métriques — longue durée | Mimir | **60 jours** |
+| Métriques — tampon du collecteur | Prometheus | 7 jours |
+| Logs | Loki | 7 jours |
+
+:::info
+Prometheus ne conserve qu'un tampon local court, car chaque série qu'il collecte est immédiatement transmise à Mimir. Les requêtes portant sur plus de quelques jours doivent cibler la source de données Mimir.
+:::
+
+### Adapter la pile à vos besoins
+
+Les comportements suivants peuvent être adaptés sur votre plateforme. Sur une plateforme infogérée par OVHcloud, demandez la modification via votre canal de support habituel ; sur une plateforme que vous administrez vous-même, appliquez-la dans la configuration de votre plateforme.
+
+- **Rétention des logs** — la durée pendant laquelle Loki conserve vos logs, soit sept jours par défaut.
+- **Export des logs** — la plateforme peut transmettre ses logs à un collecteur externe, vers vos propres serveurs syslog ou vers le service OVHcloud [Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start), consultez [Transmettre les logs vers un collecteur externe](#log-forwarding).
+- **Règles d'alerte personnalisées** — en complément des règles livrées avec la plateforme, des règles d'alerte et d'enregistrement peuvent provenir d'un dépôt Git qui vous appartient, afin que vos propres règles suivent votre propre processus de validation.
+- **Capacité d'ingestion** — la chaîne d'ingestion des métriques est dimensionnée à la livraison pour la taille de votre plateforme. L'ajout d'un nombre important de nœuds, ou l'envoi de métriques depuis vos propres charges de travail, peut nécessiter son redimensionnement.
+- **Grafana externe** — les métriques consolidées peuvent être interrogées depuis une instance Grafana qui vous appartient, consultez [Interroger les métriques depuis un Grafana externe](#external-grafana).
+- **Export des métriques** — une copie des métriques du plan de contrôle peut être envoyée vers un point d'entrée externe compatible Prometheus, consultez [Exporter les métriques vers un point d'entrée externe](#external-remote-write).
+- **Logs des nœuds de calcul** — les logs des nœuds de calcul peuvent être centralisés dans le Loki de la plateforme, consultez [Centraliser les logs des nœuds de calcul dans Loki](#compute-logs-loki).
+- **Notifications d'alerte** — les alertes peuvent être envoyées vers vos propres outils de messagerie, de discussion ou de gestion d'incidents, consultez [Envoyer les notifications d'alerte](#alert-notifications).
+
+### Intégrations optionnelles
+
+Les intégrations ci-dessous sont désactivées par défaut. Sur une plateforme que vous administrez vous-même, vous les activez depuis le contrôleur OPCP avec `opcp-cli` :
+
+- les paramètres se modifient avec `opcp-cli config edit`, puis s'appliquent avec `opcp-cli deploy` ;
+- les identifiants sont stockés dans les secrets de la plateforme, que vous consultez et modifiez avec `opcp-cli secrets passwords --edit` (clés sous `stringData`).
+
+Sur une plateforme infogérée par OVHcloud, demandez la modification via votre canal de support habituel.
+
+:::info
+Les clés de secrets mentionnées ci-dessous sont créées par `opcp-cli secrets passwords --generate`. Si une clé est absente de votre plateforme, exécutez cette commande une fois avec un `opcp-cli` à jour : les secrets existants sont conservés, seules les clés manquantes sont ajoutées.
+:::
+
+<a id="external-grafana"></a>
+
+#### Interroger les métriques depuis un Grafana externe
+
+Mimir peut exposer une API de requête Prometheus **en lecture seule** sur le point d'entrée des métriques, afin qu'une instance Grafana qui vous appartient puisse interroger les métriques consolidées de la plateforme. Seuls les chemins de requête (`/prometheus/api/v1/...`) sont publiés : l'API de configuration des règles Mimir reste inaccessible, et l'API est protégée par des identifiants distincts de ceux de l'ingestion ainsi que par une limite de débit par adresse IP source.
+
+1\. Activez l'API avec `opcp-cli config edit` :
+
+```yaml
+monitoring:
+  mimir:
+    read_api:
+      enabled: true
+      username: grafana       # valeur par défaut
+      rate_limit:             # par IP source, en requêtes par seconde
+        average: 50
+        burst: 100
+```
+
+Appliquez ensuite la configuration avec `opcp-cli deploy`.
+
+2\. Récupérez le mot de passe avec `opcp-cli secrets passwords --edit` : il est stocké sous la clé `metrics_read_password`. Pour le modifier, changez la valeur dans le même éditeur et enregistrez.
+
+3\. Dans votre Grafana, ajoutez une source de données **Prometheus** :
+
+| Champ | Valeur |
+|---|---|
+| URL | `https://metrics.<base_dns_name>/prometheus` |
+| Authentification | Authentification basique, avec l'utilisateur configuré dans `read_api.username` et le mot de passe `metrics_read_password` |
+| TLS | Si votre plateforme utilise une autorité de certification privée, ajoutez-la comme certificat d'AC de confiance |
+
+:::warning
+L'URL doit se terminer par `/prometheus`, sans barre oblique finale. Tout autre chemin, comme `https://metrics.<base_dns_name>` seul, renvoie une erreur `404 Not Found` lors du test de la source de données.
+:::
+
+Vous pouvez vérifier l'accès depuis n'importe quel hôte avec `curl` :
+
+```bash
+curl -u grafana:<metrics_read_password> 'https://metrics.<base_dns_name>/prometheus/api/v1/query?query=up'
+```
+
+<a id="external-remote-write"></a>
+
+#### Exporter les métriques vers un point d'entrée externe
+
+Le Prometheus du plan de contrôle peut envoyer une copie de ses séries vers un point d'entrée externe compatible Prometheus (un Mimir central, Prometheus, Thanos, etc.) via le protocole `remote_write`, en plus du Mimir de la plateforme. Cette copie dispose de sa propre file d'attente : une indisponibilité du point d'entrée externe ne retarde pas l'ingestion dans le Mimir de la plateforme. Le même filtre de cardinalité que pour le Mimir de la plateforme est appliqué.
+
+1\. Configurez le point d'entrée avec `opcp-cli config edit` :
+
+```yaml
+monitoring:
+  external_remote_write:
+    controller:
+      enabled: true
+      url: https://mimir.example.com/api/v1/push
+      tenant: anonymous       # envoyé dans l'en-tête X-Scope-OrgID ; laissez vide pour ne pas l'envoyer
+```
+
+2\. Renseignez les identifiants d'authentification basique du point d'entrée externe avec `opcp-cli secrets passwords --edit`, sous les clés `metrics_external_remote_write_username` et `metrics_external_remote_write_password`. Ces clés sont générées avec des valeurs aléatoires provisoires : remplacez-les par les identifiants fournis par le propriétaire du point d'entrée. La même commande vous permet de les consulter ou de les modifier par la suite.
+
+3\. Appliquez la configuration avec `opcp-cli deploy`.
+
+Le point d'entrée externe doit :
+
+- être joignable depuis le plan de contrôle en HTTPS, via un nom d'hôte (une adresse IP n'est pas acceptée) ;
+- présenter un certificat reconnu par la plateforme : émis par une autorité de certification publique, ou par une AC que vous avez ajoutée au magasin de confiance de la plateforme.
+
+Pour vérifier l'export, interrogez la série `up` sur le point d'entrée externe, ou consultez la métrique `prometheus_remote_storage_samples_failed_total` du Prometheus du plan de contrôle.
+
+<a id="log-forwarding"></a>
+
+#### Transmettre les logs vers un collecteur externe
+
+Le transmetteur de logs est un agent déployé sur chaque nœud du plan de contrôle et chaque nœud de calcul. Il collecte le journal `systemd` et les logs des conteneurs du nœud, et les envoie vers vos propres serveurs syslog, vers le service OVHcloud [Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start), ou vers les deux. Il est indépendant de la chaîne Loki : les logs du plan de contrôle restent consultables dans Grafana quelles que soient les destinations de transmission.
+
+Les logs sont mis en tampon sur le nœud (jusqu'à 4 Go par destination) et renvoyés lorsqu'une destination est temporairement injoignable.
+
+##### Transmettre vers des serveurs syslog
+
+1\. Déclarez vos serveurs syslog avec `opcp-cli config edit` :
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true
+      syslog:
+        enabled: true
+        endpoints:
+          - host: syslog.example.com   # nom d'hôte ou adresse IPv4
+            port: 6514
+            mode: tls
+          - host: 192.0.2.10
+            port: 514
+            mode: tcp
+```
+
+| Paramètre | Description |
+|---|---|
+| `host` | Nom d'hôte ou adresse IPv4 du serveur syslog |
+| `port` | Port TCP du serveur syslog |
+| `mode` | `tcp` (par défaut) ou `tls`. L'UDP n'est pas pris en charge |
+| `tls_verify` | Mode `tls` uniquement : `on` (par défaut) pour vérifier le certificat du serveur, `off` pour ne pas le vérifier |
+| `tls_vhost` | Mode `tls` uniquement : nom d'hôte envoyé en SNI et vérifié sur le certificat, lorsqu'il diffère de `host` |
+
+2\. Appliquez la configuration avec `opcp-cli deploy`.
+
+Les messages sont envoyés au format RFC 5424. Aucun secret n'est nécessaire : les serveurs syslog doivent accepter sans authentification les connexions provenant de la plateforme. En mode `tls`, le certificat du serveur doit être émis par une autorité de certification publique, sauf si `tls_verify` vaut `off`.
+
+##### Transmettre vers Logs Data Platform
+
+1\. Dans votre compte Logs Data Platform, créez un flux et récupérez son **jeton d'écriture** ainsi que l'adresse de votre cluster.
+
+2\. Enregistrez le jeton dans les secrets de la plateforme avec `opcp-cli secrets passwords --edit`, sous la clé `ldp_token` (ajoutez la clé sous `stringData` si elle n'existe pas encore). La même commande vous permet ensuite de consulter ou de renouveler le jeton.
+
+3\. Activez la destination avec `opcp-cli config edit` :
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true
+      ldp:
+        enabled: true
+        endpoint:
+          fqdn: <votre-cluster>.logs.ovh.com
+          port: 12202           # GELF sur TLS
+```
+
+4\. Appliquez la configuration avec `opcp-cli deploy`.
+
+Chaque enregistrement porte un champ `LOG_SOURCE` contenant le nom de région de la plateforme, ce qui permet de distinguer plusieurs plateformes dans un même flux.
+
+:::info
+Lorsqu'Octavia est activé, les logs des instances de répartition de charge (amphorae) sont transmis vers les mêmes destinations.
+:::
+
+Pour vérifier la transmission, ouvrez le tableau de bord **Fluent Bit** du dossier **Control plane components** de Grafana, qui affiche le débit, les erreurs et les nouvelles tentatives de chaque sortie. L'alerte `LogForwarder-NoOutputBytesProcessed` se déclenche lorsqu'une sortie n'envoie plus de logs.
+
+<a id="compute-logs-loki"></a>
+
+#### Centraliser les logs des nœuds de calcul dans Loki
+
+Par défaut, les logs des nœuds de calcul sont uniquement envoyés vers les [destinations du transmetteur de logs](#log-forwarding) (syslog ou Logs Data Platform). Ils peuvent également être poussés vers le Loki de la plateforme, afin d'être explorés dans Grafana à côté des logs du plan de contrôle.
+
+Activez cette intégration avec `opcp-cli config edit`, puis appliquez-la avec `opcp-cli deploy` :
+
+```yaml
+monitoring:
+  logs:
+    forwarder:
+      enabled: true           # le transmetteur de logs doit être activé
+      loki:
+        enabled: true
+```
+
+Aucun secret n'est à renseigner pour cette intégration : les nœuds de calcul s'authentifient auprès de Loki avec les identifiants d'ingestion internes de la plateforme, gérés automatiquement. Il n'y a donc rien à consulter ni à modifier avec `opcp-cli secrets passwords`.
+
+Dans Grafana, les logs des nœuds de calcul se trouvent dans la source de données **Loki** avec le label `opcp_context="compute"`, et chaque nœud de calcul est identifié par le label `cluster`. Les labels `host`, `unit`, `level`, `namespace` et `container` suivent le même nommage que pour les logs du plan de contrôle.
+
+:::warning
+Les logs des nœuds de calcul partagent le stockage et la rétention Loki des logs du plan de contrôle. Sur une plateforme de grande taille, le volume supplémentaire peut nécessiter d'adapter le stockage ou la rétention de Loki.
+:::
+
+<a id="alert-notifications"></a>
+
+#### Envoyer les notifications d'alerte
+
+Alertmanager peut notifier vos propres outils des alertes levées par la plateforme : e-mail, messagerie instantanée (Slack, Microsoft Teams via un webhook...), gestion d'incidents (PagerDuty, OpsGenie...) ou tout webhook HTTP. Son activation publie également l'interface Alertmanager sur `alertmanager.<base_dns_name>`, depuis laquelle vous pouvez suivre les alertes actives et créer des mises en silence.
+
+Les destinataires (*receivers*) et les routes s'écrivent dans la [syntaxe de configuration d'Alertmanager](https://prometheus.io/docs/alerting/latest/configuration/#receiver). Les alertes sont notamment regroupées par `alertname`, `namespace`, `severity` et `opcp_context`, labels que vous pouvez utiliser dans les routes.
+
+1\. Enregistrez les identifiants de vos destinataires dans les secrets de la plateforme avec `opcp-cli secrets passwords --edit` : ajoutez une clé par identifiant sous `stringData`, par exemple `alertmanager_smtp_password`. Le nom est libre, composé de lettres minuscules, de chiffres et de tirets bas. La même commande vous permet ensuite de les consulter ou de les renouveler. Les clés que vous ajoutez sont conservées lorsque `opcp-cli secrets passwords --generate` est de nouveau exécuté, sauf avec son option `--clean`.
+
+2\. Décrivez les destinataires avec `opcp-cli config edit`, en référençant chaque identifiant sous la forme `${<clé>}` :
+
+```yaml
+monitoring:
+  alertmanager:
+    enabled: true
+    default_receiver: ops-email          # reçoit toutes les alertes qu'aucune route ne capte
+    receivers:
+      - name: ops-email
+        email_configs:
+          - to: ops@example.com
+            from: alertmanager@example.com
+            smarthost: smtp.example.com:587
+            auth_username: alertmanager@example.com
+            auth_password: "${alertmanager_smtp_password}"
+      - name: oncall-webhook
+        webhook_configs:
+          - url: https://hooks.example.com/alertmanager
+            http_config:
+              authorization:
+                credentials: "${alertmanager_webhook_token}"
+    routes:                              # optionnel
+      - receiver: oncall-webhook
+        matchers:
+          - severity = "critical"
+    egress:                              # chaque serveur contacté par vos destinataires
+      - host: smtp.example.com
+        port: 587
+      - host: hooks.example.com
+        port: 443
+```
+
+| Paramètre | Description |
+|---|---|
+| `enabled` | Déploie Alertmanager avec vos destinataires |
+| `default_receiver` | Destinataire des alertes qui ne correspondent à aucune de vos routes. `null` (par défaut) les ignore |
+| `receivers` | Vos destinataires, dans la syntaxe d'Alertmanager. Les noms `null` et `heartbeat` sont réservés |
+| `routes` | Routes optionnelles envoyant une partie des alertes vers un destinataire donné. Toutes les routes sont évaluées : pour envoyer une alerte à plusieurs destinataires, ajoutez une route par destinataire. Les alertes captées par une route ne sont pas envoyées à `default_receiver` |
+| `templates` | Fichiers de modèles de notification optionnels, consultez [Personnaliser le contenu des notifications](#alert-templates) |
+| `egress` | Nom d'hôte ou adresse IPv4 et port TCP de chaque serveur contacté par vos destinataires : le trafic sortant d'Alertmanager est bloqué par défaut |
+
+3\. Appliquez la configuration avec `opcp-cli deploy`.
+
+:::warning
+Les paramètres des destinataires passent par la substitution de variables de la plateforme : tout `$` suivi d'un nom est remplacé par le secret du même nom, ou par une chaîne vide. N'utilisez pas de variables `$` dans les paramètres des destinataires : placez ces modèles dans un fichier de modèles, consultez [Personnaliser le contenu des notifications](#alert-templates).
+:::
+
+:::info
+Sur une plateforme infogérée par OVHcloud, les alertes continuent d'être envoyées à l'équipe d'astreinte OVHcloud : vos routes sont évaluées en complément, jamais à sa place.
+:::
+
+Pour vérifier la configuration, ouvrez `https://alertmanager.<base_dns_name>` : la page **Status** affiche la configuration chargée par Alertmanager. L'alerte `Watchdog`, toujours active, sert à contrôler la chaîne d'alerte en interne et n'est jamais envoyée à vos destinataires.
+
+<a id="alert-templates"></a>
+
+##### Personnaliser le contenu des notifications
+
+Par défaut, chaque destinataire envoie le message intégré d'Alertmanager. La plateforme fournit également des modèles prêts à l'emploi, utilisables par n'importe quel destinataire :
+
+| Modèle | Contenu |
+|---|---|
+| `opcp.title` | Résumé sur une ligne : état, nombre d'alertes actives, nom de l'alerte, sévérité et contexte, par exemple `[FIRING:2] KubePodCrashLooping (warning) [compute]` |
+| `opcp.text` | Liste en texte brut des alertes actives et résolues, avec leur résumé, leur description, leurs dates et leurs labels, suivie de liens vers Alertmanager et Grafana |
+| `opcp.html` | Le même contenu en HTML, pour les e-mails |
+
+Référencez-les dans les champs des destinataires qui acceptent un modèle :
+
+```yaml
+monitoring:
+  alertmanager:
+    receivers:
+      - name: ops-email
+        email_configs:
+          - to: ops@example.com
+            # ... paramètres SMTP
+            headers:
+              Subject: '{{ template "opcp.title" . }}'
+            html: '{{ template "opcp.html" . }}'
+      - name: ops-chat
+        slack_configs:
+          - api_url: "${alertmanager_slack_url}"
+            title: '{{ template "opcp.title" . }}'
+            text: '{{ template "opcp.text" . }}'
+```
+
+Pour écrire vos propres modèles, ajoutez des fichiers de modèles sous `templates`, dans la [syntaxe des modèles de notification d'Alertmanager](https://prometheus.io/docs/alerting/latest/notifications/). Contrairement aux paramètres des destinataires, ces fichiers ne sont pas modifiés par la substitution de variables : ils peuvent donc utiliser des variables `$` :
+
+```yaml
+monitoring:
+  alertmanager:
+    templates:
+      customer.tmpl: |
+        {{ define "customer.subject" }}[ACME] {{ range $i, $a := .Alerts }}{{ if $i }}, {{ end }}{{ $a.Labels.alertname }}{{ end }}{{ end }}
+    receivers:
+      - name: ops-email
+        email_configs:
+          - to: ops@example.com
+            # ... paramètres SMTP
+            headers:
+              Subject: '{{ template "customer.subject" . }}'
+            html: '{{ template "opcp.html" . }}'
+```
+
+Appliquez les modifications avec `opcp-cli deploy` : Alertmanager recharge les modèles sans redémarrer. Les règles suivantes s'appliquent :
+
+- chaque nom de fichier doit se terminer par `.tmpl`, sans quoi le déploiement est refusé ;
+- les noms de modèles `opcp.*` et `opsgenie.*` appartiennent à la plateforme : un de vos modèles portant l'un de ces noms est ignoré. Pour adapter un modèle par défaut, copiez-le sous un nom qui vous est propre, par exemple `customer.html`. Sur une plateforme que vous administrez vous-même, les modèles par défaut peuvent être consultés avec `kubectl -n monitoring get configmap alertmanager-templates -o yaml`.
+
+:::warning
+Une erreur de modèle n'est détectée qu'à l'envoi d'une notification : celle-ci n'est alors pas délivrée. Après avoir modifié un modèle, consultez les logs d'Alertmanager et la métrique `alertmanager_notifications_failed_total` dans Grafana, idéalement pendant qu'une alerte de test est active.
+:::
+
+### Limitations connues
+
+- **Locataire unique.** Mimir est exploité comme un locataire logique unique : le plan de contrôle et chaque nœud de calcul partagent le même espace de métriques et le même quota d'ingestion. Il n'existe pas d'isolation des métriques par équipe ou par projet.
+- **Pas de redondance des métriques par défaut.** La chaîne d'ingestion Mimir est déployée sans réplication par défaut. Une plateforme exigeant que la perte d'un composant d'ingestion soit transparente doit être dimensionnée en conséquence lors de la livraison.
+- **API de requête externe.** L'API de requête en lecture seule est limitée en débit par adresse IP source afin de protéger le Mimir de la plateforme : des tableaux de bord lourds ou des requêtes larges depuis un Grafana externe peuvent recevoir des réponses `429 Too Many Requests`.
+- **Alertmanager optionnel.** Sauf si les notifications d'alerte ont été activées sur votre plateforme (consultez [Envoyer les notifications d'alerte](#alert-notifications)), Alertmanager n'est pas déployé : les règles sont évaluées mais aucune notification n'est émise et aucune interface Alertmanager n'est publiée.
+
+## Aller plus loin
+
+[Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management)
+
+[Comment mettre à jour les buckets S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets) (exemple de modification de configuration avec `opcp-cli`)
+
+[Mise en route de votre OPCP](/guides/hosted-private-cloud/opcp/getting-started)
+
+[Comment mettre à jour OPCP](/guides/hosted-private-cloud/opcp/how-to-upgrade-opcp)
+
+Pour une formation ou une assistance technique sur la mise en œuvre de nos solutions, contactez votre commercial ou consultez la page [Professional Services](/links/professional-services) pour obtenir un devis et faire analyser votre projet par nos experts.
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+<sup>1</sup> : S3 est une marque déposée appartenant à Amazon Technologies, Inc. Les services de OVHcloud ne sont pas sponsorisés, approuvés, ou affiliés de quelque manière que ce soit.
