@@ -1,0 +1,163 @@
+---
+title: How to diagnose the OPCP control plane with opcp-diag
+description: Run health checks on your OPCP controller with opcp-diag, apply automatic fixes and generate a diagnostic bundle for OVHcloud support
+lastUpdated: 2026-10-28
+---
+
+## Objective
+
+On an **OVHcloud On-Prem Cloud Platform (OPCP)**, the `opcp-diag` tool runs health checks on the control plane hosted on your controller: the host itself, the Kubernetes cluster and the platform components (FluxCD, OpenTofu, OpenStack, Keycloak, etc.).
+
+For some known issues, `opcp-diag` can also apply an **automatic fix**. At the end of each run, it collects its results, logs and dumps in a **diagnostic bundle** that you can share with OVHcloud support.
+
+**This guide explains how to run a diagnosis with `opcp-diag`, read its results, apply automatic fixes and send the diagnostic bundle to OVHcloud support.**
+
+## Requirements
+
+- An active [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) service.
+- SSH access to your OPCP controller with your `opcp-admin` account, the Linux administrator account provided with your OPCP. This account can run `opcp-diag` whether your OPCP is managed by OVHcloud or not (see [IAM rights management](/guides/hosted-private-cloud/opcp/iam-rights-management)). No specific role on the platform is required, as `opcp-diag` uses the credentials of the controller itself.
+- The `opcp-diag` tool, available on the controller (`/usr/local/bin/opcp-diag`).
+
+## Instructions
+
+`opcp-diag` groups its **checks** into **suites**, each suite covering one area of the control plane. Some checks provide an **automatic fix**, which runs only if the check fails and if you enabled it.
+
+All the commands and options are described in the built-in help:
+
+```bash
+opcp-diag --help
+opcp-diag run --help
+```
+
+### 1. Run a diagnosis
+
+Log in to your controller over SSH, then run:
+
+```bash
+sudo opcp-diag run
+```
+
+This command runs all the suites. Automatic fixes are **disabled by default**: this run does not modify your platform.
+
+For each check, `opcp-diag` displays its description and its result, then a summary at the end of the run:
+
+```text
+=> [1/3] FilesystemInode
+(i) Checks inode availability on the root filesystem to detect exhaustion that can prevent file creation.
+[OK] SUCCESS [FilesystemInode]: Filesystem '/' has 95.21% inodes free
+...
+================================================================================
+# DIAGNOSTIC SUMMARY
+================================================================================
+Total Checks: 3
+Total SubChecks: 0
+Total Retry Attempts: 3
+[OK] Passed: 3 | [KO] Failed: 0 | [!] Warnings: 0 | [!!] Errors: 0 | [TO] Timeouts: 0
+
+[AF] Autofix Summary:
+* Checks with autofixes: 0
+* Checks resolved by autofix: 0
+
+Output bundle to ./opcp-diagnostic-controller-20261028T151816Z (id: 010cb15c-312a-4862-a2dd-06dc3a9a8f94)
+```
+
+| Marker | Result | Meaning |
+|--------|--------|---------|
+| `[OK]` | `SUCCESS` | The check passed. |
+| `[!]` | `WARNING` | The check found a point that needs your attention. |
+| `[KO]` | `MINOR`, `MODERATE` or `CRITICAL` | The check failed. The label gives the severity of the failure. |
+| `[!!]` | `ERROR` | The check could not run properly (for example, a service could not be reached). |
+| `[TO]` | `TIMEOUT` | The check did not finish before the timeout. |
+
+Read the summary to know the result of the diagnosis: the command ends with the exit code `0` even when it detects problems.
+
+For use in scripts, add the `--headless` option. `opcp-diag` then displays nothing and generates no bundle, and its exit code is not `0` if a problem is detected:
+
+```bash
+sudo opcp-diag run --headless
+```
+
+The last line gives the path of the **diagnostic bundle**, created by default in the current directory. It contains the summary of the run (`summary.txt`), its metadata (`metadata.yaml`), the configuration applied (`used-config.yaml`) and one directory per area with the logs and dumps collected.
+
+### 2. Select the suites and checks to run
+
+To list the suites and checks available on your controller, with their description:
+
+```bash
+opcp-diag list --suites
+opcp-diag list --checks
+```
+
+Then pass their names, separated by commas, to restrict or exclude suites and checks:
+
+```bash
+sudo opcp-diag run --suites <suite1>,<suite2>
+sudo opcp-diag run --exclude-checks <check1>,<check2>
+```
+
+The `--exclude-suites` and `--checks` options work the same way. Use the names exactly as `opcp-diag list` displays them.
+
+### 3. Apply automatic fixes
+
+To list the checks that provide an automatic fix, with a description of what each fix does:
+
+```bash
+opcp-diag list --autofixes
+```
+
+Enable the automatic fixes of specific checks with `--fix`, or all of them with `--fix all`:
+
+```bash
+sudo opcp-diag run --fix <check1>,<check2>
+sudo opcp-diag run --fix all
+```
+
+:::warning
+Automatic fixes modify the state of your platform. Run a diagnosis without automatic fixes first, review the results, then enable only the fixes you need.
+:::
+
+### 4. Other options
+
+`opcp-diag run` provides other options, for example to change the bundle location (`--bundle-path`), filter the results displayed (`--filter-results`) or adjust the timeout of the suites (`--timeout`). Run `opcp-diag run --help` for the full list.
+
+These options can also be set in a YAML configuration file, read by default from `/opt/opcp/.opcp-diag.yaml` or from the path given with `--config`. The `used-config.yaml` file of a bundle is a good starting point to write your own.
+
+### 5. Send the diagnostic bundle to OVHcloud support
+
+The diagnostic bundle can contain sensitive information about your platform: environment variables, running processes, pod logs, lists of Keycloak users and roles, lists of OpenStack resources and secrets, system files, etc.
+
+Before you share it:
+
+1. Review its content. If needed, run the diagnosis again with `--exclude-checks` to leave out the data you do not want to share.
+2. Compress the bundle:
+
+   ```bash
+   tar czf opcp-diagnostic.tar.gz opcp-diagnostic-controller-20261028T151816Z/
+   ```
+
+3. Import the GPG public key provided by OVHcloud support, then check its fingerprint with your OVHcloud contact through a separate channel:
+
+   ```bash
+   gpg --import ovhcloud-support.asc
+   gpg --fingerprint
+   ```
+
+4. Encrypt the archive for this key:
+
+   ```bash
+   gpg --output opcp-diagnostic.tar.gz.gpg --encrypt --recipient <key-fingerprint> opcp-diagnostic.tar.gz
+   ```
+
+   As the key is not signed in your keyring, `gpg` asks you to confirm that you want to use it: answer `y`, once you have checked its fingerprint in the previous step.
+
+5. Send the encrypted file `opcp-diagnostic.tar.gz.gpg` to OVHcloud support, attached to your support request. On a disconnected (air-gapped) platform, move the encrypted file out of the platform according to your security procedures.
+
+:::warning
+Never send an unencrypted diagnostic bundle by email or over an unsecured channel.
+:::
+
+## Go further
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).
