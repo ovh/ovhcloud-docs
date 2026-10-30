@@ -2557,7 +2557,7 @@
             + [Time2Chat, la messagerie conversationnelle par SMS pour les entreprises](web-cloud/messaging/sms/time-2-chat)
         + [Configuration](web-cloud-messaging-sms-configuration)
             + [Sending SMS messages](web-cloud-messaging-sms-configuration-sending-sms-messages)
-                + [Sending SMS messages via the OVHcloud Control Panel](web-cloud/messaging/sms/send-sms-control-panel)
+                + [Sending SMS messages via the OVHcloud Console](web-cloud/messaging/sms/send-sms-control-panel)
                 + [Sending SMS messages via an email address](web-cloud/messaging/sms/send-sms-email)
                 + [Sending SMS messages with the OVHcloud API in PHP](web-cloud/messaging/sms/send-sms-api-php)
                 + [Sending SMS messages with the OVHcloud API in Node.js](web-cloud/messaging/sms/send-sms-api-nodejs)
