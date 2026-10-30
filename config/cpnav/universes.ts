@@ -13,6 +13,9 @@ export const CPNAV_UNIVERSES: Record<
 > = {
   'web-cloud': { en: 'Web Cloud' },
   'hosted-private-cloud': { en: 'Hosted Private Cloud' },
+  // The Console's (v8) top bar names the same universe Private Cloud. Only for products
+  // that exist only in the Console, until the keys are repointed at its GA.
+  'private-cloud': { en: 'Private Cloud' },
   'bare-metal-cloud': { en: 'Bare Metal Cloud' },
   'public-cloud': { en: 'Public Cloud' },
   // Manager i18n `sidebar_network`: English everywhere except Polish.
