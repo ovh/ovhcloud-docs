@@ -1,0 +1,221 @@
+---
+title: Afinar a proteção DDoS com a definição de perfis
+description: Aplique um perfil de tráfego de rede e um nível de sensibilidade aos seus endereços IP para afinar a proteção DDoS VAC dos seus serviços
+lastUpdated: 2026-11-02
+---
+
+:::warning
+A funcionalidade de definição de perfis está em fase **beta**. As funcionalidades, os nomes dos perfis e os limites ainda podem sofrer ligeiras alterações até à disponibilidade geral.
+
+:::
+
+## Objetivo
+
+A proteção DDoS VAC cobre, por predefinição, todos os serviços OVHcloud, sem configuração nem custos adicionais. O VAC é um dos principais elementos da [infraestrutura Anti-DDoS](/links/security/antiddos) da OVHcloud: uma combinação de tecnologias, desenvolvidas continuamente pela OVHcloud, que filtra o tráfego de entrada para que apenas os pacotes legítimos cheguem ao seu servidor. A deteção baseia-se na forma do tráfego: taxa de pacotes, renovação das ligações, aumentos súbitos de volume ou assinaturas de tráfego conhecidas.
+
+Esta deteção genérica é adequada para a maioria das aplicações protegidas, mas ainda pode interpretar mal determinadas cargas de trabalho mais específicas, ainda que legítimas: um túnel WireGuard muito solicitado assemelha-se a um flood UDP, e o afluxo de espectadores durante um evento em direto assemelha-se a um ataque volumétrico.
+
+A funcionalidade de definição de perfis permite-lhe descrever com precisão este tipo de serviço, em vez de contornar a proteção. Escolha um perfil no catálogo, selecione um nível de sensibilidade e associe os seus serviços. Uma única alteração de uma política reajusta todos os endereços que lhe estão associados. Se a sua carga de trabalho evoluir, mude de perfil ou ajuste a sensibilidade.
+
+**Este guia explica como:**
+
+- reconhecer os casos em que a sua aplicação precisa de um perfil.
+- ativar a definição de perfis na sua conta e criar uma política.
+- aplicar uma política aos seus endereços IP e compreender o respetivo estado.
+- ajustar, desativar ou eliminar uma política, e medir o seu efeito.
+
+## Requisitos
+
+- Dispor de, pelo menos, um serviço OVHcloud com um endereço IPv4 público.
+- Estar ligado à <ManagerLink to="/beta/#/customer/security/anti-ddos">consola OVHcloud</ManagerLink>.
+
+## Instruções
+
+**Índice:**
+
+- [Porque é que a proteção pode precisar de ser afinada](#why)
+- [Funcionamento da definição de perfis](#concepts)
+- [Etapa 1 — Ativar a definição de perfis](#activate)
+- [Etapa 2 — Criar uma política](#create)
+- [Etapa 3 — Adicionar os seus endereços IP](#targets)
+- [Ler os estados](#statuses)
+- [Gerir as suas políticas](#manage)
+- [Medir o efeito de uma política](#monitoring)
+- [Limites](#limitations)
+- [Diagnóstico](#troubleshooting)
+
+### Porque é que a proteção pode precisar de ser afinada <a name="why"></a>
+
+Duas situações principais podem levá-lo a ajustar as definições predefinidas:
+
+| | O que acontece | O que constata |
+|---|---|---|
+| **Falso positivo** | O tráfego legítimo é confundido com um ataque e acaba por ser mitigado. | Sessões interrompidas, túneis cortados, utilizadores desligados durante um pico de tráfego, quando não está a ocorrer nenhum ataque. |
+| **Falso negativo** | O tráfego de ataque fica abaixo dos limiares genéricos de deteção. | Serviço degradado durante um ataque que nunca foi completamente mitigado. |
+
+Os falsos positivos são os mais frequentes, e algumas utilizações concentram a maior parte deles: os túneis VPN, cuja taxa de pacotes UDP é elevada; os nós Blockchain/Solana, que utilizam amplos intervalos de portas com uma renovação constante dos pares; a transmissão de vídeo e a voz, expostas a aumentos de audiência bruscos, mas legítimos; os serviços web durante um lançamento ou uma operação comercial.
+
+Crie uma política se se encontrar numa destas situações:
+
+- Há tráfego legítimo a ser mitigado e já está a contornar o problema, ao mudar a VPN para o modo TCP, ao reduzir o MTU ou ao abrir um ticket após cada incidente.
+- Está a preparar um pico de tráfego previsto, por exemplo um evento em direto ou o lançamento de um produto.
+- Gere uma aplicação cujo tráfego é estruturalmente atípico e prefere declará-lo antecipadamente, em vez de esperar pelo primeiro falso positivo.
+- Um ataque foi efetivamente mitigado, mas de forma incompleta, e pretende que a deteção reaja mais cedo.
+
+Se nenhuma destas situações corresponder à sua, não é necessária qualquer alteração: os seus serviços continuam protegidos por predefinição.
+
+### Funcionamento da definição de perfis <a name="concepts"></a>
+
+Pode criar **políticas**. Uma política associa um perfil de tráfego de rede a um nível de sensibilidade e aplica-se aos endereços IPv4 públicos ou aos blocos que lhe adicionar.
+
+#### Os perfis de tráfego de rede
+
+A OVHcloud concebe e mantém os perfis de tráfego de rede: ao criar uma política, escolha aquele que melhor corresponde à sua carga de trabalho.
+
+| Perfil de tráfego de rede | A utilizar para |
+|---|---|
+| VPN - WireGuard | Os servidores VPN WireGuard. |
+| VPN - OpenVPN | Os servidores OpenVPN que funcionam em UDP, com TCP como solução alternativa. |
+| Game Server - Generic | Os servidores de jogos que utilizam TCP e UDP. Mais permissivo do que os perfis de jogo apenas UDP e apenas TCP, preserva todas as funcionalidades do jogo durante um ataque, como as transferências em TCP a partir de um servidor cujo tráfego de jogo passa, de resto, por UDP. |
+| Game Server - Generic UDP | Os serviços de jogos baseados em UDP. Também é adequado para o tráfego TeamSpeak. |
+| Game Server - Generic TCP | Os protocolos de jogos baseados em TCP. |
+| VoIP - TeamSpeak | Os servidores TeamSpeak. Também protege a maioria dos serviços de jogos baseados em UDP. |
+| WebServer - Generic | Os servidores web que recebem apenas tráfego HTTP e HTTPS nas portas TCP 80 e 443. |
+| Generic - Proxied TCP | Os servidores back-end cujo front-end está alojado fora da OVHcloud, por exemplo num fornecedor de CDN externo. Os hosts que abrem legitimamente numerosas ligações para o back-end correm muito menos risco de ser identificados como atacantes. |
+| Blockchain - Solana | Os nós Solana, cujo tráfego legítimo pode ser muito volumoso. |
+| DNS - Server | Os servidores DNS. Este perfil baseia-se nos padrões de tráfego próprios do DNS para bloquear o máximo de tráfego de ataque, com um impacto mínimo nos pedidos legítimos. |
+| Default | Um perfil genérico que propõe vários níveis de sensibilidade. Utilize-o quando nenhum outro perfil corresponder à sua carga de trabalho. |
+
+:::warning
+Nos servidores Bare Metal Game, recomendamos que não utilize a definição de perfis, em particular os perfis Game Server (Generic, Generic UDP e Generic TCP), nos endereços IP protegidos por uma regra **Minecraft Java** da [proteção Anti-DDoS Game](/guides/bare-metal-cloud/dedicated-servers/firewall-game-ddos). Isso poderia afetar a qualidade da proteção global.
+
+:::
+
+#### Tirar o máximo partido de um perfil
+
+Para obter os melhores resultados com alguns perfis:
+
+- **VPN - WireGuard:** utilize a porta predefinida do WireGuard, UDP 51820. Desta forma, evita perder tráfego legítimo durante um ataque.
+- **VPN - OpenVPN:** utilize as portas predefinidas do OpenVPN, UDP 1194 e TCP 443. Se não precisar da solução alternativa em TCP, bloqueie esse tráfego com o [Edge Network Firewall](/guides/bare-metal-cloud/dedicated-servers/firewall-network).
+- **WebServer - Generic:** não o utilize se o servidor também receber tráfego UDP. O QUIC (HTTP/3) ainda não é suportado: o tráfego QUIC é rejeitado durante um ataque.
+- **Generic - Proxied TCP:** escolha este perfil em vez do WebServer - Generic quando um CDN externo ou um reverse proxy alojado fora da OVHcloud se encontrar à frente de um servidor web alojado na OVHcloud. O servidor de origem recebe então numerosas ligações a partir de um pequeno número de endereços de periferia do CDN: este perfil conta com este padrão e não identifica esses endereços como atacantes.
+- **Blockchain - Solana:** durante um ataque, a mitigação evita afetar o tráfego Solana legítimo. Em contrapartida, ataques muito direcionados podem deixar passar mais tráfego malicioso para o servidor.
+
+#### A sensibilidade
+
+A sensibilidade posiciona a política entre dois riscos: mitigar demasiado ou não mitigar o suficiente. Os níveis disponíveis dependem do perfil.
+
+| Sensibilidade | Efeito | A escolher quando |
+|---|---|---|
+| `Low` | Menos falsos positivos: a mais tolerante aos picos legítimos. | A disponibilidade durante os picos é mais importante do que a profundidade da filtragem. |
+| `Medium` | Deteção equilibrada. O ponto de partida recomendado. | Está a aplicar um perfil pela primeira vez. |
+| `High` | Menos falsos negativos: a filtragem mais agressiva. | Há ataques que conseguem passar. |
+
+#### Uma única política por endereço IP
+
+Um endereço IP está abrangido por uma única política. Se um bloco estiver associado a uma política e um endereço desse bloco a outra, prevalece a entrada mais específica. Por exemplo, se `203.0.113.0/24` estiver associado a uma política WebServer - Generic e `203.0.113.10` a uma política VPN - WireGuard, então `203.0.113.10` utiliza a política VPN - WireGuard e o resto do bloco a política WebServer - Generic.
+
+As definições de uma política são mantidas para um Additional IP quando este passa de um dos seus serviços para outro. Só são repostas se o endereço mudar de proprietário ou se o respetivo serviço for rescindido.
+
+### Etapa 1 — Ativar a definição de perfis <a name="activate"></a>
+
+A ativação só é necessária uma vez por conta.
+
+1. Inicie sessão na <ManagerLink to="/beta/#/customer/security/anti-ddos">consola OVHcloud</ManagerLink>.
+2. Durante a fase beta, clique em <code className="action">Descobrir a consola &gt;BETA_</code> no canto superior direito.
+3. No menu lateral, aceda a <code className="action">Segurança</code> > <code className="action">Anti-DDoS</code> e abra o separador <code className="action">Profiling</code>.
+4. Clique em <code className="action">Activate profiling</code>.
+
+    Siga as instruções apresentadas, se for o caso, para concluir a ativação. Não é cobrado qualquer montante.
+
+Uma vez concluída a ativação, o separador <code className="action">Profiling</code> apresenta as políticas que definiu. A ativação não altera as definições de proteção de nenhum endereço IP enquanto não o adicionar a uma política.
+
+### Etapa 2 — Criar uma política <a name="create"></a>
+
+1. No separador <code className="action">Profiling</code>, clique em <code className="action">Create a policy</code>.
+2. No campo `Name`, introduza um nome que identifique a carga de trabalho, por exemplo `vpn-concentrators`.
+3. Na lista `Network traffic profile`, selecione o perfil correspondente à sua carga de trabalho. A respetiva descrição é apresentada por baixo da lista.
+4. Defina a `Sensitivity`. Comece por `Medium`, exceto se já souber em que sentido a proteção deve evoluir.
+5. Clique em <code className="action">Create policy</code>.
+
+Os endereços IP são adicionados depois de a política ser criada. Até lá, o seu estado é **Not configured**: ainda não se aplica a nenhum endereço.
+
+### Etapa 3 — Adicionar os seus endereços IP <a name="targets"></a>
+
+1. Na lista de políticas, clique no nome da política, ou no botão <code className="action">...</code> no fim da linha e, em seguida, em <code className="action">Edit</code>.
+2. Na secção `Targets` do painel `Edit policy`, clique no campo `Add an IP…`. A lista apresenta os blocos IP e os endereços IP individuais disponíveis na sua conta. Introduza o início de um endereço para filtrar a lista.
+3. Selecione um endereço ou um bloco inteiro. Se os seus servidores ocuparem um bloco contíguo, adicione o bloco em vez de cada endereço.
+4. Depois de selecionar um bloco IP, pode modificar a seleção no campo de introdução. Em vez do bloco inteiro, pode assim introduzir uma das suas sub-redes ou um único endereço desse bloco.
+5. Repita a operação para cada endereço ou bloco e clique em <code className="action">Save changes</code>. É apresentada uma mensagem de confirmação.
+
+A proteção DDoS VAC deste endereço passa então a seguir o perfil e a sensibilidade da política, e não as definições genéricas. A alteração é aplicada em segundo plano: o endereço é marcado como **Pending** até a alteração ser aplicada e, depois, esse distintivo desaparece.
+
+Se um endereço que adicionar já tiver definições Anti-DDoS antigas que não provêm de uma política, como definições personalizadas aplicadas pelas equipas de suporte da OVHcloud, é apresentada uma janela `Legacy Anti-DDoS settings detected` ao guardar. Para aplicar a política mesmo assim, marque a caixa <code className="action">I understand</code> e clique em <code className="action">Overwrite and save</code>. Desta forma, recupera o controlo sobre as definições de proteção do endereço e pode modificá-las com as opções mais recentes de definição de perfis.
+
+:::warning
+A substituição das definições antigas é irreversível: estas não poderão ser restauradas. Se desativar posteriormente a política, o endereço volta à proteção DDoS VAC predefinida, e não às suas definições anteriores.
+
+:::
+
+### Ler os estados <a name="statuses"></a>
+
+A lista de políticas indica, para cada uma, o respetivo perfil de tráfego de rede, a sensibilidade, o número de endereços IP, a data do último ataque detetado e o estado. Pode filtrá-la por perfil, por sensibilidade e por estado.
+
+| Localização | Estado | Significado |
+|---|---|---|
+| Lista de políticas | **Active** | Ativada, com pelo menos um endereço IP. A proteção está ajustada. |
+| Lista de políticas | **Not configured** | Ativada, mas sem endereço IP. Adicione um alvo. |
+| Lista de políticas | **Disabled** | Desativada. A proteção DDoS VAC predefinida aplica-se aos seus endereços, que continuam associados. |
+| Lista de políticas | Ícone de aviso junto a `Number of IPs` | Alguns endereços da política ainda estão a ser aplicados ou retirados (**Pending** ou **Deleting**). |
+| Secção `Targets` | Nenhum distintivo | O endereço está protegido pela política. |
+| Secção `Targets` | **Pending** | O endereço está a ser sincronizado com o sistema de definição de perfis. Isto pode demorar alguns minutos. |
+| Secção `Targets` | **Deleting** | O endereço está a ser retirado da política. |
+
+### Gerir as suas políticas <a name="manage"></a>
+
+Cada política dispõe de um botão de ações (<code className="action">...</code>) no fim da respetiva linha na lista de políticas, com as seguintes opções:
+
+| Ação | Procedimento | Efeito |
+|---|---|---|
+| Modificar o perfil ou a sensibilidade | <code className="action">Edit</code> e, em seguida, modifique `Network traffic profile` ou `Sensitivity` e clique em <code className="action">Save changes</code>. | Aplica-se de uma só vez a todos os endereços da política. Altere a sensibilidade um nível de cada vez e observe o resultado antes de avançar. |
+| Desativar a política | <code className="action">Disable</code> e, em seguida, confirme. | Os endereços voltam à proteção DDoS VAC predefinida. Continuam associados e a política pode ser reativada a qualquer momento. Útil para confirmar ou excluir o papel do perfil durante um diagnóstico, em vez de eliminar a política. |
+| Reativar a política | <code className="action">Enable</code> numa política desativada. | O perfil volta a aplicar-se aos endereços associados. |
+| Mover um endereço | <code className="action">Edit</code>, retire o endereço da secção `Targets` de uma política e guarde; depois, adicione-o a outra. | Um endereço só está abrangido por uma única política. |
+| Eliminar a política | <code className="action">Delete</code> e, em seguida, confirme. | Elimina a política e todos os seus alvos. Os respetivos endereços voltam à proteção predefinida. Esta ação é irreversível. |
+
+### Medir o efeito de uma política <a name="monitoring"></a>
+
+Uma política modifica o tráfego que é mitigado: para a avaliar, compare a atividade de mitigação antes e depois da sua aplicação.
+
+Na consola OVHcloud (durante a fase beta, abra-a através do botão <code className="action">Descobrir a consola &gt;BETA_</code> no canto superior direito), aceda a <code className="action">Segurança</code> > <code className="action">Anti-DDoS</code>. O separador <code className="action">Dashboard</code> lista os ataques detetados nos seus endereços e o separador <code className="action">Trafego</code> apresenta o tráfego legítimo do endereço que selecionar, bem como o tráfego filtrado durante os ataques mitigados. Uma política eficaz filtra menos tráfego durante os picos legítimos, e não menos durante os verdadeiros ataques. Para saber mais sobre os ataques detetados nos seus serviços, consulte o guia "[Monitorizar os ataques DDoS com o painel Anti-DDoS](/guides/bare-metal-cloud/dedicated-servers/network-security-dashboard)".
+
+Se um perfil não se comportar como previsto, comunique-o através da ligação <code className="action">Do you like it?</code> no topo da página Profiling. Durante a fase beta, estes comentários permitem melhorar o catálogo.
+
+### Limites <a name="limitations"></a>
+
+| Limite | Detalhes |
+|---|---|
+| Políticas | 20 por conta. |
+| Região administrativa (início da fase beta) | Uma política só pode proteger endereços IP situados na mesma região administrativa que o seu serviço de proteção DDoS VAC: **Europa** ou **Canadá & APAC**. A adição de um prefixo pertencente à outra região ainda não é suportada. |
+| Tipos de alvos | Apenas endereços IPv4 e blocos IPv4. O suporte de IPv6 será adicionado posteriormente. |
+| Public Cloud | Os Floating IP, incluindo os utilizados pelo Managed Kubernetes Service, podem ser adicionados um a um. Uma política ainda não pode visar um recurso de projeto Public Cloud inteiro. |
+
+### Diagnóstico <a name="troubleshooting"></a>
+
+| Problema | Causa possível | Solução |
+|---|---|---|
+| O tráfego legítimo continua a ser rejeitado | A sensibilidade é demasiado elevada ou o perfil não corresponde à carga de trabalho. | Baixe a sensibilidade um nível e observe o resultado. Se o problema persistir em `Low`, provavelmente o perfil não é o adequado: experimente outro e comunique-o através da ligação de comentários. |
+| Um ataque não foi completamente mitigado | A sensibilidade é demasiado baixa. | Aumente a sensibilidade um nível e compare o tráfego filtrado antes e depois. |
+| Um endereço permanece em **Pending** ou **Deleting** | A alteração ainda não foi aplicada. | Aguarde alguns minutos e atualize a página. Se o estado não mudar, [contacte o suporte](/links/support) indicando o nome da política e o endereço. |
+| A adição de um IP devolve um erro como `Prefix 192.0.2.0/24 is in region EU. Your VAC service is in region CA and can only protect CA prefixes for now.` | No início da fase beta, o seu serviço só pode proteger prefixos da sua própria região administrativa (Europa ou Canadá & APAC). | Adicione um endereço IP pertencente à mesma região que o seu serviço. Este limite será levantado durante a fase beta. |
+| O tráfego é rejeitado embora o endereço esteja abrangido por uma política adequada | Outra camada de proteção, como o Edge Network Firewall ou uma firewall aplicacional, pode estar a filtrá-lo. Uma política não prevalece sobre nenhuma delas. | Verifique as suas regras do [Edge Network Firewall](/guides/bare-metal-cloud/dedicated-servers/firewall-network) ou a filtragem aplicacional própria do seu serviço. |
+
+Se um perfil estiver aplicado e o problema persistir, uma captura de tráfego (pcap) dos fluxos em causa ajudará o suporte a analisá-lo.
+
+## Quer saber mais?
+
+[Monitorizar os ataques DDoS com o painel Anti-DDoS](/guides/bare-metal-cloud/dedicated-servers/network-security-dashboard)
+
+[Ativar e configurar o Edge Network Firewall](/guides/bare-metal-cloud/dedicated-servers/firewall-network)
+
+Fale com a nossa [comunidade de utilizadores](/links/community).
