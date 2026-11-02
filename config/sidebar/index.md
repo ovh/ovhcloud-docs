@@ -981,6 +981,8 @@
                 + [Changing the DNS servers of Public Cloud instances](public-cloud/network-services/change-instance-dns-servers)
             + [Load Balancer](public-cloud-network-getting-started-load-balancer)
                 + [Getting started with Load Balancer on Public Cloud](public-cloud/network-services/getting-started-load-balancer)
+            + [Private Endpoint](public-cloud-network-getting-started-private-endpoint)
+                + [Object Storage - Getting started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
             + [Public IPs](public-cloud-network-getting-started-public-ips)
                 + [Attaching a Floating IP to a Public Cloud instance](public-cloud/network-services/attach-floating-ip-to-instance)
             + [Gateway](public-cloud-network-getting-started-gateway)
