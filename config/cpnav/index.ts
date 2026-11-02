@@ -24,6 +24,7 @@ import { iamPolicies } from './keys/iam-policies';
 import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
+import { networkCdn } from './keys/network-cdn';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
@@ -170,6 +171,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-public-ip': networkPublicIp,
   'network-load-balancer': networkLoadBalancer,
   'network-security-dashboard': networkSecurityDashboard,
+  'network-cdn': networkCdn,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
   'telecom-sms': telecomSms,
