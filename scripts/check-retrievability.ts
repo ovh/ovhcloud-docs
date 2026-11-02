@@ -26,6 +26,9 @@
  *      `<head>` — proves agents can discover the clean `.md` before the payload
  *      is truncated by size.
  *   5. Root `/llms.txt` and each sampled locale's `/<locale>/llms.txt` exist.
+ *      On a combined build (scripts/lib/llms/), each locale directory links
+ *      to per-product indexes that exist on disk, and lists no `internal/`
+ *      page.
  *
  * Exit code 0 = all assertions pass. Non-zero = at least one failed (CI red).
  *
@@ -45,6 +48,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { CALLOUT_LABELS } from './lib/llms/clean-md';
+import { hasZoneParenthetical, toDefaultZone } from './lib/llms/default-zone';
 
 const LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'];
 const DIST_DIR = path.resolve(process.argv[2] ?? 'dist');
@@ -57,6 +62,20 @@ const SAMPLE_PER_LOCALE = Number(process.env.SAMPLE_PER_LOCALE ?? '8');
 // leaves headroom for <head> growth, topbar and breadcrumbs, while still
 // failing hard if the ~1.2MB nav ever precedes content again.
 const BODY_BYTE_BUDGET = Number(process.env.BODY_BYTE_BUDGET ?? '102400'); // 100 KB
+
+// Prefixes the `.md` export puts before text the HTML renders on its own
+// (scripts/lib/llms/clean-md.ts): a callout's label, `**Note:** …` (` :` in
+// French, `**Note – Title:**` with a title), and a card's link,
+// `- [Title](url): description` (components/LlmsMarkdown/MdLinkItem.tsx).
+// The text after the prefix is the probe candidate.
+const CALLOUT_LABEL = new RegExp(
+  `^\\*\\*(?:${[
+    ...new Set(Object.values(CALLOUT_LABELS).flatMap((l) => Object.values(l))),
+  ].join('|')})(?: – [^*]+)? ?:\\*\\* `,
+);
+const CARD_LINK = /^- \[[^\]\n]*\]\([^)\s]*\): /;
+const probeText = (line: string) =>
+  line.replace(CALLOUT_LABEL, '').replace(CARD_LINK, '');
 
 type Failure = { where: string; msg: string };
 const failures: Failure[] = [];
@@ -104,8 +123,10 @@ function canonical(s: string): string {
       // Strip HTML/MDX tags. In .md source these appear as literal text
       // (e.g. inline `<code className="action">Browse</code>`); in rendered
       // HTML they are real elements. Dropping them on BOTH sides leaves just
-      // the inner text, which matches.
-      .replace(/<[^>]+>/g, ' ')
+      // the inner text, which matches. A tag opens on a letter, `/` or `!`
+      // and holds no `<`: a stray `<` in the text (`\<-`, `a < b`) must not
+      // swallow everything up to the next `>`.
+      .replace(/<[/!A-Za-z][^<>]*>/g, ' ')
       // Decode the entities Rspress emits in body text.
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
@@ -118,7 +139,13 @@ function canonical(s: string): string {
       // quotes/hyphens as authored; the rendered HTML sometimes carries curly
       // quotes (’ “ ”) and en/em dashes. Fold both sides to one form.
       .replace(/[‘’ʼ]/g, "'") // ‘ ’ ʼ → '
-      .replace(/[“”]/g, '"') // “ ” → "
+      // Double quotes of every locale dropped: the .md export quotes UI labels
+      // (`„Dodaj”`, `« Modifier »`, see scripts/lib/llms/clean-md.ts) that the
+      // HTML renders unquoted, as `<code class="action">` or a link.
+      .replace(/["“”„«»]/g, '')
+      // Commas dropped too: a product card's specs are `, `-joined in the .md
+      // (MdLinkItem) and separate elements in the HTML.
+      .replace(/,/g, ' ')
       .replace(/[–—]/g, '-') // – — → -
       .replace(/ /g, ' ') // NBSP → space
       // Strip inline markdown markup.
@@ -165,7 +192,8 @@ function htmlToText(html: string): string {
  * HTML is the real regression we test for.
  */
 function pickBodyProbes(mdPath: string, max = 5): string[] {
-  const raw = fs.readFileSync(mdPath, 'utf-8');
+  // The default zone's view: the one the server-rendered HTML holds.
+  const raw = toDefaultZone(fs.readFileSync(mdPath, 'utf-8'));
   // Strip leading frontmatter block if present.
   const body = raw.startsWith('---\n')
     ? raw.slice(raw.indexOf('\n---', 4) + 4)
@@ -176,7 +204,7 @@ function pickBodyProbes(mdPath: string, max = 5): string[] {
   let inFence = false;
   const candidates: string[] = [];
   for (const rawLine of body.split('\n')) {
-    const l = rawLine.trim();
+    const l = probeText(rawLine.trim());
     if (l.startsWith('```')) {
       inFence = !inFence;
       continue;
@@ -202,6 +230,7 @@ function pickBodyProbes(mdPath: string, max = 5): string[] {
       !/^\**\\?\*/.test(l) && // footnote markers: `\*`, `**\***: …`
       !l.startsWith(':::') &&
       !l.includes('](') && // skip markdown links (URLs get re-encoded in HTML)
+      !hasZoneParenthetical(l) && // a zone parenthetical toDefaultZone() could not parse
       !/^\s*\d+\.\s/.test(l)
     ) {
       candidates.push(l);
@@ -282,7 +311,7 @@ function checkGuide(htmlPath: string): void {
   // legitimately doesn't line-match the HTML; a prose probe is the wrong shape
   // for them. They still got the body-first + head-hint checks above.
   if (html.includes('rp-doc-layout__doc-container')) {
-    const md = fs.readFileSync(mdPath, 'utf-8');
+    const md = toDefaultZone(fs.readFileSync(mdPath, 'utf-8'));
     const mdText = canonical(md);
     const htmlText = htmlToText(html);
 
@@ -336,17 +365,25 @@ if (!fs.existsSync(DIST_DIR)) {
   process.exit(1);
 }
 
+// Content roots to check: one per built locale (`dist/<locale>/`, served under
+// `/<locale>/`), or — for a single-locale region served at the domain root
+// (US) — `dist/` itself, with no URL prefix.
 const presentLocales = LOCALES.filter((l) =>
   fs.existsSync(path.join(DIST_DIR, l, 'guides')),
 );
+const rootBuild =
+  presentLocales.length === 0 && fs.existsSync(path.join(DIST_DIR, 'guides'));
+const roots: { name: string; prefix: string }[] = rootBuild
+  ? [{ name: '(root)', prefix: '' }]
+  : presentLocales.map((l) => ({ name: l, prefix: `/${l}` }));
 
-if (presentLocales.length === 0) {
+if (roots.length === 0) {
   console.error(`❌ No locale guide trees found under ${DIST_DIR}`);
   process.exit(1);
 }
 
 console.log(
-  `🔎 Retrievability smoke test → ${DIST_DIR}\n   locales: ${presentLocales.join(', ')} · sample: ${SAMPLE_PER_LOCALE}/locale\n`,
+  `🔎 Retrievability smoke test → ${DIST_DIR}\n   locales: ${roots.map((r) => r.name).join(', ')} · sample: ${SAMPLE_PER_LOCALE}/locale\n`,
 );
 
 // 4. Root llms.txt — only meaningful once locales are combined (build:combine).
@@ -358,14 +395,39 @@ if (presentLocales.length > 1 && !fs.existsSync(rootLlms)) {
   fail('llms.txt', 'root /llms.txt missing from combined build');
 }
 
-for (const locale of presentLocales) {
+for (const { name, prefix } of roots) {
+  const rootDir = path.join(DIST_DIR, prefix);
   // Per-locale llms.txt (emitted by Rspress `llms: true`).
-  const localeLlms = path.join(DIST_DIR, locale, 'llms.txt');
+  const localeLlms = path.join(rootDir, 'llms.txt');
+  // Combined build (scripts/lib/llms/ ran): a root /llms.txt for a
+  // multi-locale build, the per-product dir for a root build.
+  const combined = rootBuild
+    ? fs.existsSync(path.join(DIST_DIR, 'llms'))
+    : fs.existsSync(rootLlms);
   if (!fs.existsSync(localeLlms)) {
-    fail(`${locale}/llms.txt`, `per-locale /${locale}/llms.txt missing`);
+    fail(`${name}/llms.txt`, `per-locale ${prefix}/llms.txt missing`);
+  } else if (combined) {
+    // Combined build: the directory must fan out to per-product indexes.
+    const directory = fs.readFileSync(localeLlms, 'utf-8');
+    const productLinks = [
+      ...directory.matchAll(/\((?:https?:\/\/[^/)]+)?(\/[^)]+\/llms\.txt)\)/g),
+    ]
+      .map((m) => m[1])
+      .filter((href) => href.startsWith(`${prefix}/llms/`));
+    if (productLinks.length === 0) {
+      fail(`${name}/llms.txt`, 'no per-product llms.txt link');
+    }
+    for (const href of productLinks) {
+      const file = path.join(DIST_DIR, href);
+      if (!fs.existsSync(file)) {
+        fail(`${name}/llms.txt`, `links to missing ${href}`);
+      } else if (fs.readFileSync(file, 'utf-8').includes('/internal/')) {
+        fail(href, 'lists an internal/ page');
+      }
+    }
   }
 
-  const all = collectGuideHtml(path.join(DIST_DIR, locale, 'guides'));
+  const all = collectGuideHtml(path.join(rootDir, 'guides'));
   // Deterministic, spread-out sample: evenly stride across the sorted list so
   // we touch different products, not just the alphabetical head.
   all.sort();
@@ -382,7 +444,7 @@ for (const locale of presentLocales) {
 }
 
 console.log(
-  `   checked ${checkedGuides} guides across ${presentLocales.length} locale(s)\n`,
+  `   checked ${checkedGuides} guides across ${roots.length} locale(s)\n`,
 );
 
 if (failures.length > 0) {

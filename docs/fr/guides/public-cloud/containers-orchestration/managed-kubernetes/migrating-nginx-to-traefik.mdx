@@ -1,0 +1,414 @@
+---
+title: Migrer de NGINX Ingress Controller vers Traefik sur OVHcloud Managed Kubernetes
+description: Découvrez comment migrer de NGINX Ingress Controller vers Traefik sur votre cluster MKS OVHcloud sans interruption de service
+lastUpdated: 2026-10-02
+---
+
+## Objectif
+
+Le projet [Kubernetes NGINX Ingress Controller](https://github.com/kubernetes/ingress-nginx) a annoncé sa fin de vie en **mars 2026**. Ce guide aide les utilisateurs d'OVHcloud Managed Kubernetes Service (MKS) à migrer de NGINX Ingress Controller vers [Traefik](https://traefik.io/traefik/) sans interruption de service, en couvrant les spécificités OVHcloud.
+
+Traefik v3.6.2+ inclut un [provider Kubernetes Ingress NGINX](https://doc.traefik.io/traefik/migrate/nginx-to-traefik/) qui traduit automatiquement les annotations NGINX en configuration Traefik native. Vos manifestes Ingress existants avec `ingressClassName: nginx` fonctionnent immédiatement, sans modification.
+
+:::info
+Ce guide se concentre sur les **configurations spécifiques à OVHcloud**. Pour la procédure de migration complète, consultez le guide officiel [Traefik nginx-to-traefik](https://doc.traefik.io/traefik/migrate/nginx-to-traefik/).
+
+Pour une perspective plus large sur la transition d'Ingress vers Gateway API, lisez l'article de blog OVHcloud : [Moving beyond Ingress: Why should OVHcloud MKS users start looking at the Gateway API](https://blog.ovhcloud.com/en/posts/moving-beyond-ingress-why-should-ovhcloud-managed-kubernetes-service-mks-users-start-looking-at-the-gateway-api/).
+:::
+
+:::warning
+Ce guide concerne les clusters MKS utilisant Kubernetes en **version 1.31 ou supérieure**, qui utilisent le [Public Cloud Load Balancer](/links/public-cloud/load-balancer) (OpenStack Octavia) par défaut.
+:::
+
+## Avant de commencer
+
+Ce tutoriel suppose que vous remplissez déjà les conditions suivantes :
+
+- Disposer d'un cluster OVHcloud Managed Kubernetes Service fonctionnel (version >= 1.31)
+- Disposer du NGINX Ingress Controller déployé et en service
+- Disposer des outils CLI `kubectl` et `helm` installés avec les permissions d'administration du cluster
+- Disposer d'un accès DNS pour mettre à jour les enregistrements de vos services
+
+Nous recommandons de créer des sauvegardes avant de commencer :
+
+```bash
+# Exporter toutes les ressources Ingress
+kubectl get ingress --all-namespaces -o yaml > ingress-backup.yaml
+
+# Exporter les ConfigMaps NGINX
+kubectl get configmap --all-namespaces -l app.kubernetes.io/name=ingress-nginx -o yaml > nginx-configmaps.yaml
+```
+
+Vous devriez également être familiarisé avec :
+
+- [Exposer vos applications à l'aide du Load Balancer OVHcloud Public Cloud](/guides/public-cloud/containers-orchestration/managed-kubernetes/expose-applications-using-load-balancer)
+- [Récupérer l'adresse IP source derrière le LoadBalancer](/guides/public-cloud/containers-orchestration/managed-kubernetes/getting-source-ip-behind-loadbalancer)
+
+## Spécificités OVHcloud
+
+### Load Balancer (OpenStack Octavia)
+
+Sur les clusters MKS >= 1.31, le [Public Cloud Load Balancer](/links/public-cloud/load-balancer) (basé sur OpenStack Octavia) est le Load Balancer par défaut. Octavia opère au **niveau 4** (TCP/UDP), ce qui signifie que :
+
+- la **terminaison TLS** est gérée par Traefik, pas par le Load Balancer.
+- le **routage de niveau 7** (par hôte, par chemin) est géré par Traefik.
+- Octavia fournit la vérification de l'état (*health checking*), la gestion des Floating IP et la distribution du trafic.
+
+Vous pouvez optionnellement choisir la taille du Load Balancer avec l'annotation `loadbalancer.openstack.org/flavor-id` (MKS Standard uniquement ; MKS Free utilise `loadbalancer.ovhcloud.com/flavor`). Si non spécifiée, la taille par défaut est **small**. Pour lister les tailles (*flavors*) disponibles, installez et configurez la [CLI OVHcloud](https://github.com/ovh/ovhcloud-cli) et exécutez `ovhcloud cloud reference loadbalancer list-flavors <REGION>`. Pour plus de détails, consultez le guide « [Exposer vos applications à l'aide du Load Balancer OVHcloud Public Cloud](/guides/public-cloud/containers-orchestration/managed-kubernetes/expose-applications-using-load-balancer#annotations-et-fonctionnalités-prises-en-charge) ».
+
+### Proxy Protocol et préservation de l'IP source
+
+Pour préserver l'IP source du client derrière le Load Balancer, vous devez activer le **Proxy Protocol v2** entre Octavia et Traefik. Cela nécessite une configuration des deux côtés :
+
+**Côté Load Balancer** (annotation du Service) :
+
+```yaml
+annotations:
+  loadbalancer.openstack.org/proxy-protocol: "v2"
+```
+
+**Côté Traefik** (valeurs Helm), vous devez configurer Traefik pour accepter le Proxy Protocol et faire confiance aux adresses IP du Load Balancer :
+
+- **Clusters en réseau public** : utilisez les adresses IP de sortie (*egress*) de l'annotation du Load Balancer :
+
+```bash
+kubectl get svc ingress-nginx-controller -n ingress-nginx \
+  -o jsonpath="{.metadata.annotations.lb\.k8s\.ovh\.net/egress-ips}"
+```
+
+- **Clusters en réseau privé** : utilisez le CIDR de votre sous-réseau (par exemple `10.0.0.0/20`).
+
+Vous devez également définir `externalTrafficPolicy: Local` sur le Service Traefik pour empêcher le masquage de l'IP source via le SNAT inter-nœuds.
+
+### Considérations CNI
+
+| Plan MKS | CNI | Notes |
+|----------|-----|-------|
+| Free | Canal (Flannel + Calico) | NetworkPolicies Kubernetes standard |
+| Standard | Cilium (eBPF) | CiliumNetworkPolicy disponible, kube-proxy remplacé |
+
+Si vous avez des NetworkPolicies ciblant les pods NGINX Ingress (labels, ports), vous devez les mettre à jour pour correspondre aux labels Traefik (`app.kubernetes.io/name: traefik`) et à ses ports.
+
+## Étape 1 - Installer Traefik aux côtés de NGINX
+
+Ajoutez le dépôt Helm Traefik :
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+```
+
+Créez un fichier `traefik-values.yaml` adapté à OVHcloud MKS :
+
+### a. Clusters en réseau public
+
+```yaml
+providers:
+  kubernetesIngressNginx:
+    enabled: true
+
+service:
+  externalTrafficPolicy: Local
+  annotations:
+    loadbalancer.openstack.org/proxy-protocol: "v2"
+    loadbalancer.openstack.org/keep-floatingip: "true"
+
+ports:
+  web:
+    proxyProtocol:
+      trustedIPs:
+        - "aaa.aaa.aaa.aaa/32"  # Remplacez par vos IPs d'egress
+        - "bbb.bbb.bbb.bbb/32"
+  websecure:
+    proxyProtocol:
+      trustedIPs:
+        - "aaa.aaa.aaa.aaa/32"  # Remplacez par vos IPs d'egress
+        - "bbb.bbb.bbb.bbb/32"
+
+deployment:
+  replicas: 2
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: traefik
+        topologyKey: kubernetes.io/hostname
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+```
+
+### b. Clusters en réseau privé
+
+```yaml
+providers:
+  kubernetesIngressNginx:
+    enabled: true
+
+service:
+  externalTrafficPolicy: Local
+  annotations:
+    loadbalancer.openstack.org/proxy-protocol: "v2"
+    loadbalancer.openstack.org/keep-floatingip: "true"
+
+ports:
+  web:
+    proxyProtocol:
+      trustedIPs:
+        - "10.0.0.0/20"  # Remplacez par le CIDR de votre sous-réseau
+  websecure:
+    proxyProtocol:
+      trustedIPs:
+        - "10.0.0.0/20"  # Remplacez par le CIDR de votre sous-réseau
+
+deployment:
+  replicas: 2
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: traefik
+        topologyKey: kubernetes.io/hostname
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+```
+
+Installez Traefik :
+
+```bash
+helm upgrade --install traefik traefik/traefik \
+  --namespace traefik --create-namespace \
+  --values traefik-values.yaml
+```
+
+Vérifiez que les deux contrôleurs fonctionnent :
+
+```bash
+kubectl get pods -n ingress-nginx
+kubectl get pods -n traefik
+kubectl get svc -n ingress-nginx ingress-nginx-controller
+kubectl get svc -n traefik traefik
+```
+
+:::warning
+La configuration clé `providers.kubernetesIngressNginx.enabled: true` indique à Traefik de surveiller les ressources Ingress avec `ingressClassName: nginx` et de traduire automatiquement les annotations NGINX en configuration Traefik native. Cela nécessite Traefik **v3.6.2 ou supérieure**.
+:::
+
+## Étape 2 - Vérifier que Traefik gère le trafic
+
+Récupérez les adresses IP des LoadBalancers des deux contrôleurs :
+
+```bash
+NGINX_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+TRAEFIK_IP=$(kubectl get svc -n traefik traefik \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "NGINX IP: $NGINX_IP"
+echo "Traefik IP: $TRAEFIK_IP"
+```
+
+Testez votre application via les deux contrôleurs en utilisant `curl --connect-to` pour contourner le DNS :
+
+```bash
+FQDN=myapp.example.com
+
+# Test via NGINX
+curl --connect-to "${FQDN}:80:${NGINX_IP}:80" "http://${FQDN}"
+
+# Test via Traefik
+curl --connect-to "${FQDN}:80:${TRAEFIK_IP}:80" "http://${FQDN}"
+```
+
+Les deux commandes doivent renvoyer la même réponse. Vérifiez également que l'IP source est correctement préservée dans les en-têtes `X-Real-IP` ou `X-Forwarded-For`.
+
+Vérifiez les logs Traefik pour la découverte des Ingress :
+
+```bash
+kubectl logs -n traefik deployment/traefik | grep -i "ingress"
+```
+
+## Étape 3 - Basculer le trafic vers Traefik (par DNS)
+
+L'approche recommandée est une migration basée sur le DNS :
+
+1. **Ajoutez l'IP Traefik** à vos enregistrements DNS aux côtés de l'IP NGINX (round-robin).
+2. **Surveillez le trafic** sur les deux contrôleurs pour vous assurer que Traefik traite correctement les requêtes.
+3. **Retirez l'IP NGINX** de vos enregistrements DNS.
+4. **Attendez 24 à 48 heures** le temps que les caches DNS expirent avant de passer à l'étape suivante.
+
+:::warning
+Certains FAI ignorent les valeurs TTL du DNS, mettant en cache les enregistrements plus longtemps que spécifié. Gardez NGINX en fonctionnement pendant au moins 24 à 48 heures après l'avoir retiré du DNS pour éviter de perdre du trafic.
+:::
+
+Nous recommandons de réduire votre TTL DNS à 300 secondes (5 minutes) avant de commencer la migration. Pour des instructions détaillées sur le changement DNS, consultez « [Comment effectuer un changement DNS](/guides/public-cloud/containers-orchestration/managed-kubernetes/migrate-iolb-to-public-cloud-loadbalancer#dns-switch) ».
+
+## Étape 4 - Conserver la Floating IP du LoadBalancer (spécifique OVHcloud)
+
+Si vous souhaitez que Traefik utilise la même IP que NGINX (pour éviter les changements DNS), suivez cette procédure :
+
+1. Assurez-vous que l'annotation `keep-floatingip` est définie sur **les deux** services :
+
+```bash
+kubectl annotate svc -n ingress-nginx ingress-nginx-controller \
+  loadbalancer.openstack.org/keep-floatingip="true"
+kubectl annotate svc -n traefik traefik \
+  loadbalancer.openstack.org/keep-floatingip="true"
+```
+
+2. Assurez-vous que Traefik reçoit du trafic (via sa propre IP ou le round-robin DNS).
+
+3. Supprimez le service LoadBalancer de NGINX pour libérer la Floating IP :
+
+```bash
+kubectl delete svc -n ingress-nginx ingress-nginx-controller
+```
+
+4. Mettez à jour `traefik-values.yaml` pour récupérer la Floating IP libérée :
+
+```yaml
+service:
+  spec:
+    loadBalancerIP: "<floating-ip-nginx>"
+```
+
+5. Mettez à jour Traefik :
+
+```bash
+helm upgrade traefik traefik/traefik \
+  --namespace traefik \
+  --values traefik-values.yaml
+```
+
+6. Vérifiez que Traefik a récupéré l'IP :
+
+```bash
+kubectl get svc -n traefik traefik
+```
+
+## Étape 5 - Désinstaller NGINX Ingress Controller
+
+### Préserver l'IngressClass
+
+L'IngressClass `nginx` doit survivre à la désinstallation de NGINX pour que Traefik continue à découvrir vos ressources Ingress.
+
+Si NGINX a été installé via Helm, ajoutez l'annotation de préservation :
+
+```bash
+helm upgrade ingress-nginx ingress-nginx \
+  --repo https://kubernetes.github.io/ingress-nginx \
+  --namespace ingress-nginx \
+  --reuse-values \
+  --set-json 'controller.ingressClassResource.annotations={"helm.sh/resource-policy": "keep"}'
+```
+
+:::warning
+Le paramètre `--reuse-values` est critique : il préserve toute votre configuration NGINX existante lors de cette mise à jour d'annotation.
+:::
+
+### Supprimer les webhooks d'admission
+
+```bash
+kubectl delete validatingwebhookconfiguration ingress-nginx-admission
+kubectl delete mutatingwebhookconfiguration ingress-nginx-admission --ignore-not-found
+```
+
+### Désinstaller NGINX
+
+```bash
+helm uninstall ingress-nginx -n ingress-nginx
+```
+
+### Vérifier que l'IngressClass est préservée
+
+```bash
+kubectl get ingressclass nginx
+```
+
+L'IngressClass `nginx` doit toujours être présente.
+
+### Nettoyage
+
+```bash
+kubectl delete namespace ingress-nginx
+```
+
+## Prochaines étapes : Gateway API
+
+Bien que Traefik avec le provider NGINX Ingress soit une solution immédiate adaptée, nous recommandons à long terme de migrer vers la **Kubernetes Gateway API**. Traefik prend en charge nativement les ressources Gateway API (HTTPRoute, TLSRoute, GRPCRoute, TCPRoute).
+
+Le parcours de migration recommandé est :
+
+**NGINX Ingress** (actuel) → **Traefik avec provider NGINX** (ce guide) → **Traefik avec Gateway API**
+
+Pour plus de détails sur Gateway API avec OVHcloud MKS, lisez l'article de blog : [Moving beyond Ingress: Why should OVHcloud MKS users start looking at the Gateway API](https://blog.ovhcloud.com/en/posts/moving-beyond-ingress-why-should-ovhcloud-managed-kubernetes-service-mks-users-start-looking-at-the-gateway-api/).
+
+## Dépannage
+
+### Les Ingress ne sont pas découverts par Traefik
+
+```bash
+# Vérifier que l'IngressClass existe
+kubectl get ingressclass nginx
+
+# Vérifier la configuration du provider Traefik
+kubectl logs -n traefik deployment/traefik | grep -i "nginx\|ingress"
+
+# Vérifier que l'Ingress a le bon ingressClassName
+kubectl get ingress <nom> -o yaml | grep ingressClassName
+```
+
+### L'IP source n'est pas préservée
+
+- Vérifiez que le Proxy Protocol est activé sur le Service : `loadbalancer.openstack.org/proxy-protocol: "v2"`.
+- Vérifiez que `externalTrafficPolicy: Local` est défini sur le Service Traefik.
+- Vérifiez que les `proxyProtocol.trustedIPs` de Traefik correspondent aux adresses IP de sortie de votre Load Balancer (clusters publics) ou au CIDR de votre sous-réseau (clusters privés).
+- Vérifiez les en-têtes `X-Real-IP` et `X-Forwarded-For` dans les réponses de votre application.
+
+### La Floating IP du LoadBalancer n'est pas assignée
+
+```bash
+# Vérifier le statut du service
+kubectl describe svc -n traefik traefik
+
+# Vérifier les événements
+kubectl get events -n traefik --sort-by='.lastTimestamp'
+```
+
+Vérifiez que la Floating IP que vous essayez de récupérer n'est plus allouée à un autre service.
+
+### Les certificats TLS ne fonctionnent pas
+
+Traefik assure la terminaison TLS en utilisant les secrets référencés dans les entrées `spec.tls` de vos Ingress. Assurez-vous que :
+
+- les secrets TLS existent dans le même namespace que l'Ingress.
+- les secrets contiennent des données `tls.crt` et `tls.key` valides.
+
+```bash
+kubectl get secrets -n <namespace>
+kubectl get secret <nom-secret-tls> -n <namespace> -o yaml
+```
+
+## Aller plus loin
+
+Guide officiel de migration Traefik : [Migrating from NGINX to Traefik](https://doc.traefik.io/traefik/migrate/nginx-to-traefik/)
+
+Blog OVHcloud : [Moving beyond Ingress](https://blog.ovhcloud.com/en/posts/moving-beyond-ingress-why-should-ovhcloud-managed-kubernetes-service-mks-users-start-looking-at-the-gateway-api/)
+
+[Exposer vos applications à l'aide du Load Balancer OVHcloud Public Cloud](/guides/public-cloud/containers-orchestration/managed-kubernetes/expose-applications-using-load-balancer)
+
+[Récupérer l'adresse IP source derrière le LoadBalancer](/guides/public-cloud/containers-orchestration/managed-kubernetes/getting-source-ip-behind-loadbalancer)
+
+[Middlewares HTTP Traefik](https://doc.traefik.io/traefik/middlewares/overview/) (remplacement des annotations NGINX)
+
+Retrouvez-nous sur notre canal Discord dédié : [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud). Posez des questions, donnez votre avis et interagissez directement avec l'équipe qui développe nos services Containers et Orchestration.
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

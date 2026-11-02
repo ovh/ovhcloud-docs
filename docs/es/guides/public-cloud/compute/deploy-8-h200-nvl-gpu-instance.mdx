@@ -1,0 +1,186 @@
+---
+title: Desplegar cargas de trabajo de IA en una instancia 8x NVIDIA H200 NVL
+description: Descubra cómo desplegar cargas de trabajo de IA en una instancia GPU 8x NVIDIA H200 NVL teniendo en cuenta su topología NVLink
+lastUpdated: 2026-10-01
+---
+import { Tab, Tabs } from '@rspress/core/theme';
+
+
+## Objetivo
+
+Le recomendamos que siga esta guía si dispone de una instancia **h200-1920-eph** o **h200-1920**. Las instancias 8x NVIDIA H200 NVL (modelos **h200-1920** y **h200-1920-eph**) están organizadas en dos grupos de 4 GPU, con conectividad NVLink únicamente dentro de cada grupo y un enlace PCIe entre ambos grupos. Tener en cuenta esta topología le permite obtener el mejor rendimiento y una estabilidad óptima para sus cargas de trabajo de IA.
+
+:::info
+Actualmente, las instancias 8x NVIDIA H200 NVL solo están disponibles en la región de París (**EU-WEST-PAR**).
+:::
+
+**Esta guía explica cómo desplegar y gestionar cargas de trabajo de IA en una instancia GPU 8x NVIDIA H200 NVL**
+
+## Requisitos
+
+- Disponer de un [proyecto Public Cloud](/guides/public-cloud/cross-functional/create-a-public-cloud-project) con acceso a la región en la que están disponibles los modelos de instancia **h200-1920** y **h200-1920-eph** (**EU-WEST-PAR**).
+- Disponer de una [clave SSH](/guides/public-cloud/compute/creating-ssh-keys) creada para desplegar una instancia GPU Linux.
+
+[[cpnav:publiccloud-instances]]
+
+## Procedimiento
+
+A continuación encontrará la información necesaria para desplegar una instancia 8x NVIDIA H200 NVL, entender su topología y, después, ejecutar y supervisar en ella sus cargas de trabajo de IA.
+
+### Desplegar la instancia
+
+En la sección **Acceso rápido**, haga clic en <code className="action">Crear una instancia</code>. A continuación, seleccione la región **EU-WEST-PAR** y elija el modelo de instancia **h200-1920** o **h200-1920-eph** en la categoría **Cloud GPU**.
+
+Después, siga los pasos restantes, tal como se indica en la guía [Cómo crear una instancia de Public Cloud y conectarse a ella](/guides/public-cloud/compute/getting-started#paso-4-crear-la-instancia). Este proceso puede tardar unos minutos.
+
+Una vez entregada la instancia, instale el controlador NVIDIA tal como se indica en la guía [Desplegar una instancia GPU](/guides/public-cloud/compute/deploy-a-gpu-instance).
+
+### Presentación del hardware
+
+| Característica | h200-1920 | h200-1920-eph |
+|---|---|---|
+| GPU | 8x NVIDIA H200 NVL | 8x NVIDIA H200 NVL |
+| Memoria GPU | 141 GB HBM3e por GPU (1128 GB en total) | 141 GB HBM3e por GPU (1128 GB en total) |
+| Topología GPU | 2 grupos de 4 GPU | 2 grupos de 4 GPU |
+| Interconexión intragrupo | NVLink, dentro de cada grupo de 4 GPU | NVLink, dentro de cada grupo de 4 GPU |
+| Interconexión intergrupos | PCIe | PCIe |
+| vCores | 224 | 224 |
+| Memoria (RAM) | 1920 GB | 1920 GB |
+| Almacenamiento | 400 GB (disco de sistema) + **4x 7,68 TB en passthrough** | 400 GB (disco de sistema) + **1x 20 TB efímero** |
+| Red pública | 25 Gbit/s | 25 Gbit/s |
+| Red privada | Hasta 25 Gbit/s | Hasta 25 Gbit/s |
+
+### Disco efímero (h200-1920-eph)
+
+El disco efímero del modelo de instancia **h200-1920-eph** ya está formateado con un sistema de archivos Ext4. Es posible que [cloud-init](https://docs.cloud-init.io/en/latest/reference/modules.html#mounts) ya lo haya montado automáticamente en `/mnt`.
+
+Para comprobar si el disco efímero está montado, ejecute el siguiente comando:
+
+```sh
+lsblk -f
+```
+
+Si el disco de 20 TB muestra `/mnt` como punto de montaje, está listo para usarse. De lo contrario, móntelo manualmente sustituyendo `/dev/<device>` por el nombre del dispositivo que muestra `lsblk -f`:
+
+```sh
+sudo mount /dev/<device> /mnt
+```
+
+:::warning
+Los datos almacenados en el disco efímero no se incluyen en las [copias de seguridad de instancia](/guides/public-cloud/compute/save-an-instance) y se pierden cuando la instancia se elimina o se suspende (*shelved*). Le recomendamos que guarde sus datos importantes en una solución de almacenamiento externa, como [Object Storage](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage).
+:::
+
+### Topología GPU y arquitectura NVLink
+
+Las 8 GPU están organizadas de la siguiente manera:
+
+<img className="thumbnail" alt="Esquema de los dos grupos NVLink de 4 GPU, conectados entre sí por PCIe" src="/images/public-cloud/compute/deploy-8-h200-nvl-gpu-instance/h200-gpu-topology.png" loading="lazy" />
+
+| Grupo NVLink | GPU | Interconexión dentro del grupo | Interconexión entre los grupos |
+|---|---|---|---|
+| Grupo A | GPU 0, 1, 2, 3 | NVLink (las 4 GPU están totalmente interconectadas) | PCIe |
+| Grupo B | GPU 4, 5, 6, 7 | NVLink (las 4 GPU están totalmente interconectadas) | PCIe |
+
+Para distribuir sus cargas de trabajo en esta instancia, le recomendamos:
+
+- ejecutar, siempre que sea posible, cada trabajo dentro de un único grupo NVLink (4 GPU).
+- tratar los dos grupos como dos clústeres independientes cuando un mismo modelo necesite las **8 GPU**: mantener los paralelismos que más comunicaciones requieren (como el *tensor parallelism*) dentro de cada grupo y utilizar entre ambos grupos solo modos de comunicación más ligeros (como el *pipeline parallelism*). En las configuraciones recomendadas más abajo se presenta un ejemplo.
+- tener en cuenta que las ventajas de rendimiento de NVLink solo se aplican **dentro de cada grupo de 4 GPU**.
+
+:::info
+Mantener las operaciones que más comunicaciones requieren dentro de cada grupo NVLink evita un tráfico elevado en el bus PCIe, lo que garantiza a la vez un mejor rendimiento y una mayor estabilidad.
+:::
+
+Antes de lanzar una carga de trabajo, le recomendamos que compruebe qué GPU pertenecen a cada grupo NVLink:
+
+```sh
+nvidia-smi topo -m
+```
+
+En la matriz que se muestra, las GPU conectadas por NVLink presentan un valor `NV#` entre ellas (# corresponde al número de enlaces NVLink). Las GPU conectadas únicamente por PCIe muestran en su lugar un tipo de ruta PCIe (por ejemplo, `PHB`, `NODE` o `SYS`). Las 4 GPU que presentan valores `NV#` entre ellas forman un grupo NVLink.
+
+También puede mostrar el estado de los enlaces NVLink de una GPU determinada (aquí, la GPU 0):
+
+```sh
+nvidia-smi nvlink --status -i 0
+```
+
+### Configuraciones recomendadas
+
+Los siguientes ejemplos utilizan [vLLM](https://docs.vllm.ai/) para ilustrar el despliegue de un modelo en 4 u 8 GPU respetando la topología NVLink.
+
+<Tabs>
+  <Tab label="4 GPU (un único grupo NVLink)">
+    Para desplegar en 4 GPU, indique explícitamente los identificadores de los dispositivos que va a utilizar, con el fin de asegurarse de que todos pertenecen al mismo grupo NVLink:
+
+    ```sh
+    # Numerar las GPU en el mismo orden que nvidia-smi (orden del bus PCI)
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+    # Limitar el despliegue al primer grupo NVLink (utilice 4,5,6,7 para el segundo grupo)
+    export CUDA_VISIBLE_DEVICES=0,1,2,3
+
+    # Definir el tamaño del tensor parallelism en 4
+    vllm serve <MODEL_SLUG> --tensor-parallel-size 4 ...
+    ```
+  </Tab>
+  <Tab label="8 GPU (los dos grupos NVLink)">
+    Para desplegar modelos de gran tamaño en las 8 GPU, combine *pipeline parallelism* y *tensor parallelism*:
+
+    ```sh
+    # Numerar las GPU en el mismo orden que nvidia-smi (orden del bus PCI)
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+    # Definir a la vez el tamaño del pipeline parallelism y el del tensor parallelism
+    vllm serve <MODEL_SLUG> --pipeline-parallel-size 2 --tensor-parallel-size 4 ...
+    ```
+
+    Suponiendo que las GPU 0–3 y 4–7 forman los dos grupos NVLink (consulte `nvidia-smi topo -m`), esta configuración distribuye las capas del modelo en dos etapas (*pipeline parallelism*), una por grupo NVLink: las GPU 0–3 ejecutan la primera etapa y las GPU 4–7, la segunda. Dentro de cada grupo, los pesos de cada capa se reparten entre las 4 GPU (*tensor parallelism*). Los intercambios frecuentes del *tensor parallelism* permanecen en NVLink, mientras que por PCIe pasan principalmente las activaciones transmitidas de una etapa a la siguiente.
+
+    :::warning
+    Evite utilizar `--tensor-parallel-size 8`, que aplicaría el *tensor parallelism* entre los dos grupos.
+    :::
+  </Tab>
+  <Tab label="Dos réplicas (una por grupo NVLink)">
+    Si el modelo cabe en 4 GPU, también puede ejecutar dos réplicas independientes del modelo, una por grupo NVLink, y repartir las peticiones entre ellas. Así duplica el rendimiento, sin ningún tráfico entre los dos grupos. Ejecute cada comando en un terminal distinto, ya que `vllm serve` permanece en primer plano:
+
+    ```sh
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+    # Primera réplica en el primer grupo NVLink
+    CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve <MODEL_SLUG> --tensor-parallel-size 4 --port 8000 ...
+
+    # Segunda réplica en el segundo grupo NVLink
+    CUDA_VISIBLE_DEVICES=4,5,6,7 vllm serve <MODEL_SLUG> --tensor-parallel-size 4 --port 8001 ...
+    ```
+  </Tab>
+</Tabs>
+
+### Buenas prácticas de operación
+
+Le recomendamos:
+
+- comprobar la correspondencia entre las GPU y los grupos NVLink antes de lanzar una carga de trabajo (`nvidia-smi topo -m`).
+- mantener todas las GPU utilizadas por un mismo trabajo dentro del mismo grupo NVLink, salvo si utiliza una configuración entre grupos como la de *pipeline parallelism* descrita anteriormente.
+- supervisar el estado de NVLink y los logs del kernel (`dmesg`) durante la ejecución de sus cargas de trabajo.
+- realizar copias de seguridad periódicas de sus datos importantes.
+
+### Monitorización recomendada
+
+Le recomendamos supervisar las siguientes métricas durante la ejecución de sus cargas de trabajo:
+
+| Métrica | Método | Recomendación |
+|---|---|---|
+| Estado y errores de NVLink | `nvidia-smi nvlink --status` / `nvidia-smi nvlink -e` | Recomendado |
+| Detección y estado de salud de las GPU | `nvidia-smi -q` / NVIDIA DCGM (`dcgmi health`) | Recomendado |
+| Errores de GPU en los logs del kernel | `sudo dmesg -T \| grep -iE "xid\|nvrm"` | Recomendado |
+
+:::info
+El controlador NVIDIA notifica los errores de GPU y de NVLink en los logs del kernel en forma de mensajes **Xid**. Para una monitorización continua, [NVIDIA DCGM](https://developer.nvidia.com/dcgm) permite exportar estas métricas a su herramienta de monitorización. Los comandos `smartctl` y `nvme` los proporcionan los paquetes `smartmontools` y `nvme-cli` (por ejemplo, `sudo apt-get install smartmontools nvme-cli` en Debian o Ubuntu).
+:::
+
+## Más información
+
+[Desplegar una instancia GPU](/guides/public-cloud/compute/deploy-a-gpu-instance)
+
+Interactúe con nuestra [comunidad de usuarios](/links/community).

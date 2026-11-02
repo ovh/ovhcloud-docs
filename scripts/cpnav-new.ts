@@ -10,7 +10,7 @@
  * multi-key token containing it renders.
  *
  * The labels are left as TODO on purpose: they are Manager-authoritative and must be read from the
- * nav tree (tempscripts/mgr_node.py), never invented. `pnpm cpnav:validate` reports the gaps.
+ * Manager nav tree, never invented. `pnpm cpnav:validate` reports the gaps.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -95,7 +95,7 @@ fs.writeFileSync(indexPath, lines.join('\n'), 'utf8');
 console.log(`created ${file}`);
 console.log(`registered '${key}' in ${indexPath} (end of the ${universe} run)`);
 console.log(
-  `\nnext: fill the route, source node and labels from the Manager —\n` +
-    `  python tempscripts/mgr_node.py <node-or-route substring>\n` +
+  `\nnext: fill the route, source node and labels from the Manager nav tree —\n` +
+    `  manager repo: packages/manager/apps/container/src/container/nav-reshuffle/sidebar/navigation-tree/\n` +
     `then: pnpm cpnav:validate`,
 );

@@ -24,8 +24,8 @@ export interface PageConfig {
   visibility: Visibility;
   /** Titles per locale */
   titles: Partial<Record<Locale, string>>;
-  /** Excerpts per locale */
-  excerpts: Partial<Record<Locale, string>>;
+  /** Descriptions per locale */
+  descriptions: Partial<Record<Locale, string>>;
   /** Locales to create (default: all) */
   locales?: Locale[];
 }
@@ -36,25 +36,25 @@ export interface PageConfig {
 function generateMdxContent(
   pageType: PageType,
   title: string,
-  excerpt: string,
+  description: string,
 ): string {
   if (pageType === 'overview') {
     return `---
 title: "${title}"
-excerpt: "${excerpt}"
+description: "${description}"
 pageType: overview
 ---
 
 # ${title}
 
-${excerpt}
+${description}
 `;
   }
 
   // Default: doc
   return `---
 title: "${title}"
-excerpt: "${excerpt}"
+description: "${description}"
 ---
 
 # ${title}
@@ -135,17 +135,20 @@ export function createPages(config: PageConfig): {
       continue;
     }
 
-    // Get title and excerpt for this locale (fallback to FR, then EN)
+    // Get title and description for this locale (fallback to FR, then EN)
     const title =
       config.titles[locale] ||
       config.titles.fr ||
       config.titles.en ||
       'Untitled';
-    const excerpt =
-      config.excerpts[locale] || config.excerpts.fr || config.excerpts.en || '';
+    const description =
+      config.descriptions[locale] ||
+      config.descriptions.fr ||
+      config.descriptions.en ||
+      '';
 
     // Generate content
-    const content = generateMdxContent(config.pageType, title, excerpt);
+    const content = generateMdxContent(config.pageType, title, description);
 
     // Ensure directory exists
     const dir = path.dirname(filePath);

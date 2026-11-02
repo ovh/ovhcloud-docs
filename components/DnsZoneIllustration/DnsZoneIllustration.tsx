@@ -232,6 +232,8 @@ const TrashIcon = () => (
 export function DnsZoneIllustration() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the caption only; the rest pictures the interface.
+  if (process.env.__SSR_MD__) return <p>{t.caption}</p>;
   return (
     <figure className="dns-zone">
       <div className="dns-zone__panel">

@@ -5,6 +5,7 @@
  *
  * ERRORS (exit 1 — block the commit / the build):
  *   - a key whose `en` text is missing (en is the fallback every locale relies on)
+ *   - a key still carrying the `TODO` placeholders `pnpm cpnav:new` seeds it with
  *   - a location with both `route` and `linkKey`, or with a link but no `product`
  *   - a declared key set naming an unknown key
  *   - a token in the guides with an unknown key, an unsupported modifier, an undeclared
@@ -25,7 +26,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CPNAV_KEYS, canonicalise, tokenFor } from '../config/cpnav/index';
 import { type Locale, locales } from '../config/shared';
-import { classifyLocaleFile, describe } from './lib/untranslated';
+import {
+  classifyLocaleFile,
+  describe,
+  isSymlink,
+  symlinkTarget,
+} from './lib/untranslated';
 
 const DOCS_DIR = path.join(process.cwd(), 'docs');
 const LOCALES = locales.map((l) => l.lang) as Locale[];
@@ -45,6 +51,13 @@ for (const key of keys) {
   }
   entry.locations.forEach((location, i) => {
     const at = entry.locations.length > 1 ? `${key} location ${i + 1}` : key;
+    // `pnpm cpnav:new` seeds the route, source and every label with TODO so they are read
+    // from the Manager rather than invented; one left behind ships to readers verbatim.
+    if (JSON.stringify(location).includes('TODO')) {
+      errors.push(
+        `${at}: still carries the scaffold's TODO placeholders — fill the route, source and labels from the Manager nav tree`,
+      );
+    }
     if (location.route && location.linkKey) {
       errors.push(
         `${at}: has both route and linkKey — a destination has one or neither`,
@@ -186,7 +199,7 @@ function scan(file: string): void {
  * rendered in their locale is a language mismatch inside the page. `|en` is the only
  * place that intent can live, since replaceRules see raw source and never frontmatter.
  *
- * Collected as realpaths so the check runs once per target, not once per symlink.
+ * Collected as target paths so the check runs once per target, not once per symlink.
  */
 const symlinkTargets = new Set<string>();
 
@@ -198,14 +211,11 @@ function walk(dir: string): void {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(p);
     else if (entry.name.endsWith('.mdx')) {
-      if (!entry.isSymbolicLink()) localeFiles.push(p);
-      if (entry.isSymbolicLink()) {
-        try {
-          symlinkTargets.add(fs.realpathSync(p));
-        } catch {
-          // Dangling symlink: not this validator's business — the build reports it.
-        }
-      }
+      if (isSymlink(DOCS_DIR, p)) {
+        const target = symlinkTarget(DOCS_DIR, p);
+        // Dangling symlink: not this validator's business — the build reports it.
+        if (target) symlinkTargets.add(target);
+      } else localeFiles.push(p);
       scan(p);
     }
   }
