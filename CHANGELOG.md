@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.11.02
+
+### Fixes
+
+#### US
+- **docs-us:** update home page links and add Oxford comma (#1105)
+
+### Documentation
+- EU: 42 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
 ## 2026.10.29.1
 
 ### Fixes
