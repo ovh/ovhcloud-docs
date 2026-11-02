@@ -45,7 +45,7 @@ export function useBrandKey() {
   return useContext(BrandKeyContext);
 }
 
-// CA and APAC commercial zones both use the ca.api.ovh.com endpoint.
+// CA and APAC commercial zones both use the api.ca.ovhcloud.com endpoint.
 export function zoneToApiRegion(zone: string): Region {
   return zone === 'eu' ? 'eu' : 'ca';
 }

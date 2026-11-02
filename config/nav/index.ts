@@ -1,18 +1,24 @@
+import { REGION, regionConfig } from '../regions';
+
 // Supported locales
 export const locales = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
 export type Locale = (typeof locales)[number];
 
-// Default locale for fallback
-export const defaultLocale: Locale = 'fr';
+// Fallback locale used by useLocalizedNav when an item has no link for the
+// active locale. Region-scoped: falling back to French on the English-only US
+// site would send visitors to a French page.
+export const defaultLocale: Locale = regionConfig.defaultLocale as Locale;
 
 // Nav item with localized links - used internally and exposed via themeConfig.nav
 export interface NavItemConfig {
   text: string; // i18n key
-  links: Record<Locale, string>;
+  // Partial: a single-locale region only fills in its own locale. The EU
+  // entries below still list all seven.
+  links: Partial<Record<Locale, string>>;
 }
 
-// Declarative nav items with all localized links
-const navItems: NavItemConfig[] = [
+// --- EU: multi-locale, historical nav -------------------------------------
+const euNavItems: NavItemConfig[] = [
   {
     text: 'nav.webmail',
     links: {
@@ -28,13 +34,13 @@ const navItems: NavItemConfig[] = [
   {
     text: 'nav.customerAccount',
     links: {
-      fr: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=FR',
-      en: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=GB',
-      de: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=DE',
-      es: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=ES',
-      it: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=IT',
-      pl: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=PL',
-      pt: 'https://www.ovh.com/auth/?onsuccess=https%3A//www.ovh.com/manager&ovhSubsidiary=PT',
+      fr: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=FR',
+      en: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=GB',
+      de: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=DE',
+      es: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=ES',
+      it: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=IT',
+      pl: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=PL',
+      pt: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=PT',
     },
   },
   {
@@ -51,5 +57,27 @@ const navItems: NavItemConfig[] = [
   },
 ];
 
+// --- US: English-only, its own destinations -------------------------------
+// No Webmail entry: the US subsidiary does not sell the mail offer the EU nav
+// links to. `Resources` exists only here.
+const usNavItems: NavItemConfig[] = [
+  {
+    text: 'nav.customerAccount',
+    links: { en: 'https://manager.us.ovhcloud.com/#/?ovhSubsidiary=US' },
+  },
+  {
+    text: 'nav.support',
+    links: { en: 'https://us.ovhcloud.com/support/' },
+  },
+  {
+    text: 'nav.resources',
+    links: { en: 'https://us.ovhcloud.com/resources/' },
+  },
+  {
+    text: 'nav.contactSales',
+    links: { en: 'https://us.ovhcloud.com/contact-sales/' },
+  },
+];
+
 // Export nav config for rspress.config.ts - contains full localized data
-export const nav = navItems;
+export const nav: NavItemConfig[] = REGION === 'us' ? usNavItems : euNavItems;

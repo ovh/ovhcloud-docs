@@ -287,6 +287,19 @@ const ICONS: ReactNode[] = [
 export function EmailChainDiagram() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the chain as a numbered list; the numbers stand for the
+  // "Link n" badges.
+  if (process.env.__SSR_MD__) {
+    return (
+      <ol>
+        {t.nodes.map((node) => (
+          <li key={node.title}>
+            <strong>{node.title}</strong>: {node.desc}
+          </li>
+        ))}
+      </ol>
+    );
+  }
   return (
     <div className="email-chain" role="img" aria-label={t.ariaLabel}>
       {t.nodes.map((node, i) => (

@@ -1,0 +1,162 @@
+---
+title: Comment accéder à l'API NetBox avec un token
+description: Découvrez comment activer l'endpoint API NetBox dédié de votre OPCP, créer un token API NetBox et interroger l'API REST sans passer par Keycloak
+lastUpdated: 2026-10-16
+---
+
+## Objectif
+
+Sur une plateforme **OVHcloud On-Prem Cloud Platform (OPCP)**, l'interface web de NetBox est protégée par l'authentification unique (SSO) Keycloak. Un endpoint API dédié permet à un système externe — par exemple votre propre CMDB ou une intégration avec votre outil de support — d'interroger automatiquement l'inventaire NetBox. Cet endpoint s'authentifie directement avec un token API NetBox et ne passe **pas** par Keycloak.
+
+**Ce guide explique comment activer l'endpoint dédié, créer un token API NetBox, joindre l'API NetBox via cet endpoint et modifier votre inventaire sans entrer en conflit avec l'automatisation.**
+
+:::info
+Cette fonctionnalité est disponible à partir d'**OPCP Core 3.0.7**.
+:::
+
+## Prérequis
+
+- Activer l'endpoint API dédié sur votre plateforme. Il est **désactivé par défaut** ; son activation constitue la première étape ci-dessous.
+- Avoir accès à l'interface web de NetBox (`netbox.<votre-domaine-de-plateforme>`), joignable via le SSO Keycloak.
+- Disposer d'un utilisateur NetBox autorisé à créer des tokens API.
+- Si vous prévoyez également d'effectuer des modifications manuelles dans NetBox, disposer d'un accès en écriture à l'interface web de NetBox — voir le guide « [Gestion des droits IAM](/guides/hosted-private-cloud/opcp/iam-rights-management) » pour le rôle requis.
+
+## En pratique
+
+### 1. Activer l'endpoint dédié
+
+L'endpoint dédié est **désactivé par défaut**. Pour l'activer, positionnez le paramètre suivant dans la configuration de votre OPCP :
+
+```yaml
+netbox_api:
+  enabled: true
+```
+
+Appliquez ensuite la configuration en exécutant, depuis un contrôleur :
+
+```bash
+opcp-cli deploy --system
+```
+
+:::info
+En mode managé par OVHcloud, demandez à votre interlocuteur OVHcloud d'activer cet endpoint si vous ne pouvez pas lancer le déploiement vous-même.
+:::
+
+### 2. Créer un token API NetBox
+
+1. Connectez-vous à l'interface web de NetBox à l'adresse `https://netbox.<votre-domaine-de-plateforme>` avec vos identifiants Keycloak habituels ou votre SSO.
+2. Ouvrez le menu utilisateur (en haut à droite), puis cliquez sur <code className="action">Jetons d'API</code>.
+3. Cliquez sur <code className="action">Ajouter un jeton</code>, ajustez les options si nécessaire (expiration, plages d'adresses IP autorisées, accès en lecture seule ou en écriture), puis enregistrez.
+4. Copiez le token généré et conservez-le en lieu sûr. Il donne accès à l'API NetBox avec vos propres permissions.
+
+Pour la description complète des tokens et de leurs options, consultez la documentation officielle de NetBox : [NetBox REST API — Tokens](https://netboxlabs.com/docs/netbox/integrations/rest-api/#tokens).
+
+### 3. Appeler l'API via l'endpoint dédié
+
+L'endpoint dédié expose l'API NetBox à l'URL suivante :
+
+```console
+https://netbox-api.<votre-domaine-de-plateforme>/api
+```
+
+Contrairement à l'interface web, cet endpoint n'utilise pas Keycloak : l'authentification repose entièrement sur votre token NetBox, transmis dans l'en-tête `Authorization` de chaque requête.
+
+Pour vérifier que votre token et l'endpoint fonctionnent, interrogez le statut de NetBox. Un token valide renvoie une réponse HTTP `200` accompagnée d'une charge utile JSON :
+
+```bash
+curl -sS -H "Authorization: Token VOTRE_TOKEN" \
+  https://netbox-api.<votre-domaine-de-plateforme>/api/status/
+```
+
+Une fois la connexion confirmée, vous pouvez interroger n'importe quelle ressource NetBox, par exemple la liste des équipements :
+
+```bash
+curl -sS -H "Authorization: Token VOTRE_TOKEN" \
+  https://netbox-api.<votre-domaine-de-plateforme>/api/dcim/devices/
+```
+
+Une requête envoyée sans token valide est rejetée. L'interface web reste accessible uniquement sur `https://netbox.<votre-domaine-de-plateforme>`, derrière Keycloak.
+
+:::tip
+Cet endpoint est destiné à un usage programmatique. Pour explorer l'API de manière interactive (interface navigable, ou pages Swagger et ReDoc), utilisez l'interface principale de NetBox sur `https://netbox.<votre-domaine-de-plateforme>/api/`, servie via Keycloak.
+:::
+
+:::warning
+Un token porte les permissions de l'utilisateur qui l'a créé. Gardez-le secret, privilégiez un token au périmètre strictement nécessaire (en lecture seule autant que possible) et renouvelez-le régulièrement.
+:::
+
+### 4. Interagir avec votre instance NetBox en toute sécurité
+
+:::info
+Le tag `automation-managed` est appliqué à partir d'**OPCP Core 3.1**.
+:::
+
+Une partie de votre inventaire NetBox peut être gérée automatiquement à partir de la configuration *Infrastructure as Code* (IaC) d'OPCP. Voici comment identifier ces objets et effectuer vos modifications sans entrer en conflit avec l'automatisation.
+
+#### Organisation de NetBox
+
+Votre instance NetBox contient deux types d'objets :
+
+- **Les objets gérés automatiquement.** Ils portent le tag **`automation-managed`**. Ils sont créés et maintenus synchronisés avec la configuration IaC d'OPCP. Vous n'avez pas à les maintenir.
+
+- **Les objets que vous gérez vous-même.** Ils ne portent pas le tag `automation-managed`. Ils vous appartiennent : créez, modifiez, supprimez, changez leurs tags, commentez — selon les besoins de votre workflow.
+
+Le tag `automation-managed` est le seul indicateur qui vous permet de savoir de quel côté se trouve un objet. En cas de doute, vérifiez le tag.
+
+:::warning
+Ne retirez pas le tag `automation-managed` des objets qui le portent : l'automatisation le rajoute lors de sa prochaine exécution et annule vos modifications sur l'objet. Ne l'ajoutez pas non plus aux objets que vous créez vous-même : l'automatisation les prend alors en charge et peut les écraser ou les supprimer.
+:::
+
+#### Effectuer des modifications
+
+La méthode pour modifier un objet varie selon qu'il est géré ou non par l'automatisation.
+
+**Pour les objets sans le tag `automation-managed` :**
+
+Modifiez ces objets directement dans l'interface de NetBox, comme d'habitude. L'automatisation ne touche pas à ces objets.
+
+**Pour les objets avec le tag `automation-managed` :**
+
+Ils sont pilotés par la configuration IaC d'OPCP.
+
+:::info
+Si vous modifiez directement dans NetBox un champ géré par la configuration IaC d'OPCP sur un objet `automation-managed`, la prochaine exécution de l'automatisation annulera votre modification. La configuration IaC d'OPCP fait autorité pour ces objets.
+:::
+
+#### Le tenant Automation State
+
+La section **Utilisateur** de NetBox contient une entité (*tenant*) nommée **`Automation State`** (slug : `automation-state`). Ce tenant contient des données de gestion interne utilisées par l'automatisation.
+
+:::warning
+Ne supprimez pas le tenant `Automation State` et ne modifiez pas ses champs personnalisés (`automation_non_taggable_state` et `initializer_sot_hash`). Les modifier ou les supprimer entraînera un dysfonctionnement de l'automatisation lors de sa prochaine exécution.
+:::
+
+#### Référence rapide
+
+| Action | Autorisée ? / Conséquence |
+|---|---|
+| Modifier un objet sans le tag `automation-managed` | Oui |
+| Ajouter des entrées de journal, des commentaires ou d'autres tags sur n'importe quel objet | Oui |
+| Modifier un champ géré par la configuration IaC d'OPCP sur un objet `automation-managed` | Sera annulé à la prochaine exécution |
+| Supprimer un objet portant le tag `automation-managed` | Sera recréé à la prochaine exécution |
+| Retirer le tag `automation-managed` d'un objet | Sera rajouté à la prochaine exécution |
+| Ajouter le tag `automation-managed` à un objet que vous avez créé | Conduit l'automatisation à l'écraser ou à le supprimer |
+
+#### À quoi s'attendre en fonctionnement normal
+
+- **Des entrées du journal des modifications émises par le compte de l'automatisation** après chaque exécution réussie.
+- **Une branche éphémère** nommée `initializer-automation`. Elle est créée, utilisée puis fusionnée (ou supprimée) par l'automatisation.
+- **Le tag `automation-managed`** présent sur de nombreux objets.
+- **Le tenant `Automation State`** présent dans votre liste de tenants.
+
+### Références
+
+- [NetBox REST API](https://netboxlabs.com/docs/netbox/integrations/rest-api/)
+- [NetBox REST API — Tokens](https://netboxlabs.com/docs/netbox/integrations/rest-api/#tokens)
+- [Comment visualiser l'inventaire des nœuds](/guides/hosted-private-cloud/opcp/how-to-see-node-inventory)
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

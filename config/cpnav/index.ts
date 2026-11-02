@@ -30,6 +30,7 @@ import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
+import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
@@ -60,6 +61,8 @@ import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry'
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjects } from './keys/publiccloud-projects';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
+import { publiccloudQuantumEmulators } from './keys/publiccloud-quantum-emulators';
+import { publiccloudQuantumQpus } from './keys/publiccloud-quantum-qpus';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
@@ -67,6 +70,7 @@ import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
 import { securitySecretManager } from './keys/security-secret-manager';
+import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -116,10 +120,12 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
+  'privatecloud-backup-licenses': privatecloudBackupLicenses,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
+  'storage-backup-licenses': storageBackupLicenses,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-nas-ha': storageNasHa,
@@ -135,6 +141,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-ai-training': publiccloudAiTraining,
   'publiccloud-ai-deploy': publiccloudAiDeploy,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
+  'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
+  'publiccloud-quantum-qpus': publiccloudQuantumQpus,
   'publiccloud-users-roles': publiccloudUsersRoles,
   'publiccloud-instances': publiccloudInstances,
   'publiccloud-instance-backup': publiccloudInstanceBackup,

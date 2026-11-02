@@ -35,6 +35,8 @@ export function WebmailLookup() {
   const lang = useLang();
   const tab = TAB_LABEL[lang] ?? TAB_LABEL.en;
   const connexion = CONNEXION_LABEL[lang] ?? CONNEXION_LABEL.en;
+  // `.md` export: a picture of the interface, nothing to say in words.
+  if (process.env.__SSR_MD__) return null;
   return (
     <div
       className="webmail-lookup"

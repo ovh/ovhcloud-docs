@@ -16,6 +16,7 @@ import {
 import cls from 'clsx';
 import { useMemo, useState } from 'react';
 import { useLocaleAvailability } from 'theme/hooks/useLocaleAvailability';
+import { NavFixedLocale } from './FixedLocale';
 import { useLangsMenu, useVersionsMenu } from './hooks';
 import './NavMenu.scss';
 import clsx from 'clsx';
@@ -135,8 +136,10 @@ export function NavLangs() {
   const [isOpen, setIsOpen] = useState(false);
   const { resolveLocaleSwitchUrl } = useLocaleAvailability();
 
+  // A single-locale region has nothing to switch to: show its language as a
+  // fixed label in the same slot (rendered only when the region defines one).
   if (items.length <= 1) {
-    return null;
+    return <NavFixedLocale />;
   }
 
   // Custom dropdown with onClick navigation to bypass base path resolution
