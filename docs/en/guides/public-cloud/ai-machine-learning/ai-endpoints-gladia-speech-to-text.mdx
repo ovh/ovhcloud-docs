@@ -1,0 +1,310 @@
+---
+title: AI Endpoints - Speech to Text with the Gladia API
+description: Transcribe live audio with Solaria-1 using the Gladia API and official SDKs on OVHcloud AI Endpoints
+lastUpdated: 2026-11-02
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+:::info
+AI Endpoints is covered by the **[OVHcloud Public Cloud Special Conditions](/links/public-cloud/ai-endpoints-special-conditions)** (see Appendix 10 – "Specific Conditions – AI Endpoints").
+:::
+
+## Objective
+
+Use `solaria-1` on [AI Endpoints](/links/public-cloud/ai-endpoints) to transcribe live audio with the **Gladia Live V2 API**. The native API provides partial transcripts, final utterances and speaker labels. This guide covers session creation, audio transmission, completion and result retrieval using HTTP, WebSockets and the official Gladia SDKs.
+
+For a local audio file without WebSocket integration, see the [OpenAI-compatible file wrapper](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models#gladia-compatibility), including Python `requests`, OpenAI client and cURL examples. It has a smaller parameter set and does not stream responses.
+
+## Endpoint and Authentication
+
+Create an **AI Endpoints access token** following [Getting Started](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started). Use that token, not a Gladia SaaS API key.
+
+```bash
+export AI_ENDPOINTS_BASE_URL="https://oai.endpoints.kepler.ai.cloud.ovh.net"
+export OVH_AI_ENDPOINTS_ACCESS_TOKEN="<your-ai-endpoints-access-token>"
+```
+
+Send `Authorization: Bearer <token>` on HTTP requests. Anonymous requests omit this header. The native API base is `$AI_ENDPOINTS_BASE_URL/gladia`, **without `/v1`**. The OpenAI-compatible base is `$AI_ENDPOINTS_BASE_URL/v1`.
+
+The SDKs require an API-key value: use a placeholder such as `router-proxy` and add the real token through custom HTTP `Authorization` headers. An `x-gladia-key` header does not replace AI Endpoints authentication.
+
+## Current Service Restrictions
+
+| Feature | Availability on this endpoint |
+| :--- | :--- |
+| Native live | `POST /gladia/v2/live`, the returned WebSocket URL, and `GET /gladia/v2/live/{id}`. |
+| Native pre-recorded / upload | Disabled, including `/gladia/v2/upload`, `/gladia/v2/pre-recorded` and `/gladia/v2/transcription`. Do not use the SDK pre-recorded helper. The OpenAI-compatible wrapper can still accept file bytes. |
+| Region | EU only. Omit `region` or use `?region=eu-west` on session creation. `us-west` returns `400`. |
+| Callbacks / webhooks | Disabled; callback configuration returns `501`. Consume WebSocket events and retrieve results instead. |
+| Remote audio URLs | Blocked. Stream samples or send file bytes through the wrapper, not an external `audio_url`. |
+| Public deletion | Disabled; DELETE on a known live resource path returns `405`. |
+
+Only the live routes listed here are available, **not the full Gladia API**.
+
+### Model Features and Add-ons
+
+Not all Gladia add-ons are available on AI Endpoints. `audio_to_llm` is disabled, and Solaria-1 does not support translation. Summarization, named entity recognition, sentiment analysis and other Gladia SaaS add-ons are not automatically available just because an SDK includes them.
+
+See the [Solaria-1 OpenAPI reference](https://oai.endpoints.kepler.ai.cloud.ovh.net/doc/solaria-1/openapi.json) for the API schema.
+
+## Native Live Protocol
+
+### 1. Create a Session
+
+This example uses **16 kHz, signed little-endian 16-bit mono PCM**. It requires cURL and `jq`.
+
+Specify the format of your audio: encoding, sample rate, bit depth and channel count must match the samples you send.
+
+```bash
+SESSION=$(curl --fail-with-body --silent --show-error --max-time 30 \
+  "$AI_ENDPOINTS_BASE_URL/gladia/v2/live?region=eu-west" \
+  -H "Authorization: Bearer $OVH_AI_ENDPOINTS_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"encoding":"wav/pcm","sample_rate":16000,"bit_depth":16,"channels":1,"language_config":{"languages":["en"]},"messages_config":{"receive_partial_transcripts":true,"receive_final_transcripts":true}}')
+SESSION_ID=$(printf '%s' "$SESSION" | jq -er '.id')
+WEBSOCKET_URL=$(printf '%s' "$SESSION" | jq -er '.url')
+```
+
+A successful response is `201` and includes `id` and `url`. **The returned WebSocket URL is signed: keep it unchanged and treat it as a credential.** Do not log the response, URL, or SDK errors that might contain it. Do not add `/gladia` or `/v1` to that URL.
+
+### 2. Send Audio and Receive Events
+
+Connect a WebSocket client to `WEBSOCKET_URL`, or use an SDK example below, which creates its own session. For the configuration above:
+
+1. Send **raw PCM samples as binary WebSocket messages**, not a WAV header or compressed MP3 bytes. A WAV file must have its header removed; Python's `wave` module does this in the example below.
+2. Pace audio at approximately real time. For example, 3,200 bytes represent 100 ms at 16 kHz, 16-bit mono.
+3. Read events concurrently with audio transmission. For `type="transcript"`, inspect `data.is_final` and `data.utterance.text`. Partial transcripts can change: replace previous partials with the same `data.id`, rather than appending duplicates.
+4. Once all audio has been sent, send the text message `{"type":"stop_recording"}`. Continue reading until post-processing finishes and the socket closes. **A final utterance is not the end of the session.** Do not close the socket immediately after stopping the recording.
+
+The [Gladia live quickstart](https://docs.gladia.io/chapters/live-stt/quickstart) describes the raw protocol. The service restrictions in this guide take precedence over examples for Gladia SaaS. For file input over HTTP instead, use the [Python requests wrapper example](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models#gladia-compatibility).
+
+### 3. Retrieve the Result
+
+After completing the session above, retrieve its result using the same token:
+
+```bash
+curl --fail-with-body --max-time 30 \
+  "$AI_ENDPOINTS_BASE_URL/gladia/v2/live/$SESSION_ID" \
+  -H "Authorization: Bearer $OVH_AI_ENDPOINTS_ACCESS_TOKEN"
+unset SESSION WEBSOCKET_URL
+```
+
+If `status` is `processing`, poll again with a delay and a finite deadline. Successful completion is `done`; stop and handle a failure if the status is `error` or `failed`. The completed transcript is in `result.transcription.full_transcript`.
+
+Results are isolated by authenticated project or anonymous IP. Reuse the same project token, or the same IP for anonymous access. An inaccessible or unowned resource returns `404`.
+
+## Official SDK Examples
+
+These examples create a session, send a **short local recording at real-time pace**, stop recording, wait for completion and poll the final result with a deadline. The finite timeouts are client choices, not service duration allowances. Prepare a 16 kHz, 16-bit mono recording. Python reads a WAV container; Node.js reads headerless PCM.
+
+<Tabs>
+  <Tab label="Python">
+    Install the official `gladiaio-sdk` package in your Python environment:
+
+    ```bash
+    pip install gladiaio-sdk
+    ```
+
+    Use a PCM 16-bit mono WAV file named `audio.wav`:
+
+    ```python
+    import os
+    import time
+    import wave
+    from gladiaio_sdk import (
+        GladiaClient, LiveV2InitRequest,
+        LiveV2LanguageConfig, LiveV2MessagesConfig,
+    )
+
+    client = GladiaClient(
+        api_key="router-proxy",  # Required placeholder, not the credential.
+        api_url=os.environ["AI_ENDPOINTS_BASE_URL"].rstrip("/") + "/gladia",
+        region="eu-west",
+        http_headers={
+            "Authorization": "Bearer " + os.environ["OVH_AI_ENDPOINTS_ACCESS_TOKEN"]
+        },
+        http_timeout=30,
+        ws_timeout=30,
+    )
+    live = client.live_v2()
+
+    with wave.open("audio.wav", "rb") as audio:
+        if (audio.getframerate(), audio.getsampwidth(), audio.getnchannels()) != (16000, 2, 1):
+            raise ValueError("Expected 16 kHz, 16-bit mono PCM WAV")
+        session = live.start_session(LiveV2InitRequest(
+            encoding="wav/pcm", sample_rate=16000,
+            bit_depth=16, channels=1,
+            language_config=LiveV2LanguageConfig(languages=["en"]),
+            messages_config=LiveV2MessagesConfig(receive_final_transcripts=True),
+        ))
+
+        def on_message(message):
+            data = getattr(message, "data", None)
+            if getattr(message, "type", None) == "transcript" and getattr(data, "is_final", False):
+                print(data.utterance.text)
+
+        session.on("message", on_message)
+        try:
+            if not session.wait_until_ready(timeout=30):
+                raise RuntimeError("Live session did not become ready")
+            while chunk := audio.readframes(1600):
+                if session.status in ("ending", "ended"):
+                    raise RuntimeError("Live session ended before all audio was sent")
+                session.send_audio(chunk)
+                time.sleep(len(chunk) / (16000 * 2))
+            session.stop_recording()
+            if not session.join(timeout=180):
+                raise TimeoutError("Live session did not finish")
+
+            deadline = time.monotonic() + 180
+            while time.monotonic() < deadline:
+                result = live.get(session.session_id)
+                if result.status == "done":
+                    print(result.result.transcription.full_transcript)
+                    break
+                if result.status in ("error", "failed"):
+                    raise RuntimeError("Live transcription failed")
+                time.sleep(2)
+            else:
+                raise TimeoutError("Result is not ready")
+        finally:
+            if session.status != "ended":
+                session.end_session()
+    ```
+  </Tab>
+  <Tab label="JavaScript (Node.js)">
+    Install the official SDK. The option names below match `@gladiaio/sdk` 2.2.1:
+
+    ```bash
+    npm install @gladiaio/sdk@2.2.1
+    ```
+
+    Run the following as a Node.js ES module. Use a **headerless** file named `audio.s16le`, encoded as signed little-endian 16-bit PCM, 16 kHz, mono. Do not rename a WAV or MP3 file to obtain raw PCM.
+
+    ```javascript
+    import { readFile } from "node:fs/promises";
+    import { setTimeout as delay } from "node:timers/promises";
+    import { GladiaClient } from "@gladiaio/sdk";
+
+    const audio = await readFile("audio.s16le");
+    if (!audio.length || audio.length % 2 !== 0) {
+      throw new Error("Expected non-empty 16-bit raw PCM");
+    }
+    const client = new GladiaClient({
+      apiKey: "router-proxy", // Required placeholder, not the credential.
+      apiUrl: process.env.AI_ENDPOINTS_BASE_URL.replace(/\/$/, "") + "/gladia",
+      region: "eu-west",
+      httpHeaders: {
+        Authorization: `Bearer ${process.env.OVH_AI_ENDPOINTS_ACCESS_TOKEN}`,
+      },
+      httpTimeout: 30_000,
+      wsTimeout: 30_000,
+    });
+    const live = client.liveV2();
+    const session = live.startSession({
+      encoding: "wav/pcm", sample_rate: 16000,
+      bit_depth: 16, channels: 1,
+      language_config: { languages: ["en"] },
+      messages_config: { receive_final_transcripts: true },
+    });
+
+    let timer;
+    let sending = Promise.resolve();
+    const finished = new Promise((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error("Live session timed out")),
+        30_000 + audio.length / 32 + 180_000);
+      // Do not print SDK errors: they may contain the signed WebSocket URL.
+      session.on("error", () => reject(new Error("Live transcription failed")));
+      session.once("ended", ({ code }) => {
+        if (code === 1000) resolve();
+        else reject(new Error("Live session closed unexpectedly"));
+      });
+      session.once("connected", () => {
+        sending = (async () => {
+          for (let offset = 0; offset < audio.length; offset += 3200) {
+            if (session.status !== "connected") {
+              throw new Error("Live session disconnected while sending audio");
+            }
+            const chunk = audio.subarray(offset, offset + 3200);
+            session.sendAudio(chunk);
+            await delay(chunk.length / 32);
+          }
+          session.stopRecording();
+        })().catch(reject);
+      });
+    });
+    session.on("message", (message) => {
+      if (message.type === "transcript" && message.data.is_final) {
+        console.log(message.data.utterance.text);
+      }
+    });
+
+    try {
+      await finished;
+      await sending;
+      const deadline = Date.now() + 180_000;
+      while (true) {
+        if (Date.now() >= deadline) throw new Error("Result is not ready");
+        const result = await live.get(await session.getSessionId());
+        if (result.status === "done") {
+          console.log(result.result.transcription.full_transcript);
+          break;
+        }
+        if (["error", "failed"].includes(result.status)) {
+          throw new Error("Live transcription failed");
+        }
+        await delay(2000);
+      }
+    } finally {
+      clearTimeout(timer);
+      session.endSession();
+    }
+    ```
+  </Tab>
+</Tabs>
+
+Always clean up a failed or abandoned session. Avoid automatic retries of session creation without checking whether the previous request created a session; extra sessions consume concurrency.
+
+## Diarization and Latency
+
+For native live requests, add `"diarization": true` at the top level, optionally with `"diarization_config": {"min_speakers": 2, "max_speakers": 4}`.
+
+The Python SDK's typed `LiveV2InitRequest` does not expose this extension. To use it, create the session with a direct HTTP request containing these fields, then connect to its returned URL with `LiveV2ConnectSessionOptions`. Do not pass an unsupported `diarization` keyword to the typed initializer.
+
+:::warning
+Diarization distinguishes voices, not real-world identities. It is computationally expensive and **increases processing latency**, especially for final results. Enable it only when needed. Word-level speaker labels are more precise than a single utterance label when several speakers occur in an utterance. Use native results for speaker labels: the OpenAI-compatible wrapper drops them from its formatted output.
+:::
+
+Native multi-channel usage is measured as **audio duration multiplied by channel count**. The file wrapper converts input to mono and loses channel separation. Consult current AI Endpoints pricing; do not assume diarization is free or apply Gladia SaaS prices.
+
+## Quotas and Errors
+
+| Limit | Anonymous | Authenticated |
+| :--- | :--- | :--- |
+| HTTP request rate | 2 requests/minute per IP and model | 400 requests/minute per Public Cloud project and model |
+| Concurrent live sessions | 1 session per IP | 10 sessions per Public Cloud project |
+
+Users behind one NAT share an anonymous identity. Several API keys in one project do not create separate project quotas. Closing a live session releases its concurrency slot; result GET requests do not create sessions. The file wrapper also consumes a session.
+
+Start with short audio samples. If a file request returns `413 Payload Too Large`, reduce the payload before retrying.
+
+| Status | Action |
+| :--- | :--- |
+| `400` | Check parameters, region and metadata. Do not set reserved `custom_metadata` keys such as `project_id` or `request_id`. |
+| `404` | Check the route, resource ID and resource ownership. |
+| `405` | The method is unsupported, including public DELETE on live resources. |
+| `413` | Payload too large. Reduce the HTTP payload before retrying. |
+| `429` | Back off; request rate or session concurrency was exceeded. Close abandoned sessions before retrying creation. |
+| `501` | Remove unsupported fields, callbacks or forbidden outbound URLs. |
+| `502` | An upstream request or wrapper processing failed or timed out. Check session state before retrying. |
+
+## Go Further
+
+- [Speech to Text with the OpenAI-compatible API](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models)
+- [AI Endpoints - Getting Started](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)
+- [Gladia live quickstart](https://docs.gladia.io/chapters/live-stt/quickstart) — protocol reference, subject to the restrictions above.
+
+## Feedback
+
+Share questions and feedback on the [OVHcloud Discord server](https://discord.gg/ovhcloud), in the `#ai-endpoints` channel.
