@@ -1,9 +1,27 @@
 # Changelog
 
+## 2026.10.29.1
+
+### Fixes
+
+#### All regions
+- **deps:** patch the open Dependabot advisories (#1127)
+- **deps:** patch the open Dependabot advisories
+
 ## 2026.10.29
 
+### Features
+
+#### EU
+- **nasha:** add ZFS settings guide with usage templates (#987)
+
+### Maintenance
+
+#### EU
+- **okms:** update the okms-cli usage in the byok guide (#1109)
+
 ### Documentation
-- EU: 11 guides across de, en, es, fr, it, pl, pt
+- EU: 43 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.10.27
 
