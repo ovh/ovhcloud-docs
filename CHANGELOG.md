@@ -1,9 +1,38 @@
 # Changelog
 
-## 2026.10.29
+## 2026.11.02
+
+### Fixes
+
+#### US
+- **docs-us:** update home page links and add Oxford comma (#1105)
 
 ### Documentation
-- EU: 11 guides across de, en, es, fr, it, pl, pt
+- EU: 42 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.10.29.1
+
+### Fixes
+
+#### All regions
+- **deps:** patch the open Dependabot advisories (#1127)
+- **deps:** patch the open Dependabot advisories
+
+## 2026.10.29
+
+### Features
+
+#### EU
+- **nasha:** add ZFS settings guide with usage templates (#987)
+
+### Maintenance
+
+#### EU
+- **okms:** update the okms-cli usage in the byok guide (#1109)
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.10.27
 
