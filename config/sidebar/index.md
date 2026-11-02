@@ -2841,7 +2841,7 @@
         + [How to use the Bring Your Own IP feature](network/bring-your-own-ip/bring-your-own-ip)
     + [BGP Service](network-bgp)
         + [BGP Service configuration](network/bgp-service/bgp-service-config)
-    + [Content Delivery Network (CDN) Infrastructure](network-content-delivery-network-cdninfrastructure)
+    + [CDN](network-content-delivery-network-cdninfrastructure)
         + [Configuring a domain name for the first time](network/content-delivery-network-infrastructure/cdn-infrastructure-first-domain-configuration)
         + [Understanding quota on the CDN](network/content-delivery-network-infrastructure/quota)
         + [Adding an SSL certificate on the CDN](network/content-delivery-network-infrastructure/cdn-infrastructure-ssl-certificate)
