@@ -60,3 +60,27 @@ export const MERMAID_CONFIG: MermaidConfig = {
   xyChart: NATURAL_SIZE,
   sankey: NATURAL_SIZE,
 };
+
+/** Roomier layouts, tried in order when an arrow label is still left over
+ *  another arrow after the clean-up (polish.ts found no free place for it on
+ *  its arrow): Mermaid lays the diagram out again, first wider — more room
+ *  between the blocks of a rank — then also longer between ranks. Still
+ *  Mermaid's own centred layout; the first one where every label is clear is
+ *  kept, else the natural one. Mermaid's default for both: 50 px. */
+export const MERMAID_SPREADS = [
+  { nodeSpacing: 75 },
+  { nodeSpacing: 75, rankSpacing: 75 },
+  { nodeSpacing: 100, rankSpacing: 100 },
+] as const;
+
+/** MERMAID_CONFIG with one of MERMAID_SPREADS, for flowcharts and state
+ *  diagrams — the two kinds whose arrows carry labels. */
+export function spreadConfig(
+  spread: (typeof MERMAID_SPREADS)[number],
+): MermaidConfig {
+  return {
+    ...MERMAID_CONFIG,
+    flowchart: { ...MERMAID_CONFIG.flowchart, ...spread },
+    state: { ...MERMAID_CONFIG.state, ...spread },
+  };
+}
