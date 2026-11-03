@@ -32,6 +32,7 @@ import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
@@ -48,6 +49,8 @@ import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
 import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
+import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
+import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
@@ -62,11 +65,14 @@ import { publiccloudProjectSettings } from './keys/publiccloud-project-settings'
 import { publiccloudProjects } from './keys/publiccloud-projects';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
 import { publiccloudQuantumEmulators } from './keys/publiccloud-quantum-emulators';
+import { publiccloudQuantumEmulatorsConsole } from './keys/publiccloud-quantum-emulators-console';
 import { publiccloudQuantumQpus } from './keys/publiccloud-quantum-qpus';
+import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-console';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
+import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
 import { securitySecretManager } from './keys/security-secret-manager';
@@ -74,6 +80,7 @@ import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
+import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
@@ -121,6 +128,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
+  // --- Private Cloud (Console only) ---------------------------------------------------
+  'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,
@@ -129,12 +138,15 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-nas-ha': storageNasHa,
+  'storage-nas-ha-console': storageNasHaConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-databases': publiccloudDatabases,
   'publiccloud-analytics': publiccloudAnalytics,
+  'publiccloud-data-platform': publiccloudDataPlatform,
+  'publiccloud-data-platform-console': publiccloudDataPlatformConsole,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
@@ -142,8 +154,11 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-ai-deploy': publiccloudAiDeploy,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
   'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
+  'publiccloud-quantum-emulators-console': publiccloudQuantumEmulatorsConsole,
   'publiccloud-quantum-qpus': publiccloudQuantumQpus,
+  'publiccloud-quantum-qpus-console': publiccloudQuantumQpusConsole,
   'publiccloud-users-roles': publiccloudUsersRoles,
+  'publiccloud-users-roles-console': publiccloudUsersRolesConsole,
   'publiccloud-instances': publiccloudInstances,
   'publiccloud-instance-backup': publiccloudInstanceBackup,
   'publiccloud-block-storage': publiccloudBlockStorage,
