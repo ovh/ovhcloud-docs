@@ -30,6 +30,7 @@ import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
+import { networkVrackServicesConsole } from './keys/network-vrack-services-console';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
@@ -171,6 +172,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Network -------------------------------------------------------------------------
   'network-vrack': networkVrack,
   'network-vrack-services': networkVrackServices,
+  'network-vrack-services-console': networkVrackServicesConsole,
   'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-load-balancer': networkLoadBalancer,
