@@ -1,0 +1,186 @@
+---
+title: NAS-HA - Konfiguracja ustawień ZFS partycji
+description: Dowiedz się, jak zastosować szablon użycia lub niestandardowe ustawienia ZFS (atime, recordsize, sync) do partycji NAS-HA
+lastUpdated: 2026-10-29
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+import Api from '@components/Api';
+
+
+## Wprowadzenie
+
+Każda partycja usługi NAS-HA jest datasetem ZFS. Możesz dostosować trzy jej właściwości ZFS do przechowywanych na niej danych: aktualizację czasu dostępu (*atime*), maksymalny rozmiar bloku (*recordsize*) i synchronizację zapisu (*sync*).
+
+Aby to ułatwić, OVHcloud udostępnia szablony użycia, które w jednym kroku stosują predefiniowaną kombinację tych ustawień.
+
+**Niniejszy przewodnik wyjaśnia, do czego służy każde ustawienie ZFS, jakie wartości stosuje każdy szablon oraz jak zmienić ustawienia partycji w Panelu klienta OVHcloud lub przez API OVHcloud.**
+
+## Wymagania początkowe
+
+- Posiadanie [usługi NAS-HA](/links/storage/nas-ha) OVHcloud z co najmniej jedną [partycją](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started)
+- Dostęp do Panelu klienta OVHcloud lub do API OVHcloud (zapoznaj się z przewodnikiem "[Pierwsze kroki z API OVHcloud](/guides/manage-and-operate/api/first-steps)")
+
+[[cpnav:storage-nas-ha]]
+
+## W praktyce
+
+:::warning
+Domyślne ustawienia ZFS są odpowiednie dla większości zastosowań. Zmieniaj je tylko wtedy, gdy znasz dane przechowywane na partycji i wpływ każdego z opisanych poniżej ustawień.
+
+:::
+
+### Omówienie ustawień ZFS
+
+#### Aktualizacja czasu dostępu (atime)
+
+Gdy *atime* jest włączone, ZFS aktualizuje czas ostatniego dostępu do pliku przy każdym jego odczycie, więc każdy odczyt generuje również zapis.
+
+Gdy *atime* jest wyłączone (`off`), te dodatkowe zapisy nie są wykonywane, co poprawia wydajność w zastosowaniach, w których przeważają odczyty. Wyłącz *atime*, chyba że aplikacja przechowywana na partycji korzysta z czasów dostępu do plików. Wszystkie szablony użycia ustawiają *atime* na `off`.
+
+#### ZFS recordsize
+
+Parametr *recordsize* to maksymalny rozmiar bloków, w których ZFS przechowuje dane pliku. Pliki mniejsze niż *recordsize* używają mniejszego bloku: plik o rozmiarze 16 KiB zajmuje blok o rozmiarze 16 KiB (plus metadane), a nie pełny blok o rozmiarze 128 KiB.
+
+Zasadniczo dopasuj *recordsize* do rozmiaru operacji odczytu i zapisu aplikacji:
+
+- **Małe, losowe odczyty i zapisy** (bazy danych, dyski maszyn wirtualnych): mały *recordsize* pozwala uniknąć odczytywania i ponownego zapisywania dużego bloku w celu zmiany kilku kilobajtów.
+- **Duże, sekwencyjne odczyty i zapisy** (pliki wideo, obrazy, kopie zapasowe, archiwa): duży *recordsize* zmniejsza liczbę bloków i ilość metadanych do obsłużenia, co zwiększa przepustowość.
+
+Dostępne wartości podano poniżej. Panel klienta wyświetla je w jednostkach dziesiętnych (1 kB = 1000 bajtów).
+
+| Wartość (bajty) | Rozmiar binarny | Wyświetlana w Panelu klienta |
+|-----------------|-----------------|------------------------------|
+| `4096` | 4 KiB | 4.1 kB |
+| `8192` | 8 KiB | 8.2 kB |
+| `16384` | 16 KiB | 16.4 kB |
+| `32768` | 32 KiB | 32.8 kB |
+| `65536` | 64 KiB | 65.5 kB |
+| `131072` (domyślnie) | 128 KiB | 131.1 kB (Domyślnie) |
+| `1048576` | 1 MiB | 1 MB |
+
+:::info
+Nowy *recordsize* dotyczy tylko plików utworzonych po zmianie. Istniejące pliki zachowują rozmiar bloku użyty przy ich zapisie, dopóki nie zostaną ponownie utworzone.
+
+:::
+
+#### Sync
+
+Ustawienie *sync* określa, jak ZFS obsługuje synchroniczne żądania zapisu, czyli takie, w przypadku których aplikacja czeka na potwierdzenie, że dane zostały zapisane na dysku.
+
+| Wartość | Działanie | Zastosowanie |
+|---------|-----------|--------------|
+| `standard` (domyślnie) | ZFS respektuje synchroniczne żądania zapisu: zapis jest potwierdzany po zabezpieczeniu danych na dysku. Zapisy asynchroniczne są buforowane w pamięci. | Zalecane dla wszystkich zastosowań. Łączy bezpieczeństwo danych i wydajność. |
+| `always` | Każdy zapis jest traktowany jako synchroniczny, nawet jeśli aplikacja tego nie żąda. | Maksymalne bezpieczeństwo danych kosztem niższej wydajności zapisu. |
+| `disabled` | ZFS ignoruje synchroniczne żądania zapisu i potwierdza je, zanim dane zostaną zapisane na dysku. | Bardzo wysoka wydajność, ale dane potwierdzone jako zapisane mogą zostać utracone w razie incydentu. Nieodpowiednie dla baz danych i klientów NFS, którzy korzystają z zapisów synchronicznych. |
+
+:::danger
+Gdy *sync* jest ustawione na `disabled`, aplikacja może uznać dane za zapisane, mimo że nie znajdują się jeszcze na dysku. Używaj tej wartości tylko wtedy, gdy w pełni rozumiesz ryzyko utraty danych.
+
+:::
+
+### Szablony użycia
+
+Szablon użycia stosuje do partycji w jednym kroku predefiniowaną kombinację trzech ustawień. Wszystkie szablony ustawiają *atime* na `off` i *sync* na `standard`. Różnią się jedynie wartością *recordsize*:
+
+| Szablon | Przeznaczenie | atime | sync | recordsize |
+|---------|---------------|-------|------|------------|
+| `Default` | Ogólne udostępnianie plików | `off` | `standard` | `131072` (128 KiB) |
+| `Virtual machines` | Obrazy maszyn wirtualnych | `off` | `standard` | `65536` (64 KiB) |
+| `Databases` | Przechowywanie baz danych | `off` | `standard` | `16384` (16 KiB) |
+| `File Systems (big files)` | Udostępnianie dużych plików (obrazy, filmy, streaming) | `off` | `standard` | `1048576` (1 MiB) |
+
+Jeśli żadna z tych kombinacji nie odpowiada Twoim potrzebom, samodzielnie ustaw każdą wartość za pomocą opcji <code className="action">Custom</code> (Panel klienta) lub parametrów niestandardowych (API).
+
+### Zmiana ustawień ZFS partycji
+
+Zmiana jest stosowana do całej partycji w ramach zadania asynchronicznego.
+
+<Tabs>
+<Tab label="Panel klienta OVHcloud">
+
+Po wybraniu usługi NAS-HA otwórz zakładkę <code className="action">Partycje</code>.
+
+W tabeli partycji kliknij przycisk <code className="action">...</code> w wierszu odpowiedniej partycji, a następnie <code className="action">Ustawienia ZFS</code>. Zostanie otwarte okno **Zmień parametry**.
+
+**Aby zastosować szablon użycia:**
+
+1. Na liście rozwijanej <code className="action">Wybierz szablon</code> wybierz jeden z szablonów: <code className="action">Default</code>, <code className="action">Virtual machines</code>, <code className="action">Databases</code> lub <code className="action">File Systems (big files)</code>.
+2. Kliknij <code className="action">Zmień parametry</code>, aby zatwierdzić.
+
+**Aby ustawić wartości niestandardowe:**
+
+1. Na liście rozwijanej <code className="action">Wybierz szablon</code> wybierz <code className="action">Custom</code>. Zostaną wyświetlone pola **Aktualizacja czasu dostępu (atime)**, **ZFS recordsize** i **Sync** z bieżącymi wartościami partycji.
+2. Dostosuj potrzebne wartości: pole wyboru <code className="action">Wyłącz</code> dla *atime*, wartość z listy rozwijanej <code className="action">ZFS recordsize</code> oraz jedną z opcji <code className="action">Always</code>, <code className="action">Disabled</code> lub <code className="action">Standard</code> dla *sync*. Wartości domyślne są oznaczone jako **(Domyślnie)**.
+3. Kliknij <code className="action">Zmień parametry</code>, aby zatwierdzić.
+
+Po zaktualizowaniu ustawień ZFS partycji zostanie wyświetlone powiadomienie.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Wszystkie poniższe wywołania znajdują się w <ApiLink section="/dedicated/nasha">sekcji */dedicated/nasha*</ApiLink> konsoli API.
+
+Aby pobrać nazwę usługi i partycji, użyj następujących wywołań:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha"} />
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/partition"} />
+
+Aby zmienić ustawienia ZFS partycji, użyj następującego wywołania:
+
+<Api version="v1" section="/dedicated/nasha" method="POST" route={"/dedicated/nasha/\{serviceName\}/partition/\{partitionName\}/options"} />
+
+| Parametr | Wymagany | Opis |
+|----------|----------|------|
+| `serviceName` | Tak | Wewnętrzna nazwa usługi NAS-HA |
+| `partitionName` | Tak | Nazwa partycji |
+| `templateName` |  | Szablon użycia do zastosowania: `Default`, `Virtual machines`, `Databases` lub `File Systems (big files)` |
+| `atime` |  | Aktualizacja czasu dostępu: `off` (domyślnie) lub `on` |
+| `recordsize` |  | Maksymalny rozmiar bloku w bajtach: `4096`, `8192`, `16384`, `32768`, `65536`, `131072` (domyślnie) lub `1048576` |
+| `sync` |  | Synchronizacja zapisu: `standard` (domyślnie), `always` lub `disabled` |
+
+Aby zastosować szablon, wyślij tylko parametr `templateName`. Na przykład dla partycji przechowującej bazę danych:
+
+```json
+{
+  "templateName": "Databases"
+}
+```
+
+Aby ustawić wartości niestandardowe, wyślij zamiast tego parametry `atime`, `recordsize` i `sync`, bez `templateName`:
+
+```json
+{
+  "atime": "off",
+  "recordsize": "65536",
+  "sync": "standard"
+}
+```
+
+Wywołanie zwraca zadanie. Możesz śledzić jego postęp za pomocą następującego wywołania:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/task/\{taskId\}"} />
+
+</Tab>
+</Tabs>
+
+### Sprawdzanie ustawień ZFS partycji
+
+Aby sprawdzić ustawienia zastosowane do partycji, użyj następującego wywołania API:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/partition/\{partitionName\}/options"} />
+
+Odpowiedź zawiera bieżące wartości `atime`, `recordsize` i `sync`, a w polu `templateName` nazwę szablonu zastosowanego do partycji, jeśli taki istnieje.
+
+## Sprawdź również
+
+[Pierwsze kroki z usługą NAS HA](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started)
+
+[NAS-HA - Zarządzanie partycjami przez API](/guides/storage-and-backup/file-storage/ha-nas/nas-partitions-api)
+
+[Montowanie NAS-HA przy użyciu zasobów NFS](/guides/storage-and-backup/file-storage/ha-nas/nas-nfs)
+
+[[fragment:professional-services]]
+
+Dołącz do [grona naszych użytkowników](/links/community).
