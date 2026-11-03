@@ -5,7 +5,13 @@
 ### Features
 
 #### EU
+- **nasha  v8:** all (#1145)
 - **pci data platform v8:** console wording and access path (#1152)
+
+### Fixes
+
+#### EU
+- **cpnav:** give the Data Platform organizations guide a Console CP-NAV block
 
 ### Maintenance
 
@@ -13,7 +19,7 @@
 - **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
 
 ### Documentation
-- EU: 9 guides across en, fr
+- EU: 56 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.03.1
 
