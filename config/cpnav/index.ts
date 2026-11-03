@@ -32,6 +32,7 @@ import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
@@ -48,6 +49,7 @@ import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
 import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
+import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
@@ -121,6 +123,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
+  // --- Private Cloud (Console only) ---------------------------------------------------
+  'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,
@@ -135,6 +139,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-databases': publiccloudDatabases,
   'publiccloud-analytics': publiccloudAnalytics,
+  'publiccloud-data-platform': publiccloudDataPlatform,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
