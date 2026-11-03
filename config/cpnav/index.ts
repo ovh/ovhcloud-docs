@@ -76,6 +76,7 @@ import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageNasHa } from './keys/storage-nas-ha';
+import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
@@ -133,6 +134,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-nas-ha': storageNasHa,
+  'storage-nas-ha-console': storageNasHaConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
