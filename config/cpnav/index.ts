@@ -76,6 +76,7 @@ import { securitySecretManager } from './keys/security-secret-manager';
 import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
+import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
@@ -134,6 +135,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'storage-backup-licenses': storageBackupLicenses,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
+  'storage-enterprise-file-storage-console':
+    storageEnterpriseFileStorageConsole,
   'storage-nas-ha': storageNasHa,
   'storage-nas-ha-console': storageNasHaConsole,
   // --- Public Cloud --------------------------------------------------------------------
