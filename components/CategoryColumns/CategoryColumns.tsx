@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import { useZone, type Zone } from '../Zone/ZoneContext';
 import './CategoryColumns.css';
 
@@ -67,6 +68,29 @@ export function CategoryColumns({ categories }: CategoryColumnsProps) {
 
   if (visibleCategories.length === 0) {
     return null;
+  }
+
+  // `.md` export: a heading and a link list per category, without the icons
+  // and arrows that serialise as stray text.
+  if (process.env.__SSR_MD__) {
+    return (
+      <>
+        {visibleCategories.map((cat) => (
+          <Fragment key={cat.title}>
+            {cat.title && <h3>{cat.title}</h3>}
+            <ul>
+              {cat.items.map((item) => (
+                <MdLinkItem
+                  key={item.title}
+                  href={item.link ? localizeHref(item.link) : '#'}
+                  title={item.title}
+                />
+              ))}
+            </ul>
+          </Fragment>
+        ))}
+      </>
+    );
   }
 
   return (

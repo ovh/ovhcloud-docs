@@ -19,7 +19,8 @@
 export const CARD_LOCALES = ['fr', 'en', 'de', 'es', 'it', 'pl', 'pt'] as const;
 export type CardLocale = (typeof CARD_LOCALES)[number];
 
-export const CATALOG_API = 'https://eu.api.ovh.com/1.0/order/catalog/public';
+export const CATALOG_API =
+  'https://api.eu.ovhcloud.com/1.0/order/catalog/public';
 
 /**
  * Which prices the ovhcloud.com page shows — its own `tax` setting:

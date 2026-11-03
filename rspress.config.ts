@@ -11,7 +11,6 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
-import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
@@ -23,6 +22,7 @@ import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkMermaid } from './plugins/remarkMermaid';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
@@ -125,13 +125,7 @@ const pathExcludes = devPath
 
 export default defineConfig({
   root: path.join(__dirname, regionConfig.contentDir),
-  plugins: [
-    pluginLastUpdatedFromFrontmatter(),
-    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
-    // the plugin's `loose` default: diagrams are contributor-written, so no
-    // click callbacks or raw HTML in labels.
-    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
-  ],
+  plugins: [pluginLastUpdatedFromFrontmatter()],
   builderConfig: {
     plugins: [pluginSass()],
     html: {
@@ -154,6 +148,33 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
+        // Cookie policy for a region the CMP does not cover yet (see
+        // config/regions.ts `cookieScript`).
+        ...(regionConfig.cookieScript
+          ? [
+              // The container calls jQuery as soon as it runs, so jQuery must
+              // run first. Both are deferred: deferred scripts run in document
+              // order. Not async: at SSG, Unhead sorts <head> by script type
+              // and moves async scripts ahead of every other one, whatever
+              // their order here.
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: regionConfig.cookieScript,
+                  defer: true,
+                  'data-analytics': '',
+                },
+              },
+            ]
+          : []),
         // Consent manager + analytics, only where the region runs them.
         ...(regionConfig.consentManager
           ? [
@@ -198,6 +219,8 @@ export default defineConfig({
         __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
         // Whether guides end with the page feedback form (see config/regions.ts).
         __PAGE_FEEDBACK__: JSON.stringify(regionConfig.pageFeedback),
+        // Survey opened by theme/components/SurveyWidget (see config/regions.ts).
+        __SURVEY_URL__: JSON.stringify(regionConfig.surveyUrl),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
@@ -265,6 +288,9 @@ export default defineConfig({
   locales: [...activeLocales],
   markdown: {
     remarkPlugins: [
+      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
+      // column — config/mermaid.ts). Source passed verbatim.
+      remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
@@ -285,6 +311,7 @@ export default defineConfig({
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
       path.join(__dirname, 'components/Banner/Banner.tsx'),
+      path.join(__dirname, 'components/MermaidDiagram/MermaidDiagram.tsx'),
     ],
     link: {
       checkDeadLinks: true,

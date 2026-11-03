@@ -1,7 +1,7 @@
 ---
 title: Comprendre l'architecture d'OVHcloud Managed Kubernetes
 description: "Découvrez le fonctionnement d'OVHcloud Managed Kubernetes Service : control plane, worker nodes, réseau et stockage"
-lastUpdated: 2026-06-22
+lastUpdated: 2026-10-23
 ---
 
 ## Objectif
@@ -389,79 +389,52 @@ Exemple pour la flavor b3-16 : 170m CPU, 1.59GB RAM, 30GB stockage réservés.
 
 ### Vue d'ensemble du réseau cluster
 
-```text
-+====================================================================================+
-|                             ARCHITECTURE RÉSEAU                                     |
-+====================================================================================+
-|                                                                                    |
-|   INTERNET                                                                         |
-|   +------+                                                                         |
-|   |      |                                                                         |
-|   +--+---+                                                                         |
-|      |                                                                             |
-|      +------------------+------------------------+                                 |
-|      |                  ^                        ^                                 |
-|      | OPTION 1         | OPTION 2               | OPTION 3                        |
-|      | Load Balancer    | Floating IPs nodes     | Gateway (SNAT)                  |
-|      | (recommandé)     | (accès direct)         | (sortant uniq.)                 |
-|      |                  |                        |                                 |
-|      v                  |                        |                                 |
-|   +----------+          |                 +------------+                           |
-|   |Floating  |          |                 |  Gateway   |                           |
-|   |   IP     |          |                 | (Octavia)  |                           |
-|   +----+-----+          |                 +-----+------+                           |
-|        |                |                       ^                                  |
-|        v                |                       | SNAT                             |
-|   +----------+          |                       | (sortant)                        |
-|   |   Load   |          |                       |                                  |
-|   | Balancer |          |                       |                                  |
-|   | (Octavia)|          |                       |                                  |
-|   +----+-----+          |                       |                                  |
-|        |                |                       |                                  |
-|   +----|----------------|----------------------------------------------------+     |
-|   |    |    RÉSEAU PRIVÉ (ou vRack)             |                            |     |
-|   |    v                v                       |                            |     |
-|   | +--------------------------------------------------------------------+   |     |
-|   | |                      CLUSTER KUBERNETES                            |   |     |
-|   | |                                                                    |   |     |
-|   | |  +------------+     +------------+     +------------+              |   |     |
-|   | |  |   Node 1   |     |   Node 2   |     |   Node 3   |--------------+   |     |
-|   | |  | +--------+ |     | +--------+ |     | +--------+ |              |   |     |
-|   | |  | |Floating| |     | |Floating| |     | |Floating| |  (Option 2)  |   |     |
-|   | |  | |IP (opt)| |     | |IP (opt)| |     | |IP (opt)| |              |   |     |
-|   | |  | +--------+ |     | +--------+ |     | +--------+ |              |   |     |
-|   | |  | +--+ +--+  |     | +--+ +--+  |     | +--+ +--+  |              |   |     |
-|   | |  | |P1| |P2|  |<--->| |P3| |P4|  |<--->| |P5| |P6|  |              |   |     |
-|   | |  | +--+ +--+  |     | +--+ +--+  |     | +--+ +--+  |              |   |     |
-|   | |  +------------+     +------------+     +------------+              |   |     |
-|   | |        ^                  ^                  ^                     |   |     |
-|   | |        +------------------+------------------+                     |   |     |
-|   | |                           |                                        |   |     |
-|   | |              CNI: Canal (Free) / Cilium (Standard)                 |   |     |
-|   | +--------------------------------------------------------------------+   |     |
-|   +--------------------------------------------------------------------------+     |
-|                                                                                    |
-+====================================================================================+
+```mermaid
+flowchart TB
+    I((Internet))
+    U[Utilisateurs et administrateurs]
+    subgraph OVH["Opéré par OVHcloud"]
+        CP["Control plane Kubernetes<br/>API server, etcd, controllers, scheduler"]
+    end
+    LB["Option 1 : Load Balancer (Octavia)<br/>avec une Floating IP, entrant"]
+    GW["Option 3 : Gateway (routeur OpenStack)<br/>SNAT, sortant uniquement"]
+    RT["Option 4 : votre propre routeur ou pare-feu<br/>dans votre vRack, sortant (plan Standard)"]
+    subgraph PN["Réseau privé (Public Cloud ou vRack)"]
+        N["Worker nodes et pods<br/>Option 2 : Floating IP par nœud (optionnelle), entrant et sortant<br/>CNI : Canal (Free) ou Cilium (Standard)"]
+    end
+    I --> LB --> N
+    N --> GW --> I
+    N --> RT --> I
+    U -- "kubectl, endpoint public de l'API server<br/>avec vos restrictions d'IP" --> CP
+    CP <-.->|"Konnectivity"| N
+
+    classDef ovh fill:#0089C0,stroke:#0089C0,color:#fff;
+    classDef res fill:#E6F3FA,stroke:#0089C0,color:#0a2a36;
+    class CP ovh;
+    class LB,GW,RT,N,U res;
 ```
+
+Ni l'option 2, ni l'option 1 avec un Load Balancer public, ne sont disponibles sur un cluster Standard créé avec l'exposition publique de ses nœuds et de ses workloads désactivée (reportez-vous à la section « [Désactiver l'exposition publique des nœuds et des workloads](#désactiver-lexposition-publique-des-nœuds-et-des-workloads) »). Le lien entre le control plane et les nœuds dépend du plan (reportez-vous à la section « [Connectivité avec le control plane](#connectivité-avec-le-control-plane) »).
 
 ### Options d'accès Internet
 
-Les clusters MKS supportent trois schémas de connectivité Internet :
+Les clusters MKS prennent en charge quatre schémas de connectivité Internet :
 
 | Option | Direction | Cas d'usage |
 |--------|-----------|-------------|
 | **Load Balancer** | Entrant | Exposer des services (recommandé en production) |
-| **Floating IPs sur les nœuds** | Entrant & Sortant | Accès direct aux nœuds, préserver l'IP source |
+| **Floating IP sur les nœuds** | Entrant & Sortant | Accès direct aux nœuds, préserver l'IP source |
 | **Gateway (SNAT)** | Sortant uniquement | Sortie par défaut, IP partagée pour tous les nœuds |
+| **Votre propre routeur ou pare-feu** | Sortant uniquement | Architectures hub-and-spoke : inspecter, filtrer et journaliser le trafic sortant des workloads (plan Standard) |
 
-**Option 1 - Load Balancer (Octavia) :**
+**Option 1 - Load Balancer (Octavia) :**
 
 - Recommandé pour exposer des services sur Internet
 - Fournit health checking, distribution de charge
 - Point d'entrée unique avec une Floating IP
 - Prend en charge le load balancing L4 (TCP/UDP)
 
-**Option 2 - Floating IPs sur les nœuds :**
+**Option 2 - Floating IP sur les nœuds :**
 
 - Chaque nœud peut avoir sa propre Floating IP attachée
 - Permet un accès entrant direct (ex: via services NodePort)
@@ -470,16 +443,40 @@ Les clusters MKS supportent trois schémas de connectivité Internet :
 - L'IP est préservée lors des mises à jour in-place, mais change avec les rolling upgrades
 
 :::warning
-Pour attacher une Floating IP à un nœud, une Gateway (routeur OpenStack) doit être configurée sur le subnet du réseau privé. Sans Gateway, les Floating IPs ne peuvent pas être associées aux instances de ce subnet.
+Pour attacher une Floating IP à un nœud, une Gateway (routeur OpenStack) doit être configurée sur le subnet du réseau privé. Sans Gateway, les Floating IP ne peuvent pas être associées aux instances de ce subnet.
 :::
 
 
-**Option 3 - Gateway (SNAT) :**
+**Option 3 - Gateway (SNAT) :**
 
 - Par défaut pour l'accès Internet sortant quand aucune Floating IP n'est attachée
 - Tous les nœuds partagent la même IP sortante (IP de la Gateway)
 - N'EXPOSE PAS les services sur Internet
 - L'IP source est traduite (SNAT)
+
+**Option 4 - Votre propre routeur ou pare-feu (plan Standard) :**
+
+- Disponible sur les clusters Standard créés depuis le 13 octobre 2026 (`useUserGateway`, qui exige `disablePublicNetworking`), à définir à la création depuis l'API OVHcloud ou Terraform (provider 2.23.0 ou ultérieur, prise en charge dans l'espace client et la CLI en cours) ; votre routeur est la passerelle du sous-réseau des nœuds
+- Le trafic sortant des nœuds et des pods passe par votre équipement, déployé dans votre réseau privé (sauf le trafic vers le control plane et les images système du service)
+- Aucune passerelle managée OVHcloud n'est nécessaire
+- L'exposition publique des nœuds et des workloads est désactivée : pas de Floating IP sur les nœuds ou les load balancers, pas de Load Balancer public
+- Votre routeur n'est ni sur le chemin entre les nœuds et le control plane, ni sur celui des images système du service ; les pods sortent avec l'adresse privée de leur nœud
+- Consultez le guide « [Utiliser une passerelle personnalisée sur un cluster OVHcloud Managed Kubernetes](/guides/public-cloud/containers-orchestration/managed-kubernetes/vrack-custom-gateway#utiliser-votre-propre-routeur-ou-pare-feu-plan-standard) »
+
+### Désactiver l'exposition publique des nœuds et des workloads
+
+Sur les clusters Standard créés depuis le 13 octobre 2026, vous pouvez désactiver l'exposition publique des nœuds et des workloads à la création du cluster (`disablePublicNetworking`), avec ou sans votre propre routeur. Cette option sert de garde-fou : quoi que vous déployiez dans le cluster, rien ne peut être exposé sur Internet via une IP publique, même par erreur.
+
+- Aucune Floating IP ne peut être attachée aux nœuds ni aux load balancers, et les Services de type `LoadBalancer` ne peuvent pas obtenir de Load Balancer public.
+- Le trafic sortant n'est pas affecté : les nœuds continuent d'accéder à Internet via la passerelle managée OVHcloud du sous-réseau des nœuds (obligatoire si vous n'utilisez pas votre propre routeur), ou via votre propre routeur.
+- L'API server Kubernetes n'est pas concerné : il reste accessible publiquement avec vos restrictions d'IP.
+- L'option se définit à la création depuis l'API OVHcloud ou Terraform (provider 2.23.0 ou ultérieur, prise en charge dans l'espace client et la CLI en cours) et ne peut plus être modifiée ensuite.
+
+### Connectivité avec le control plane
+
+Sur tout nouveau cluster Standard, le trafic entre les worker nodes et le control plane Kubernetes passe par un chemin privé opéré par OVHcloud. Il ne transite pas par la passerelle de votre réseau privé : une modification ou une panne de votre passerelle n'affecte pas la communication entre les nœuds et le control plane.
+
+Sur les clusters du plan Free, ce trafic passe par l'interface publique des nœuds. Sur les clusters Standard créés avant le 13 octobre 2026, il passe par la passerelle du réseau privé.
 
 ### CNI : Container Network Interface
 
@@ -623,7 +620,7 @@ Le vRack permet :
 - Interconnexion avec d'autres produits dédiés OVHcloud
 
 :::warning
-Avec un réseau privé (avec ou sans vRack), vous verrez toujours une IPv4 publique sur les worker nodes. Cette IP n'est pas joignable depuis Internet et est utilisée exclusivement pour l'administration des nœuds et la communication avec le control plane.
+Sur les clusters du plan Free, avec un réseau privé (avec ou sans vRack), vous verrez toujours une IPv4 publique sur les worker nodes. Cette IP n'est pas joignable depuis Internet et est utilisée exclusivement pour l'administration des nœuds et la communication avec le control plane. Sur les clusters du plan Standard, les nœuds n'ont pas d'IP publique par défaut : ils accèdent à Internet via la passerelle managée ou via des Floating IP définies au niveau du pool de nœuds.
 :::
 
 
@@ -763,77 +760,29 @@ Pour la matrice complète des versions, consultez [Plugins Kubernetes et version
 
 ## Diagramme d'architecture : vue complète
 
-```text
-+=======================================================================================+
-|                        OVHCLOUD MANAGED KUBERNETES SERVICE                             |
-+=======================================================================================+
-|                                                                                       |
-|   INTERNET                                                                            |
-|   +------+                                                                            |
-|   |      |                                                                            |
-|   +--+---+                                                                            |
-|      |                                                                                |
-|      +------------------+------------------------+                                    |
-|      |                  |                        |                                    |
-|      v                  |                        v                                    |
-|   +----------+          |                 +------------+                              |
-|   |Floating  |          |                 |  Gateway   | (SNAT pour                   |
-|   |   IP     |          |                 | (Octavia)  |  sortant)                    |
-|   +----+-----+          |                 +-----+------+                              |
-|        |                |                       ^                                     |
-|        v                |                       |                                     |
-|   +----------+          |                       |                                     |
-|   |   Load   |          |                       |                                     |
-|   | Balancer |          |                       |                                     |
-|   | (Octavia)|          |                       |                                     |
-|   +----+-----+          |                       |                                     |
-|        |                |                       |                                     |
-|   +----|----------------|----------------------------------------------------+        |
-|   |    |   RÉSEAU PRIVÉ (réseau Public Cloud ou vRack)                       |       |
-|   |    v                |                       |                            |        |
-|   | +--------------------------------------------------------------------+   |        |
-|   | |                        CLUSTER MKS                                  |  |        |
-|   | |                                                                    |   |        |
-|   | |  CONTROL PLANE (Géré par OVHcloud)                                 |   |        |
-|   | |  +--------------------------------------------------------------+  |   |        |
-|   | |  |                                                              |  |   |        |
-|   | |  |  FREE: Zone unique        STANDARD: Multi-AZ                 |  |   |        |
-|   | |  |  +------------------+     +-------+ +-------+ +-------+      |  |   |        |
-|   | |  |  | API | etcd | CM  |     |API|etcd| |API|etcd| |API|etcd|   |  |   |        |
-|   | |  |  | Scheduler        |     | Zone A | | Zone B | | Zone C |   |  |   |        |
-|   | |  |  +------------------+     +-------+ +-------+ +-------+      |  |   |        |
-|   | |  |                                                              |  |   |        |
-|   | |  +--------------------------------------------------------------+  |   |        |
-|   | |                             ^                                      |   |        |
-|   | |                             | Konnectivity                         |   |        |
-|   | |                             v                                      |   |        |
-|   | |  WORKER NODES                                                      |   |        |
-|   | |  +------------------+ +------------------+ +------------------+    |   |        |
-|   | |  |     Node 1       | |     Node 2       | |     Node 3       |----+   |        |
-|   | |  | +-----+ +-----+  | | +-----+ +-----+  | | +-----+ +-----+  |    |   |        |
-|   | |  | |Pod A| |Pod B|  | | |Pod C| |Pod D|  | | |Pod E| |Pod F|  |    |   |        |
-|   | |  | +-----+ +-----+  | | +-----+ +-----+  | | +-----+ +-----+  |    |   |        |
-|   | |  | kubelet|kube-prx | | kubelet|kube-prx | | kubelet|kube-prx |    |   |        |
-|   | |  | containerd      | | containerd       | | containerd       |    |   |        |
-|   | |  +--------+---------+ +--------+---------+ +--------+---------+    |   |        |
-|   | |           |                    |                    |              |   |        |
-|   | |           +--------------------+--------------------+              |   |        |
-|   | |                                |                                   |   |        |
-|   | |             FREE: Canal (Flannel + Calico)                         |   |        |
-|   | |             STANDARD: Cilium (eBPF)                                |   |        |
-|   | |                                                                    |   |        |
-|   | +--------------------------------------------------------------------+   |        |
-|   |                                                                          |        |
-|   +--------------------------------------------------------------------------+        |
-|                                                                                       |
-|   STOCKAGE                                                                            |
-|   +------------------+  +------------------+  +-------------------+                   |
-|   |  Block Storage   |  |  Block Storage   |  |  File Storage     |                  |
-|   |  (Cinder PV)     |  |  (Cinder PV)     |  |  (NFS - RWX)      |                   |
-|   |  RWO uniquement  |  |  RWO uniquement  |  |  Multi-attach     |                  |
-|   +------------------+  +------------------+  +-------------------+                   |
-|                                                                                       |
-+=======================================================================================+
+```mermaid
+flowchart TB
+    U[Utilisateurs et administrateurs]
+    I((Internet))
+    subgraph OVH["Opéré par OVHcloud"]
+        direction LR
+        F["Plan Free : control plane dans une seule zone"]
+        S["Plan Standard : control plane réparti sur 3 zones de disponibilité (régions 3-AZ)"]
+    end
+    subgraph NET["Votre projet Public Cloud : réseau public (Free) ou réseau privé / vRack"]
+        N["Worker nodes<br/>kubelet, containerd, vos pods<br/>CNI : Canal (Free) ou Cilium (Standard)"]
+        ST["Stockage persistant<br/>Block Storage (Cinder, RWO)<br/>File Storage (NFS, RWX)"]
+        E["Exposition et sortie<br/>Load Balancer, Floating IP,<br/>Gateway ou votre propre routeur"]
+    end
+    U -- "kubectl, endpoint public de l'API server<br/>avec vos restrictions d'IP" --> OVH
+    OVH <-.->|"Konnectivity<br/>Free : interface publique des nœuds<br/>Standard : chemin privé opéré par OVHcloud<br/>(clusters Standard créés avant le 13 octobre 2026 : via votre passerelle)"| N
+    N --- ST
+    N <--> E <--> I
+
+    classDef ovh fill:#0089C0,stroke:#0089C0,color:#fff;
+    classDef res fill:#E6F3FA,stroke:#0089C0,color:#0a2a36;
+    class F,S ovh;
+    class N,ST,E,U res;
 ```
 
 ## Aller plus loin

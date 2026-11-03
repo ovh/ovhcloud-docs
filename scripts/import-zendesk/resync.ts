@@ -51,6 +51,7 @@ import * as path from 'node:path';
 import minimist from 'minimist';
 import sharp from 'sharp';
 import { convertArticle } from './lib/convert-article.js';
+import { normalizeRegionLinks } from './lib/links.js';
 import { slugify } from './lib/resolve.js';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -296,8 +297,12 @@ async function main(): Promise<void> {
       });
   }
 
-  // Base: the importer's own output, identified by content_hash.
+  // Base: the importer's own output, identified by content_hash. Its links are
+  // then brought up to the current lib/links.ts rules, which theirs gets from
+  // convertArticle: a base written before a rule existed would otherwise fail
+  // calibration on every unchanged guide that carries such a link.
   const base = new Map<string, string>();
+  const toBase = (body: string) => normalizeRegionLinks(body.trim()).markdown;
   const savedImages = new Map<string, Record<string, string>>();
   const imagePaths = new Map<string, string>();
   for (const raw of historicalBlobs()) {
@@ -305,7 +310,7 @@ async function main(): Promise<void> {
     const g = guides.get(fields.zendesk_id ?? '');
     if (!g) continue;
     if (!base.has(g.id) && sha(`${body.trim()}\n`) === g.fields.content_hash)
-      base.set(g.id, body.trim());
+      base.set(g.id, toBase(body));
   }
   // Guides resynced before: their base is the converted article saved by the
   // previous run.
@@ -315,7 +320,7 @@ async function main(): Promise<void> {
       if (base.has(g.id) || !fs.existsSync(file)) continue;
       const saved = fs.readFileSync(file, 'utf-8');
       if (sha(saved) !== g.fields.content_hash) continue;
-      base.set(g.id, saved.trim());
+      base.set(g.id, toBase(saved));
       // The image paths that run gave each Zendesk URL, so the same article
       // converts back to the same base whatever the images are named.
       const images = path.join(argv.bases, `${g.id}.images.json`);

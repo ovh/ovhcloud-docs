@@ -2,13 +2,16 @@
  * Worker thread: pre-processes HTML and MD files in a single locale directory.
  *
  * HTML: Boosts h1 weight for Pagefind and cleans header-anchor "#" symbols.
- * MD:   Injects frontmatter from source MDX (title, description, url, lang)
+ * MD:   Cleans the Markdown Rspress emits (scripts/lib/llms/clean-md.ts) and
+ *       injects frontmatter from source MDX (title, description, url, lang)
  *       for LLM consumption.
  *
  * Input (workerData):  { dir, locale, siteUrl, docsDir, basePath? }
  *   basePath: URL prefix of `dir` — `/<locale>` (default, multi-locale
  *   region) or `''` for a single-locale region served at the domain root.
- * Output (message):    { html: number, md: number }
+ * Output (message):    { html: number, md: number, residue: string[] }
+ *   residue: components or directives left in the cleaned `.md` (see
+ *   findResidue), as `<page>: <tag>`.
  */
 
 import * as fs from 'node:fs';
@@ -16,8 +19,11 @@ import * as path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import YAML from 'yaml';
 import { contentSubdir, regionConfig } from '../config/regions';
+import { cleanMarkdown, findResidue } from './lib/llms/clean-md';
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static']);
+
+const residue: string[] = [];
 
 /**
  * Extract the top-level scalar frontmatter fields of an MDX file, as
@@ -323,6 +329,14 @@ function processDir(
       const description = fm?.description || '';
       const lastUpdated = fm?.lastUpdated || '';
       const url = `${siteUrl}${basePath}/${slug}`;
+      const lang = contentLocale(mdxPath, docsDir, locale);
+      // The source recovers the FAQ questions and tab labels the render
+      // flattened; a page without one (generated) is cleaned without it.
+      const source = fs.existsSync(mdxPath)
+        ? fs.readFileSync(mdxPath, 'utf-8')
+        : undefined;
+      const body = cleanMarkdown(mdContent, { locale: lang, source, siteUrl });
+      for (const r of findResidue(body)) residue.push(`${relativePath}: ${r}`);
 
       const lines = ['---'];
       // JSON strings are valid YAML double-quoted scalars (escapes included).
@@ -330,11 +344,11 @@ function processDir(
       if (description)
         lines.push(`description: ${JSON.stringify(description)}`);
       lines.push(`url: ${url}`);
-      lines.push(`lang: ${contentLocale(mdxPath, docsDir, locale)}`);
+      lines.push(`lang: ${lang}`);
       if (lastUpdated) lines.push(`lastUpdated: ${lastUpdated}`);
       lines.push('---', '');
 
-      fs.writeFileSync(mdPath, lines.join('\n') + mdContent);
+      fs.writeFileSync(mdPath, lines.join('\n') + body);
       md++;
     }
   }
@@ -350,4 +364,4 @@ const { dir, locale, siteUrl, docsDir, basePath } = workerData as {
 };
 const rootBase = basePath ?? `/${locale}`;
 const counts = processDir(dir, locale, siteUrl, docsDir, rootBase);
-parentPort?.postMessage(counts);
+parentPort?.postMessage({ ...counts, residue });
