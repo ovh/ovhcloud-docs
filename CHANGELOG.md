@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026.11.03.2
+
+### Features
+
+#### EU
+- **pci data platform v8:** console wording and access path (#1152)
+
+### Maintenance
+
+#### EU
+- **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
+
+### Documentation
+- EU: 9 guides across en, fr
+
 ## 2026.11.03.1
 
 ### Features
