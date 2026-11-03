@@ -267,22 +267,33 @@ function openTitleGaps(svg: SVGSVGElement): void {
         best = { k, centre };
     }
     if (!best) continue;
-    // rebuild the title: left words · exact gap · right words (normal spacing)
-    const doc = span.ownerDocument;
-    const left = doc.createElement('span');
-    left.textContent = words.slice(0, best.k).join(' ');
-    const gap = doc.createElement('span');
-    gap.style.display = 'inline-block';
-    gap.style.width = `${gapW}px`;
-    const right = doc.createElement('span');
-    right.textContent = words.slice(best.k).join(' ');
-    span.textContent = '';
-    span.append(left, gap, right);
-    // resize the title box to its new width and move it to the computed centre
-    const div = span.closest('div');
-    const newW = span.getBoundingClientRect().width;
-    fo.setAttribute('width', String(newW));
-    if (div) div.style.width = `${newW}px`;
+    // a split that leaves one short word alone ("Subnet | A") no longer reads as
+    // one title: keep the title whole and move it left of the arrow instead
+    const lone = [words.slice(0, best.k), words.slice(best.k)].some(
+      (p) => p.length === 1 && p[0].length <= 2,
+    );
+    if (lone) {
+      const lb = label.getBoundingClientRect();
+      best = { k: 0, centre: A - GAP_SIDE - (lb.right - lb.left) / 2 };
+    } else {
+      // rebuild the title: left words · exact gap · right words (normal spacing)
+      const doc = span.ownerDocument;
+      const left = doc.createElement('span');
+      left.textContent = words.slice(0, best.k).join(' ');
+      const gap = doc.createElement('span');
+      gap.style.display = 'inline-block';
+      gap.style.width = `${gapW}px`;
+      const right = doc.createElement('span');
+      right.textContent = words.slice(best.k).join(' ');
+      span.textContent = '';
+      span.append(left, gap, right);
+      // resize the title box to its new width
+      const div = span.closest('div');
+      const newW = span.getBoundingClientRect().width;
+      fo.setAttribute('width', String(newW));
+      if (div) div.style.width = `${newW}px`;
+    }
+    // move the title to the computed centre
     const m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)\s*\)/.exec(
       label.getAttribute('transform') ?? '',
     );
