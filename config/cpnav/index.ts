@@ -50,6 +50,7 @@ import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
+import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
@@ -142,6 +143,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-databases': publiccloudDatabases,
   'publiccloud-analytics': publiccloudAnalytics,
   'publiccloud-data-platform': publiccloudDataPlatform,
+  'publiccloud-data-platform-console': publiccloudDataPlatformConsole,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
