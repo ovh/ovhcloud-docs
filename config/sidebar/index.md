@@ -617,11 +617,13 @@
             + [How the Ironic to NetBox synchronisation works](hosted-private-cloud/opcp/netbox-ironic-synchronisation)
             + [How to access the NetBox API with a token](hosted-private-cloud/opcp/netbox-api-access)
             + [How to use Terraform](hosted-private-cloud/opcp/use-terraform)
+            + [How to manage the OPCP configuration with opcp-cli](hosted-private-cloud/opcp/how-to-manage-configuration)
             + [How to update the backup S3 buckets](hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
             + [How to back up the OPCP controller data](hosted-private-cloud/opcp/how-to-create-a-backup)
             + [How to upgrade OPCP](hosted-private-cloud/opcp/how-to-upgrade-opcp)
             + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
             + [How to restore OPCP from a backup](hosted-private-cloud/opcp/how-to-restore-backup)
+            + [How to diagnose the OPCP control plane with opcp-diag](hosted-private-cloud/opcp/how-to-diagnose-control-plane)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
@@ -2697,6 +2699,7 @@
                 + [Enterprise File Storage - How to deploy an EFS stack for Trident CSI with Terraform](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-terraform)
             + [Migration](storage-file-storage-enterprise-file-storage-migration)
                 + [Enterprise File Storage - Clone a volume](storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume)
+                + [Enterprise File Storage - Migrate a volume to vRack using share replication](storage-and-backup/file-storage/enterprise-file-storage/netapp-migrate-vrack-replication)
             + [Additional resources](storage-file-storage-enterprise-file-storage-additional-resources)
                 + [File Storage services - Responsibility model](account-and-service-management/responsibility-sharing/file-storage)
                 + [File Storage reversibility policy](account-and-service-management/reversibility/file-storage-reversibility-policy)
@@ -2793,6 +2796,20 @@
                 + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting)
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-licenses-additional-resources)
                 + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
+        + [Managed Backup for VMware](products/storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware)
+            + [Getting started](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-getting-started)
+                + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started){label=Getting started}
+                + [Managed Backup for VMware - Protecting your virtual machines](storage-and-backup/managed-backup-for-vmware/tag-vm){label=Protecting your virtual machines}
+                + [Managed Backup for VMware - Backing up and restoring from the VBR console](storage-and-backup/managed-backup-for-vmware/backup-restore){label=Backing up and restoring from the VBR console}
+                + [Managed Backup for VMware - Monitoring your protection in the OVHcloud Console](storage-and-backup/managed-backup-for-vmware/monitor-protection){label=Monitoring your protection in the OVHcloud Console}
+                + [Managed Backup for VMware - Migrating from Veeam Managed Backup](storage-and-backup/managed-backup-for-vmware/migrate){label=Migrating from Veeam Managed Backup}
+            + [Key concepts](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-key-concepts)
+                + [Managed Backup for VMware - Security and guarantees of your backups](storage-and-backup/managed-backup-for-vmware/security){label=Security and guarantees of your backups}
+            + [Troubleshooting](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-troubleshooting)
+                + [Managed Backup for VMware - FAQ and troubleshooting](storage-and-backup/managed-backup-for-vmware/faq){label=FAQ and troubleshooting}
+            + [Additional resources](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-additional-resources)
+                + [Managed Backup for VMware - Understanding your billing](storage-and-backup/managed-backup-for-vmware/billing){label=Understanding your billing}
+                + [Managed Backup for VMware - Terminating and reactivating a service](storage-and-backup/managed-backup-for-vmware/terminate){label=Terminating and reactivating a service}
         + [Veeam Enterprise Plus](products/storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus)
             + [Overview](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview)
             + [Getting started](storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus-getting-started)
