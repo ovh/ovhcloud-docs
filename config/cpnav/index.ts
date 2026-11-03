@@ -65,11 +65,14 @@ import { publiccloudProjectSettings } from './keys/publiccloud-project-settings'
 import { publiccloudProjects } from './keys/publiccloud-projects';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
 import { publiccloudQuantumEmulators } from './keys/publiccloud-quantum-emulators';
+import { publiccloudQuantumEmulatorsConsole } from './keys/publiccloud-quantum-emulators-console';
 import { publiccloudQuantumQpus } from './keys/publiccloud-quantum-qpus';
+import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-console';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
+import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { securityKms } from './keys/security-kms';
 import { securitySecretManager } from './keys/security-secret-manager';
@@ -151,8 +154,11 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-ai-deploy': publiccloudAiDeploy,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
   'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
+  'publiccloud-quantum-emulators-console': publiccloudQuantumEmulatorsConsole,
   'publiccloud-quantum-qpus': publiccloudQuantumQpus,
+  'publiccloud-quantum-qpus-console': publiccloudQuantumQpusConsole,
   'publiccloud-users-roles': publiccloudUsersRoles,
+  'publiccloud-users-roles-console': publiccloudUsersRolesConsole,
   'publiccloud-instances': publiccloudInstances,
   'publiccloud-instance-backup': publiccloudInstanceBackup,
   'publiccloud-block-storage': publiccloudBlockStorage,
