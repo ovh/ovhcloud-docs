@@ -2686,7 +2686,7 @@
                 + [Enterprise File Storage - Performance Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts-performances)
                 + [Enterprise File Storage - FAQ](storage-and-backup/file-storage/enterprise-file-storage/netapp-faq)
             + [Getting Started](storage-file-storage-enterprise-file-storage-getting-started)
-                + [Managing Enterprise File Storage from the OVHcloud Control Panel](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
+                + [Managing Enterprise File Storage from the OVHcloud Console](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
                 + [Managing Enterprise File Storage with OVHcloud Terraform provider](storage-and-backup/file-storage/enterprise-file-storage/netapp-terraform)
                 + [Enterprise File Storage - API Quickstart](storage-and-backup/file-storage/enterprise-file-storage/netapp-quick-start)
                 + [Enterprise File Storage - Getting started with Trident CSI](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-csi)
