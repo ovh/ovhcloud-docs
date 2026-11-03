@@ -5,6 +5,7 @@
 ### Features
 
 #### EU
+- **pci quantum v8:** emulators, qpus, users and general information (#1101)
 - **nasha  v8:** all (#1145)
 - **pci data platform v8:** console wording and access path (#1152)
 
@@ -19,7 +20,7 @@
 - **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
 
 ### Documentation
-- EU: 56 guides across de, en, es, fr, it, pl, pt
+- EU: 186 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.03.1
 
