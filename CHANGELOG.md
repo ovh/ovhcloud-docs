@@ -1,11 +1,58 @@
 # Changelog
 
+## 2026.11.03
+
+### Documentation
+- EU: 65 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.02.1
+
+### Documentation
+- EU: 20 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.02
+
+### Fixes
+
+#### US
+- **docs-us:** update home page links and add Oxford comma (#1105)
+
+### Documentation
+- EU: 42 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.10.29.1
+
+### Fixes
+
+#### All regions
+- **deps:** patch the open Dependabot advisories (#1127)
+- **deps:** patch the open Dependabot advisories
+
+## 2026.10.29
+
+### Features
+
+#### EU
+- **nasha:** add ZFS settings guide with usage templates (#987)
+
+### Maintenance
+
+#### EU
+- **okms:** update the okms-cli usage in the byok guide (#1109)
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.27
 
 ### Fixes
 
 #### EU
 - drop the standalone <br/> lines from the web hosting version legend (#1095)
+
+#### All regions
+- **styles:** show the hand cursor on the collapse header only (#1096)
 
 ### Documentation
 - EU: 64 guides across de, en, es, fr, it, pl, pt
