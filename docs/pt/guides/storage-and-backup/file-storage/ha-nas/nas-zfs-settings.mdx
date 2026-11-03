@@ -1,0 +1,186 @@
+---
+title: NAS-HA - Configurar os parâmetros ZFS de uma partição
+description: "Descubra como aplicar um template de utilização ou parâmetros ZFS personalizados (atime, recordsize, sync) a uma partição NAS-HA"
+lastUpdated: 2026-10-29
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+import Api from '@components/Api';
+
+
+## Objetivo
+
+Cada partição de um serviço NAS-HA é um dataset ZFS. Pode ajustar três das respetivas propriedades ZFS em função dos dados que esta aloja: a atualização dos tempos de acesso (*atime*), o tamanho máximo do bloco (*recordsize*) e a sincronização das escritas (*sync*).
+
+Para simplificar esta configuração, a OVHcloud propõe templates de utilização que aplicam de uma só vez uma combinação predefinida destes parâmetros.
+
+**Este guia explica a função de cada parâmetro ZFS, os valores aplicados por cada template e como modificar os parâmetros de uma partição a partir da Área de Cliente OVHcloud ou através da API OVHcloud.**
+
+## Requisitos
+
+- Dispor de um [serviço NAS-HA](/links/storage/nas-ha) OVHcloud com pelo menos uma [partição](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started)
+- Ter acesso à Área de Cliente OVHcloud ou à API OVHcloud (consulte o guia "[Primeiros passos com as API OVHcloud](/guides/manage-and-operate/api/first-steps)")
+
+[[cpnav:storage-nas-ha]]
+
+## Instruções
+
+:::warning
+Os parâmetros ZFS predefinidos são adequados à maioria das utilizações. Altere-os apenas se conhecer os dados alojados na partição e o impacto de cada parâmetro descrito abaixo.
+
+:::
+
+### Compreender os parâmetros ZFS
+
+#### Atualização dos tempos de acesso (atime)
+
+Quando *atime* está ativado, o ZFS atualiza a data do último acesso a um ficheiro em cada leitura. Assim, cada operação de leitura gera também uma operação de escrita.
+
+Quando *atime* está desativado (`off`), estas escritas adicionais são evitadas, o que melhora o desempenho das utilizações com leitura intensiva. Desative-o, exceto se uma aplicação alojada na partição depender das datas de acesso aos ficheiros. Todos os templates de utilização definem *atime* como `off`.
+
+#### ZFS recordsize
+
+O *recordsize* é o tamanho máximo dos blocos nos quais o ZFS armazena os dados de um ficheiro. Os ficheiros mais pequenos do que o *recordsize* utilizam um bloco mais pequeno: um ficheiro de 16 KiB ocupa um bloco de 16 KiB (mais os metadados), e não um bloco completo de 128 KiB.
+
+Regra geral, alinhe o *recordsize* com o tamanho das leituras e escritas da aplicação:
+
+- **Leituras e escritas pequenas e aleatórias** (bases de dados, discos de máquinas virtuais): um *recordsize* reduzido evita ler e reescrever um bloco grande para modificar alguns kilobytes.
+- **Leituras e escritas volumosas e sequenciais** (ficheiros de vídeo, imagens, backups, arquivos): um *recordsize* elevado reduz o número de blocos e de metadados a gerir, o que melhora o débito.
+
+Os valores disponíveis estão listados abaixo. A Área de Cliente apresenta-os em unidades decimais (1 KB = 1000 bytes).
+
+| Valor (bytes) | Tamanho binário | Valor apresentado na Área de Cliente |
+|---------------|-----------------|---------------------------------|
+| `4096` | 4 KiB | 4.1 KB |
+| `8192` | 8 KiB | 8.2 KB |
+| `16384` | 16 KiB | 16.4 KB |
+| `32768` | 32 KiB | 32.8 KB |
+| `65536` | 64 KiB | 65.5 KB |
+| `131072` (por defeito) | 128 KiB | 131.1 KB (Padrão) |
+| `1048576` | 1 MiB | 1 MB |
+
+:::info
+Um novo *recordsize* só se aplica aos ficheiros criados após a modificação. Os ficheiros existentes mantêm o tamanho de bloco com o qual foram escritos, até serem recriados.
+
+:::
+
+#### Sync
+
+O parâmetro *sync* determina a forma como o ZFS trata os pedidos de escrita síncronos, ou seja, aqueles para os quais a aplicação aguarda a confirmação de que os dados estão armazenados no disco.
+
+| Valor | Comportamento | Utilização |
+|-------|---------------|------------|
+| `standard` (por defeito) | O ZFS respeita os pedidos de escrita síncronos: a escrita é confirmada assim que os dados estão protegidos no disco. As escritas assíncronas são colocadas em memória tampão. | Recomendado para todas as utilizações. Combina segurança dos dados e desempenho. |
+| `always` | Todas as escritas são tratadas como síncronas, mesmo quando a aplicação não o solicita. | Segurança máxima dos dados, à custa de um desempenho de escrita reduzido. |
+| `disabled` | O ZFS ignora os pedidos de escrita síncronos e confirma-os antes de os dados serem escritos no disco. | Desempenho muito elevado, mas os dados confirmados como escritos podem perder-se em caso de incidente. Não é adequado para bases de dados nem para clientes NFS que dependem das escritas síncronas. |
+
+:::danger
+Com *sync* definido como `disabled`, uma aplicação pode considerar que os dados estão guardados quando ainda não estão no disco. Utilize este valor apenas se compreender totalmente o risco de perda de dados.
+
+:::
+
+### Templates de utilização
+
+Um template de utilização aplica de uma só vez uma combinação predefinida dos três parâmetros à partição. Todos os templates definem *atime* como `off` e *sync* como `standard`. Diferem apenas no *recordsize*:
+
+| Template | Utilização prevista | atime | sync | recordsize |
+|----------|---------------------|-------|------|------------|
+| `Default` | Partilha de ficheiros genérica | `off` | `standard` | `131072` (128 KiB) |
+| `Virtual machines` | Imagens de máquinas virtuais | `off` | `standard` | `65536` (64 KiB) |
+| `Databases` | Armazenamento de bases de dados | `off` | `standard` | `16384` (16 KiB) |
+| `File Systems (big files)` | Partilha de ficheiros volumosos (imagens, vídeos, streaming) | `off` | `standard` | `1048576` (1 MiB) |
+
+Se nenhuma destas combinações corresponder à sua utilização, defina manualmente cada valor com a opção <code className="action">Custom</code> (Área de Cliente) ou com os parâmetros personalizados (API).
+
+### Modificar os parâmetros ZFS de uma partição
+
+A modificação é aplicada a toda a partição através de uma tarefa assíncrona.
+
+<Tabs>
+<Tab label="Área de Cliente OVHcloud">
+
+Depois de selecionar o seu serviço NAS-HA, abra o separador <code className="action">Partições</code>.
+
+Na tabela das partições, clique no botão <code className="action">...</code> da partição em causa e, a seguir, em <code className="action">Configurar a utilização (ZFS)</code>. É aberta a janela **Modificar as configurações**.
+
+**Para aplicar um template de utilização:**
+
+1. Na lista pendente <code className="action">Selecionar o template</code>, selecione um dos templates: <code className="action">Default</code>, <code className="action">Virtual machines</code>, <code className="action">Databases</code> ou <code className="action">File Systems (big files)</code>.
+2. Clique em <code className="action">Modificar as configurações</code> para validar.
+
+**Para definir valores personalizados:**
+
+1. Na lista pendente <code className="action">Selecionar o template</code>, selecione <code className="action">Custom</code>. São apresentados os campos **Atualização dos tempos de acesso (atime)**, **ZFS recordsize** e **Sync**, preenchidos com os valores atuais da partição.
+2. Ajuste os valores necessários: a caixa de verificação <code className="action">Desativar</code> para *atime*, um valor da lista pendente <code className="action">ZFS recordsize</code> e uma das opções <code className="action">Always</code>, <code className="action">Disabled</code> ou <code className="action">Standard</code> para *sync*. Os valores predefinidos estão assinalados com a menção **(Padrão)**.
+3. Clique em <code className="action">Modificar as configurações</code> para validar.
+
+Uma notificação informa-o assim que os parâmetros ZFS da partição forem atualizados.
+
+</Tab>
+<Tab label="API OVHcloud">
+
+Todas as rotas abaixo encontram-se na <ApiLink section="/dedicated/nasha">secção */dedicated/nasha*</ApiLink> da consola API.
+
+Para obter o nome do seu serviço e das suas partições, utilize as seguintes rotas:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha"} />
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/partition"} />
+
+Para modificar os parâmetros ZFS de uma partição, utilize a seguinte rota:
+
+<Api version="v1" section="/dedicated/nasha" method="POST" route={"/dedicated/nasha/\{serviceName\}/partition/\{partitionName\}/options"} />
+
+| Parâmetro | Obrigatório | Descrição |
+|-----------|-------------|-----------|
+| `serviceName` | Sim | Nome interno do seu serviço NAS-HA |
+| `partitionName` | Sim | Nome da partição |
+| `templateName` |  | Template de utilização a aplicar: `Default`, `Virtual machines`, `Databases` ou `File Systems (big files)` |
+| `atime` |  | Atualização dos tempos de acesso: `off` (por defeito) ou `on` |
+| `recordsize` |  | Tamanho máximo do bloco, em bytes: `4096`, `8192`, `16384`, `32768`, `65536`, `131072` (por defeito) ou `1048576` |
+| `sync` |  | Sincronização das escritas: `standard` (por defeito), `always` ou `disabled` |
+
+Para aplicar um template, envie apenas o parâmetro `templateName`. Por exemplo, para uma partição que aloja uma base de dados:
+
+```json
+{
+  "templateName": "Databases"
+}
+```
+
+Para definir valores personalizados, envie, em vez disso, os parâmetros `atime`, `recordsize` e `sync`, sem `templateName`:
+
+```json
+{
+  "atime": "off",
+  "recordsize": "65536",
+  "sync": "standard"
+}
+```
+
+A chamada devolve uma tarefa. Pode acompanhar o respetivo progresso com a seguinte rota:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/task/\{taskId\}"} />
+
+</Tab>
+</Tabs>
+
+### Verificar os parâmetros ZFS de uma partição
+
+Para verificar os parâmetros aplicados a uma partição, utilize a seguinte rota API:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/partition/\{partitionName\}/options"} />
+
+A resposta contém os valores atuais de `atime`, `recordsize` e `sync`, bem como o campo `templateName`, que indica o nome do template aplicado à partição, se existir.
+
+## Quer saber mais?
+
+[Primeiros passos com um NAS-HA](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started)
+
+[NAS-HA - Gestão das partições por API](/guides/storage-and-backup/file-storage/ha-nas/nas-partitions-api)
+
+[Montagem de NAS-HA através de NFS](/guides/storage-and-backup/file-storage/ha-nas/nas-nfs)
+
+[[fragment:professional-services]]
+
+Fale com a nossa [comunidade de utilizadores](/links/community).

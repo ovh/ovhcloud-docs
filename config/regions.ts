@@ -87,8 +87,8 @@ export interface RegionConfig {
   consentManager: boolean;
   /**
    * Standalone cookie-policy script for a region the CMP does not cover yet,
-   * loaded in <head> on every page (async, `data-analytics` attribute), right
-   * after a parser-blocking jQuery that the container needs. Unset where the
+   * loaded in <head> on every page (deferred, `data-analytics` attribute),
+   * right after the deferred jQuery that the container needs. Unset where the
    * CMP runs: the two must never load together.
    */
   cookieScript?: string;

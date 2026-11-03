@@ -152,14 +152,16 @@ export default defineConfig({
         // config/regions.ts `cookieScript`).
         ...(regionConfig.cookieScript
           ? [
-              // The container calls jQuery as soon as it runs. It is async, so
-              // it may run before any deferred script: jQuery must be
-              // parser-blocking and placed before it to be there in time.
+              // The container calls jQuery as soon as it runs, so jQuery must
+              // run first. Both are deferred: deferred scripts run in document
+              // order. Not async: at SSG, Unhead sorts <head> by script type
+              // and moves async scripts ahead of every other one, whatever
+              // their order here.
               {
                 tag: 'script',
                 head: true,
                 append: true,
-                attrs: { src: '/vendor/jquery-3.7.1.min.js' },
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
               },
               {
                 tag: 'script',
@@ -167,7 +169,7 @@ export default defineConfig({
                 append: true,
                 attrs: {
                   src: regionConfig.cookieScript,
-                  async: true,
+                  defer: true,
                   'data-analytics': '',
                 },
               },
