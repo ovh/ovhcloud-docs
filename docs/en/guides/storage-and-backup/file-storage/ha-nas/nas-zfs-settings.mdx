@@ -1,0 +1,198 @@
+---
+title: HA-NAS - Configuring the ZFS settings of a partition
+description: Find out how to apply a usage template or custom ZFS settings (atime, recordsize, sync) to an HA-NAS partition
+lastUpdated: 2026-10-29
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+import Api from '@components/Api';
+
+
+## Objective
+
+Each partition of an HA-NAS service is a ZFS dataset. You can adjust three of its ZFS properties to suit the workload it stores: access time update (*atime*), maximum block size (*recordsize*) and write synchronisation (*sync*).
+
+To make this easier, OVHcloud provides usage templates that apply a predefined combination of these settings in one step.
+
+**This guide explains what each ZFS setting does, which values each template applies, and how to change the settings of a partition from the OVHcloud Control Panel or via the OVHcloud API.**
+
+## Requirements
+
+- An OVHcloud [HA-NAS service](/links/storage/nas-ha) with at least one [partition](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started)
+- Access to the OVHcloud Control Panel, or to the OVHcloud API (see the [OVHcloud API first steps guide](/guides/manage-and-operate/api/first-steps))
+
+[[cpnav:storage-nas-ha]]
+
+## Instructions
+
+:::warning
+The default ZFS settings suit most uses. Only change them if you know the workload stored on the partition and the impact of each setting described below.
+
+:::
+
+### Understanding the ZFS settings
+
+#### Access time update (atime)
+
+When *atime* is enabled, ZFS updates the last access time of a file every time it is read, so each read also generates a write.
+
+When *atime* is disabled (`off`), these extra writes are avoided, which improves performance for read-intensive workloads. Disable it unless an application stored on the partition relies on file access times. All the usage templates set *atime* to `off`.
+
+#### ZFS recordsize
+
+The *recordsize* is the maximum size of the blocks in which ZFS stores the data of a file. Files smaller than the *recordsize* use a smaller block: a 16 KiB file uses a 16 KiB block (plus metadata), not a full 128 KiB block.
+
+As a rule of thumb, align the *recordsize* with the size of the application's reads and writes:
+
+- **Small, random reads and writes** (databases, virtual machine disks): a small *recordsize* avoids reading and rewriting a large block to change a few kilobytes.
+- **Large, sequential reads and writes** (video files, images, backups, archives): a large *recordsize* reduces the number of blocks and the metadata to handle, which improves throughput.
+
+{/* CP-STEPS-START:zfs-recordsize */}
+
+The available values are listed below. The Control Panel displays them in decimal units (1 KB = 1,000 bytes).
+
+| Value (bytes) | Binary size | Displayed in the Control Panel |
+|---------------|-------------|--------------------------------|
+| `4096` | 4 KiB | 4.1 KB |
+| `8192` | 8 KiB | 8.2 KB |
+| `16384` | 16 KiB | 16.4 KB |
+| `32768` | 32 KiB | 32.8 KB |
+| `65536` | 64 KiB | 65.5 KB |
+| `131072` (default) | 128 KiB | 131.1 KB (Default) |
+| `1048576` | 1 MiB | 1 MB |
+
+{/* CP-STEPS-END:zfs-recordsize */}
+
+:::info
+A new *recordsize* only applies to files created after the change. Existing files keep the block size they were written with until they are recreated.
+
+:::
+
+#### Sync
+
+The *sync* setting determines how ZFS handles synchronous write requests, that is, requests for which the application waits for confirmation that the data is stored on disk.
+
+| Value | Behaviour | Use |
+|-------|-----------|-----|
+| `standard` (default) | ZFS honours synchronous write requests: the write is confirmed once the data is secured on disk. Asynchronous writes are buffered in memory. | Recommended for all uses. Combines data safety and performance. |
+| `always` | Every write is handled as synchronous, even when the application does not request it. | Maximum data safety, at the cost of lower write performance. |
+| `disabled` | ZFS ignores synchronous write requests and confirms them before the data is written to disk. | Very high performance, but data confirmed as written can be lost in the event of an incident. Not suitable for databases or NFS clients that rely on synchronous writes. |
+
+:::danger
+With *sync* set to `disabled`, an application may consider data as saved when it is not yet on disk. Only use this value if you fully understand the risk of data loss.
+
+:::
+
+### Usage templates
+
+A usage template applies a predefined combination of the three settings to the partition in one step. All templates set *atime* to `off` and *sync* to `standard`. They only differ in the *recordsize*:
+
+| Template | Intended use | atime | sync | recordsize |
+|----------|--------------|-------|------|------------|
+| `Default` | General file sharing | `off` | `standard` | `131072` (128 KiB) |
+| `Virtual machines` | Virtual machine images | `off` | `standard` | `65536` (64 KiB) |
+| `Databases` | Database storage | `off` | `standard` | `16384` (16 KiB) |
+| `File Systems (big files)` | Large file sharing (images, videos, streaming) | `off` | `standard` | `1048576` (1 MiB) |
+
+{/* CP-STEPS-START:usage-templates */}
+
+If none of these combinations suits your workload, set each value yourself with the <code className="action">Custom</code> option (Control Panel) or the custom parameters (API).
+
+{/* CP-STEPS-END:usage-templates */}
+
+### Changing the ZFS settings of a partition
+
+The change is applied to the whole partition by an asynchronous task.
+
+{/* CP-STEPS-START:change-zfs-settings */}
+
+<Tabs>
+<Tab label="OVHcloud Control Panel">
+
+Once your HA-NAS service is selected, open the <code className="action">Partitions</code> tab.
+
+In the partitions table, click the <code className="action">...</code> button on the row of the partition concerned, then click <code className="action">Configure usage (ZFS)</code>. The **Edit settings** window opens.
+
+**To apply a usage template:**
+
+1. In the <code className="action">Select template</code> drop-down list, select one of the templates: <code className="action">Default</code>, <code className="action">Virtual machines</code>, <code className="action">Databases</code> or <code className="action">File Systems (big files)</code>.
+2. Click <code className="action">Edit settings</code> to confirm.
+
+**To set custom values:**
+
+1. In the <code className="action">Select template</code> drop-down list, select <code className="action">Custom</code>. The **Access time update (atime)**, **ZFS recordsize** and **Sync** fields are displayed, filled in with the current values of the partition.
+2. Adjust the values you need: the <code className="action">Disable</code> checkbox for *atime*, a value from the <code className="action">ZFS recordsize</code> drop-down list, and one of the <code className="action">Always</code>, <code className="action">Disabled</code> or <code className="action">Standard</code> options for *sync*. The default values are marked **(Default)**.
+3. Click <code className="action">Edit settings</code> to confirm.
+
+A notification informs you once the ZFS settings of the partition have been updated.
+
+</Tab>
+<Tab label="OVHcloud API">
+
+All the routes below are in the <ApiLink section="/dedicated/nasha">*/dedicated/nasha* section</ApiLink> of the API console.
+
+To retrieve the name of your service and of your partitions, use the following routes:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha"} />
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/partition"} />
+
+To change the ZFS settings of a partition, use the following route:
+
+<Api version="v1" section="/dedicated/nasha" method="POST" route={"/dedicated/nasha/\{serviceName\}/partition/\{partitionName\}/options"} />
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `serviceName` | Yes | The internal name of your HA-NAS service |
+| `partitionName` | Yes | Name of the partition |
+| `templateName` |  | Usage template to apply: `Default`, `Virtual machines`, `Databases` or `File Systems (big files)` |
+| `atime` |  | Access time update: `off` (default) or `on` |
+| `recordsize` |  | Maximum block size, in bytes: `4096`, `8192`, `16384`, `32768`, `65536`, `131072` (default) or `1048576` |
+| `sync` |  | Write synchronisation: `standard` (default), `always` or `disabled` |
+
+To apply a template, send only the `templateName` parameter. For example, for a partition storing a database:
+
+```json
+{
+  "templateName": "Databases"
+}
+```
+
+To set custom values, send the `atime`, `recordsize` and `sync` parameters instead, without `templateName`:
+
+```json
+{
+  "atime": "off",
+  "recordsize": "65536",
+  "sync": "standard"
+}
+```
+
+The call returns a task. You can follow its progress with the following route:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/task/\{taskId\}"} />
+
+</Tab>
+</Tabs>
+
+{/* CP-STEPS-END:change-zfs-settings */}
+
+### Checking the ZFS settings of a partition
+
+To check the settings applied to a partition, use the following API route:
+
+<Api version="v1" section="/dedicated/nasha" method="GET" route={"/dedicated/nasha/\{serviceName\}/partition/\{partitionName\}/options"} />
+
+The response contains the current `atime`, `recordsize` and `sync` values and, in the `templateName` field, the name of the template applied to the partition, if any.
+
+## Go further
+
+[Getting started with a HA-NAS solution](/guides/storage-and-backup/file-storage/ha-nas/nas-get-started)
+
+[HA-NAS - Managing partitions via API](/guides/storage-and-backup/file-storage/ha-nas/nas-partitions-api)
+
+[Mounting HA-NAS via NFS share](/guides/storage-and-backup/file-storage/ha-nas/nas-nfs)
+
+[[fragment:professional-services]]
+
+Join our [community of users](/links/community).
