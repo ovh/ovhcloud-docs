@@ -1,13 +1,20 @@
 ---
 title: Gestion du reboot de vos serveurs avec la fonctionnalité OVHcloud Link Aggregation
 description: Découvrez comment réaliser les redémarrages de vos serveurs OVHcloud fonctionnant à travers votre agrégation privée active
-lastUpdated: 2026-01-27
+lastUpdated: 2026-11-03
 ---
 
 ## Objectif
 
 Ce guide a pour but de vous accompagner pour déployer tous les composants et services nécessaires au bon redémarrage de vos solutions OVHcloud en environnement **entièrement privé**.<br/>
 Profitez d'une infrastructure privée sans avoir modifié la configuration par défaut de vos [serveurs dédiés OVHcloud](/links/bare-metal/bare-metal).
+
+:::info
+Sur les serveurs compatibles (High Grade Gen 2 ou plus récent, Scale Gen 2 ou plus récent, Advance Gen 3 ou plus récent), OVHcloud propose désormais le **boot privé** : le serveur démarre sur votre vRack grâce au service DHCP de vRack Services, sans serveur DHCP ni TFTP à déployer. Consultez le guide « [Activer le boot privé sur un serveur dédié OVHcloud](/guides/bare-metal-cloud/dedicated-servers/private-boot) ».
+
+Si vous ne souhaitez pas déployer une infrastructure PXE pour démarrer un seul serveur, consultez la section [Démarrer sur disque sans infrastructure PXE](#boot-from-disk).
+
+:::
 
 :::warning
 Nous avons au préalable effectué tous nos tests, qualifications et validations de configurations, à partir de paramètres et critères de fonctionnement bien définis, afin de vous proposer des environnements techniques les mieux adaptés à votre matériel.
@@ -327,6 +334,78 @@ Il est fortement conseillé d'utiliser un service NTP, surtout si votre infrastr
 - Liste des ports à autoriser dans votre firewall local (de la machine hébergeant les services) :
     - NTP port 123
     - DNS port 53
+
+### Démarrer sur disque sans infrastructure PXE <a name="boot-from-disk"></a>
+
+Si vous ne souhaitez pas déployer de services DHCP et TFTP, vous pouvez laisser le serveur se rabattre sur son disque local. En mode OLA, l'entrée de démarrage PXE ne trouve aucun serveur DHCP et expire au bout d'une minute environ. Le serveur essaie alors l'entrée suivante de son ordre de démarrage UEFI. Si vous ajoutez, juste après l'entrée PXE, une entrée pour le système d'exploitation installé sur le disque, le serveur démarre sur le disque.
+
+:::warning
+L'entrée PXE doit rester **en première position** dans l'ordre de démarrage. Sinon, le mode rescue et l'installation d'un OS (entre autres) ne fonctionneront plus une fois OLA désactivé.
+
+Certains systèmes d'exploitation réordonnent les entrées de démarrage UEFI au démarrage. Vérifiez de nouveau l'ordre de démarrage après le premier redémarrage.
+
+:::
+
+1. [Désactivez OLA](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager), puis redémarrez le serveur en [mode rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode).
+
+2. Identifiez les partitions système EFI (ESP) du serveur :
+
+```bash
+blkid -t LABEL=EFI_SYSPART
+```
+
+```console
+/dev/nvme1n1p1: SEC_TYPE="msdos" LABEL_FATBOOT="EFI_SYSPART" LABEL="EFI_SYSPART" UUID="EF67-A230" TYPE="vfat" PARTLABEL="primary"
+/dev/nvme0n1p1: SEC_TYPE="msdos" LABEL_FATBOOT="EFI_SYSPART" LABEL="EFI_SYSPART" UUID="EF61-36B3" TYPE="vfat" PARTLABEL="primary"
+```
+
+3. Montez l'une des partitions et recherchez le chemin du chargeur de démarrage de votre système d'exploitation :
+
+```bash
+mount /dev/nvme0n1p1 /mnt/
+find /mnt -type f -iname '*.efi'
+```
+
+4. Créez l'entrée de démarrage. Le chemin du chargeur est relatif au point de montage. Adaptez le disque et le numéro de partition à l'emplacement de l'ESP, et le libellé à votre système d'exploitation :
+
+```bash
+apt install -y efibootmgr
+efibootmgr -v --create --disk /dev/nvme0n1 --part 1 --loader "/EFI/debian/grubx64.efi" --label "Debian"
+```
+
+```console
+BootCurrent: 0002
+Timeout: 1 seconds
+BootOrder: 0000,0002,0003,0001
+Boot0000* Debian
+Boot0001* UEFI: Built-in EFI Shell
+Boot0002* UEFI: PXE IPv4 Broadcom Network Device - 9C:6B:00:66:F2:00
+Boot0003* UEFI: PXE IPv4 Broadcom Network Device - 9C:6B:00:67:02:26
+```
+
+`efibootmgr` place la nouvelle entrée (ici `0000`) en première position. La ligne **BootCurrent** indique l'entrée PXE sur laquelle le serveur a démarré pour passer en mode rescue (ici `0002`).
+
+5. Placez la nouvelle entrée juste après l'entrée PXE actuelle :
+
+```bash
+efibootmgr -o 0002,0000,0003,0001
+```
+
+6. Avant de redémarrer, vérifiez que l'entrée PXE est en première position et la nouvelle entrée en deuxième position dans **BootOrder** :
+
+```bash
+efibootmgr
+```
+
+```console
+BootCurrent: 0002
+Timeout: 1 seconds
+BootOrder: 0002,0000,0003,0001
+```
+
+7. Démontez la partition, [réactivez OLA](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager), puis redémarrez le serveur hors du mode rescue.
+
+L'entrée PXE expire au bout d'une minute environ et le serveur démarre sur le système d'exploitation installé sur le disque.
 
 ## Aller plus loin
 
