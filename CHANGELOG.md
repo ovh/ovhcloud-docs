@@ -20,7 +20,7 @@
 - **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
 
 ### Documentation
-- EU: 186 guides across de, en, es, fr, it, pl, pt
+- EU: 188 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.03.1
 
