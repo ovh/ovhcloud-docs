@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.03.1
+
+### Features
+
+#### EU
+- **EFS:** new guide about the migration of vrack (#831)
+
+### Documentation
+- EU: 32 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.03
 
 ### Documentation
