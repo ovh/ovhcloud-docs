@@ -1,6 +1,7 @@
 import { useLang } from '@rspress/core/runtime';
 import { Fragment, type ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
+import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import './DomainLifecycle.css';
 
 const svg = {
@@ -270,6 +271,25 @@ export function DomainLifecycle() {
   const lang = useLang();
   const localizeHref = useLocalizeHref();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the stages as a list, the badge in words (see MdLinkItem).
+  if (process.env.__SSR_MD__) {
+    return (
+      <ul>
+        {t.nodes.map((node, i) => (
+          <MdLinkItem
+            key={node.title}
+            href={localizeHref(HREFS[i])}
+            title={
+              i === t.nodes.length - 1
+                ? `${node.title} (${t.anytime})`
+                : node.title
+            }
+            description={node.desc}
+          />
+        ))}
+      </ul>
+    );
+  }
   return (
     <div className="domain-lifecycle">
       {t.nodes.map((node, i) => {

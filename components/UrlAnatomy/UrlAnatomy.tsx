@@ -149,6 +149,30 @@ const STRINGS: Record<string, Strings> = {
 export function UrlAnatomy() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the lead and each part of the example URL in words.
+  if (process.env.__SSR_MD__) {
+    const parts = [
+      [PROTOCOL, t.protocol],
+      [SUB, t.sub],
+      [LABEL, t.label],
+      [EXT, t.ext],
+      [PATH, t.path],
+    ];
+    return (
+      <>
+        <p>
+          {t.lead} <code>{`${PROTOCOL}${SUB}${LABEL}${EXT}${PATH}`}</code>
+        </p>
+        <ul>
+          {parts.map(([part, name]) => (
+            <li key={part}>
+              <code>{part}</code>: {name}
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+  }
   return (
     <figure className="url-anatomy">
       <figcaption className="url-anatomy__lead">{t.lead}</figcaption>

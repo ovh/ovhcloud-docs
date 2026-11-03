@@ -120,7 +120,7 @@ function runWorker(
   locale: string,
   // URL prefix of `dir`: `/<locale>` unless the region serves at the root.
   basePath = regionConfig.localePrefix ? `/${locale}` : '',
-): Promise<{ html: number; md: number }> {
+): Promise<{ html: number; md: number; residue: string[] }> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(workerPath, {
       workerData: {
@@ -134,6 +134,22 @@ function runWorker(
     worker.on('message', resolve);
     worker.on('error', reject);
   });
+}
+
+/**
+ * Components or `:::` directives the `.md` cleanup left in place: usually a
+ * component used in guides that renders layout in the `.md` export and needs
+ * a `process.env.__SSR_MD__` branch (see components/LlmsMarkdown/).
+ */
+function warnMdResidue(locale: string, residue: string[]): void {
+  if (!residue.length) return;
+  console.warn(
+    `   ⚠ ${locale}: ${residue.length} component(s) left in the .md export, e.g.:\n` +
+      residue
+        .slice(0, 5)
+        .map((r) => `     ${r}`)
+        .join('\n'),
+  );
 }
 
 /**
@@ -464,6 +480,7 @@ ${helpSitemapSrc ? `Sitemap: ${SITE_URL}/sitemap-help.xml\n` : ''}
       console.log(
         `   ✓ ${locale}: ${counts.html} HTML + ${counts.md} MD files`,
       );
+      warnMdResidue(locale, counts.residue);
       return counts;
     }),
   );
@@ -607,6 +624,7 @@ async function combineSingleRoot(): Promise<void> {
 
   const counts = await runWorker(DIST_DIR, locale);
   console.log(`   ✓ ${counts.html} HTML + ${counts.md} MD files`);
+  warnMdResidue(locale, counts.residue);
   console.log(`   ⏱ Completed in ${Date.now() - sectionStart}ms`);
 
   // ------------------------------------------------------------------

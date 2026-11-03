@@ -32,6 +32,7 @@ import { networkVrack } from './keys/network-vrack';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
@@ -121,6 +122,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
+  // --- Private Cloud (Console only) ---------------------------------------------------
+  'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-vps': baremetalVps,

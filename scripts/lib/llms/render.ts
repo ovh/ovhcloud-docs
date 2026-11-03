@@ -13,6 +13,7 @@
  * agent, not the reader); titles and labels are localized.
  */
 import * as fs from 'node:fs';
+import { htmlLinks } from './clean-md';
 import {
   type LlmsGroup,
   type LlmsLocaleModel,
@@ -113,11 +114,15 @@ export function renderProductIndex(
 
 const AGENT_HINT_RE = /^> For AI agents:[^\n]*\n+/;
 
-/** One page as it appears in a full bundle: frontmatter + body, no hint. */
-export function renderFullPage(page: LlmsPage): string {
+/**
+ * One page as it appears in a full bundle: frontmatter + body, no hint, links
+ * to other guides pointing at their web page rather than their `.md`.
+ */
+export function renderFullPage(page: LlmsPage, siteUrl: string): string {
   const { raw, body } = parseFrontmatter(fs.readFileSync(page.mdPath, 'utf-8'));
   const fm = raw || `url: ${page.mdUrl.replace(/\.md$/, '')}`;
-  return `---\n${fm}\n---\n\n${body.replace(AGENT_HINT_RE, '').trim()}\n`;
+  const text = htmlLinks(body.replace(AGENT_HINT_RE, '').trim(), siteUrl);
+  return `---\n${fm}\n---\n\n${text}\n`;
 }
 
 export function renderFullHeader(title: string, intro: string): string {
