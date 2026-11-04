@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026.11.04
+
+### Documentation
+- EU: 9 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.03.2
+
+### Features
+
+#### EU
+- **pci quantum v8:** emulators, qpus, users and general information (#1101)
+- **nasha  v8:** all (#1145)
+- **pci data platform v8:** console wording and access path (#1152)
+
+### Fixes
+
+#### EU
+- **cpnav:** give the Data Platform organizations guide a Console CP-NAV block
+
+### Maintenance
+
+#### EU
+- **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
+
+### Documentation
+- EU: 188 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.03.1
+
+### Features
+
+#### EU
+- **EFS:** new guide about the migration of vrack (#831)
+
+### Documentation
+- EU: 32 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.03
 
 ### Documentation

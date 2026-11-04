@@ -627,10 +627,10 @@
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
-        + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
-            + [Getting started with your CloudStore](hosted-private-cloud/opcp/cloudstore-getting-started)
-        + [Landing Zone Manager](hosted-private-cloud-hosted-private-cloud-opcp-landing-zone-manager)
-            + [Landing Zone Manager - Creating a user account](hosted-private-cloud/opcp/landing-zone-manager-create-user-account)
+        + [Cloud Store](hosted-private-cloud-hosted-private-cloud-opcp-cloud-store)
+            + [Getting started with Cloud Store](hosted-private-cloud/opcp/cloudstore-getting-started)
+            + [OPCP Admin Console](hosted-private-cloud/opcp/admin-console-getting-started)
+            + [OPCP Cloud Console](hosted-private-cloud/opcp/cloud-console-getting-started)
         + [Additional resources](hosted-private-cloud-hosted-private-cloud-opcp-additional-resources)
             + [OPCP Core compatibility matrix](hosted-private-cloud/opcp/opcp-compatibility-matrix)
             + [Object Storage features and specifications on OPCP](hosted-private-cloud/opcp/s3-opcp-limitations)
@@ -883,6 +883,7 @@
                     + [Object Storage - Restoring an archived object from Cold Archive storage class](storage-and-backup/object-storage/s3-restoring-objects)
                     + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/s3-website-https)
                     + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network)
+                    + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
                 + [Migration](products/public-cloud-storage-object-storage-s3-migration)
                     + [Object Storage - How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage](storage-and-backup/object-storage/s3-migration)
                     + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3)
@@ -1009,6 +1010,9 @@
                 + [How to create and manage a Health Monitor for OVHcloud Public Cloud Load Balancer](public-cloud/network-services/loadbalancer-create-health-monitor)
                 + [How to create and manage Level 7 (L7) Policies and Rules for OVHcloud Public Cloud Load Balancers](public-cloud/network-services/loadbalancer-create-l7-policies)
                 + [Monitor your Public Cloud Load Balancer with Prometheus](public-cloud/network-services/loadbalancer-monitoring-prometheus)
+        + [Private Endpoint](products/public-cloud-network-private-endpoint)
+            + [Getting started](public-cloud-network-private-endpoint-getting-started)
+                + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
         + [Public IPs](products/public-cloud-network-public-ips)
             + [Key concepts](public-cloud-network-public-ips-key-concepts)
                 + [Concepts - Public Cloud IP types](public-cloud/network-services/additional-ip-vs-floating-ip)
@@ -1787,6 +1791,8 @@
                 + [Stream data from Apache Kafka](public-cloud/data-platform/tutorials-kafka){label=Stream data from Apache Kafka}
                 + [Build an IoT fleet-monitoring pipeline](public-cloud-data-platform-build-an-iot-fleet-monitoring-pipeline){landing=public-cloud/data-platform/tutorials-iot-fleet-monitoring}
                     + [Build the Superset dashboards](public-cloud/data-platform/tutorials-iot-fleet-monitoring-superset-dashboards)
+                + [Analyse Vélib' availability with Apache Superset](public-cloud-data-platform-analyze-velib-availability){landing=public-cloud/data-platform/tutorials-velib-availability}
+                    + [Build the Vélib' dashboard in Superset](public-cloud/data-platform/tutorials-velib-availability-superset-dashboard){label=Build a Vélib' availability dashboard in Superset}
                 + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
                 + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
                 + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
@@ -2606,6 +2612,7 @@
                 + [Object Storage - Hosting a static website in an Object Storage bucket](storage-and-backup/object-storage/s3-website)
                 + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/s3-website-https)
                 + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network) 
+                + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
             + [Migration](products/storage-object-storage-s3-migration)
                 + [Object Storage - How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage](storage-and-backup/object-storage/s3-migration)
                 + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3)
@@ -2681,7 +2688,7 @@
                 + [Enterprise File Storage - Performance Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts-performances)
                 + [Enterprise File Storage - FAQ](storage-and-backup/file-storage/enterprise-file-storage/netapp-faq)
             + [Getting Started](storage-file-storage-enterprise-file-storage-getting-started)
-                + [Managing Enterprise File Storage from the OVHcloud Control Panel](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
+                + [Managing Enterprise File Storage from the OVHcloud Console](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
                 + [Managing Enterprise File Storage with OVHcloud Terraform provider](storage-and-backup/file-storage/enterprise-file-storage/netapp-terraform)
                 + [Enterprise File Storage - API Quickstart](storage-and-backup/file-storage/enterprise-file-storage/netapp-quick-start)
                 + [Enterprise File Storage - Getting started with Trident CSI](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-csi)
