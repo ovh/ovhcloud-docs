@@ -29,6 +29,7 @@ import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
+import { networkVrackConsole } from './keys/network-vrack-console';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { networkVrackServicesConsole } from './keys/network-vrack-services-console';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
@@ -55,16 +56,21 @@ import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
+import { publiccloudGatewayConsole } from './keys/publiccloud-gateway-console';
 import { publiccloudInstanceBackup } from './keys/publiccloud-instance-backup';
 import { publiccloudInstances } from './keys/publiccloud-instances';
+import { publiccloudInstancesConsole } from './keys/publiccloud-instances-console';
 import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
 import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
+import { publiccloudLoadBalancerConsole } from './keys/publiccloud-load-balancer-console';
 import { publiccloudLogs } from './keys/publiccloud-logs';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjects } from './keys/publiccloud-projects';
+import { publiccloudProjectsConsole } from './keys/publiccloud-projects-console';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
+import { publiccloudPublicIpsConsole } from './keys/publiccloud-public-ips-console';
 import { publiccloudQuantumEmulators } from './keys/publiccloud-quantum-emulators';
 import { publiccloudQuantumEmulatorsConsole } from './keys/publiccloud-quantum-emulators-console';
 import { publiccloudQuantumQpus } from './keys/publiccloud-quantum-qpus';
@@ -72,6 +78,7 @@ import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-c
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
+import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
@@ -147,6 +154,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
   'publiccloud-projects': publiccloudProjects,
+  'publiccloud-projects-console': publiccloudProjectsConsole,
   'publiccloud-databases': publiccloudDatabases,
   'publiccloud-analytics': publiccloudAnalytics,
   'publiccloud-data-platform': publiccloudDataPlatform,
@@ -164,6 +172,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-users-roles': publiccloudUsersRoles,
   'publiccloud-users-roles-console': publiccloudUsersRolesConsole,
   'publiccloud-instances': publiccloudInstances,
+  'publiccloud-instances-console': publiccloudInstancesConsole,
   'publiccloud-instance-backup': publiccloudInstanceBackup,
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
@@ -171,8 +180,12 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-cold-archive': publiccloudColdArchive,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
+  'publiccloud-load-balancer-console': publiccloudLoadBalancerConsole,
   'publiccloud-public-ips': publiccloudPublicIps,
+  'publiccloud-public-ips-console': publiccloudPublicIpsConsole,
   'publiccloud-gateway': publiccloudGateway,
+  'publiccloud-gateway-console': publiccloudGatewayConsole,
+  'publiccloud-subnet-console': publiccloudSubnetConsole,
   'publiccloud-rancher': publiccloudRancher,
   'publiccloud-kubernetes': publiccloudKubernetes,
   'publiccloud-private-registry': publiccloudPrivateRegistry,
@@ -184,6 +197,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-project-settings': publiccloudProjectSettings,
   // --- Network -------------------------------------------------------------------------
   'network-vrack': networkVrack,
+  'network-vrack-console': networkVrackConsole,
   'network-vrack-services': networkVrackServices,
   'network-vrack-services-console': networkVrackServicesConsole,
   'network-ovhcloud-connect': networkOvhcloudConnect,
