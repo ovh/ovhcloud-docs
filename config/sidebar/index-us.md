@@ -1273,7 +1273,7 @@
             + [Logging in to the OVHcloud Control Panel](account/account-information/log-in-control-panel)
             + [Setting and managing an account password](account/account-information/manage-account-password)
             + [Securing my OVHcloud account and managing my personal information](account/account-information/secure-account-manage-personal-information)
-            + [Presentation of the new OVHcloud Control Panel navigation](account/account-information/control-panel-navigation)
+            + [Presentation of the new OVHcloud Console navigation](account/account-information/control-panel-navigation)
         + [FAQ](account-account-information-faq)
             + [OVHcloud account management FAQ](account/account-information/faq)
             + [How to contact OVHcloud US Support](account/account-information/contact-us-support)
