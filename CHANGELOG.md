@@ -2,8 +2,14 @@
 
 ## 2026.11.04
 
+### Fixes
+
+#### US
+- **docs-us:** wrap WARNING/NOTE callouts and rebuild table-cell bullets (#1138)
+
 ### Documentation
-- EU: 9 guides across de, en, es, fr, it, pl, pt
+- EU: 142 guides across de, en, es, fr, it, pl, pt
+- US: 100 guides across en
 
 ## 2026.11.03.2
 
