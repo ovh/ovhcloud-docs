@@ -5,11 +5,12 @@
 ### Fixes
 
 #### US
+- **docs-us:** rename control-panel slugs to console
 - **docs-us:** wrap WARNING/NOTE callouts and rebuild table-cell bullets (#1138)
 
 ### Documentation
 - EU: 142 guides across de, en, es, fr, it, pl, pt
-- US: 100 guides across en
+- US: 170 guides across en
 
 ## 2026.11.03.2
 
