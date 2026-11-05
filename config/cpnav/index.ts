@@ -60,6 +60,7 @@ import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
 import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
+import { publiccloudFileStorageConsole } from './keys/publiccloud-file-storage-console';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
 import { publiccloudGatewayConsole } from './keys/publiccloud-gateway-console';
 import { publiccloudInstanceBackup } from './keys/publiccloud-instance-backup';
@@ -189,6 +190,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-block-storage': publiccloudBlockStorage,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
   'publiccloud-file-storage': publiccloudFileStorage,
+  'publiccloud-file-storage-console': publiccloudFileStorageConsole,
   'publiccloud-cold-archive': publiccloudColdArchive,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
