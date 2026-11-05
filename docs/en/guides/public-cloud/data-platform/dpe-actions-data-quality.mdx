@@ -1,0 +1,102 @@
+---
+title: Check table quality with the Data Quality action
+description: The Data Quality action evaluates the quality rules of a Lakehouse Manager table and sends a report to the Lakehouse Manager
+lastUpdated: 2026-11-05
+---
+
+## Objective
+
+The *Data Quality action* evaluates the [quality rules](/guides/public-cloud/data-platform/lakehouse-manager-data-quality) of one Lakehouse Manager table and sends the result to the Lakehouse Manager as a report, one entry per rule. The report updates the quality status of the table. The action then fails the job when the rules say so, which lets a [workflow](/guides/public-cloud/data-platform/dpe-workflows) stop before bad data goes further.
+
+Like any other action, it can be run on demand, scheduled with a cron trigger, or placed in a workflow, for example right after the [Load](/guides/public-cloud/data-platform/dpe-actions-load) that fills the table.
+
+## Requirements
+
+- A Lakehouse Manager table with at least one active quality rule. The rules are read from the Lakehouse Manager at each run: the action has nothing to configure per rule.
+- A Python 3.11 or 3.13 environment. Python 3.11 is the default.
+
+## Configure the action
+
+### Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| **Table** (`table`) | Yes | The table to check, written `dwh/<dataset>/<table>`, for example `dwh/sales/orders` |
+| **Critical failures allowed** (`max_criticals`) | No | The job fails when more rules than this end critical. When not set, only a [mandatory](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#severity-and-thresholds) rule ending critical fails the job |
+| **Warnings allowed** (`max_warnings`) | No | The job fails when more rules than this end in warning. When not set, warnings never fail the job |
+| **Engine** (`engine`) | No | `auto` (default), `polars` or `trino`. See [Engine and table size](#engine-and-table-size) |
+| **Worker limit (rows x columns)** (`max_cells`) | No | Size of the table, in rows times columns, above which the worker does not load it. Default 50,000,000 |
+| **Very-large band (rows x columns)** (`very_large_cells`) | No | Size of the table, in rows times columns, above which the report suggests the Data Quality PySpark action. Default 1,000,000,000 |
+
+By default, the action runs on 2 DPU (`fpu` size 2), which fits tables up to the default worker limit.
+
+### Engine and table size
+
+The action reads the table's current snapshot once, at the start of the run, and evaluates every rule on that snapshot, so all rules see the same data even if a load runs at the same time.
+
+Where the rules run depends on the size of the table, read from its metadata before anything is loaded:
+
+| Engine | Behaviour |
+|---|---|
+| `auto` | Tables up to the worker limit are loaded in the worker and checked with Polars. `custom_sql` rules always run on the query engine. Above the worker limit, or when the table has pending deletes, the whole check runs on the query engine. |
+| `polars` | Always checks in the worker. A table above the worker limit is refused. |
+| `trino` | Always checks on the query engine. |
+
+:::info
+Checks that run on the query engine count in the query usage of your project.
+:::
+
+Above the very-large band, the report carries `suggested_package: data-quality-pyspark`: move the table to the [Data Quality PySpark](/guides/public-cloud/data-platform/dpe-actions-data-quality-pyspark) action. The engine `trino` is a deliberate choice and sends no suggestion.
+
+### Example payload
+
+To create the action through the API, send the action body to the Data Processing Engine API. The `polar-data` connector module is required next to the action:
+
+```json
+{
+  "displayName": "Quality of orders",
+  "repository": "<repository id>",
+  "repositoryVersion": "<repository version id>",
+  "action": "data-quality",
+  "language": "python3",
+  "modules": [
+    {"type": "action", "id": "data-quality", "version": "latest"},
+    {"type": "connector", "id": "polar-data", "version": "latest"}
+  ],
+  "parameters": {"table": "dwh/sales/orders", "max_criticals": 0},
+  "environment": {"fpu": {"size": 2, "instances": 1}}
+}
+```
+
+To run on Python 3.13, add `"languageVersion": "3.13"` to `environment`.
+
+## When the job fails
+
+The report is always sent first: a failed job still has its report in the Lakehouse Manager, with the reason of each result.
+
+The job fails when:
+
+- more rules end critical than **Critical failures allowed**, or, when that parameter is not set, a mandatory rule ends critical;
+- more rules end in warning than **Warnings allowed**, when that parameter is set;
+- no rule at all could be evaluated, for example when the table cannot be read.
+
+The job passes when the table has no active rule, or when the table was never loaded: each rule then reports `no_data` with the reason "This table has no data yet: it was never loaded".
+
+Results that never fail the job:
+
+- `not_evaluated` and `no_data` results, as long as at least one rule could be evaluated;
+- a rule on a column the table no longer has. It is reported in warning, with the reason "Column `<name>` is no longer in the table", and it is not counted in **Warnings allowed**. Update or delete the rule.
+
+Date and time checks read values in UTC, and count days from the day of the run.
+
+## Go further
+
+- [Check the quality of your tables with data quality rules](/guides/public-cloud/data-platform/lakehouse-manager-data-quality)
+- [Check the quality of a table after each load](/guides/public-cloud/data-platform/tutorials-data-quality-checks)
+- [Configure job execution alerts](/guides/public-cloud/data-platform/control-center-alerting-job-execution) to be notified when a quality job fails
+
+[[fragment:professional-services|en]]
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

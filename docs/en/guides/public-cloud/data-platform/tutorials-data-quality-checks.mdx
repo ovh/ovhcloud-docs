@@ -1,0 +1,135 @@
+---
+title: Check the quality of a table after each load
+description: Add quality rules to a table, run the Data Quality action and read the results, then use the action as a quality gate between two tables in a workflow
+lastUpdated: 2026-11-05
+---
+
+## Objective
+
+In this tutorial, we add quality rules to the `chicago_calendar_full` table, run the [Data Quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action on it and read its results in the Lakehouse Manager. Then, in [Go further](#go-further-a-quality-gate-between-two-tables), we use the same action as a gate in a workflow: data is published to a final table only when its quality checks pass.
+
+Everything is done in the Data Platform interface.
+
+## Requirements
+
+- The `chicago_calendar_full` table, created and loaded in the [Getting Started](/guides/public-cloud/data-platform/landing-page-getting-started) tutorial ([Connect sources](/guides/public-cloud/data-platform/getting-started-connect-sources) and [Organize data](/guides/public-cloud/data-platform/getting-started-organize-data)). Each row of this table is one day, with its `date`, `month`, `temperature`, `week_day`, `week_day_label` and `weekend`.
+
+## Step 1: add quality rules to the table
+
+In the Lakehouse Manager, open the `chicago_calendar_full` table and go to its **Data Quality** tab.
+
+**TODO Insert image**: the Data Quality tab of the table, with no rule yet.
+
+Create the following four rules. Two of them have a warning threshold, two only a critical one:
+
+| Name | Type | Column | Parameters | Warning | Critical | Severity |
+|---|---|---|---|---|---|---|
+| Temperature is filled | Not null | `temperature` | None | 99 % | 95 % | Mandatory |
+| Temperature is plausible | Range | `temperature` | Minimum -40, maximum 120 | 99 % | 90 % | Optional |
+| One row per day | Uniqueness | `date` | None | None | 100 % | Mandatory |
+| At least a year of data | Volume | None | None | None | at least 365 rows | Optional |
+
+What these rules mean:
+
+- **Temperature is filled** is in warning when fewer than 99 % of the days have a temperature, and critical below 95 %.
+- **Temperature is plausible** checks that temperatures, in Fahrenheit, stay between -40 and 120. It is in warning when fewer than 99 % of the values are in that range, and critical below 90 %.
+- **One row per day** has no warning threshold: a single duplicated date makes it critical.
+- **At least a year of data** is evaluated by the Lakehouse Manager from the table's metadata, without any action. It is critical when the table holds fewer than 365 rows.
+
+The two **Mandatory** rules are the ones that fail the Data Quality job when they end critical. See [Severity and thresholds](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#severity-and-thresholds).
+
+**TODO Insert image**: the form to create a rule, filled for "Temperature is filled".
+
+**TODO Insert image**: the Data Quality tab with the four rules.
+
+## Step 2: create the Data Quality action
+
+From the **Data Quality** tab, click **TODO button label**. It opens the Data Processing Engine with a new Data Quality action for this table.
+
+**TODO Insert image**: the button in the Data Quality tab.
+
+Keep the default parameters:
+
+- **Table** is already set to `chicago_calendar_full`.
+- **Critical failures allowed** and **Warnings allowed** are empty: only a mandatory rule ending critical fails the job.
+- The action runs on Python 3.11, on 2 DPU.
+
+Save the action.
+
+**TODO Insert image**: the Data Quality action configuration with its default parameters.
+
+## Step 3: run the action
+
+Click **Run** and wait for the job to end. The job evaluates the three column rules on the current snapshot of the table, sends the report to the Lakehouse Manager, then succeeds or fails depending on the mandatory rules.
+
+**TODO Insert image**: the job execution, ended.
+
+## Step 4: read the results
+
+Go back to the `chicago_calendar_full` table in the Lakehouse Manager and open its **Data Quality** tab.
+
+**TODO Insert image**: the Data Quality tab after the run, with the outcome of each rule and the status of the table.
+
+Each rule shows its outcome (`ok`, `warning` or `critical`) and its metric: a pass rate for the three column rules, a row count for the volume rule. The status of the table is the worst outcome of its rules.
+
+Open a rule to see the detail of the run: the number of rows evaluated and of rows failing the rule.
+
+**TODO Insert image**: the detail of one rule.
+
+To see a rule fail, edit the threshold of **Temperature is plausible**, for example with a maximum of 80, and run the action again: the rule ends in warning or critical, and its history shows both runs with the rule as it was at each run.
+
+## Go further: a quality gate between two tables
+
+A common pattern is to load new data into a staging table, check it, and publish it to the final table only when the checks pass. This is often called *Write, Audit, Publish*: the consumers of the final table never see data that failed its checks.
+
+We build it with two tables:
+
+- `silver`, the staging table, loaded from the source;
+- `gold`, the final table, with the same columns, filled from `silver`.
+
+### Create the silver table and its load
+
+1. In the Lakehouse Manager, create the `silver` table from the `chicago_calendar_full` source, with a Load action, as in [Organize data](/guides/public-cloud/data-platform/getting-started-organize-data).
+2. Build the table.
+
+**TODO Insert image**: the `silver` table in the Lakehouse Manager.
+
+### Add quality rules to the silver table
+
+Open the **Data Quality** tab of `silver` and create the same four rules as in [Step 1](#step-1-add-quality-rules-to-the-table). The mandatory rules decide whether the data is published.
+
+Then create the Data Quality action of `silver` from the **Data Quality** tab, with the default parameters, as in [Step 2](#step-2-create-the-data-quality-action).
+
+### Create the gold table and its load
+
+1. Create an empty `gold` table with the same columns as `silver`, and build it.
+2. In the Data Processing Engine, create an [Aggregate](/guides/public-cloud/data-platform/dpe-actions-aggregate) action that reads `silver` and writes `gold`, mapping each column to the column of the same name.
+
+**TODO Insert image**: the Aggregate action from `silver` to `gold`.
+
+### Chain them in a workflow
+
+In the Data Processing Engine, create a [workflow](/guides/public-cloud/data-platform/dpe-workflows) with three stages, in this order:
+
+1. the Load action of `silver`;
+2. the Data Quality action of `silver`;
+3. the Aggregate action from `silver` to `gold`.
+
+**TODO Insert image**: the workflow with its three stages.
+
+Stages run one after the other. When a mandatory rule of `silver` ends critical, the Data Quality job fails, the workflow stops, and `gold` keeps its previous data. The report of the failed run is in the **Data Quality** tab of `silver`, so you can see which rule failed and why.
+
+**TODO Insert image**: a workflow execution stopped at the Data Quality stage.
+
+To be notified when the gate stops the workflow, [configure an alert](/guides/public-cloud/data-platform/control-center-alerting-job-execution) on the Data Quality action with *status = failure*.
+
+## Go further
+
+- [Check the quality of your tables with data quality rules](/guides/public-cloud/data-platform/lakehouse-manager-data-quality)
+- [Check table quality with the Data Quality action](/guides/public-cloud/data-platform/dpe-actions-data-quality)
+
+[[fragment:professional-services|en]]
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
