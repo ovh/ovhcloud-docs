@@ -28,6 +28,7 @@ import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
+import { networkPublicIpConsole } from './keys/network-public-ip-console';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackConsole } from './keys/network-vrack-console';
@@ -49,18 +50,22 @@ import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBillingConsole } from './keys/publiccloud-billing-console';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
+import { publiccloudBlockStorageConsole } from './keys/publiccloud-block-storage-console';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
 import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudContactsRightsConsole } from './keys/publiccloud-contacts-rights-console';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
+import { publiccloudCreditsVouchersConsole } from './keys/publiccloud-credits-vouchers-console';
 import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
 import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
+import { publiccloudFileStorageConsole } from './keys/publiccloud-file-storage-console';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
 import { publiccloudGatewayConsole } from './keys/publiccloud-gateway-console';
 import { publiccloudInstanceBackup } from './keys/publiccloud-instance-backup';
+import { publiccloudInstanceBackupConsole } from './keys/publiccloud-instance-backup-console';
 import { publiccloudInstances } from './keys/publiccloud-instances';
 import { publiccloudInstancesConsole } from './keys/publiccloud-instances-console';
 import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
@@ -89,10 +94,12 @@ import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
+import { publiccloudVolumeSnapshotConsole } from './keys/publiccloud-volume-snapshot-console';
 import { securityKms } from './keys/security-kms';
 import { securitySecretManager } from './keys/security-secret-manager';
 import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
+import { storageCloudDiskArrayConsole } from './keys/storage-cloud-disk-array-console';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -152,6 +159,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
   'storage-cloud-disk-array': storageCloudDiskArray,
+  'storage-cloud-disk-array-console': storageCloudDiskArrayConsole,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-enterprise-file-storage-console':
     storageEnterpriseFileStorageConsole,
@@ -182,9 +190,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-instances': publiccloudInstances,
   'publiccloud-instances-console': publiccloudInstancesConsole,
   'publiccloud-instance-backup': publiccloudInstanceBackup,
+  'publiccloud-instance-backup-console': publiccloudInstanceBackupConsole,
   'publiccloud-block-storage': publiccloudBlockStorage,
+  'publiccloud-block-storage-console': publiccloudBlockStorageConsole,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
+  'publiccloud-volume-snapshot-console': publiccloudVolumeSnapshotConsole,
   'publiccloud-file-storage': publiccloudFileStorage,
+  'publiccloud-file-storage-console': publiccloudFileStorageConsole,
   'publiccloud-cold-archive': publiccloudColdArchive,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
@@ -204,6 +216,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-quota-regions': publiccloudQuotaRegions,
   'publiccloud-quota-regions-console': publiccloudQuotaRegionsConsole,
   'publiccloud-credits-vouchers': publiccloudCreditsVouchers,
+  'publiccloud-credits-vouchers-console': publiccloudCreditsVouchersConsole,
   'publiccloud-savings-plan': publiccloudSavingsPlan,
   'publiccloud-savings-plan-console': publiccloudSavingsPlanConsole,
   'publiccloud-project-settings': publiccloudProjectSettings,
@@ -215,6 +228,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-vrack-services-console': networkVrackServicesConsole,
   'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
+  'network-public-ip-console': networkPublicIpConsole,
   'network-load-balancer': networkLoadBalancer,
   'network-load-balancer-console': networkLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
