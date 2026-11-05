@@ -50,6 +50,7 @@ import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBillingConsole } from './keys/publiccloud-billing-console';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
+import { publiccloudBlockStorageConsole } from './keys/publiccloud-block-storage-console';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
 import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
@@ -93,10 +94,12 @@ import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
+import { publiccloudVolumeSnapshotConsole } from './keys/publiccloud-volume-snapshot-console';
 import { securityKms } from './keys/security-kms';
 import { securitySecretManager } from './keys/security-secret-manager';
 import { storageBackupLicenses } from './keys/storage-backup-licenses';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
+import { storageCloudDiskArrayConsole } from './keys/storage-cloud-disk-array-console';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
@@ -156,6 +159,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
   'storage-cloud-disk-array': storageCloudDiskArray,
+  'storage-cloud-disk-array-console': storageCloudDiskArrayConsole,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
   'storage-enterprise-file-storage-console':
     storageEnterpriseFileStorageConsole,
@@ -188,7 +192,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-instance-backup': publiccloudInstanceBackup,
   'publiccloud-instance-backup-console': publiccloudInstanceBackupConsole,
   'publiccloud-block-storage': publiccloudBlockStorage,
+  'publiccloud-block-storage-console': publiccloudBlockStorageConsole,
   'publiccloud-volume-snapshot': publiccloudVolumeSnapshot,
+  'publiccloud-volume-snapshot-console': publiccloudVolumeSnapshotConsole,
   'publiccloud-file-storage': publiccloudFileStorage,
   'publiccloud-file-storage-console': publiccloudFileStorageConsole,
   'publiccloud-cold-archive': publiccloudColdArchive,
