@@ -178,6 +178,7 @@
             + [Storage](bare-metal-cloud-dedicated-servers-configuration-storage)
                 + [Managing and rebuilding software RAID on servers using legacy boot (BIOS) mode](bare-metal-cloud/dedicated-servers/raid-soft)
                 + [Managing and rebuilding software RAID on servers using UEFI boot mode](bare-metal-cloud/dedicated-servers/raid-soft-uefi)
+                + [Understanding the EFI System Partition on dedicated servers](bare-metal-cloud/dedicated-servers/efi-system-partition)
                 + [Managing hardware RAID](bare-metal-cloud/dedicated-servers/raid-hard)
                 + [Hot swap - Hardware RAID](bare-metal-cloud/dedicated-servers/hotswap-raid-hard)
                 + [Hot swap - Software RAID](bare-metal-cloud/dedicated-servers/hotswap-raid-soft)
@@ -1856,6 +1857,7 @@
                     + [Trino](public-cloud/data-platform/connectors-sources-trino){label=Trino}
                     + [Twitter](public-cloud/data-platform/connectors-sources-twitter){label=Twitter}
                     + [FHIR](public-cloud/data-platform/connectors-sources-fhir){label=FHIR}
+                + [Custom Sources](public-cloud/data-platform/connectors-custom-sources){label=Custom Sources}
                 + [Analyzer](public-cloud-data-platform-analyzer){landing=public-cloud/data-platform/landing-page-connectors-analyzer}
                     + [Extract the metadata](public-cloud/data-platform/connectors-analyzer-extract-metadata){label=Extract the metadata}
                     + [Blueprint rules](public-cloud/data-platform/connectors-analyzer-blueprint-rules){label=Blueprint rules}
@@ -1863,6 +1865,7 @@
                     + [PowerBI](public-cloud/data-platform/connectors-consumers-power-bi){label=PowerBI}
                     + [OpenLineage](public-cloud/data-platform/connectors-consumers-openlineage){label=OpenLineage}
                     + [Trino](public-cloud/data-platform/connectors-consumers-trino){label=Trino}
+                    + [Trino AI functions](public-cloud/data-platform/connectors-consumers-trino-ai-functions){label=Trino AI functions}
             + [Lakehouse Manager](public-cloud-data-platform-lakehouse-manager){landing=public-cloud/data-platform/landing-page-lakehouse-manager}
                 + [Discover key concepts](public-cloud/data-platform/lakehouse-manager-key-concepts){label=Discover key concepts}
                 + [Datasets](public-cloud/data-platform/lakehouse-manager-datasets){label=Datasets}
