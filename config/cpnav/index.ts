@@ -52,7 +52,9 @@ import { publiccloudBillingConsole } from './keys/publiccloud-billing-console';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudBlockStorageConsole } from './keys/publiccloud-block-storage-console';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
+import { publiccloudCloudArchiveConsole } from './keys/publiccloud-cloud-archive-console';
 import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
+import { publiccloudColdArchiveConsole } from './keys/publiccloud-cold-archive-console';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
 import { publiccloudContactsRightsConsole } from './keys/publiccloud-contacts-rights-console';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
@@ -74,6 +76,7 @@ import { publiccloudLoadBalancerConsole } from './keys/publiccloud-load-balancer
 import { publiccloudLogs } from './keys/publiccloud-logs';
 import { publiccloudLogsConsole } from './keys/publiccloud-logs-console';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
+import { publiccloudObjectStorageConsole } from './keys/publiccloud-object-storage-console';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjectSettingsConsole } from './keys/publiccloud-project-settings-console';
@@ -175,6 +178,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-data-platform': publiccloudDataPlatform,
   'publiccloud-data-platform-console': publiccloudDataPlatformConsole,
   'publiccloud-object-storage': publiccloudObjectStorage,
+  'publiccloud-object-storage-console': publiccloudObjectStorageConsole,
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-logs-console': publiccloudLogsConsole,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
@@ -198,7 +202,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-file-storage': publiccloudFileStorage,
   'publiccloud-file-storage-console': publiccloudFileStorageConsole,
   'publiccloud-cold-archive': publiccloudColdArchive,
+  'publiccloud-cold-archive-console': publiccloudColdArchiveConsole,
   'publiccloud-cloud-archive': publiccloudCloudArchive,
+  'publiccloud-cloud-archive-console': publiccloudCloudArchiveConsole,
   'publiccloud-load-balancer': publiccloudLoadBalancer,
   'publiccloud-load-balancer-console': publiccloudLoadBalancerConsole,
   'publiccloud-public-ips': publiccloudPublicIps,
