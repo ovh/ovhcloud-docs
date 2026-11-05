@@ -63,6 +63,7 @@ import { publiccloudCreditsVouchersConsole } from './keys/publiccloud-credits-vo
 import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
 import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
+import { publiccloudDatabasesConsole } from './keys/publiccloud-databases-console';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudFileStorageConsole } from './keys/publiccloud-file-storage-console';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
@@ -175,6 +176,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-projects-console': publiccloudProjectsConsole,
   'publiccloud-databases': publiccloudDatabases,
+  'publiccloud-databases-console': publiccloudDatabasesConsole,
   'publiccloud-analytics': publiccloudAnalytics,
   'publiccloud-analytics-console': publiccloudAnalyticsConsole,
   'publiccloud-data-platform': publiccloudDataPlatform,
