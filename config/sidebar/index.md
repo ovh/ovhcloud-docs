@@ -178,6 +178,7 @@
             + [Storage](bare-metal-cloud-dedicated-servers-configuration-storage)
                 + [Managing and rebuilding software RAID on servers using legacy boot (BIOS) mode](bare-metal-cloud/dedicated-servers/raid-soft)
                 + [Managing and rebuilding software RAID on servers using UEFI boot mode](bare-metal-cloud/dedicated-servers/raid-soft-uefi)
+                + [Understanding the EFI System Partition on dedicated servers](bare-metal-cloud/dedicated-servers/efi-system-partition)
                 + [Managing hardware RAID](bare-metal-cloud/dedicated-servers/raid-hard)
                 + [Hot swap - Hardware RAID](bare-metal-cloud/dedicated-servers/hotswap-raid-hard)
                 + [Hot swap - Software RAID](bare-metal-cloud/dedicated-servers/hotswap-raid-soft)
