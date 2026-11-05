@@ -25,6 +25,7 @@ import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { networkLoadBalancer } from './keys/network-load-balancer';
+import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
@@ -46,10 +47,12 @@ import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
 import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudBilling } from './keys/publiccloud-billing';
+import { publiccloudBillingConsole } from './keys/publiccloud-billing-console';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
 import { publiccloudCloudArchive } from './keys/publiccloud-cloud-archive';
 import { publiccloudColdArchive } from './keys/publiccloud-cold-archive';
 import { publiccloudContactsRights } from './keys/publiccloud-contacts-rights';
+import { publiccloudContactsRightsConsole } from './keys/publiccloud-contacts-rights-console';
 import { publiccloudCreditsVouchers } from './keys/publiccloud-credits-vouchers';
 import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
 import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
@@ -64,9 +67,11 @@ import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
 import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
 import { publiccloudLoadBalancerConsole } from './keys/publiccloud-load-balancer-console';
 import { publiccloudLogs } from './keys/publiccloud-logs';
+import { publiccloudLogsConsole } from './keys/publiccloud-logs-console';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
+import { publiccloudProjectSettingsConsole } from './keys/publiccloud-project-settings-console';
 import { publiccloudProjects } from './keys/publiccloud-projects';
 import { publiccloudProjectsConsole } from './keys/publiccloud-projects-console';
 import { publiccloudPublicIps } from './keys/publiccloud-public-ips';
@@ -76,8 +81,10 @@ import { publiccloudQuantumEmulatorsConsole } from './keys/publiccloud-quantum-e
 import { publiccloudQuantumQpus } from './keys/publiccloud-quantum-qpus';
 import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-console';
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
+import { publiccloudQuotaRegionsConsole } from './keys/publiccloud-quota-regions-console';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
+import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
 import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
@@ -161,6 +168,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-data-platform-console': publiccloudDataPlatformConsole,
   'publiccloud-object-storage': publiccloudObjectStorage,
   'publiccloud-logs': publiccloudLogs,
+  'publiccloud-logs-console': publiccloudLogsConsole,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
   'publiccloud-ai-training': publiccloudAiTraining,
   'publiccloud-ai-deploy': publiccloudAiDeploy,
@@ -190,11 +198,16 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-kubernetes': publiccloudKubernetes,
   'publiccloud-private-registry': publiccloudPrivateRegistry,
   'publiccloud-billing': publiccloudBilling,
+  'publiccloud-billing-console': publiccloudBillingConsole,
   'publiccloud-contacts-rights': publiccloudContactsRights,
+  'publiccloud-contacts-rights-console': publiccloudContactsRightsConsole,
   'publiccloud-quota-regions': publiccloudQuotaRegions,
+  'publiccloud-quota-regions-console': publiccloudQuotaRegionsConsole,
   'publiccloud-credits-vouchers': publiccloudCreditsVouchers,
   'publiccloud-savings-plan': publiccloudSavingsPlan,
+  'publiccloud-savings-plan-console': publiccloudSavingsPlanConsole,
   'publiccloud-project-settings': publiccloudProjectSettings,
+  'publiccloud-project-settings-console': publiccloudProjectSettingsConsole,
   // --- Network -------------------------------------------------------------------------
   'network-vrack': networkVrack,
   'network-vrack-console': networkVrackConsole,
@@ -203,6 +216,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-load-balancer': networkLoadBalancer,
+  'network-load-balancer-console': networkLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
