@@ -178,6 +178,7 @@
             + [Storage](bare-metal-cloud-dedicated-servers-configuration-storage)
                 + [Managing and rebuilding software RAID on servers using legacy boot (BIOS) mode](bare-metal-cloud/dedicated-servers/raid-soft)
                 + [Managing and rebuilding software RAID on servers using UEFI boot mode](bare-metal-cloud/dedicated-servers/raid-soft-uefi)
+                + [Understanding the EFI System Partition on dedicated servers](bare-metal-cloud/dedicated-servers/efi-system-partition)
                 + [Managing hardware RAID](bare-metal-cloud/dedicated-servers/raid-hard)
                 + [Hot swap - Hardware RAID](bare-metal-cloud/dedicated-servers/hotswap-raid-hard)
                 + [Hot swap - Software RAID](bare-metal-cloud/dedicated-servers/hotswap-raid-soft)
@@ -627,10 +628,10 @@
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
-        + [CloudStore](hosted-private-cloud-hosted-private-cloud-opcp-cloudstore)
-            + [Getting started with your CloudStore](hosted-private-cloud/opcp/cloudstore-getting-started)
-        + [Landing Zone Manager](hosted-private-cloud-hosted-private-cloud-opcp-landing-zone-manager)
-            + [Landing Zone Manager - Creating a user account](hosted-private-cloud/opcp/landing-zone-manager-create-user-account)
+        + [Cloud Store](hosted-private-cloud-hosted-private-cloud-opcp-cloud-store)
+            + [Getting started with Cloud Store](hosted-private-cloud/opcp/cloudstore-getting-started)
+            + [OPCP Admin Console](hosted-private-cloud/opcp/admin-console-getting-started)
+            + [OPCP Cloud Console](hosted-private-cloud/opcp/cloud-console-getting-started)
         + [Additional resources](hosted-private-cloud-hosted-private-cloud-opcp-additional-resources)
             + [OPCP Core compatibility matrix](hosted-private-cloud/opcp/opcp-compatibility-matrix)
             + [Object Storage features and specifications on OPCP](hosted-private-cloud/opcp/s3-opcp-limitations)
@@ -1791,6 +1792,8 @@
                 + [Stream data from Apache Kafka](public-cloud/data-platform/tutorials-kafka){label=Stream data from Apache Kafka}
                 + [Build an IoT fleet-monitoring pipeline](public-cloud-data-platform-build-an-iot-fleet-monitoring-pipeline){landing=public-cloud/data-platform/tutorials-iot-fleet-monitoring}
                     + [Build the Superset dashboards](public-cloud/data-platform/tutorials-iot-fleet-monitoring-superset-dashboards)
+                + [Analyse Vélib' availability with Apache Superset](public-cloud-data-platform-analyze-velib-availability){landing=public-cloud/data-platform/tutorials-velib-availability}
+                    + [Build the Vélib' dashboard in Superset](public-cloud/data-platform/tutorials-velib-availability-superset-dashboard){label=Build a Vélib' availability dashboard in Superset}
                 + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
                 + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
                 + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
@@ -1854,6 +1857,7 @@
                     + [Trino](public-cloud/data-platform/connectors-sources-trino){label=Trino}
                     + [Twitter](public-cloud/data-platform/connectors-sources-twitter){label=Twitter}
                     + [FHIR](public-cloud/data-platform/connectors-sources-fhir){label=FHIR}
+                + [Custom Sources](public-cloud/data-platform/connectors-custom-sources){label=Custom Sources}
                 + [Analyzer](public-cloud-data-platform-analyzer){landing=public-cloud/data-platform/landing-page-connectors-analyzer}
                     + [Extract the metadata](public-cloud/data-platform/connectors-analyzer-extract-metadata){label=Extract the metadata}
                     + [Blueprint rules](public-cloud/data-platform/connectors-analyzer-blueprint-rules){label=Blueprint rules}
@@ -1861,6 +1865,7 @@
                     + [PowerBI](public-cloud/data-platform/connectors-consumers-power-bi){label=PowerBI}
                     + [OpenLineage](public-cloud/data-platform/connectors-consumers-openlineage){label=OpenLineage}
                     + [Trino](public-cloud/data-platform/connectors-consumers-trino){label=Trino}
+                    + [Trino AI functions](public-cloud/data-platform/connectors-consumers-trino-ai-functions){label=Trino AI functions}
             + [Lakehouse Manager](public-cloud-data-platform-lakehouse-manager){landing=public-cloud/data-platform/landing-page-lakehouse-manager}
                 + [Discover key concepts](public-cloud/data-platform/lakehouse-manager-key-concepts){label=Discover key concepts}
                 + [Datasets](public-cloud/data-platform/lakehouse-manager-datasets){label=Datasets}
@@ -2686,7 +2691,7 @@
                 + [Enterprise File Storage - Performance Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts-performances)
                 + [Enterprise File Storage - FAQ](storage-and-backup/file-storage/enterprise-file-storage/netapp-faq)
             + [Getting Started](storage-file-storage-enterprise-file-storage-getting-started)
-                + [Managing Enterprise File Storage from the OVHcloud Control Panel](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
+                + [Managing Enterprise File Storage from the OVHcloud Console](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
                 + [Managing Enterprise File Storage with OVHcloud Terraform provider](storage-and-backup/file-storage/enterprise-file-storage/netapp-terraform)
                 + [Enterprise File Storage - API Quickstart](storage-and-backup/file-storage/enterprise-file-storage/netapp-quick-start)
                 + [Enterprise File Storage - Getting started with Trident CSI](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-csi)
