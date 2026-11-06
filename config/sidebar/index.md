@@ -588,7 +588,7 @@
         + [Private VCF as-a-Service](products/hosted-private-cloud-private-vcf)
             + [Overview](hosted-private-cloud/powered-by-vmware/private-vcf/overview)
             + [Key Concepts](hosted-private-cloud-private-vcf-key-concepts)
-                + [Private VCF as-a-Service - Introduction to the 3-AZ Stretched Cluster concept](hosted-private-cloud/powered-by-vmware/private-vcf/3az-stretched-cluster-concepts)
+                + [Private VCF as-a-Service - 3-AZ Stretched Cluster concepts](hosted-private-cloud/powered-by-vmware/private-vcf/3az-stretched-cluster-concepts)
     + [SNC Cloud Platform](hosted-private-cloud-snc-cloud-platform)
         + [Getting started](hosted-private-cloud-snc-cloud-platform-getting-started)
             + [Getting started with your SNC Cloud Platform project](hosted-private-cloud/cloud-platform/getting-started)
