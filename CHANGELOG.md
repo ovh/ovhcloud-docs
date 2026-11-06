@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.06
+
+### Fixes
+
+#### All regions
+- **llms:** give nested products their own llms.txt index
+
+### Documentation
+- EU: 1020 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.05
 
 ### Documentation

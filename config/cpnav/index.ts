@@ -47,6 +47,7 @@ import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
 import { publiccloudAnalytics } from './keys/publiccloud-analytics';
+import { publiccloudAnalyticsConsole } from './keys/publiccloud-analytics-console';
 import { publiccloudBilling } from './keys/publiccloud-billing';
 import { publiccloudBillingConsole } from './keys/publiccloud-billing-console';
 import { publiccloudBlockStorage } from './keys/publiccloud-block-storage';
@@ -62,6 +63,7 @@ import { publiccloudCreditsVouchersConsole } from './keys/publiccloud-credits-vo
 import { publiccloudDataPlatform } from './keys/publiccloud-data-platform';
 import { publiccloudDataPlatformConsole } from './keys/publiccloud-data-platform-console';
 import { publiccloudDatabases } from './keys/publiccloud-databases';
+import { publiccloudDatabasesConsole } from './keys/publiccloud-databases-console';
 import { publiccloudFileStorage } from './keys/publiccloud-file-storage';
 import { publiccloudFileStorageConsole } from './keys/publiccloud-file-storage-console';
 import { publiccloudGateway } from './keys/publiccloud-gateway';
@@ -174,7 +176,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-projects': publiccloudProjects,
   'publiccloud-projects-console': publiccloudProjectsConsole,
   'publiccloud-databases': publiccloudDatabases,
+  'publiccloud-databases-console': publiccloudDatabasesConsole,
   'publiccloud-analytics': publiccloudAnalytics,
+  'publiccloud-analytics-console': publiccloudAnalyticsConsole,
   'publiccloud-data-platform': publiccloudDataPlatform,
   'publiccloud-data-platform-console': publiccloudDataPlatformConsole,
   'publiccloud-object-storage': publiccloudObjectStorage,
