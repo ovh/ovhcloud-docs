@@ -1,0 +1,51 @@
+import type { CpNavKey } from '../types';
+
+// Console (v8) twin of publiccloud-gateway, for the guides rewritten for the Console; the v6 key stays
+// until it is repointed at GA, when the two merge. Like the other Public Cloud destinations it
+// lands on the project list (v6 -> Console route map: /public-cloud/project, app pci-project;
+// title projects-listing.page.title) and the crumbs name the entry in the project sidebar:
+// the Network group (pci-sidebar.group.network._self) and Gateway
+// (pci-sidebar.group.network.gateway).
+export const publiccloudGatewayConsole: CpNavKey = {
+  universe: 'public-cloud',
+  console: true,
+  locations: [
+    {
+      route: '/beta/#/public-cloud/project',
+      text: {
+        en: {
+          product: 'Projects',
+          crumbs: [{ text: 'Select your project' }, 'Network', 'Gateway'],
+        },
+        fr: {
+          product: 'Projets',
+          crumbs: [{ text: 'Sélectionnez votre projet' }, 'Réseau', 'Gateway'],
+        },
+        de: {
+          product: 'Projekte',
+          crumbs: [
+            { text: 'Wählen Sie Ihr Projekt aus' },
+            'Netzwerk',
+            'Gateway',
+          ],
+        },
+        es: {
+          product: 'Proyectos',
+          crumbs: [{ text: 'Seleccione su proyecto' }, 'Red', 'Gateway'],
+        },
+        it: {
+          product: 'Progetti',
+          crumbs: [{ text: 'Seleziona il tuo progetto' }, 'Rete', 'Gateway'],
+        },
+        pl: {
+          product: 'Projekty',
+          crumbs: [{ text: 'Wybierz projekt' }, 'Sieć', 'Gateway'],
+        },
+        pt: {
+          product: 'Projetos',
+          crumbs: [{ text: 'Selecione o seu projeto' }, 'Rede', 'Gateway'],
+        },
+      },
+    },
+  ],
+};
