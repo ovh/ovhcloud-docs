@@ -23,6 +23,7 @@ import { iamIdentities } from './keys/iam-identities';
 import { iamPolicies } from './keys/iam-policies';
 import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamTagManagement } from './keys/iam-tag-management';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -254,6 +255,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-saml-sso': iamSamlSso,
   'iam-service-accounts': iamServiceAccounts,
   'iam-policies': iamPolicies,
+  'iam-tag-management': iamTagManagement,
   'security-kms': securityKms,
   'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
