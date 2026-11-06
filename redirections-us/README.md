@@ -14,7 +14,7 @@ applied by the docs build: the rules run on the host that serves `support.us.ovh
 
 | File | What it is |
 |---|---|
-| `zendesk-snapshot.json` | The live help-centre listing: 790 articles, 198 sections, 8 categories (IDs, titles, tree). Refreshed with `--fetch`. |
+| `zendesk-snapshot.json` | The live help-centre listing: 799 articles, 199 sections, 8 categories (IDs, titles, tree). Refreshed with `--fetch`. |
 | `merged-articles.csv` | The 64 articles that no longer have a guide of their own, with the guide that absorbed them: 60 merged during de-duplication, 4 retired after an EU fold. |
 | `overrides.csv` | Hand decisions, each with its reason (6 rules). |
 
@@ -25,7 +25,7 @@ the sidebar tree in `config/sidebar/index-us.md` for landing pages.
 
 | File | Applied on host | Rules |
 |---|---|---|
-| `redirections-us.txt` | `support.us.ovhcloud.com` | 1,002 |
+| `redirections-us.txt` | `support.us.ovhcloud.com` | 1,012 |
 
 ```
 SOURCE="/hc/en-us/articles/1500007893502"
@@ -40,14 +40,14 @@ chain into another.
 
 | Zendesk page | Rules | Destination |
 |---|---:|---|
-| Articles with their own guide | 729 | that guide |
+| Articles with their own guide | 738 | that guide |
 | Articles merged during de-duplication | 60 | the guide that absorbed them |
 | Articles retired after an EU fold | 4 | the guide that absorbed them |
 | Article not migrated yet | 1 | interim landing page (see "Left open") |
-| Sections | 198 | 161 landing page, 30 single guide, 4 parent section, 3 override |
+| Sections | 199 | 161 landing page, 31 single guide, 4 parent section, 3 override |
 | Categories | 8 | 6 landing page, 2 override |
 | Help-centre home (`/hc/en-us`, `/`) | 2 | docs home |
-| **Total** | **1,002** | **3** on the docs home |
+| **Total** | **1,012** | **3** on the docs home |
 
 ## How the rules are built
 
@@ -60,7 +60,7 @@ zendesk_id: 39499067423379
 ```
 
 That ID survived every slug change, folder move and de-duplication, so an article's rule
-is a join on it, not a title match. On the snapshot of 2026-10-15: 730 articles matched,
+is a join on it, not a title match. On the snapshot of 2026-11-05: 739 articles matched,
 no guide with an unknown ID, no ID on two guides.
 
 The 64 articles without a guide of their own are listed in `merged-articles.csv`. Both
@@ -130,6 +130,14 @@ The script writes nothing unless every live Zendesk page resolves and every dest
 exists as a page in `docs-us/en`. Regenerate after any US guide is moved, renamed, merged
 or deleted, and before handing the file over: rules are rebuilt from the repo each time,
 not carried forward.
+
+## Checks run (2026-11-05)
+
+- 1,012 rules, no duplicate source; all 777 distinct destinations exist as pages in `docs-us/en`.
+- Against the 2026-10-15 version: 1,002 rules unchanged, 10 new.
+  - 9 articles published after the 2026-10-15 snapshot, each to its new guide (KMS,
+    Secret Manager, IAM and Managed Kubernetes).
+  - The new Managed Kubernetes section Security goes to its only guide, the RBAC one.
 
 ## Checks run (2026-10-15)
 
