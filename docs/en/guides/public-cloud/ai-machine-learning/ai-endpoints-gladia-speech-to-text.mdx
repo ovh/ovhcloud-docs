@@ -1,7 +1,7 @@
 ---
 title: AI Endpoints - Speech to Text with the Gladia API
-description: Transcribe live audio with Solaria-1 using the Gladia API and official SDKs on OVHcloud AI Endpoints
-lastUpdated: 2026-11-05
+description: Transcribe live audio with Solaria-3 using the Gladia API and official SDKs on OVHcloud AI Endpoints
+lastUpdated: 2026-11-06
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -12,7 +12,7 @@ AI Endpoints is covered by the **[OVHcloud Public Cloud Special Conditions](/lin
 
 ## Objective
 
-Use `solaria-1` on [AI Endpoints](/links/public-cloud/ai-endpoints) to transcribe live audio with the **Gladia Live V2 API**. The native API provides partial transcripts, final utterances and speaker labels. This guide covers session creation, audio transmission, completion and result retrieval using HTTP, WebSockets and the official Gladia SDKs.
+Use `solaria-3` on [AI Endpoints](/links/public-cloud/ai-endpoints) to transcribe live audio with the **Gladia Live V2 API**. The native API provides partial transcripts, final utterances and speaker labels. This guide covers session creation, audio transmission, completion and result retrieval using HTTP, WebSockets and the official Gladia SDKs.
 
 For a local audio file without WebSocket integration, see the [OpenAI-compatible file wrapper](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models#gladia-compatibility), including Python `requests`, OpenAI client and cURL examples. It has a smaller parameter set and does not stream responses.
 
@@ -44,7 +44,36 @@ Only the live routes listed here are available, **not the full Gladia API**.
 
 ### Model Features and Add-ons
 
-Not all Gladia add-ons are available on AI Endpoints. `audio_to_llm` is disabled, and Solaria-1 does not support translation. Summarization, named entity recognition, sentiment analysis and other Gladia SaaS add-ons are not automatically available just because an SDK includes them.
+Solaria-3 supports the following features through the native live API:
+
+- Custom vocabulary and custom spelling.
+- Punctuation, capitalization and numbers as digits.
+- Named entity recognition and masking of personally identifiable information (PII).
+- End-of-turn detection.
+- Sentiment analysis.
+- Speaker diarization.
+- Translation.
+
+`audio_to_llm` and summarization remain unsupported. These native add-ons are not exposed through the OpenAI-compatible file wrapper; its restricted parameter set is unchanged.
+
+For native session creation, put `custom_vocabulary`, `custom_spelling`, `translation`, `named_entity_recognition` and `sentiment_analysis` inside `realtime_processing`, not at the top level. For example, add this object to the session creation body:
+
+```json
+{
+  "realtime_processing": {
+    "custom_vocabulary": true,
+    "custom_vocabulary_config": {"vocabulary": ["OVHcloud"]},
+    "custom_spelling": true,
+    "custom_spelling_config": {"spelling_dictionary": {"OVHcloud": ["OVH cloud"]}},
+    "translation": true,
+    "translation_config": {"target_languages": ["fr"]},
+    "named_entity_recognition": true,
+    "sentiment_analysis": true
+  }
+}
+```
+
+Native `diarization` and `diarization_config` remain top-level fields, as described in [Diarization and Latency](#diarization-and-latency).
 
 ## Native Live Protocol
 
@@ -52,14 +81,14 @@ Not all Gladia add-ons are available on AI Endpoints. `audio_to_llm` is disabled
 
 This example uses **16 kHz, signed little-endian 16-bit mono PCM**. It requires cURL and `jq`.
 
-Specify the format of your audio: encoding, sample rate, bit depth and channel count must match the samples you send.
+Specify `model: "solaria-3"` explicitly in every session creation request rather than relying on the default model. Specify the format of your audio: encoding, sample rate, bit depth and channel count must match the samples you send.
 
 ```bash
 SESSION=$(curl --fail-with-body --silent --show-error --max-time 30 \
   "$AI_ENDPOINTS_BASE_URL/gladia/v2/live?region=eu-west" \
   -H "x-gladia-key: $OVH_AI_ENDPOINTS_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  --data '{"encoding":"wav/pcm","sample_rate":16000,"bit_depth":16,"channels":1,"language_config":{"languages":["en"]},"messages_config":{"receive_partial_transcripts":true,"receive_final_transcripts":true}}')
+  --data '{"model":"solaria-3","encoding":"wav/pcm","sample_rate":16000,"bit_depth":16,"channels":1,"language_config":{"languages":["en"]},"messages_config":{"receive_partial_transcripts":true,"receive_final_transcripts":true}}')
 SESSION_ID=$(printf '%s' "$SESSION" | jq -er '.id')
 WEBSOCKET_URL=$(printf '%s' "$SESSION" | jq -er '.url')
 ```
@@ -128,6 +157,7 @@ These examples create a session, send a **short local recording at real-time pac
         if (audio.getframerate(), audio.getsampwidth(), audio.getnchannels()) != (16000, 2, 1):
             raise ValueError("Expected 16 kHz, 16-bit mono PCM WAV")
         session = live.start_session(LiveV2InitRequest(
+          model="solaria-3",
             encoding="wav/pcm", sample_rate=16000,
             bit_depth=16, channels=1,
             language_config=LiveV2LanguageConfig(languages=["en"]),
@@ -195,6 +225,7 @@ These examples create a session, send a **short local recording at real-time pac
     });
     const live = client.liveV2();
     const session = live.startSession({
+      model: "solaria-3",
       encoding: "wav/pcm", sample_rate: 16000,
       bit_depth: 16, channels: 1,
       language_config: { languages: ["en"] },
@@ -262,7 +293,28 @@ Always clean up a failed or abandoned session. Avoid automatic retries of sessio
 
 For native live requests, add `"diarization": true` at the top level, optionally with `"diarization_config": {"min_speakers": 2, "max_speakers": 4}`.
 
-The Python SDK's typed `LiveV2InitRequest` does not expose this extension. To use it, create the session with a direct HTTP request containing these fields, then connect to its returned URL with `LiveV2ConnectSessionOptions`. Do not pass an unsupported `diarization` keyword to the typed initializer.
+With `gladiaio-sdk>=2.2`, pass a plain Python dictionary to `live.start_session()`: the SDK sends it as-is, including the Gladia Enterprise diarization fields that are absent from the typed `LiveV2InitRequest`. No separate HTTP request or `requests` dependency is needed.
+
+In the Python SDK example above, replace the session initialization and the `on_message` function with the following code. Keep the existing configured `live` client, WAV validation, listener registration, readiness wait, real-time audio pacing, result polling and `finally` cleanup:
+
+```python
+session = live.start_session({
+  "model": "solaria-3",
+  "encoding": "wav/pcm", "sample_rate": 16000,
+  "bit_depth": 16, "channels": 1,
+  "language_config": {"languages": ["en"]},
+  "messages_config": {"receive_final_transcripts": True},
+  "diarization": True,
+  "diarization_config": {"max_speakers": 3},
+})
+
+def on_message(message):
+  if message.type == "transcript" and message.data.is_final:
+    utterance = message.data.utterance
+    print(f"Speaker {utterance.speaker}: {utterance.text}")
+```
+
+Wait for the socket to be ready before sending audio. Call `stop_recording()` only after sending all chunks, then keep reading until the session ends so final speaker-labelled transcripts can arrive. Do not pass `diarization` as a keyword to the typed initializer.
 
 :::warning
 Diarization distinguishes voices, not real-world identities. It is computationally expensive and **increases processing latency**, especially for final results. Enable it only when needed. Word-level speaker labels are more precise than a single utterance label when several speakers occur in an utterance. Use native results for speaker labels: the OpenAI-compatible wrapper drops them from its formatted output.
@@ -282,17 +334,20 @@ The entire multipart request, including its overhead, must also fit within the H
 | :--- | :--- | :--- |
 | HTTP request rate | 2 requests/minute per IP and model | 400 requests/minute per Public Cloud project and model |
 | Concurrent live sessions | 1 session per IP | 25 sessions per Public Cloud project |
-| Maximum audio duration per native live session | 60 seconds | 8 hours |
+| Maximum native live session duration | 60 seconds | 8 hours |
 | Maximum file size through the OpenAI-compatible Gladia wrapper | 10 MiB | 2048 MiB |
 | Maximum file duration through the OpenAI-compatible Gladia wrapper | 60 seconds | 10800 seconds (3 hours) |
 
-The native live duration limit is the total audio time in one native live session and is independent of the OpenAI-compatible Gladia file limits. The file wrapper consumes a live session but enforces its own file size and duration limits. `maximum_duration_without_endpointing` controls when an utterance is finalized; it does not change either duration limit. Users behind one NAT share an anonymous identity. Several API keys in one project do not create separate project quotas. Closing a live session releases its concurrency slot; result GET requests do not create sessions.
+The native live limit is the **wall-clock session duration, measured from session creation with `POST /gladia/v2/live`**, not from opening the WebSocket and not from the amount of audio sent. At expiry, the service gracefully stops recording with `stop_recording`, allowing final transcripts to be produced. The client must stop sending audio and keep reading until processing finishes and the socket closes.
+
+This session limit is independent of the OpenAI-compatible Gladia file limits. The file wrapper consumes a live session but enforces its own file size and duration limits. `maximum_duration_without_endpointing` controls when an utterance is finalized; it does not change the session or file duration limits. Users behind one NAT share an anonymous identity. Several API keys in one project do not create separate project quotas. Closing a live session releases its concurrency slot; result GET requests do not create sessions.
 
 Start with short audio samples. If a file request returns `413 Payload Too Large`, check both file size and recording duration, as well as the entire multipart request size, before retrying.
 
 | Status | Action |
 | :--- | :--- |
 | `400` | Check parameters, region and metadata, and ensure uploaded audio is valid and decodable. Do not set reserved `custom_metadata` keys such as `project_id` or `request_id`. |
+| `403` | Remove a disabled native add-on, such as summarization or `audio_to_llm`. |
 | `404` | Check the route, resource ID and resource ownership. |
 | `405` | The method is unsupported. |
 | `409` | The session cannot yet be deleted. Wait before retrying. |
