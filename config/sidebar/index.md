@@ -2243,7 +2243,7 @@
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
             + [Retrieving and analysing your Managed Hosting for WordPress logs](web-cloud/managed-hosting/wordpress-logs)
-            + [Managing your Managed Hosting for WordPress with MCP](web-cloud/managed-hosting/wordpress-mcp)
+            + [Managing your Managed Hosting for WordPress with an AI agent (MCP)](web-cloud/managed-hosting/wordpress-mcp)
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)
             + [Video Center - Manage your videos online](web-cloud/video-center/manage-videos)
