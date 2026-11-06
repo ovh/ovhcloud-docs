@@ -15,7 +15,7 @@ applied by the docs build: the rules run on the host that serves `support.us.ovh
 | File | What it is |
 |---|---|
 | `zendesk-snapshot.json` | The live help-centre listing: 799 articles, 199 sections, 8 categories (IDs, titles, tree). Refreshed with `--fetch`. |
-| `merged-articles.csv` | The 64 articles that no longer have a guide of their own, with the guide that absorbed them: 60 merged during de-duplication, 4 retired after an EU fold. |
+| `merged-articles.csv` | The 100 articles that no longer have a guide of their own, with the guide that absorbed them: 60 merged during de-duplication, 40 retired (4 after an EU fold, 36 deleted on Zendesk). |
 | `overrides.csv` | Hand decisions, each with its reason (6 rules). |
 
 The rest comes from the repo itself: the `zendesk_id` in every guide's frontmatter, and
@@ -25,7 +25,7 @@ the sidebar tree in `config/sidebar/index-us.md` for landing pages.
 
 | File | Applied on host | Rules |
 |---|---|---|
-| `redirections-us.txt` | `support.us.ovhcloud.com` | 1,012 |
+| `redirections-us.txt` | `support.us.ovhcloud.com` | 1,048 |
 
 ```
 SOURCE="/hc/en-us/articles/1500007893502"
@@ -43,11 +43,12 @@ chain into another.
 | Articles with their own guide | 738 | that guide |
 | Articles merged during de-duplication | 60 | the guide that absorbed them |
 | Articles retired after an EU fold | 4 | the guide that absorbed them |
+| Articles deleted on Zendesk | 36 | the guide Zendesk redirects them to |
 | Article not migrated yet | 1 | interim landing page (see "Left open") |
 | Sections | 199 | 161 landing page, 31 single guide, 4 parent section, 3 override |
 | Categories | 8 | 6 landing page, 2 override |
 | Help-centre home (`/hc/en-us`, `/`) | 2 | docs home |
-| **Total** | **1,012** | **3** on the docs home |
+| **Total** | **1,048** | **3** on the docs home |
 
 ## How the rules are built
 
@@ -63,8 +64,8 @@ That ID survived every slug change, folder move and de-duplication, so an articl
 is a join on it, not a title match. On the snapshot of 2026-11-05: 739 articles matched,
 no guide with an unknown ID, no ID on two guides.
 
-The 64 articles without a guide of their own are listed in `merged-articles.csv`. Both
-lists are proven by ID against the commits that removed the guides:
+The 100 articles without a guide of their own are listed in `merged-articles.csv`. The
+first two lists are proven by ID against the commits that removed the guides:
 
 - **60 merged:** exactly the 60 guides deleted by the de-duplication commit (`7de4a2878`).
   On Zendesk a guide had to be copied to appear in two places; the new site lists one
@@ -72,9 +73,15 @@ lists are proven by ID against the commits that removed the guides:
 - **4 retired:** exactly the 4 guides retired in `837bf5430`, each folded into another
   guide by the EU docs. They are no longer live on Zendesk, but old links to them may
   still exist, so they keep their rule.
+- **36 deleted on Zendesk:** articles gone from the help centre that Zendesk itself
+  redirects to another article, with traffic in Search Console (SEO list of 2026-11-06).
+  Each goes to that article's guide. The script cannot find them: they are no longer in
+  the API. 4 Tanzu articles go to the Hosted Private Cloud page, as on Zendesk: no
+  Tanzu guide exists.
 
 An article rule always points at a guide, never at a landing page: a reader following a
-link to an article wants that article. The one exception is the article not migrated yet.
+link to an article wants that article. The exceptions are the article not migrated yet
+and the 4 Tanzu articles, which have no guide.
 
 ### Sections and categories
 
@@ -130,6 +137,12 @@ The script writes nothing unless every live Zendesk page resolves and every dest
 exists as a page in `docs-us/en`. Regenerate after any US guide is moved, renamed, merged
 or deleted, and before handing the file over: rules are rebuilt from the repo each time,
 not carried forward.
+
+## Checks run (2026-11-06)
+
+- 1,048 rules, no duplicate source; every destination exists as a page in `docs-us/en`.
+- Against the 2026-11-05 version: 1,012 rules unchanged, 36 new, all from the SEO list
+  of 2026-11-06, group A. 34 more in that list, matched by title only, wait for review.
 
 ## Checks run (2026-11-05)
 
