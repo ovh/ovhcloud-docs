@@ -735,6 +735,7 @@
             + [3-AZ resilience - Mechanisms and reference architectures](public-cloud/cross-functional/deployments-modes-reference-architecture)
             + [Disaster recovery plan - Mechanisms and reference architectures](public-cloud/cross-functional/disaster-recovery-plan-architecture)
             + [Disaster recovery plan - Implementation example](public-cloud/cross-functional/disaster-recovery-plan-implementation)
+            + [Public Cloud Well-Architected Framework](public-cloud/cross-functional/well-architected-framework)
             + [How do Savings Plans work?](public-cloud/cross-functional/savings-plans)
             + [Introduction to Public Cloud Logs](public-cloud/cross-functional/logs-concepts)
         + [Getting Started](public-cloud-cross-functional-getting-started)
