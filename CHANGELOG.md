@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.06.1
+
+### Documentation
+- EU: 22 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.06
 
 ### Fixes
