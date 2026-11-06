@@ -1,9 +1,20 @@
 import { useLang } from '@rspress/core/runtime';
 import './WebmailLookup.css';
 
-// Exact Control Panel strings (source: Manager `emailpro` dashboard
-// translations). Falls back to English.
+// Exact Console strings (source: the collaboration app's MX Plan locales,
+// index.json `tabs.generalInfo` and dashboard.json `summary.title`). Falls back
+// to English.
 const TAB_LABEL: Record<string, string> = {
+  fr: "Vue d'ensemble",
+  en: 'Overview',
+  de: 'Übersicht',
+  es: 'Visión general',
+  it: 'Panoramica',
+  pl: 'Przegląd',
+  pt: 'Visão geral',
+};
+
+const SECTION_LABEL: Record<string, string> = {
   fr: 'Informations générales',
   en: 'General information',
   de: 'Allgemeine Informationen',
@@ -13,41 +24,31 @@ const TAB_LABEL: Record<string, string> = {
   pt: 'Informações gerais',
 };
 
-const CONNEXION_LABEL: Record<string, string> = {
-  fr: 'Connexion',
-  en: 'Connection',
-  de: 'Verbindung',
-  es: 'Conexión',
-  it: 'Connessione',
-  pl: 'Logowanie',
-  pt: 'Ligação',
-};
-
 /**
- * Reproduction of the Control Panel's "General information" tab + "Connexion"
- * card, where the webmail technology is read. Uses the Manager's real strings
- * (localized) and colours (ODS blue #0050D7, navy #000E9C). Deliberately
- * rendered with a fixed light palette — like the always-light Control Panel it
- * mirrors — so it reads as an embedded screenshot in both doc themes. The
- * Webmail value is highlighted to point at the information to look up.
+ * Reproduction of the Console's "Overview" tab + "General information"
+ * section, where the webmail technology is read (row "Webmail", a link whose
+ * text is the technology). Uses the Console's real strings (localized) and the
+ * former colours (ODS blue #0050D7, navy #000E9C). Deliberately rendered with a
+ * fixed light palette so it reads as an embedded screenshot in both doc themes.
+ * The Webmail value is highlighted to point at the information to look up.
  */
 export function WebmailLookup() {
   const lang = useLang();
   const tab = TAB_LABEL[lang] ?? TAB_LABEL.en;
-  const connexion = CONNEXION_LABEL[lang] ?? CONNEXION_LABEL.en;
+  const section = SECTION_LABEL[lang] ?? SECTION_LABEL.en;
   // `.md` export: a picture of the interface, nothing to say in words.
   if (process.env.__SSR_MD__) return null;
   return (
     <div
       className="webmail-lookup"
       role="img"
-      aria-label={`${tab} — ${connexion} — Webmail`}
+      aria-label={`${tab} — ${section} — Webmail`}
     >
       <div className="webmail-lookup__tabs">
         <span className="webmail-lookup__tab">{tab}</span>
       </div>
       <div className="webmail-lookup__body">
-        <p className="webmail-lookup__card-title">{connexion}</p>
+        <p className="webmail-lookup__card-title">{section}</p>
         <p className="webmail-lookup__label">Webmail</p>
         <span className="webmail-lookup__value">
           <span className="webmail-lookup__link">
