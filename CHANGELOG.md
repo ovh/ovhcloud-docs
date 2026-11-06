@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.06.2
+
+### Fixes
+
+#### US
+- **docs-us:** give each universe page its own title
+
+### Documentation
+- US: 7 guides across en
+
 ## 2026.11.06.1
 
 ### Documentation
