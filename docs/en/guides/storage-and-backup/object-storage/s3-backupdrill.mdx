@@ -1,0 +1,101 @@
+---
+title: Object Storage - Back up a Supabase database with backupdrill
+description: Learn how to back up a Supabase PostgreSQL database to Object Storage with the backupdrill CLI and check that the backup restores.
+lastUpdated: 2026-11-09
+---
+
+## Objective
+
+[backupdrill](https://github.com/backupdrill/cli) is an [open-source Supabase backup CLI](https://backupdrill.com/docs/cli) (MIT licence). It dumps the PostgreSQL database of a Supabase project with `pg_dump`, writes it to an S3-compatible bucket together with a manifest of the tables, row counts and SHA-256 checksums, and can restore a backup into a temporary PostgreSQL container to check that it is usable.
+
+**This guide explains how to store backupdrill backups in an Object Storage bucket and how to test that a backup restores.**
+
+:::warning
+OVHcloud provides services which you are responsible for with regard to their configuration and management. You are therefore responsible for ensuring they function correctly.
+
+This guide is designed to assist you in common tasks as much as possible. If you encounter any difficulties performing these actions, please contact a [specialist service provider](https://partner.ovhcloud.com/en-gb/directory/) and/or discuss the issue with our [community of users](/links/community). OVHcloud cannot provide you with technical support in this regard.
+:::
+
+## Requirements
+
+- A bucket
+- A user with read, write and list rights on the bucket
+- Your Object Storage credentials (access_key and secret_access_key)
+- Node.js 20 or later
+- `pg_dump` and `pg_restore` with a major version at least equal to that of your Supabase database (Supabase runs PostgreSQL 15 to 17)
+- Docker, to run restore tests
+- The Session pooler connection string of your Supabase project, available from the **Connect** button in the Supabase dashboard
+
+See our [Getting started with Object Storage](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) guide.
+
+:::info
+To identify the endpoint for your storage class, refer to this guide: [Object Storage - Endpoints and Object Storage geoavailability](/guides/storage-and-backup/object-storage/s3-location).
+:::
+
+## Instructions
+
+### Configure backupdrill
+
+backupdrill reads its settings from environment variables. Replace the values between `<>` with your own:
+
+```bash
+export BACKUPDRILL_DATABASE_URL="postgresql://postgres.<project_ref>:<password>@<pooler_host>:5432/postgres"
+export BACKUPDRILL_PROJECT_NAME="<project_name>"
+export BACKUPDRILL_S3_ENDPOINT="https://s3.<region_in_lowercase>.io.cloud.ovh.net"
+export BACKUPDRILL_S3_REGION="<region_in_lowercase>"
+export BACKUPDRILL_S3_BUCKET="<bucket_name>"
+export BACKUPDRILL_S3_ACCESS_KEY_ID="<access_key>"
+export BACKUPDRILL_S3_SECRET_ACCESS_KEY="<secret_key>"
+```
+
+When an endpoint is set, backupdrill uses path-style requests by default.
+
+### Run a backup
+
+```bash
+npx backupdrill backup
+```
+
+Before dumping anything, backupdrill compares the major version of your `pg_dump` with the server's and stops if the client is older.
+
+Each run writes a new folder named after the time it started, so earlier backups are never overwritten:
+
+```bash
+backupdrill/<project_name>/<timestamp>/
+  dump.pgcustom     # pg_dump archive, custom format
+  auth.dump         # Supabase Auth users, when the database role can read them
+  RECOVERY.md       # how to restore this backup by hand
+  manifest.json     # tables, row counts, sizes and SHA-256 checksums
+```
+
+The archive is standard `pg_dump` output, so `pg_restore` can read it without backupdrill. By default only the `public` schema is backed up. Use `--schema` to add others.
+
+### Test the restore
+
+```bash
+npx backupdrill drill
+```
+
+The command downloads the latest backup from the bucket, restores it into a temporary PostgreSQL container checks the archive checksum and the table list against the manifest, then compares the row count of each ordinary table with the dump itself. The container is removed afterwards. If a check fails, the command exits with code 1, so a scheduled job shows the failure.
+
+### Schedule the backup
+
+To run a weekly backup followed by a restore test, you can use cron on a server where Docker is installed. Store the environment variables above in a file readable only by your user, for example `~/.backupdrill.env`, then add this line with `crontab -e`. cron runs with a minimal `PATH`, so make sure `npx`, `pg_dump`, `pg_restore` and `docker` can be found, or set `PATH` at the top of the crontab:
+
+```bash
+0 3 * * 0 { . "$HOME/.backupdrill.env" && npx -y backupdrill backup && npx -y backupdrill drill; } >> "$HOME/backupdrill.log" 2>&1
+```
+
+Each backup reads the whole database from Supabase. Check how this traffic is billed on your Supabase plan before running backups more often.
+
+### Clean up old backups
+
+To delete old backups automatically, add a lifecycle rule on the `backupdrill/` prefix. See [Object Storage - Smart Storage Management with Lifecycle Rules](/guides/storage-and-backup/object-storage/s3-bucket-lifecycle).
+
+## Go further
+
+[backupdrill documentation](https://backupdrill.com/docs/cli)
+
+[[fragment:professional-services]]
+
+Join our [community of users](/links/community).
