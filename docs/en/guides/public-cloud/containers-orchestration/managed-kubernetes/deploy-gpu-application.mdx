@@ -1,8 +1,10 @@
 ---
 title: Deploying a GPU application on OVHcloud Managed Kubernetes Service
 description: Find out how to deploy a GPU application on OVHcloud Managed Kubernetes
-lastUpdated: 2026-09-16
+lastUpdated: 2026-11-09
 ---
+
+import { Tab, Tabs } from '@rspress/core/theme';
 
 ## Objective
 
@@ -26,9 +28,12 @@ GPU node pools group nodes of the same GPU flavor and can be configured with aut
 
 The GPU operator that you will install should run on Kubernetes nodes that are equipped with GPUs.
 
-So you need to create a node pool with `t1` flavor type.
+Create a node pool that uses a GPU flavor. The [worker node flavors](/guides/public-cloud/containers-orchestration/managed-kubernetes/datacenters-nodes-storage-flavors#available-worker-nodes-flavors) list shows the GPU flavors and their regions, and the [Public Cloud prices](/links/public-cloud/prices) page shows the GPU model of each flavor. The driver installed later depends on the architecture:
 
-If you already have an OVHcloud Kubernetes cluster with a node pool with `t1` flavor type, you can skip the following `Autoscaling GPU Node Pool creation` step.
+- Current architectures: `A100-180`, `H100-*`, `L4-*`, `L40S-*` and `RTX5000-*` (Ampere, Hopper, Ada and Turing).
+- Tesla V100 and V100S: `T1-*` and `T2-*` (Volta).
+
+If you already have an OVHcloud Kubernetes cluster with a GPU node pool, you can skip the following `Autoscaling GPU Node Pool creation` step.
 
 :::warning
 GPU Virtual machines are extremely powerful and significantly more expensive than general purpose nodes. If you are usually using OVHcloud Public Cloud at small scale and/or are a new user, you may need to [raise your Public Cloud quota](/guides/public-cloud/cross-functional/increasing-public-cloud-quota) to enable access to those type of machines for your project. Also note that these machines are only available in some of our Public Cloud regions.
@@ -49,7 +54,7 @@ Click on <code className="action">Add a node pool</code>.
 
 In the node pool creation form, enter a name for your GPU node pool (for example, `gpu-node-pool`).
 
-On the flavor selection step, click the **GPU** tab and select a GPU flavor such as **T1-45**.
+On the flavor selection step, click the <code className="action">GPU</code> tab. For a current GPU, choose a flavor such as `H100`, `L4`, `L40S`, `A100-180` or `RTX5000`. For a Tesla V100 or V100S, choose a `T1` or `T2` flavor, for example `T1-45`.
 
 Set the node count and, if desired, enable **Autoscaling** and define the minimum and maximum pool size (for example, 3 minimum and 10 maximum).
 
@@ -73,7 +78,7 @@ If you are interested about the operator, feel free to read the [NVIDIA GPU oper
 
 ### Installing the NVIDIA GPU Operator Helm chart
 
-For this tutorial we are using the [NVIDIA GPU Operator Helm chart](https://github.com/NVIDIA/gpu-operator/tree/master/deployments/gpu-operator) found on [NVIDIA repository](https://github.com/nvidia/). The chart is [fully configurable](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/getting-started.html), but here we are using the default configuration, with only the minimal set of customization to make it work well on OVHcloud Managed Kubernetes Service.
+For this tutorial we are using the [NVIDIA GPU Operator Helm chart](https://github.com/NVIDIA/gpu-operator/tree/main/deployments/gpu-operator) found on [NVIDIA repository](https://github.com/nvidia/). The chart is [fully configurable](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/getting-started.html). The commands below set only the driver options required for the GPU architecture of your node pool.
 
 Add the NVIDIA Helm repository:
 
@@ -100,31 +105,84 @@ Hang tight while we grab the latest from your chart repositories...
 Update Complete. ⎈Happy Helming!⎈
 ```
 
-Install the GPU Operator in the `gpu-operator` namespace:
+Install the GPU Operator in the `gpu-operator` namespace. Pick the tab that matches the GPU flavor of the node pool. By default, the operator compiles the driver modules for the node kernel.
+
+<Tabs>
+<Tab label="L4, L40S, H100, A100">
+
+On the [NGC driver catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/driver/-/tags), select the latest Ubuntu 22.04 tag of the form `<version>-ubuntu22.04`. Pass that version to `driver.version` (e.g. `595.91.07`).
 
 ```bash
-helm install gpu-operator nvidia/gpu-operator -n gpu-operator --create-namespace --wait
+helm install gpu-operator nvidia/gpu-operator \
+  -n gpu-operator --create-namespace \
+  --set driver.version=<version>
 ```
 
+To skip the compilation, use a [precompiled driver](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/precompiled-drivers.html) image instead. NVIDIA publishes these images for some Ubuntu 22.04 kernels only. Read the kernel of each GPU node:
+
+```bash
+kubectl get nodes -l node.k8s.ovh/type=gpu -o custom-columns=NODE:.metadata.name,KERNEL:.status.nodeInfo.kernelVersion
+```
+
+On the [NGC driver catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/driver/-/tags), look for a tag of the form `<branch>-<kernel>-ubuntu22.04` for each of these kernels (e.g. `595-5.15.0-187-generic-ubuntu22.04`), and pass the branch to `driver.version` (e.g. `595`). If one of the kernels has no tag, keep the command above: the GPUs of that node stay unavailable otherwise. In an autoscaled node pool, new nodes can start on a newer kernel that has no tag yet.
+
+```bash
+helm upgrade --install gpu-operator nvidia/gpu-operator \
+  -n gpu-operator --create-namespace \
+  --set driver.usePrecompiled=true \
+  --set driver.version=<branch>
+```
+
+</Tab>
+<Tab label="RTX 5000">
+
+The 615 branch and later ship only the open kernel modules, which always use GPU firmware. On the [NGC driver catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/driver/-/tags), select the latest Ubuntu 22.04 tag of the 610 branch, of the form `<version>-ubuntu22.04`. Pass that version to `driver.version` (e.g. `610.57.04`).
+
+The Quadro RTX 5000 does not initialize with GPU firmware enabled. Create a ConfigMap that disables it:
+
+```bash
+kubectl create namespace gpu-operator
+kubectl create configmap kernel-module-params -n gpu-operator \
+  --from-literal=nvidia.conf=NVreg_EnableGpuFirmware=0
+```
+
+The open kernel modules always use GPU firmware, so install the proprietary modules with that ConfigMap:
+
+```bash
+helm install gpu-operator nvidia/gpu-operator \
+  -n gpu-operator --create-namespace \
+  --set driver.version=<version> \
+  --set driver.kernelModuleType=proprietary \
+  --set driver.kernelModuleConfig.name=kernel-module-params
+```
+
+</Tab>
+<Tab label="Tesla V100 and V100S (T1, T2)">
+
+These cards use the Volta architecture, which the latest driver branch does not support. In the [NVIDIA driver and architecture matrix](https://docs.nvidia.com/datacenter/tesla/drivers/latest/cuda-toolkit-driver-and-architecture-matrix.html), read the last driver branch that still supports Volta. On the [NGC driver catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/driver/-/tags), select the latest Ubuntu 22.04 tag of that branch, of the form `<version>-ubuntu22.04`. Pass that version to `driver.version` (e.g. `580.178.04`).
+
+```bash
+helm install gpu-operator nvidia/gpu-operator \
+  -n gpu-operator --create-namespace \
+  --set driver.version=<version>
+```
+
+The open kernel modules do not support Volta, so the operator compiles the proprietary modules.
+
+</Tab>
+</Tabs>
+
 :::info
-We recommend using the latest driver version released by NVIDIA with the `*-5.15.0-*-generic-ubuntu22.04` pattern, available in the [NVIDIA NGC driver catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/driver/-/tags).
+If the cluster mixes Tesla V100 nodes with other GPU flavors, use the Tesla V100 command: that driver branch also supports the current architectures. If one of the flavors is RTX 5000, also create the ConfigMap and add the `driver.kernelModuleType` and `driver.kernelModuleConfig.name` options from the RTX 5000 tab.
 
-Example: `595-5.15.0-185-generic-ubuntu22.04`. Set it using `driver.version` in the [gpu-operator chart values](https://github.com/NVIDIA/gpu-operator/blob/c37a3850b40db6dbd850aa75119dd479f75935ec/deployments/gpu-operator/values.yaml).
-
+If the cluster mixes RTX 5000 nodes with L4, L40S, H100 or A100 nodes, use the RTX 5000 command.
 :::
+
+Compiling the modules takes a few minutes. The `nvidia-driver-daemonset` pod stays not ready until the build finishes.
 
 You should have a GPU operator installed and running:
 
 ```console
-$ helm install gpu-operator nvidia/gpu-operator -n gpu-operator --create-namespace --wait
-
-NAME: gpu-operator
-LAST DEPLOYED: Tue Apr 25 09:59:59 2023
-NAMESPACE: gpu-operator
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
-
 $ kubectl get pod -n gpu-operator
 NAME                                                          READY   STATUS      RESTARTS   AGE
 gpu-feature-discovery-8xzzw                                   1/1     Running     0          22m
@@ -244,9 +302,27 @@ Done
 
 Our first GPU workload is just started up and has done its task in our OVHcloud Managed Kubernetes cluster.
 
+### Troubleshooting
+
+If the `nvidia-driver-daemonset` pod stays not ready after the build, run `nvidia-smi` in it:
+
+```bash
+kubectl exec -n gpu-operator ds/nvidia-driver-daemonset -c nvidia-driver-ctr -- nvidia-smi
+```
+
+If it reports `No devices were found`, read the kernel log:
+
+```bash
+kubectl exec -n gpu-operator ds/nvidia-driver-daemonset -c nvidia-driver-ctr -- sh -c 'dmesg | grep -m 20 NVRM'
+```
+
+Lines such as `Cannot initialize GSP firmware RM`, `kgspWaitForGfwBootOk`, `RmFetchGspRmImages: No firmware image found` or `RmInitAdapter failed` mean that the GPU firmware did not start. This happens on RTX 5000 nodes installed without the options of the RTX 5000 tab, or with a driver of the 615 branch or later. Uninstall the operator, then install it with the command from the RTX 5000 tab.
+
 ## Go further
 
 To learn more about using your Kubernetes cluster the practical way, we invite you to look at our [OVHcloud Managed Kubernetes documentation](/guides/public-cloud/containers-orchestration/managed-kubernetes/overview).
+
+For every GPU Operator option, such as driver configuration, upgrades and monitoring, read the [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator).
 
 [[fragment:professional-services|en]]
 
