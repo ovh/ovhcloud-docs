@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.11.09
+
+### Fixes
+
+#### All regions
+- **llms:** keep a parent product's llms-full.txt when its guides are nested
+
 ## 2026.11.06.2
 
 ### Fixes
