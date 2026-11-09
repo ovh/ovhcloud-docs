@@ -2,6 +2,11 @@
 
 ## 2026.11.09
 
+### Features
+
+#### EU
+- **mks:** update gpu-operator drivers configuration (#1141)
+
 ### Fixes
 
 #### All regions
@@ -11,6 +16,9 @@
 
 #### All regions
 - add CODEOWNERS for automatic review requests (#1199)
+
+### Documentation
+- EU: 67 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.06.2
 
