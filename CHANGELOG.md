@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.09.1
+
+### Fixes
+
+#### EU
+- **cpnav:** point the video center and managed wordpress guides at the console
+
+### Documentation
+- EU: 35 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.09
 
 ### Features
