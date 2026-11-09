@@ -199,3 +199,4 @@ not carried forward.
   rule. Refresh with `--fetch` before the switch.
 
 <!-- Ruleset test: US-only change, safe to discard. -->
+<!-- Ruleset test 2: merge attempt while CI is pending. -->
