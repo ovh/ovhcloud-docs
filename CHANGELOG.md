@@ -1,5 +1,86 @@
 # Changelog
 
+## 2026.11.09
+
+### Fixes
+
+#### All regions
+- **llms:** keep a parent product's llms-full.txt when its guides are nested
+
+### Maintenance
+
+#### All regions
+- add CODEOWNERS for automatic review requests (#1199)
+
+## 2026.11.06.2
+
+### Fixes
+
+#### US
+- **docs-us:** give each universe page its own title
+
+#### All regions
+- **docs-us:** redirect 36 more deleted Zendesk articles
+- **docs-us:** redirect 36 deleted Zendesk articles
+
+### Documentation
+- US: 7 guides across en
+
+## 2026.11.06.1
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.06
+
+### Fixes
+
+#### All regions
+- **llms:** give nested products their own llms.txt index
+
+### Documentation
+- EU: 1020 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.05
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+- US: 13 guides across en
+
+## 2026.11.04
+
+### Fixes
+
+#### US
+- **docs-us:** rename control-panel slugs to console
+- **docs-us:** wrap WARNING/NOTE callouts and rebuild table-cell bullets (#1138)
+
+### Documentation
+- EU: 142 guides across de, en, es, fr, it, pl, pt
+- US: 170 guides across en
+
+## 2026.11.03.2
+
+### Features
+
+#### EU
+- **pci quantum v8:** emulators, qpus, users and general information (#1101)
+- **nasha  v8:** all (#1145)
+- **pci data platform v8:** console wording and access path (#1152)
+
+### Fixes
+
+#### EU
+- **cpnav:** give the Data Platform organizations guide a Console CP-NAV block
+
+### Maintenance
+
+#### EU
+- **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
+
+### Documentation
+- EU: 188 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.03.1
 
 ### Features
