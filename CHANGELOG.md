@@ -7,6 +7,10 @@
 #### US
 - **docs-us:** give each universe page its own title
 
+#### All regions
+- **docs-us:** redirect 36 more deleted Zendesk articles
+- **docs-us:** redirect 36 deleted Zendesk articles
+
 ### Documentation
 - US: 7 guides across en
 
