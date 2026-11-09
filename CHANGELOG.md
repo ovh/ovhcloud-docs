@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026.11.09
+
+### Features
+
+#### EU
+- **mks:** update gpu-operator drivers configuration (#1141)
+
+### Fixes
+
+#### All regions
+- **llms:** keep a parent product's llms-full.txt when its guides are nested
+
+### Maintenance
+
+#### All regions
+- add CODEOWNERS for automatic review requests (#1199)
+
+### Documentation
+- EU: 67 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.06.2
+
+### Fixes
+
+#### US
+- **docs-us:** give each universe page its own title
+
+#### All regions
+- **docs-us:** redirect 36 more deleted Zendesk articles
+- **docs-us:** redirect 36 deleted Zendesk articles
+
+### Documentation
+- US: 7 guides across en
+
+## 2026.11.06.1
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.06
+
+### Fixes
+
+#### All regions
+- **llms:** give nested products their own llms.txt index
+
+### Documentation
+- EU: 1020 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.05
 
 ### Documentation
