@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.11.09
+
+### Fixes
+
+#### All regions
+- **llms:** keep a parent product's llms-full.txt when its guides are nested
+
+### Maintenance
+
+#### All regions
+- add CODEOWNERS for automatic review requests (#1199)
+
 ## 2026.11.06.2
 
 ### Fixes

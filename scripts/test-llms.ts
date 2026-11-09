@@ -131,7 +131,7 @@ for (const locale of ['en', 'de']) {
   page(locale, `${D}/tools/cli`, { title: 'CLI' }, 'CLI body.');
 }
 // Hosting > Managed: a parent whose only content is a nested product with
-// its own overview → index without full text, described by its children.
+// its own overview → described by its children, full text of the nested pages.
 const H = 'guides/hosted/managed';
 for (const locale of ['en', 'de']) {
   page(
@@ -403,8 +403,8 @@ check(
     !fs.existsSync(path.join(distDir, 'en/llms/public-cloud-databases-tools')),
 );
 check(
-  'nested: parent full text leaves its pages out',
-  !read(`en/llms/${DB}/llms-full.txt`).includes('PG body.') &&
+  'nested: parent full text includes its pages, once',
+  read(`en/llms/${DB}/llms-full.txt`).split('PG body.').length === 2 &&
     read(`en/llms/${DB}/llms-full.txt`).includes('Shared en.'),
 );
 check(
@@ -436,10 +436,10 @@ check(
   enDir.includes(`- [Group](${SITE}/en/llms/hosted-group/llms.txt): Managed.`),
 );
 check(
-  'nested-only parent: no empty full text, none announced',
-  !fs.existsSync(path.join(distDir, 'en/llms/hosted-group/llms-full.txt')) &&
-    !read('en/llms/hosted-group/llms.txt').includes(
-      'Full text of this product',
+  'nested-only parent: keeps a full text with its nested pages, announced',
+  read('en/llms/hosted-group/llms-full.txt').includes('M body.') &&
+    read('en/llms/hosted-group/llms.txt').includes(
+      `Full text of this product: ${SITE}/en/llms/hosted-group/llms-full.txt`,
     ),
 );
 check(
