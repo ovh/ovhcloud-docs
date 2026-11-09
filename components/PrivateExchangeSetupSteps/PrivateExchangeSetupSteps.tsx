@@ -172,6 +172,19 @@ export function PrivateExchangeSetupSteps({
 }: PrivateExchangeSetupStepsProps) {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the titles only; the number badges and icons would
+  // serialise as stray text.
+  if (process.env.__SSR_MD__) {
+    return (
+      <ol>
+        {t.titles.map((title, i) => (
+          <li key={title}>
+            {anchors[i] ? <a href={anchors[i]}>{title}</a> : title}
+          </li>
+        ))}
+      </ol>
+    );
+  }
   return (
     <ol className="pe-steps" aria-label={t.ariaLabel}>
       {t.titles.map((title, i) => {

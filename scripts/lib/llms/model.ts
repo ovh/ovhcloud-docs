@@ -47,6 +47,11 @@ export interface LlmsGroup {
   title: string;
   pages: LlmsPage[];
   groups: LlmsGroup[];
+  /**
+   * Set when this group is a nested product with its own index: the parent
+   * links to that index instead of listing (and bundling) its pages.
+   */
+  product?: LlmsProduct;
 }
 
 export interface LlmsProduct {
@@ -55,6 +60,8 @@ export interface LlmsProduct {
   description?: string;
   /** Pages directly under the product (landing first), then its sections. */
   root: LlmsGroup;
+  /** Products nested in this one that have their own index. */
+  children: LlmsProduct[];
 }
 
 export interface LlmsUniverse {
@@ -74,12 +81,21 @@ export interface BuildModelOptions {
   tree: SidebarNode[];
   /** Resolve a `sidebar.gen.*` key to its label in `locale`. */
   label: (key: string) => string;
-  distDir: string;
+  /** This locale's build output: `dist/<locale>` or, unprefixed, `dist`. */
+  localeDist: string;
   docsDir: string;
-  siteUrl: string;
+  /** Public URL of a locale's root, no trailing slash (see ./index.ts). */
+  urlBaseFor: (locale: string) => string;
   builtLocales: readonly string[];
   /** Localized title of the orphan pseudo-product. */
   othersTitle: string;
+  /**
+   * i18n keys of the sidebar's `products/` groups (`parseIndexMd().productKeys`).
+   * A product nested in another one becomes a product of its own when it has
+   * its own landing page or overview. Without the set, nested products stay
+   * sections of their top-level product.
+   */
+  productKeys?: ReadonlySet<string>;
 }
 
 const SKIP_DIRS = new Set(['pagefind', 'public', 'images', 'static', 'llms']);
@@ -118,8 +134,7 @@ function oneLine(value: unknown): string | undefined {
 }
 
 export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
-  const { locale, distDir, docsDir, siteUrl, builtLocales } = opts;
-  const localeDist = path.join(distDir, locale);
+  const { locale, localeDist, docsDir, urlBaseFor, builtLocales } = opts;
   const cache = new Map<string, LlmsPage | null>();
 
   function resolvePage(route: string): LlmsPage | null {
@@ -153,7 +168,12 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
     if (fs.existsSync(srcPath)) {
       srcData = parseFrontmatter(fs.readFileSync(srcPath, 'utf-8')).data;
       if (fs.lstatSync(srcPath).isSymbolicLink()) {
-        const real = path.relative(docsDir, fs.realpathSync(srcPath));
+        // Resolve both sides: docsDir may itself sit under a symlink (macOS
+        // tmpdir is /var → /private/var), which would yield `../…` here.
+        const real = path.relative(
+          fs.realpathSync(docsDir),
+          fs.realpathSync(srcPath),
+        );
         const [realLocale, ...rest] = real.split(path.sep);
         if (realLocale && realLocale !== locale && rest.length > 0) {
           contentLocale = realLocale;
@@ -171,8 +191,8 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
     // this deployment; otherwise keep the local copy.
     const linkToReal = fallback && builtLocales.includes(contentLocale);
     const mdUrl = linkToReal
-      ? `${siteUrl}/${contentLocale}/${contentRoute}.md`
-      : `${siteUrl}/${locale}/${route}.md`;
+      ? `${urlBaseFor(contentLocale)}/${contentRoute}.md`
+      : `${urlBaseFor(locale)}/${route}.md`;
 
     return {
       route,
@@ -190,8 +210,51 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
     link.replace(/^\//, '').replace(/\.html$/, '');
 
   const seen = new Set<string>();
+  const productKeys = opts.productKeys ?? new Set<string>();
+  const nestedByKey = new Map<string, LlmsProduct>();
 
-  function buildGroup(title: string, node: SidebarNode): LlmsGroup {
+  /** A nested product gets its own index when it has a landing or overview. */
+  function hasOwnIndex(node: SidebarNode): boolean {
+    if (!node.items || !node.text || !productKeys.has(node.text)) return false;
+    return (
+      Boolean(node.link) ||
+      node.items.some(
+        (c) => !c.items && c.link && linkToRoute(c.link).endsWith('/overview'),
+      )
+    );
+  }
+
+  function buildProduct(node: SidebarNode): LlmsProduct | null {
+    const title = opts.label(node.text ?? '');
+    const children: LlmsProduct[] = [];
+    const root = buildGroup(title, node, children);
+    if (root.pages.length === 0 && root.groups.length === 0) return null;
+    return {
+      slug: uniqueSlug(keyToSlug(node.text ?? title)),
+      title,
+      description:
+        productDescription(node, root) ?? childrenDescription(children),
+      root,
+      children,
+    };
+  }
+
+  /**
+   * A product whose landing or overview moved into a nested product (Managed
+   * VMware > Managed VMware vSphere) has no description of its own: name what
+   * it groups instead, so the directory line still says something.
+   */
+  function childrenDescription(children: LlmsProduct[]): string | undefined {
+    return children.length > 0
+      ? `${children.map((c) => c.title).join(', ')}.`
+      : undefined;
+  }
+
+  function buildGroup(
+    title: string,
+    node: SidebarNode,
+    children: LlmsProduct[],
+  ): LlmsGroup {
     const group: LlmsGroup = { title, pages: [], groups: [] };
     // A group with a landing page lists it first.
     if (node.items && node.link) {
@@ -202,8 +265,25 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
       }
     }
     for (const child of node.items ?? []) {
-      if (child.items) {
-        const sub = buildGroup(opts.label(child.text ?? ''), child);
+      if (child.items && hasOwnIndex(child)) {
+        // The same product can sit under two parents (US: Network under Bare
+        // Metal Cloud and Hosted Private Cloud): build its index once, and let
+        // the second parent link to it rather than emit a `-2` copy.
+        const key = child.text ?? '';
+        const known = nestedByKey.get(key);
+        const nested = known ?? buildProduct(child);
+        if (nested && !known) nestedByKey.set(key, nested);
+        if (nested) {
+          if (!known) children.push(nested);
+          group.groups.push({
+            title: nested.title,
+            pages: [],
+            groups: [],
+            product: nested,
+          });
+        }
+      } else if (child.items) {
+        const sub = buildGroup(opts.label(child.text ?? ''), child, children);
         if (sub.pages.length > 0 || sub.groups.length > 0)
           group.groups.push(sub);
       } else if (child.link) {
@@ -252,24 +332,18 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
         loose.push(pNode);
         continue;
       }
-      const title = opts.label(pNode.text ?? '');
-      const root = buildGroup(title, pNode);
-      if (root.pages.length === 0 && root.groups.length === 0) continue;
-      universe.products.push({
-        slug: uniqueSlug(keyToSlug(pNode.text ?? title)),
-        title,
-        description: productDescription(pNode, root),
-        root,
-      });
+      const product = buildProduct(pNode);
+      if (product) universe.products.push(product);
     }
     // Guides hanging directly off a universe become a product of their own.
     if (loose.length > 0) {
-      const root = buildGroup(universe.title, { items: loose });
+      const root = buildGroup(universe.title, { items: loose }, []);
       if (root.pages.length > 0) {
         universe.products.unshift({
           slug: uniqueSlug(keyToSlug(uNode.text ?? universe.title)),
           title: universe.title,
           root,
+          children: [],
         });
       }
     }
@@ -289,6 +363,7 @@ export function buildLocaleModel(opts: BuildModelOptions): LlmsLocaleModel {
           slug: uniqueSlug('other'),
           title: opts.othersTitle,
           root: { title: opts.othersTitle, pages: orphanPages, groups: [] },
+          children: [],
         }
       : null;
 
@@ -323,7 +398,30 @@ export function productPages(product: LlmsProduct): LlmsPage[] {
   return out;
 }
 
+/**
+ * Pages of a product's full text: its own pages, once each, without
+ * navigational ones. Empty for a product whose content all sits in nested
+ * products — it then gets an index but no full text.
+ */
+export function fullPages(product: LlmsProduct): LlmsPage[] {
+  return [
+    ...new Map(
+      productPages(product)
+        .filter((p) => !p.navigational)
+        .map((p) => [p.route, p]),
+    ).values(),
+  ];
+}
+
+/** A product followed by its nested products, depth-first. */
+function withChildren(product: LlmsProduct): LlmsProduct[] {
+  return [product, ...product.children.flatMap(withChildren)];
+}
+
+/** Every product that gets its own index, nested ones included. */
 export function allProducts(model: LlmsLocaleModel): LlmsProduct[] {
-  const products = model.universes.flatMap((u) => u.products);
+  const products = model.universes.flatMap((u) =>
+    u.products.flatMap(withChildren),
+  );
   return model.others ? [...products, model.others] : products;
 }

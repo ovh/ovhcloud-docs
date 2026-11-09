@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import {
   allProducts,
   buildLocaleModel,
+  fullPages,
   type LlmsLocaleModel,
   type LlmsPage,
   productPages,
@@ -30,9 +31,19 @@ export interface GenerateLlmsOptions {
   builtLocales: readonly string[];
   /** Parsed sidebar tree for a locale (`parseIndexMd(...).universes`). */
   treeFor: (locale: string) => SidebarNode[];
+  /** `parseIndexMd(...).productKeys`: lets nested products get their own index. */
+  productKeys?: ReadonlySet<string>;
   /** Resolve a `sidebar.gen.*` key for a locale. */
   label: (key: string, locale: string) => string;
   locales: readonly { lang: string; label: string; title: string }[];
+  /**
+   * Multi-locale region (default): each locale lives in `dist/<locale>/`,
+   * served under `/<locale>/`, and the root /llms.txt is a copy of
+   * `rootLocale`'s directory. Single-locale region served at the domain root
+   * (`false`): the locale's files are written straight into `dist/`, so its
+   * directory already is /llms.txt.
+   */
+  localePrefix?: boolean;
   /** Locale whose directory is copied to the root /llms.txt. */
   rootLocale?: string;
 }
@@ -62,29 +73,35 @@ const plainLabel = (label: string) =>
 
 export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
   const { distDir, siteUrl, builtLocales } = opts;
+  const prefixed = opts.localePrefix ?? true;
+  const urlBaseFor = (locale: string) =>
+    prefixed ? `${siteUrl}/${locale}` : siteUrl;
   const languages = builtLocales.map((lang) => ({
     lang,
     label: plainLabel(opts.locales.find((l) => l.lang === lang)?.label ?? lang),
+    url: `${urlBaseFor(lang)}/llms.txt`,
   }));
 
   const stats: LocaleLlmsStats[] = [];
   const directories = new Map<string, string>();
 
   for (const locale of builtLocales) {
-    const localeDist = path.join(distDir, locale);
+    const localeDist = prefixed ? path.join(distDir, locale) : distDir;
+    const urlBase = urlBaseFor(locale);
     const model: LlmsLocaleModel = buildLocaleModel({
       locale,
       tree: opts.treeFor(locale),
       label: (key) => opts.label(key, locale),
-      distDir,
+      localeDist,
       docsDir: opts.docsDir,
-      siteUrl,
+      urlBaseFor,
       builtLocales,
       othersTitle: OTHERS_TITLE[locale] ?? OTHERS_TITLE.en,
+      productKeys: opts.productKeys,
     });
     const shared = opts.locales.find((l) => l.lang === locale);
     const ctx: RenderContext = {
-      siteUrl,
+      urlBase,
       siteTitle: shared?.title ?? 'OVHcloud Documentation',
       languageLabel: languages.find((l) => l.lang === locale)?.label ?? locale,
       languages,
@@ -95,7 +112,7 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
     const bodyOf = (p: LlmsPage) => {
       let b = bodies.get(p.route);
       if (b === undefined) {
-        b = renderFullPage(p);
+        b = renderFullPage(p, siteUrl);
         bodies.set(p.route, b);
       }
       return b;
@@ -112,24 +129,21 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(
         path.join(dir, 'llms.txt'),
-        renderProductIndex(model, product, ctx),
+        renderProductIndex(product, ctx),
       );
-      const unique = [
-        ...new Map(
-          productPages(product)
-            .filter((p) => !p.navigational)
-            .map((p) => [p.route, p]),
-        ).values(),
-      ];
-      fs.writeFileSync(
-        path.join(dir, 'llms-full.txt'),
-        fullFile(
-          product.title,
-          `Full Markdown text of the guides listed in ${siteUrl}/${locale}/llms/${product.slug}/llms.txt.`,
-          unique,
-          bodyOf,
-        ),
-      );
+      const unique = fullPages(product);
+      // A product whose pages all sit in nested products has no full text.
+      if (unique.length > 0) {
+        fs.writeFileSync(
+          path.join(dir, 'llms-full.txt'),
+          fullFile(
+            product.title,
+            `Full Markdown text of the guides listed in ${urlBase}/llms/${product.slug}/llms.txt.`,
+            unique,
+            bodyOf,
+          ),
+        );
+      }
       for (const p of unique) {
         if (p.fallback || inLocaleFull.has(p.route)) continue;
         inLocaleFull.add(p.route);
@@ -142,7 +156,7 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
     fs.writeFileSync(path.join(localeDist, 'llms.txt'), directory);
     const full = fullFile(
       ctx.siteTitle,
-      `Full Markdown text of every guide in this language, in navigation order. Per-product bundles are smaller: see ${siteUrl}/${locale}/llms.txt.`,
+      `Full Markdown text of every guide in this language, in navigation order. Per-product bundles are smaller: see ${urlBase}/llms.txt.`,
       localeFull,
       bodyOf,
     );
@@ -155,12 +169,14 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
         products.flatMap((p) => productPages(p).map((q) => q.route)),
       ).size,
       fullBytes: Buffer.byteLength(full),
-      missingDescriptions: model.universes
-        .flatMap((u) => u.products)
-        .filter((p) => !p.description)
+      missingDescriptions: products
+        .filter((p) => p !== model.others && !p.description)
         .map((p) => p.title),
     });
   }
+
+  // Unprefixed: the single locale's directory was written to dist/llms.txt.
+  if (!prefixed) return stats;
 
   const rootLocale =
     opts.rootLocale && directories.has(opts.rootLocale)

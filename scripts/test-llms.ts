@@ -107,6 +107,42 @@ fs.copyFileSync(
   path.join(distDir, 'en', `${G}/a-first.md`),
   path.join(distDir, 'de', `${G}/a-first.md`),
 );
+// Databases > PostgreSQL: a product nested in a product, with its own
+// overview → its own index. Databases > Tools: a nested product without
+// overview or landing → stays a section of Databases.
+const D = 'guides/public-cloud/databases';
+for (const locale of ['en', 'de']) {
+  page(
+    locale,
+    `${D}/overview`,
+    { title: 'Databases', description: 'Managed engines' },
+    'Databases cards.',
+    'pageType: overview\n',
+  );
+  page(locale, `${D}/shared`, { title: 'Shared' }, `Shared ${locale}.`);
+  page(
+    locale,
+    `${D}/postgresql/overview`,
+    { title: 'PostgreSQL', description: 'Managed PostgreSQL' },
+    'PostgreSQL cards.',
+    'pageType: overview\n',
+  );
+  page(locale, `${D}/postgresql/pg-start`, { title: 'PG start' }, 'PG body.');
+  page(locale, `${D}/tools/cli`, { title: 'CLI' }, 'CLI body.');
+}
+// Hosting > Managed: a parent whose only content is a nested product with
+// its own overview → index without full text, described by its children.
+const H = 'guides/hosted/managed';
+for (const locale of ['en', 'de']) {
+  page(
+    locale,
+    `${H}/overview`,
+    { title: 'Managed', description: 'Managed offer' },
+    'Managed cards.',
+    'pageType: overview\n',
+  );
+  page(locale, `${H}/m-guide`, { title: 'M guide' }, 'M body.');
+}
 // A stale product dir from a previous run must be wiped.
 write(path.join(distDir, 'en', 'llms/stale/llms.txt'), 'stale');
 
@@ -130,10 +166,90 @@ const tree: SidebarNode[] = [
           },
         ],
       },
+      {
+        text: 'sidebar.gen.publicCloudDatabases',
+        items: [
+          { text: 'Overview', link: `/${D}/overview` },
+          { text: 'Shared', link: `/${D}/shared` },
+          {
+            text: 'sidebar.gen.publicCloudDatabasesPostgresql',
+            items: [
+              { text: 'Overview', link: `/${D}/postgresql/overview` },
+              {
+                text: 'sidebar.gen.publicCloudDatabasesPostgresqlGettingStarted',
+                items: [
+                  { text: 'PG start', link: `/${D}/postgresql/pg-start` },
+                ],
+              },
+            ],
+          },
+          {
+            text: 'sidebar.gen.publicCloudDatabasesTools',
+            items: [{ text: 'CLI', link: `/${D}/tools/cli` }],
+          },
+        ],
+      },
     ],
   },
 ];
+// The same nested product under a second parent (US: Network sits under two
+// universes): one index, linked from both.
+tree.push({
+  text: 'sidebar.gen.otherUniverse',
+  items: [
+    {
+      text: 'sidebar.gen.otherParent',
+      items: [
+        { text: 'Overview', link: `/${D}/overview` },
+        {
+          text: 'sidebar.gen.publicCloudDatabasesPostgresql',
+          items: [
+            { text: 'Overview', link: `/${D}/postgresql/overview` },
+            { text: 'PG start', link: `/${D}/postgresql/pg-start` },
+          ],
+        },
+      ],
+    },
+  ],
+});
+tree.push({
+  text: 'sidebar.gen.hosted',
+  items: [
+    {
+      text: 'sidebar.gen.hostedGroup',
+      items: [
+        {
+          text: 'sidebar.gen.hostedGroupManaged',
+          items: [
+            { text: 'Overview', link: `/${H}/overview` },
+            { text: 'M guide', link: `/${H}/m-guide` },
+          ],
+        },
+      ],
+    },
+  ],
+});
+const productKeys = new Set([
+  'sidebar.gen.publicCloudCompute',
+  'sidebar.gen.publicCloudDatabases',
+  'sidebar.gen.publicCloudDatabasesPostgresql',
+  'sidebar.gen.publicCloudDatabasesTools',
+  'sidebar.gen.hostedGroup',
+  'sidebar.gen.hostedGroupManaged',
+  'sidebar.gen.otherParent',
+]);
 const labels: Record<string, Record<string, string>> = {
+  'sidebar.gen.publicCloudDatabases': { en: 'Databases' },
+  'sidebar.gen.publicCloudDatabasesPostgresql': { en: 'PostgreSQL' },
+  'sidebar.gen.publicCloudDatabasesPostgresqlGettingStarted': {
+    en: 'Getting started',
+  },
+  'sidebar.gen.publicCloudDatabasesTools': { en: 'Tools' },
+  'sidebar.gen.hosted': { en: 'Hosted' },
+  'sidebar.gen.otherUniverse': { en: 'Other universe' },
+  'sidebar.gen.otherParent': { en: 'Other parent' },
+  'sidebar.gen.hostedGroup': { en: 'Group' },
+  'sidebar.gen.hostedGroupManaged': { en: 'Managed' },
   'sidebar.gen.publicCloud': { en: 'Public Cloud', de: 'Public Cloud' },
   'sidebar.gen.publicCloudCompute': { en: 'Compute', de: 'Rechnen' },
   'sidebar.gen.publicCloudComputeGettingStarted': {
@@ -153,6 +269,7 @@ const stats = generateLlms({
     { lang: 'de', label: '🇩🇪 Deutsch', title: 'OVHcloud Dokumentation' },
   ],
   treeFor: () => tree,
+  productKeys,
   label: (key, locale) => labels[key]?.[locale] ?? labels[key]?.en ?? key,
 });
 
@@ -253,12 +370,157 @@ check(
   enLocaleFull.split('Landing body.').length === 2,
 );
 
+// --- Nested products ---
+const DB = 'public-cloud-databases';
+const PG = 'public-cloud-databases-postgresql';
+check(
+  'nested: directory lists it indented under its parent',
+  enDir.includes(
+    `- [Databases](${SITE}/en/llms/${DB}/llms.txt): Managed engines\n  - [PostgreSQL](${SITE}/en/llms/${PG}/llms.txt): Managed PostgreSQL`,
+  ),
+);
+const pgIndex = read(`en/llms/${PG}/llms.txt`);
+check('nested: own index with its pages', pgIndex.includes('- [PG start]('));
+check(
+  'nested: own index keeps its sections',
+  pgIndex.includes('## Getting started'),
+);
+const dbIndex = read(`en/llms/${DB}/llms.txt`);
+check(
+  'nested: parent links to its index in place',
+  dbIndex.includes(
+    `## PostgreSQL\n\n- [PostgreSQL — product index](${SITE}/en/llms/${PG}/llms.txt): Managed PostgreSQL`,
+  ),
+);
+check(
+  'nested: parent does not repeat its pages',
+  !dbIndex.includes('PG start'),
+);
+check(
+  'nested: product without overview stays a section',
+  dbIndex.includes('## Tools') &&
+    dbIndex.includes('- [CLI](') &&
+    !fs.existsSync(path.join(distDir, 'en/llms/public-cloud-databases-tools')),
+);
+check(
+  'nested: parent full text leaves its pages out',
+  !read(`en/llms/${DB}/llms-full.txt`).includes('PG body.') &&
+    read(`en/llms/${DB}/llms-full.txt`).includes('Shared en.'),
+);
+check(
+  'nested: own full text',
+  read(`en/llms/${PG}/llms-full.txt`).includes('PG body.'),
+);
+check(
+  'nested: locale full text keeps its pages once',
+  enLocaleFullText().split('PG body.').length === 2,
+);
+function enLocaleFullText(): string {
+  return read('en/llms-full.txt');
+}
+
+check(
+  'shared nested product: one index, no -2 copy',
+  !fs.existsSync(
+    path.join(distDir, 'en/llms/public-cloud-databases-postgresql-2'),
+  ),
+);
+check(
+  'shared nested product: second parent links to the same index',
+  read('en/llms/other-parent/llms.txt').includes(
+    `- [PostgreSQL — product index](${SITE}/en/llms/${PG}/llms.txt)`,
+  ),
+);
+check(
+  'nested-only parent: described by its children',
+  enDir.includes(`- [Group](${SITE}/en/llms/hosted-group/llms.txt): Managed.`),
+);
+check(
+  'nested-only parent: no empty full text, none announced',
+  !fs.existsSync(path.join(distDir, 'en/llms/hosted-group/llms-full.txt')) &&
+    !read('en/llms/hosted-group/llms.txt').includes(
+      'Full text of this product',
+    ),
+);
+check(
+  'nested-only parent: child keeps its full text',
+  read('en/llms/hosted-group-managed/llms-full.txt').includes('M body.'),
+);
+
 // --- Stats ---
 const enStats = stats.find((s) => s.locale === 'en');
-check('stats: products incl. orphans', enStats?.products === 2);
+check('stats: products incl. nested and orphans', enStats?.products === 7);
 check(
   'stats: no missing description',
   enStats?.missingDescriptions.length === 0,
+);
+
+// --- Unprefixed region served at the domain root (none today; US is /en/) ---
+// Same EN pages, but built straight into dist/ and served without /en/.
+const rootDist = path.join(tmp, 'dist-root');
+fs.cpSync(path.join(distDir, 'en'), rootDist, { recursive: true });
+fs.rmSync(path.join(rootDist, 'llms'), { recursive: true, force: true });
+// The worker writes unprefixed `url:` frontmatter for a root region.
+for (const f of fs.readdirSync(rootDist, { recursive: true }) as string[]) {
+  if (!f.endsWith('.md')) continue;
+  const file = path.join(rootDist, f);
+  fs.writeFileSync(
+    file,
+    fs.readFileSync(file, 'utf-8').replaceAll(`${SITE}/en/`, `${SITE}/`),
+  );
+}
+const rootStats = generateLlms({
+  distDir: rootDist,
+  docsDir,
+  siteUrl: SITE,
+  builtLocales: ['en'],
+  localePrefix: false,
+  locales: [
+    { lang: 'en', label: '🇬🇧 English', title: 'OVHcloud Documentation' },
+  ],
+  treeFor: () => tree,
+  label: (key) => labels[key]?.en ?? key,
+});
+const readRoot = (rel: string) =>
+  fs.readFileSync(path.join(rootDist, rel), 'utf-8');
+const rootDir = readRoot('llms.txt');
+check(
+  'root build: /llms.txt is the directory',
+  rootDir.includes(
+    `- [Compute](${SITE}/llms/${PRODUCT}/llms.txt): Run instances`,
+  ),
+);
+check(
+  'root build: no language list for a single locale',
+  !rootDir.includes('Other languages'),
+);
+check(
+  'root build: full bundle at the root',
+  readRoot('llms-full.txt').includes(`${SITE}/llms.txt`),
+);
+const rootProduct = readRoot(`llms/${PRODUCT}/llms.txt`);
+check(
+  'root build: page links without locale prefix',
+  rootProduct.includes(`- [First](${SITE}/${G}/a-first.md): First guide`),
+);
+check(
+  'root build: no /en/ URL anywhere',
+  ![rootDir, rootProduct, readRoot('llms-full.txt')].some((t) =>
+    t.includes(`${SITE}/en/`),
+  ),
+);
+check(
+  'root build: no stray dist/en tree',
+  !fs.existsSync(path.join(rootDist, 'en')),
+);
+// No productKeys here: nested products stay sections (pre-existing behaviour).
+check('root build: stats', rootStats[0]?.products === 5);
+check(
+  'root build: without productKeys, nested products stay sections',
+  !fs.existsSync(
+    path.join(rootDist, 'llms/public-cloud-databases-postgresql'),
+  ) &&
+    readRoot('llms/public-cloud-databases/llms.txt').includes('- [PG start]('),
 );
 
 fs.rmSync(tmp, { recursive: true, force: true });

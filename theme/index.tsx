@@ -23,6 +23,7 @@ import { Nav } from 'theme/components/Nav';
 import { PageFeedback } from 'theme/components/PageFeedback';
 import { SEOHead } from 'theme/components/SEOHead';
 import { Sidebar } from 'theme/components/Sidebar';
+import { SiteFooter } from 'theme/components/SiteFooter';
 import { initSentry } from 'theme/sentry';
 
 // Lazy-loaded non-critical components (separate chunks, loaded after hydration)
@@ -43,6 +44,12 @@ import { HomeLayout as CustomHomeLayout } from 'theme/layouts/HomeLayout/HomeLay
 import { LandingLayout } from 'theme/layouts/LandingLayout';
 import { MigrationLayout } from 'theme/layouts/MigrationLayout';
 import { OverviewLayout } from 'theme/layouts/OverviewLayout';
+
+// Whether the region runs the consent manager and its analytics (see
+// config/regions.ts). Without it there is no TMS to feed.
+declare const __CONSENT_MANAGER__: boolean;
+// Whether guides end with the page feedback form (see config/regions.ts).
+declare const __PAGE_FEEDBACK__: boolean;
 
 // Custom DocLayout that handles overview pages and respects frontmatter
 const DocLayout = (props: React.ComponentProps<typeof OriginalDocLayout>) => {
@@ -129,7 +136,7 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
     <ZoneProvider>
       <RegionProvider>
         <AIChatbotDrawerProvider>
-          <AnalyticsBootstrap />
+          {__CONSENT_MANAGER__ && <AnalyticsBootstrap />}
           <SEOHead />
           <BasicLayout
             {...props}
@@ -145,7 +152,8 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
                 <Breadcrumbs />
               </>
             }
-            beforeDocFooter={<PageFeedback />}
+            beforeDocFooter={__PAGE_FEEDBACK__ ? <PageFeedback /> : null}
+            afterDoc={<SiteFooter />}
           />
           <Suspense fallback={null}>
             <LazyAIChatbotDrawer />
