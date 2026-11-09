@@ -197,3 +197,5 @@ not carried forward.
   datastore" once it is published: the method replaces SFTP.
 - **Snapshot of a live help centre.** An article published after the snapshot has no
   rule. Refresh with `--fetch` before the switch.
+
+<!-- Ruleset test: US-only change, safe to discard. -->
