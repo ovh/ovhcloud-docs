@@ -42,6 +42,8 @@ Avec un SDK, définissez `api_key` (Python) ou `apiKey` (JavaScript) sur votre c
 
 Seules les routes de transcription en temps réel répertoriées ici sont disponibles, **et non l’ensemble de l’API Gladia**.
 
+## Intelligence audio
+
 ### Fonctionnalités du modèle et options supplémentaires
 
 Solaria-3 prend en charge les fonctionnalités suivantes via l’API native de transcription en temps réel :
@@ -97,6 +99,37 @@ Ajoutez les champs suivants au corps de création d’une session contenant expl
 Activez `messages_config.receive_realtime_processing_events: true` pour recevoir les événements d’intelligence audio et conservez `receive_final_transcripts: true`. Les événements associés aux fonctionnalités peuvent arriver après la transcription source : continuez à lire jusqu’à la fin de la session. Appliquez la configuration lors de la création d’une nouvelle session.
 
 Pour plus de détails sur les concepts et les paramètres, consultez [Gladia Audio Intelligence](https://docs.gladia.io/chapters/audio-intelligence). Certains exemples de cette documentation concernent les enregistrements ou le service SaaS Gladia : respectez le placement des champs pour le temps réel et les limitations présentées dans ce guide. Affichez les transcriptions et les entités comme du texte non fiable, et non comme du HTML, et évitez de journaliser des données personnelles lorsque le masquage PII est activé.
+
+### Diarisation et latence
+
+La diarisation attribue des étiquettes de locuteurs à la transcription. Pour les requêtes natives de transcription en temps réel, ajoutez `"diarization": true` à la racine du corps JSON et, si nécessaire, `"diarization_config": {"min_speakers": 2, "max_speakers": 4}`. Utilisez un audio mono ; les nombres de locuteurs configurés sont des indications, pas des garanties.
+
+Avec `gladiaio-sdk>=2.2`, transmettez un dictionnaire Python directement à `live.start_session()` : le SDK l’envoie tel quel, y compris les champs de diarisation Gladia Enterprise absents du type `LiveV2InitRequest`. Aucune requête HTTP séparée ni dépendance `requests` n’est nécessaire. En JavaScript, ajoutez les mêmes champs à l’objet transmis à `live.startSession()`.
+
+Dans l’[exemple du SDK Python ci-dessous](#exemples-avec-les-sdk-officiels), remplacez l’initialisation de la session et la fonction `on_message` par le code suivant. Conservez le client `live` configuré, la validation du WAV, l’enregistrement du gestionnaire d’événements, l’attente de disponibilité, l’envoi de l’audio au rythme réel, la récupération du résultat et le nettoyage dans `finally` :
+
+```python
+session = live.start_session({
+  "model": "solaria-3",
+  "encoding": "wav/pcm", "sample_rate": 16000,
+  "bit_depth": 16, "channels": 1,
+  "language_config": {"languages": ["en"]},
+  "messages_config": {"receive_final_transcripts": True},
+  "diarization": True,
+  "diarization_config": {"max_speakers": 3},
+})
+
+def on_message(message):
+  if message.type == "transcript" and message.data.is_final:
+    utterance = message.data.utterance
+    print(f"Locuteur {utterance.speaker} : {utterance.text}")
+```
+
+Attendez que la connexion soit prête avant d’envoyer l’audio. Appelez `stop_recording()` uniquement après avoir envoyé tous les blocs, puis continuez à lire les événements jusqu’à la fin de la session pour recevoir les transcriptions finales avec leurs étiquettes de locuteurs. Ne transmettez pas `diarization` comme mot-clé au constructeur typé.
+
+:::warning
+La diarisation distingue les voix, mais n’identifie pas les personnes, et **augmente la latence de traitement**, notamment pour les résultats finaux. Les étiquettes de locuteurs au niveau des mots sont plus précises qu’une étiquette unique pour un segment de parole contenant plusieurs locuteurs. Utilisez les résultats natifs pour obtenir ces étiquettes : la passerelle compatible OpenAI ne les inclut pas dans sa réponse formatée.
+:::
 
 ## Protocole natif de transcription en temps réel
 
@@ -312,46 +345,19 @@ Ces exemples créent une session, transmettent un **court enregistrement local a
 
 Fermez toujours les sessions ayant échoué ou abandonnées. Avant de relancer automatiquement une création de session, vérifiez si la requête précédente a déjà créé une session : chaque session supplémentaire occupe un emplacement dans le quota de sessions simultanées.
 
-## Diarisation et latence
-
-Pour les requêtes natives de transcription en temps réel, ajoutez `"diarization": true` à la racine du corps JSON et, si nécessaire, `"diarization_config": {"min_speakers": 2, "max_speakers": 4}`.
-
-Avec `gladiaio-sdk>=2.2`, transmettez un dictionnaire Python directement à `live.start_session()` : le SDK l’envoie tel quel, y compris les champs de diarisation Gladia Enterprise absents du type `LiveV2InitRequest`. Aucune requête HTTP séparée ni dépendance `requests` n’est nécessaire.
-
-Dans l’exemple du SDK Python ci-dessus, remplacez l’initialisation de la session et la fonction `on_message` par le code suivant. Conservez le client `live` configuré, la validation du WAV, l’enregistrement du gestionnaire d’événements, l’attente de disponibilité, l’envoi de l’audio au rythme réel, la récupération du résultat et le nettoyage dans `finally` :
-
-```python
-session = live.start_session({
-  "model": "solaria-3",
-  "encoding": "wav/pcm", "sample_rate": 16000,
-  "bit_depth": 16, "channels": 1,
-  "language_config": {"languages": ["en"]},
-  "messages_config": {"receive_final_transcripts": True},
-  "diarization": True,
-  "diarization_config": {"max_speakers": 3},
-})
-
-def on_message(message):
-  if message.type == "transcript" and message.data.is_final:
-    utterance = message.data.utterance
-    print(f"Locuteur {utterance.speaker} : {utterance.text}")
-```
-
-Attendez que la connexion soit prête avant d’envoyer l’audio. Appelez `stop_recording()` uniquement après avoir envoyé tous les blocs, puis continuez à lire les événements jusqu’à la fin de la session pour recevoir les transcriptions finales avec leurs étiquettes de locuteurs. Ne transmettez pas `diarization` comme mot-clé au constructeur typé.
-
-:::warning
-La diarisation active la séparation des locuteurs dans la transcription : elle distingue les voix, mais n’identifie pas les personnes. Elle nécessite des ressources de calcul importantes et **augmente la latence de traitement**, notamment pour les résultats finaux. Activez-la uniquement si nécessaire. Les étiquettes de locuteurs au niveau des mots sont plus précises qu’une étiquette unique pour un segment de parole contenant plusieurs locuteurs. Utilisez les résultats natifs pour obtenir ces étiquettes : la passerelle compatible OpenAI ne les inclut pas dans sa réponse formatée.
-:::
-
-La consommation native multicanal est mesurée en **durée audio multipliée par le nombre de canaux**. La passerelle de transcription de fichiers convertit l’audio en mono et ne conserve pas la séparation des canaux. Consultez les tarifs AI Endpoints en vigueur ; ne présumez pas que la diarisation est gratuite et ne vous basez pas sur les tarifs du service SaaS Gladia.
-
 ## Envoi de fichiers via l’API compatible OpenAI
+
+La route compatible OpenAI `POST /v1/audio/transcriptions` sert de **passerelle entre un fichier et une session en temps réel** pour `solaria-3` : envoyez un fichier audio local au format multipart, puis le service le décode en PCM mono à 16 kHz, le transmet à une session Gladia à un rythme proche du temps réel et renvoie une transcription complète. Votre application n’a pas à gérer de connexion WebSocket. Il ne s’agit pas de l’API native Gladia pour les enregistrements, et la réponse HTTP n’est pas transmise en flux continu.
+
+Consultez le guide [Transcription audio avec l’API compatible OpenAI](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models) pour les exemples d’utilisation des routes compatibles OpenAI. Pour Gladia, précisez `model: "solaria-3"` et respectez les paramètres et limites propres à sa passerelle ; ne réutilisez pas les options spécifiques à Whisper telles quelles. Pour une transcription interactive et les résultats d’intelligence audio, utilisez l’API native présentée ci-dessus. La passerelle n’expose pas ces résultats natifs et ne conserve pas la séparation des canaux.
 
 Pour les fichiers destinés à Gladia sur `/v1/audio/transcriptions`, les utilisateurs authentifiés peuvent envoyer jusqu’à **2 048 Mio et 10 800 secondes (3 heures)** par fichier. Les envois anonymes sont limités à **10 Mio et 60 secondes**. Si la taille ou la durée dépasse la limite, un code d’erreur `413` est renvoyé. Avant de créer une session ou une tâche de transcription auprès de Gladia, le service décode l’audio avec ffmpeg pour vérifier sa durée ; un contenu audio invalide ou impossible à décoder renvoie `400`.
 
 La requête multipart complète, y compris les données supplémentaires liées à ce format, doit également respecter les limites de taille du corps HTTP et de la passerelle d’entrée. Pour la passerelle de transcription de fichiers utilisant une session en temps réel, prévoyez un délai d’expiration côté client couvrant la durée de l’enregistrement ainsi que les temps d’envoi, de validation et de traitement ; la réponse n’est pas transmise en flux continu. Ces limites s’appliquent uniquement à la passerelle Gladia compatible OpenAI, et non aux modèles Whisper ni aux routes natives de transcription en temps réel.
 
 ## Quotas et erreurs
+
+La consommation native multicanal est mesurée en **durée audio multipliée par le nombre de canaux**.
 
 | Limite | Anonyme | Authentifié avec une clé d’accès API |
 | :--- | :--- | :--- |
