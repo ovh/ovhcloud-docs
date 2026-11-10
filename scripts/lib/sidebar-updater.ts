@@ -73,7 +73,7 @@ export const SIDEBAR_MAP: Record<
     section: 'loadBalancer',
     variable: 'networkSidebar',
   },
-  'guides/network/additional-ip': {
+  'guides/network/ip-addresses/additional-ip': {
     file: 'network.ts',
     section: 'additionalIp',
     variable: 'networkSidebar',
