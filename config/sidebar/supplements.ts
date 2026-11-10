@@ -7,6 +7,7 @@
  */
 
 import type { SidebarGroup, SidebarItem } from '@rspress/core';
+import { supportLinks, webmailLinks } from '../nav';
 import { regionConfig } from '../regions';
 
 export type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
@@ -67,7 +68,21 @@ export function getHeaderItems(locale: Locale): SidebarItem[] {
       link: '/guides/migration',
       context: 'sidebar.migration',
     },
+    // Moved from the navbar, which now carries the shared Docs / Developers /
+    // Labs tabs (config/nav/index.ts).
+    ...linkFor('sidebar.support', supportLinks, locale),
+    ...linkFor('sidebar.webmail', webmailLinks, locale),
   ];
+}
+
+/** A header entry for a localized external link, or none if it has no URL. */
+function linkFor(
+  key: string,
+  links: Partial<Record<Locale, string>> | null,
+  locale: Locale,
+): SidebarItem[] {
+  const link = links?.[locale] ?? links?.en;
+  return link ? [{ text: key, link, context: key }] : [];
 }
 
 // -------------------------------------------------------------------

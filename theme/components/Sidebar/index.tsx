@@ -7,10 +7,8 @@ import type {
   SidebarData,
 } from '@rspress/core';
 import { useSidebarDynamic } from '@rspress/core/runtime';
-import { SwitchAppearance } from '@theme-original';
 import { useAIChatbotDrawer } from 'theme/components/AIChatbotDrawer/context';
 import { PagefindSearch } from 'theme/components/PagefindSearch';
-import { SocialLinks } from 'theme/components/SocialLinks';
 import { SidebarDivider } from './SidebarDivider';
 import { SidebarGroup } from './SidebarGroup';
 import { SidebarItem } from './SidebarItem';
@@ -86,14 +84,7 @@ export function SidebarList({
           })}
         </div>
       </ActiveBranchProvider>
-      <div className="grow"></div>
-      <div className="flex flex-row items-center border-t border-line px-2">
-        <SocialLinks />
-        <div className="grow"></div>
-        <div className="pt-2">
-          <SwitchAppearance />
-        </div>
-      </div>
+      {/* GitHub and light / dark live in the navbar (theme/components/Nav). */}
     </div>
   );
 }

@@ -32,6 +32,19 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   'sidebar.migration': <path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" />,
+  'sidebar.support': (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24" />
+    </>
+  ),
+  'sidebar.webmail': (
+    <>
+      <rect x="2.5" y="4.5" width="19" height="15" rx="2" />
+      <path d="m21.5 7-8.4 5.5a2 2 0 0 1-2.2 0L2.5 7" />
+    </>
+  ),
 
   // Universes
   'sidebar.gen.bareMetalCloud': (
