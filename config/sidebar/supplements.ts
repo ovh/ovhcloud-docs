@@ -44,11 +44,6 @@ export function getHeaderItems(locale: Locale): SidebarItem[] {
   return [
     { sectionHeaderText: 'sidebar.documentation' } as SidebarItem,
     { text: 'sidebar.welcome', link: '/', context: 'sidebar.welcome' },
-    {
-      text: 'sidebar.apiReference',
-      link: regionConfig.apiConsoleUrl,
-      context: 'sidebar.apiReference',
-    },
     ...(regionConfig.productChangelog
       ? [
           {
