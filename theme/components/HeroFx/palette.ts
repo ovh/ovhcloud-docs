@@ -28,7 +28,9 @@ export const DOCS_EFFECT: HeroFxConfig = {
   waveY: 0.7,
   bandWidth: 2,
   shape: 'network',
-  ripple: true,
+  // No hover effect: the ripple is the only thing the pointer drives on the
+  // network shape (the pointer position is read by the grid shape only).
+  ripple: false,
   // Calmer than the prototype (1.3 / 1.3): the words appear and fade as the
   // band carries them, so speed sets that rhythm and amplitude how often a
   // word crosses the band's edge.
