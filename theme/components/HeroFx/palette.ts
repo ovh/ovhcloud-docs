@@ -29,8 +29,11 @@ export const DOCS_EFFECT: HeroFxConfig = {
   bandWidth: 2,
   shape: 'network',
   ripple: true,
-  speed: 1.3,
-  amplitude: 1.3,
+  // Calmer than the prototype (1.3 / 1.3): the words appear and fade as the
+  // band carries them, so speed sets that rhythm and amplitude how often a
+  // word crosses the band's edge.
+  speed: 0.6,
+  amplitude: 1.0,
   density: 1.25,
   glow: 0.5,
   haloIntensity: 0.5,
