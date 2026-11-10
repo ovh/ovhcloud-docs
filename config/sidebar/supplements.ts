@@ -35,20 +35,38 @@ const localizedUrls: Record<string, Record<Locale, string>> = {
 // Header items (before product categories)
 // -------------------------------------------------------------------
 
+// `context` carries the untranslated key of the entry: Rspress translates
+// `text` at build time but passes `context` through untouched (rendered as
+// `data-context`). The theme maps it to the entry's icon
+// (theme/components/Sidebar/icons.tsx); this file stays data-only.
 export function getHeaderItems(locale: Locale): SidebarItem[] {
   return [
     { sectionHeaderText: 'sidebar.documentation' } as SidebarItem,
-    { text: 'sidebar.apiReference', link: regionConfig.apiConsoleUrl },
+    { text: 'sidebar.welcome', link: '/', context: 'sidebar.welcome' },
+    {
+      text: 'sidebar.apiReference',
+      link: regionConfig.apiConsoleUrl,
+      context: 'sidebar.apiReference',
+    },
     ...(regionConfig.productChangelog
       ? [
           {
             text: 'sidebar.productChangelog',
             link: localizedUrls.changelog[locale],
+            context: 'sidebar.productChangelog',
           },
         ]
       : []),
-    { text: 'sidebar.eLearning', link: '/guides/e-learning' },
-    { text: 'sidebar.migration', link: '/guides/migration' },
+    {
+      text: 'sidebar.eLearning',
+      link: '/guides/e-learning',
+      context: 'sidebar.eLearning',
+    },
+    {
+      text: 'sidebar.migration',
+      link: '/guides/migration',
+      context: 'sidebar.migration',
+    },
   ];
 }
 
@@ -60,6 +78,7 @@ const BASE_PATH = '/guides/account-and-service-management';
 
 export const securitySidebar: SidebarGroup = {
   text: 'sidebar.security',
+  context: 'sidebar.security',
   collapsed: true,
   items: [
     // IAM
