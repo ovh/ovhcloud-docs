@@ -182,9 +182,25 @@ pnpm sidebar:sync-i18n  # Sync i18n keys from index.md → i18n.json
 ### Theme Customization
 The custom theme (`theme/index.tsx`) extends Rspress's original theme:
 - Overrides: `Nav`, `Sidebar`, `Layout`, `DocLayout`, `HomeLayout`, `OverviewLayout`
-- Uses Tailwind CSS v4 with `tw-dark` class for dark mode
 - Frontmatter `pageType: overview` triggers `OverviewLayout`
 - Frontmatter `outline: false` or `sidebar: false` hides those elements
+
+**Design tokens (thème « Matière », from `proto/docs-matiere.html`).** Colour, type and shape come from one place:
+
+| File | Role |
+|------|------|
+| `styles/tokens.css` | **Source of truth** — semantic `--ovh-*` tokens, light on `:root`, dark on `html.dark` |
+| `styles/rspress-vars.css` | Maps every Rspress `--rp-*` colour variable onto a token (Rspress declares its own under `:where()`, so no `!important`) |
+| `styles/doc.css` | Guide pages: Rspress BEM classes (`.rp-doc h2`, `.rp-callout`, `.rp-toc-item`…) restyled on the tokens, one notch more specific than Rspress since its component CSS loads after ours |
+| `styles/index.css` | Imports the above, Tailwind v4 (`@custom-variant dark`, `@theme inline` exposes tokens as `bg-surface`, `text-ink-2`, `border-line`…) |
+
+Rules:
+- New styles read `--ovh-*` tokens, never hex values; `--rp-*` only where Rspress markup expects them.
+- Dark mode keys on `html.dark` (set by Rspress's inline script before first paint). Never `.tw-dark` (removed) or `data-theme`.
+- New components use colocated plain `.css` (native nesting) with a prefixed class (`ovh-…`), not Sass.
+- Sidebar icons: an item's untranslated i18n key travels in its `context` field (Rspress translates `text` but passes `context` through); `theme/components/Sidebar/icons.tsx` maps it to the artwork.
+- Home (`HomeLayout`): `hero.name` + `hero.highlight`, `explore[].icon` (keys in `theme/components/HomeExplore/icons.tsx`), `quickstart`, `usecases`, `closing`. The hero effect (`theme/components/HeroFx`, engine vendored unchanged from the prototype) is a dynamic import, client-only, destroyed on unmount.
+- The navbar keeps its former look (`--ovh-mark` background) until its own redesign.
 
 ### Build Process
 1. Turborepo runs `build:{locale}` tasks in parallel
