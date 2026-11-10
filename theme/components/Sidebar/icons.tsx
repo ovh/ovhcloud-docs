@@ -39,6 +39,18 @@ const PATHS: Record<string, ReactNode> = {
       <path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24" />
     </>
   ),
+  'sidebar.resources': (
+    <>
+      <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H9a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5h-6A1.5 1.5 0 0 1 2 17Z" />
+      <path d="M22 4.5A1.5 1.5 0 0 0 20.5 3H15a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5h6A1.5 1.5 0 0 0 22 17Z" />
+    </>
+  ),
+  'sidebar.contactSales': (
+    <>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+      <path d="M8 9h8M8 13h5" />
+    </>
+  ),
   'sidebar.webmail': (
     <>
       <rect x="2.5" y="4.5" width="19" height="15" rx="2" />

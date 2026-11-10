@@ -7,7 +7,12 @@
  */
 
 import type { SidebarGroup, SidebarItem } from '@rspress/core';
-import { supportLinks, webmailLinks } from '../nav';
+import {
+  contactSalesLinks,
+  resourcesLinks,
+  supportLinks,
+  webmailLinks,
+} from '../nav';
 import { regionConfig } from '../regions';
 
 export type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
@@ -67,6 +72,8 @@ export function getHeaderItems(locale: Locale): SidebarItem[] {
     // Labs tabs (config/nav/index.ts).
     ...linkFor('sidebar.support', supportLinks, locale),
     ...linkFor('sidebar.webmail', webmailLinks, locale),
+    ...linkFor('sidebar.resources', resourcesLinks, locale),
+    ...linkFor('sidebar.contactSales', contactSalesLinks, locale),
   ];
 }
 

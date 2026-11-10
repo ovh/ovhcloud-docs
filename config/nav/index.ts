@@ -154,3 +154,11 @@ export const webmailLinks: Partial<Record<Locale, string>> | null =
         pl: 'https://www.ovhcloud.com/pl/mail/',
         pt: 'https://www.ovhcloud.com/pt/mail/',
       };
+
+// US only: the US site's own Resources and Contact Sales pages, formerly in
+// its navbar.
+export const resourcesLinks: Partial<Record<Locale, string>> | null =
+  REGION === 'us' ? { en: 'https://us.ovhcloud.com/resources/' } : null;
+
+export const contactSalesLinks: Partial<Record<Locale, string>> | null =
+  REGION === 'us' ? { en: 'https://us.ovhcloud.com/contact-sales/' } : null;
