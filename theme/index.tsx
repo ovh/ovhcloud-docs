@@ -6,7 +6,7 @@ import {
   ZoneProvider,
   ZoneSwitcher,
 } from '@components/Zone';
-import { useDark, useFrontmatter } from '@rspress/core/runtime';
+import { useFrontmatter } from '@rspress/core/runtime';
 import {
   Layout as BasicLayout,
   DocLayout as OriginalDocLayout,
@@ -113,23 +113,12 @@ const HomeLayout = (props: React.ComponentProps<typeof CustomHomeLayout>) =>
   );
 
 const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
-  const isDark = useDark();
-
   useEffect(() => {
     initSentry();
   }, []);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (!root) {
-      return;
-    }
-    if (isDark) {
-      root.classList.add('tw-dark');
-    } else {
-      root.classList.remove('tw-dark');
-    }
-  }, [isDark]);
+  // Dark mode: style against `html.dark`, which Rspress sets from an inline
+  // script before first paint (see styles/tokens.css). No class mirroring here.
 
   // Pass DocLayout explicitly to BasicLayout so it uses our custom one
   return (
