@@ -1873,7 +1873,7 @@
                 + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
                     + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
                     + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel){label=Time Travel}
-                    + [Data Quality](public-cloud/data-platform/lakehouse-manager-data-quality){label=Data Quality}
+                    + [Data quality](public-cloud/data-platform/lakehouse-manager-data-quality){label=Data quality}
                 + [Views](public-cloud/data-platform/lakehouse-manager-views){label=Views}
                 + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes){label=Attributes}
                 + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets){label=Buckets}
@@ -1894,8 +1894,8 @@
                         + [Advanced Mode](public-cloud/data-platform/dpe-actions-aggregate-advanced-mode){label=Advanced Mode}
                     + [Aggregate PySpark](public-cloud/data-platform/dpe-actions-aggregate-pyspark){label=Aggregate PySpark}
                     + [SQL](public-cloud/data-platform/dpe-actions-sql){label=SQL}
-                    + [Data Quality](public-cloud/data-platform/dpe-actions-data-quality){label=Data Quality}
-                    + [Data Quality PySpark](public-cloud/data-platform/dpe-actions-data-quality-pyspark){label=Data Quality PySpark}
+                    + [Data quality](public-cloud/data-platform/dpe-actions-data-quality){label=Data quality}
+                    + [Data quality (Spark)](public-cloud/data-platform/dpe-actions-data-quality-pyspark){label=Data quality (Spark)}
                     + [Custom](public-cloud-data-platform-custom){landing=public-cloud/data-platform/dpe-actions-custom}
                         + [Default Packages](public-cloud/data-platform/dpe-actions-custom-default-packages){label=Default Packages}
                     + [Custom PySpark](public-cloud/data-platform/dpe-actions-custom-pyspark){label=Custom PySpark}
