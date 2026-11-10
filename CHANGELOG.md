@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.10
+
+### Features
+
+#### EU
+- **pci ai v8:** notebooks, training, deploy, endpoints, ecosystem an… (#1100)
+
+### Documentation
+- EU: 474 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.09.1
 
 ### Fixes
