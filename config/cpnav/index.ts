@@ -43,9 +43,13 @@ import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterpris
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
+import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
+import { publiccloudAiEndpointsConsole } from './keys/publiccloud-ai-endpoints-console';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
+import { publiccloudAiNotebooksConsole } from './keys/publiccloud-ai-notebooks-console';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudAiTrainingConsole } from './keys/publiccloud-ai-training-console';
 import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudAnalyticsConsole } from './keys/publiccloud-analytics-console';
 import { publiccloudBilling } from './keys/publiccloud-billing';
@@ -190,9 +194,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-logs-console': publiccloudLogsConsole,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
+  'publiccloud-ai-notebooks-console': publiccloudAiNotebooksConsole,
   'publiccloud-ai-training': publiccloudAiTraining,
+  'publiccloud-ai-training-console': publiccloudAiTrainingConsole,
   'publiccloud-ai-deploy': publiccloudAiDeploy,
+  'publiccloud-ai-deploy-console': publiccloudAiDeployConsole,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
+  'publiccloud-ai-endpoints-console': publiccloudAiEndpointsConsole,
   'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
   'publiccloud-quantum-emulators-console': publiccloudQuantumEmulatorsConsole,
   'publiccloud-quantum-qpus': publiccloudQuantumQpus,
