@@ -17,6 +17,8 @@ import type { Locale, NavItemConfig } from '../../../config/nav';
 export interface NavLink {
   text: string;
   link: string;
+  /** Follows `?from` (hub tabs, Tools entries, Console): hidden until resolved. */
+  hub?: boolean;
 }
 
 export interface NavTab extends NavLink {
@@ -249,6 +251,7 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
         {
           text: t(item.text),
           link,
+          hub: Boolean(item.hubPath),
           external: Boolean(item.external),
           current: Boolean(item.current),
           menu: (item.menu ?? []).flatMap((entry) => {
@@ -259,6 +262,7 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
                     text: t(entry.text),
                     description: t(entry.description),
                     link: href,
+                    hub: Boolean(entry.hubPath),
                   },
                 ]
               : [];
@@ -275,7 +279,7 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
       tabs,
       console:
         consoleItem && consoleLink
-          ? { text: t(consoleItem.text), link: consoleLink }
+          ? { text: t(consoleItem.text), link: consoleLink, hub: true }
           : null,
     };
   }, [site.themeConfig.nav, site.lang, lang, t, hubRegion]);

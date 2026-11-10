@@ -62,6 +62,14 @@ export function HubRegionProvider({ children }: { children: React.ReactNode }) {
     if (hubRegion) {
       setState({ hubRegion, arrivedWith: fromUrl });
     }
+    // The <head> script (config/hub-region-script.ts) hid the hub links before
+    // first paint. Show them on the next frame: by then the re-render this
+    // setState triggers has committed the re-pointed links. Unconditional, so
+    // the links never stay hidden (e.g. storage readable in <head> only).
+    const frame = requestAnimationFrame(() =>
+      document.documentElement.classList.remove('ovh-hub-pending'),
+    );
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const value = useMemo(() => state, [state]);

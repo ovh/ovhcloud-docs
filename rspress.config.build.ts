@@ -13,6 +13,7 @@ import { defineConfig } from '@rspress/core';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
+import { hubRegionHeadScript } from './config/hub-region-script';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import {
@@ -143,6 +144,15 @@ export default defineConfig({
       // not-fully-hydrated DOM and silently fails to inject. Dynamic
       // injection from useEffect guarantees React has hydrated first.
       tags: [
+        {
+          // Hides the navbar's Developers links before first paint when they
+          // are about to follow `?from` / a remembered hub (no flash of the
+          // default hub). See config/hub-region-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: hubRegionHeadScript,
+        },
         ...(htmlLangFor(regionConfig, locale) !== locale
           ? [
               {

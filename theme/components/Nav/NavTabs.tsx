@@ -43,6 +43,7 @@ function TabLink({ tab, className }: { tab: NavTab; className?: string }) {
       )}
       href={href(tab.link)}
       aria-current={tab.current ? 'page' : undefined}
+      data-hub-link={tab.hub ? '' : undefined}
       {...(tab.external && { target: '_blank', rel: 'noreferrer' })}
     >
       {tab.text}
@@ -69,12 +70,23 @@ export function NavTabs({ tabs }: { tabs: NavTab[] }) {
           <NavPopover
             key={tab.text}
             className="ovh-nav-tabs__pop"
-            trigger={<span className="ovh-nav-tab">{tab.text}</span>}
+            trigger={
+              <span
+                className="ovh-nav-tab"
+                data-hub-link={tab.hub ? '' : undefined}
+              >
+                {tab.text}
+              </span>
+            }
           >
             <ul className="ovh-nav-menu">
               {tab.menu.map((entry) => (
                 <li key={entry.link}>
-                  <a className="ovh-nav-menu__item" href={href(entry.link)}>
+                  <a
+                    className="ovh-nav-menu__item"
+                    href={href(entry.link)}
+                    data-hub-link={entry.hub ? '' : undefined}
+                  >
                     <span className="ovh-nav-menu__title">{entry.text}</span>
                     <span className="ovh-nav-menu__desc">
                       {entry.description}
@@ -104,7 +116,13 @@ export function NavTabsRow({ tabs }: { tabs: NavTab[] }) {
           ? tab.menu.map((entry) => (
               <TabLink
                 key={entry.link}
-                tab={{ ...tab, text: entry.text, link: entry.link, menu: [] }}
+                tab={{
+                  ...tab,
+                  text: entry.text,
+                  link: entry.link,
+                  hub: entry.hub,
+                  menu: [],
+                }}
               />
             ))
           : [<TabLink key={tab.text} tab={tab} />],

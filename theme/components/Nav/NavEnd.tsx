@@ -97,6 +97,7 @@ export function NavEnd({ console: consoleLink }: { console: NavLink | null }) {
         <a
           className="ovh-nav-console"
           href={consoleLink.link}
+          data-hub-link={consoleLink.hub ? '' : undefined}
           target="_blank"
           rel="noreferrer"
         >
