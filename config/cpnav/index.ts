@@ -116,6 +116,7 @@ import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
+import { telecomVoipFaxConsole } from './keys/telecom-voip-fax-console';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
 import { webCloudDatabases } from './keys/web-cloud-databases';
 import { webDnsZoneOrder } from './keys/web-dns-zone-order';
@@ -256,6 +257,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-security-dashboard': networkSecurityDashboard,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
+  'telecom-voip-fax-console': telecomVoipFaxConsole,
   'telecom-sms': telecomSms,
   'telecom-xdsl-fttx': telecomXdslFttx,
   'telecom-otb': telecomOtb,
