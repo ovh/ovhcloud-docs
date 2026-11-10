@@ -325,6 +325,21 @@ Cells wrap automatically and the theme makes tables responsive, so a few guideli
 
 Same triple-backtick syntax as before, with language tags. Common languages used across the repo: `bash`, `console`, `json`, `yaml`, `ini`, `sql`, `python`, `go`, `javascript`, `typescript`, `dockerfile`, `nginx`, `apache`, `terraform`. Avoid `markdown` and `mdx` — they disable Shiki's lazy loading and slow the dev server.
 
+### Mermaid diagrams
+
+Write the diagram in a fenced `mermaid` block. The site scales a wide diagram down to the text column and enlarges a diagram on a click; an invalid diagram shows an error with its source. Working example: [format reference §12c](docs/en/internal/format-reference.mdx).
+
+- Do not change the orientation (`flowchart LR`, `TB`, a subgraph `direction`) just to make a diagram fit: readers zoom. Re-orienting it because it reads better is your call.
+- Keep labels short. They do not wrap on their own: break a long one with `<br/>`, or with a new line in a Markdown string.
+- When you colour a block (`style X fill:…`), set a contrasting text colour too (`color:#…`): dark text on a light fill, white text on a dark fill only.
+- Do not add layout aids by hand (`#nbsp;` padding, invisible blocks, `~~~` links): the renderer centres frame contents and clears frame titles itself.
+- When the surrounding text does not already say what the diagram shows, add `accTitle: …` and `accDescr: …` lines after the diagram type: screen readers announce them.
+- Do not override the site's settings (`%%{init: …}%%`, a `config:` front matter) or add `click` links: all diagrams share one theme and layout, and a click enlarges them.
+- A block name that starts with `o` or `x` right after a link turns the arrowhead into a circle or a cross: `dev---ops` links to a block named `ps`. Write `dev--- ops`.
+- Do not animate arrows: animating one means naming it (`A e1@--> B`, then `e1@{ animate: true }`), and the renderer neither redraws a named arrow nor aligns the diagram around it.
+
+At commit time, `pnpm mermaid:lint` checks the staged diagrams: an invalid diagram blocks the commit; a changed orientation, a text colour that does not contrast with its fill, or a hand-made layout aid only raises a warning. How the renderer works, what keeps diagrams safe, how to review a diagram or update Mermaid: [components/MermaidDiagram/README.md](components/MermaidDiagram/README.md).
+
 ### API endpoint blocks
 
 Use the `<Api>` component for OVHcloud API endpoint references, with its import:

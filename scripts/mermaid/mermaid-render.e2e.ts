@@ -24,10 +24,13 @@
  * Exit code 1 on any failure.
  *
  * Browser: Playwright's Chromium (`pnpm exec playwright install chromium`), or
- * an existing one via PLAYWRIGHT_CHROMIUM_EXECUTABLE.
+ * an existing one via PLAYWRIGHT_CHROMIUM_EXECUTABLE. ENGINE=webkit or
+ * ENGINE=firefox runs the same checks in Safari's or Firefox's engine
+ * (`pnpm exec playwright install webkit firefox`): browsers measure the labels
+ * themselves, so a Mermaid update is checked in all three.
  */
 
-import { chromium, type Page } from 'playwright';
+import { chromium, firefox, type Page, webkit } from 'playwright';
 
 const BASE = (process.env.MERMAID_E2E_BASE ?? 'http://localhost:3000').replace(
   /\/$/,
@@ -463,9 +466,19 @@ async function checkPage(
 }
 
 async function main() {
-  const browser = await chromium.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
-  });
+  const name = process.env.ENGINE ?? 'chromium';
+  const engine = { chromium, firefox, webkit }[name];
+  if (!engine) {
+    throw new Error(`ENGINE must be chromium, webkit or firefox, not ${name}`);
+  }
+  const browser = await engine.launch(
+    engine === chromium
+      ? {
+          executablePath:
+            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
+        }
+      : {},
+  );
   const page = await browser.newPage();
   const failures: Failure[] = [];
   let checks = 0;
