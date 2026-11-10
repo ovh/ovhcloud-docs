@@ -1,3 +1,4 @@
+import { useI18n } from '@rspress/core/runtime';
 import { useLocalizedNav } from './hooks';
 import { NavBrand } from './NavBrand';
 import { NavEnd } from './NavEnd';
@@ -34,9 +35,16 @@ export function Nav(props: NavProps) {
     navTitle,
   } = props;
   const { tabs, console: consoleLink } = useLocalizedNav();
+  const t = useI18n<Record<string, string>>();
 
   return (
     <header className="rp-nav ovh-nav">
+      {/* First stop for keyboard users, as on the Developers hub: jumps over
+          the bar to the top of the content (#ovh-content, set by the
+          beforeDocContent slot in theme/index.tsx and by HomeLayout). */}
+      <a className="ovh-nav-skip" href="#ovh-content">
+        {t('nav.skipToContent')}
+      </a>
       <div className="ovh-nav__bar">
         <div className="ovh-nav__start">
           {beforeNavTitle}

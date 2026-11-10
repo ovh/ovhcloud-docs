@@ -134,6 +134,8 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
               {...props}
               beforeDocContent={
                 <>
+                  {/* Target of the navbar's "Skip to content" link. */}
+                  <span id="ovh-content" tabIndex={-1} />
                   {/* ZoneBanner sits at the top of the document column so it
                     falls naturally below whatever topbar the OVHcloud chrome
                     renders above the docs theme. Mounting it here (rather

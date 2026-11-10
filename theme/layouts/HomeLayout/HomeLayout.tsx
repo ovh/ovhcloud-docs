@@ -139,6 +139,8 @@ export function HomeLayout(props: HomeLayoutProps) {
             the served HTML (styles/index.css keeps the visual order). */}
         <div className="rp-home-layout__content ovh-home">
           <main ref={mainRef}>
+            {/* Target of the navbar's "Skip to content" link. */}
+            <span id="ovh-content" tabIndex={-1} />
             {beforeHero}
             {banner ? (
               <div className="ovh-home-banner">
