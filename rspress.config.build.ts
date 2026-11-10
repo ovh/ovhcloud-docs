@@ -320,9 +320,11 @@ export default defineConfig({
       // the real (hashed, per-locale) asset graph, sets as="style"/as="font" and
       // adds crossorigin on fonts automatically — no hardcoded hrefs to rot on
       // the next build. Scoped to css + woff2 only to avoid over-preloading JS.
+      // Only Source Sans Pro among the fonts: JetBrains Mono draws the
+      // navbar's five-character `> DOCS_` tag and swaps in when it lands.
       preload: {
         type: 'all-chunks',
-        include: [/\.css$/, /\.woff2$/],
+        include: [/\.css$/, /source-sans-pro[^/]*\.woff2$/],
       },
     },
   },
