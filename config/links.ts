@@ -993,6 +993,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/public-vcf-aas/',
     pt: 'https://www.ovhcloud.com/pt/public-vcf-aas/',
   },
+  'hosted-private-cloud/private-vcf-aas-3-az': {
+    fr: 'https://www.ovhcloud.com/fr/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+    en: 'https://www.ovhcloud.com/en-gb/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+    de: 'https://www.ovhcloud.com/de/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+    es: 'https://www.ovhcloud.com/es-es/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+    it: 'https://www.ovhcloud.com/it/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+    pl: 'https://www.ovhcloud.com/pl/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+    pt: 'https://www.ovhcloud.com/pt/hosted-private-cloud/vmware/private-vcf-aas-3-az/',
+  },
   'hosted-private-cloud/public-vcf-aas-veeam': {
     fr: 'https://www.ovhcloud.com/fr/public-vcf-aas/veeam/',
     en: 'https://www.ovhcloud.com/en-gb/public-vcf-aas/veeam/',
