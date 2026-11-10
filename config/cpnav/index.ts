@@ -44,9 +44,13 @@ import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterpris
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
+import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
+import { publiccloudAiEndpointsConsole } from './keys/publiccloud-ai-endpoints-console';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
+import { publiccloudAiNotebooksConsole } from './keys/publiccloud-ai-notebooks-console';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudAiTrainingConsole } from './keys/publiccloud-ai-training-console';
 import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudAnalyticsConsole } from './keys/publiccloud-analytics-console';
 import { publiccloudBilling } from './keys/publiccloud-billing';
@@ -126,8 +130,10 @@ import { webMicrosoft365 } from './keys/web-microsoft-365';
 import { webMxPlan } from './keys/web-mx-plan';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webVideoCenter } from './keys/web-video-center';
+import { webVideoCenterConsole } from './keys/web-video-center-console';
 import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
+import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
 import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
@@ -142,7 +148,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-hosting': webHosting,
   'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
+  'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
+  'web-video-center-console': webVideoCenterConsole,
   'web-cloud-databases': webCloudDatabases,
   'web-zimbra': webZimbra,
   'web-email-pro': webEmailPro,
@@ -187,9 +195,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-logs-console': publiccloudLogsConsole,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
+  'publiccloud-ai-notebooks-console': publiccloudAiNotebooksConsole,
   'publiccloud-ai-training': publiccloudAiTraining,
+  'publiccloud-ai-training-console': publiccloudAiTrainingConsole,
   'publiccloud-ai-deploy': publiccloudAiDeploy,
+  'publiccloud-ai-deploy-console': publiccloudAiDeployConsole,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
+  'publiccloud-ai-endpoints-console': publiccloudAiEndpointsConsole,
   'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
   'publiccloud-quantum-emulators-console': publiccloudQuantumEmulatorsConsole,
   'publiccloud-quantum-qpus': publiccloudQuantumQpus,
