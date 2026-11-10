@@ -20,10 +20,14 @@ import { billingOrders } from './keys/billing-orders';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
 import { billingServices } from './keys/billing-services';
 import { iamIdentities } from './keys/iam-identities';
+import { iamIdentitiesConsole } from './keys/iam-identities-console';
 import { iamPolicies } from './keys/iam-policies';
+import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
+import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { iamTagManagement } from './keys/iam-tag-management';
+import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -43,6 +47,7 @@ import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
+import { privatecloudVmwareVsphereConsole } from './keys/privatecloud-vmware-vsphere-console';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
@@ -159,6 +164,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-microsoft-365': webMicrosoft365,
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
+  'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
@@ -264,10 +270,14 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
   'iam-identities': iamIdentities,
+  'iam-identities-console': iamIdentitiesConsole,
   'iam-saml-sso': iamSamlSso,
+  'iam-saml-sso-console': iamSamlSsoConsole,
   'iam-service-accounts': iamServiceAccounts,
   'iam-policies': iamPolicies,
+  'iam-policies-console': iamPoliciesConsole,
   'iam-tag-management': iamTagManagement,
+  'iam-tag-management-console': iamTagManagementConsole,
   'security-kms': securityKms,
   'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,

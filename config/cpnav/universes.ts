@@ -38,6 +38,17 @@ export const CPNAV_UNIVERSES: Record<
     pl: 'Tożsamość, bezpieczeństwo i operacje',
     pt: 'Identidade, Segurança e Operações',
   },
+  // The Console's (v8) IAM side-menu group (transverse.group.iam), present under every
+  // universe. Only for the Console twins of the IAM keys, until they are repointed at its GA.
+  'identity-access-management': {
+    en: 'Identity and Access Management',
+    fr: 'Gestion des identités et accès',
+    de: 'Identitäts- und Zugriffsverwaltung',
+    es: 'Gestión de identidades y accesos',
+    it: 'Gestione di identità e accessi',
+    pl: 'Zarządzanie tożsamością i dostępem',
+    pt: 'Gestão de identidades e acessos',
+  },
   // Not top navigation and not clickable, so every locale carries its own wording.
   'account-menu': {
     en: { text: 'Click your name in the top right' },

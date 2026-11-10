@@ -18,6 +18,8 @@ import type { Locale } from '../shared';
  * and billing screens are reached from the user menu, so its "label" is instruction
  * text rather than something to click.
  * `private-cloud` is the Console's (v8) top-bar entry, for products that exist only there.
+ * `identity-access-management` is the Console's (v8) side-menu group for IAM, shown under every
+ * universe: the Console has no IAM entry in its top bar.
  */
 export type UniverseId =
   | 'web-cloud'
@@ -28,6 +30,7 @@ export type UniverseId =
   | 'network'
   | 'telecom'
   | 'identity-security-operations'
+  | 'identity-access-management'
   | 'account-menu';
 
 /**
