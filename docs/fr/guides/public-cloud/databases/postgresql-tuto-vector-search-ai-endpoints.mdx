@@ -1,0 +1,216 @@
+---
+title: Créer une recherche sémantique avec AI Endpoints et Public Cloud Databases for PostgreSQL
+description: Découvrez comment transformer vos textes en vecteurs avec AI Endpoints, les stocker dans un service PostgreSQL managé avec pgvector et les rechercher par le sens
+lastUpdated: 2026-11-10
+---
+
+## Objectif
+
+Une recherche sémantique retrouve des textes par leur sens plutôt que par leurs mots exacts. Chaque texte est transformé en vecteur, appelé *embedding*, par un modèle d'embedding. Deux textes de sens proche obtiennent des vecteurs proches : une question peut ainsi être rapprochée des passages qui y répondent, même s'ils n'ont aucun mot en commun.
+
+Ce tutoriel construit une telle recherche de bout en bout, entièrement chez OVHcloud :
+
+- [AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started) transforme vos textes et vos questions en vecteurs ;
+- un service Public Cloud Databases for PostgreSQL les stocke avec l'extension `vector` (pgvector) et retrouve les plus proches grâce à un index HNSW.
+
+Il couvre aussi les points à connaître avant de commencer : les droits nécessaires dans PostgreSQL, le nombre de textes par requête et le type de colonne à choisir selon le modèle.
+
+:::warning
+OVHcloud fournit des services dont vous êtes responsable de la configuration et de la gestion. Vous êtes donc responsable de leur bon fonctionnement.
+
+Ce tutoriel est conçu pour vous aider autant que possible dans les tâches courantes. Si vous rencontrez des difficultés pour réaliser ces actions, veuillez contacter un prestataire de services spécialisé et/ou en discuter avec notre [communauté d'utilisateurs](/links/community). OVHcloud ne peut pas vous fournir d'assistance technique à ce sujet.
+
+:::
+
+## Prérequis
+
+- Un [projet Public Cloud](/links/public-cloud/public-cloud) dans votre compte OVHcloud.
+- Un service Public Cloud Databases for PostgreSQL, en version 17 ou 18, qui accepte les connexions depuis votre machine (le guide [Configurer les connexions entrantes](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) explique comment autoriser votre adresse IP).
+- Un accès en ligne de commande à votre service avec l'utilisateur **avnadmin** (le guide [Se connecter avec la CLI](/guides/public-cloud/databases/postgresql-connect-cli) peut vous aider à remplir ce prérequis).
+- Une clé d'API AI Endpoints (consultez [Premiers pas avec AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)).
+- Un environnement Python 3 avec le paquet `psycopg2-binary`.
+
+:::info
+Sur un projet partagé via IAM, seuls les utilisateurs disposant des droits administrateur peuvent créer une clé d'API AI Endpoints. Si vous ne pouvez pas en créer une, adressez-vous à l'administrateur du projet.
+
+Sans clé, AI Endpoints accepte 2 requêtes par minute et par modèle : de quoi essayer les exemples ci-dessous, pas de traiter un corpus.
+:::
+
+## En pratique
+
+### Étape 1 - Préparer la base de données
+
+#### Installer l'extension
+
+Connectez-vous en **avnadmin** à la base que vous allez utiliser, par exemple `defaultdb`, et installez l'extension. Son nom en SQL est `vector` :
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+#### Créer un utilisateur applicatif et son schéma
+
+N'utilisez pas **avnadmin** dans votre application : créez un utilisateur dédié. Créez-le **en SQL, en tant qu'avnadmin**, et donnez-lui son propre schéma :
+
+```sql
+CREATE ROLE "rag_app" LOGIN;
+CREATE SCHEMA "rag" AUTHORIZATION "rag_app";
+```
+
+Définissez ensuite son mot de passe avec la méta-commande `\password` de psql :
+
+```console
+defaultdb=> \password rag_app
+```
+
+:::warning
+Un utilisateur créé depuis l'onglet <code className="action">Utilisateurs</code> de l'espace client OVHcloud ou via l'API ne peut pas créer de tables : il obtient `permission denied for schema public`, y compris dans une base créée depuis l'espace client. Le schéma appartenant à `rag_app` ci-dessus règle ce problème. Pour d'autres façons d'accorder des privilèges, consultez [Gérer les utilisateurs, rôles et privilèges](/guides/public-cloud/databases/postgresql-users-roles-grants).
+:::
+
+### Étape 2 - Choisir le modèle et le type de colonne
+
+AI Endpoints propose plusieurs modèles d'embedding. La taille de leurs vecteurs, appelée *dimension*, détermine le type de colonne que vous pouvez indexer :
+
+| Modèle | Dimension | Contexte | Type de colonne à indexer |
+|---|---|---|---|
+| `bge-m3` | 1 024 | 8 192 tokens | `vector(1024)` |
+| `bge-multilingual-gemma2` | 3 584 | 8 192 tokens | `halfvec(3584)` |
+| `Qwen3-Embedding-8B` | 4 096, ou moins avec le paramètre `dimensions` | 32 768 tokens | `vector(N)` avec `dimensions` fixé à N, 2 000 au maximum |
+
+L'index HNSW de pgvector accepte :
+
+- jusqu'à **2 000 dimensions** sur une colonne `vector`. Au-delà, la création de l'index échoue avec `column cannot have more than 2000 dimensions for hnsw index` ;
+- jusqu'à **4 000 dimensions** sur une colonne `halfvec`, qui stocke chaque valeur sur 2 octets au lieu de 4.
+
+`Qwen3-Embedding-8B` renvoie 4 096 dimensions par défaut, au-dessus des deux limites. Ajoutez le paramètre `dimensions` à la requête, par exemple `"dimensions": 1024`, pour recevoir des vecteurs plus courts qui tiennent dans une colonne `vector`.
+
+Ce tutoriel utilise `bge-m3`, multilingue et le plus rapide des trois.
+
+#### Créer la table
+
+Connecté en tant que `rag_app`, créez la table dans son schéma :
+
+```sql
+CREATE TABLE rag.docs (
+  id   int PRIMARY KEY,
+  body text,
+  emb  vector(1024)
+);
+```
+
+Pour `bge-multilingual-gemma2`, déclarez `emb halfvec(3584)` à la place.
+
+### Étape 3 - Transformer vos textes en vecteurs
+
+AI Endpoints expose une route d'embeddings compatible OpenAI. Envoyez vos textes **par 25 au maximum par requête** : au-delà, la requête est refusée avec une erreur HTTP 400, `given batch size overflow maximal one`.
+
+```python
+import json
+import os
+import urllib.request
+
+URL = "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/embeddings"
+KEY = os.environ["AI_ENDPOINT_API_KEY"]
+BATCH = 25  # nombre maximal de textes par requête
+
+
+def embed(texts, model="bge-m3", dimensions=None):
+    body = {"model": model, "input": texts}
+    if dimensions:  # Qwen3-Embedding-8B uniquement
+        body["dimensions"] = dimensions
+    req = urllib.request.Request(
+        URL,
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + KEY},
+    )
+    return [e["embedding"] for e in json.load(urllib.request.urlopen(req))["data"]]
+
+
+def embed_all(texts, **kwargs):
+    vectors = []
+    for i in range(0, len(texts), BATCH):
+        vectors += embed(texts[i:i + BATCH], **kwargs)
+    return vectors
+```
+
+Avec une clé d'API, AI Endpoints accepte 400 requêtes par minute et par modèle. Pour vectoriser un gros corpus plus vite, envoyez plusieurs lots en parallèle dans cette limite.
+
+### Étape 4 - Charger les vecteurs dans PostgreSQL
+
+```python
+import psycopg2
+from psycopg2.extras import execute_values
+
+texts = [
+    "The museum opens every day from 9 am to 6 pm, except on Mondays.",
+    "Children under 12 enter for free when accompanied by an adult.",
+    "Guided tours of the medieval wing start at 10 am and 3 pm.",
+]
+
+conn = psycopg2.connect(
+    host="<service-host>", port=20184, dbname="defaultdb",
+    user="rag_app", password=os.environ["PG_PASSWORD"], sslmode="require",
+)
+cur = conn.cursor()
+
+vectors = embed_all(texts)
+execute_values(
+    cur,
+    "INSERT INTO rag.docs (id, body, emb) VALUES %s",
+    [(i, t, str(v)) for i, (t, v) in enumerate(zip(texts, vectors))],
+)
+conn.commit()
+```
+
+Remplacez `<service-host>` et le port par les valeurs affichées dans la section **Informations de connexion** de votre service.
+
+Une fois les données chargées, créez l'index HNSW pour la distance cosinus :
+
+```sql
+CREATE INDEX ON rag.docs USING hnsw (emb vector_cosine_ops);
+```
+
+Pour une colonne `halfvec`, utilisez `halfvec_cosine_ops`.
+
+:::info
+Construire l'index après le chargement est plus rapide que de le mettre à jour ligne par ligne. Les lignes insérées ensuite sont ajoutées automatiquement à l'index.
+:::
+
+### Étape 5 - Rechercher par le sens
+
+Transformez la question en vecteur avec le **même modèle**, puis triez les lignes par distance cosinus (`<=>`) :
+
+```python
+question = "Is it free for kids?"
+q = embed([question])[0]
+
+cur.execute(
+    "SELECT id, body, emb <=> %s::vector(1024) AS distance "
+    "FROM rag.docs ORDER BY distance LIMIT 3",
+    (str(q),),
+)
+for row in cur.fetchall():
+    print(row)
+```
+
+Le passage sur les enfants arrive en premier, bien qu'il ne contienne pas les mots de la question.
+
+Pour vérifier que l'index est utilisé, préfixez la requête par `EXPLAIN ANALYZE`. Sur une table de quelques lignes, comme ici, PostgreSQL préfère lire toute la table et le plan affiche un `Seq Scan` suivi d'un `Sort`. Sur un vrai corpus, ou après `SET enable_seqscan = off;` dans votre session, le plan affiche un `Index Scan` sur l'index HNSW, ici `docs_emb_idx`.
+
+:::info
+Utilisez toujours le même modèle, et la même valeur de `dimensions` pour `Qwen3-Embedding-8B`, pour vos textes et pour vos questions. Les vecteurs de deux modèles différents ne sont pas comparables.
+:::
+
+## Aller plus loin
+
+- [Extensions disponibles sur Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-extensions)
+- [Gérer les utilisateurs, rôles et privilèges](/guides/public-cloud/databases/postgresql-users-roles-grants)
+- [Premiers pas avec AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)
+
+[[fragment:professional-services]]
+
+## Votre avis nous intéresse !
+
+Nous serions ravis de répondre à vos questions et apprécions tout retour que vous pourriez nous faire.
+
+Vous êtes sur Discord ? Rejoignez notre chaîne via [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) et interagissez directement avec l'équipe qui développe notre service de bases de données !

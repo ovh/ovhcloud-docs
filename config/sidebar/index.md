@@ -1252,6 +1252,7 @@
                 + [Build a Strapi app connected to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-connect-strapi-to-managed-postgresql)
                 + [Install and connect Wagtail to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-connect-wagtail-to-managed-postgresql)
                 + [Migrate an on-premises database to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-migrate-ecdb)
+                + [Build a semantic search with AI Endpoints and Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-vector-search-ai-endpoints)
             + [Security](public-cloud-databases-postgresql-security)
                 + [Security Overview for Public Cloud Databases](public-cloud/databases/concepts-security-overview)
                 + [Responsibility model for Public Cloud Databases](public-cloud/databases/responsibility-model)
