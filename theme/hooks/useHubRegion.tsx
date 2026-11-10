@@ -1,3 +1,4 @@
+import { useLocation, useNavigate } from '@rspress/core/runtime';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 /**
@@ -44,10 +45,18 @@ export function HubRegionProvider({ children }: { children: React.ReactNode }) {
     arrivedWith: null,
   });
 
+  const navigate = useNavigate();
+  // The router's location: `pathname` is relative to the locale base
+  // (basename `/fr` in production), which is what `navigate` expects —
+  // window.location.pathname would carry the base and double it.
+  const location = useLocation();
+
+  // Arrival only: `?from` is read once, from the first location. Later SPA
+  // navigations must not re-run this (nor re-set the commercial zone).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on mount only
   useEffect(() => {
-    const fromUrl = toHubRegion(
-      new URLSearchParams(window.location.search).get('from'),
-    );
+    const params = new URLSearchParams(location.search);
+    const fromUrl = toHubRegion(params.get('from'));
     let stored: HubRegion | null = null;
     try {
       if (fromUrl) {
@@ -61,6 +70,18 @@ export function HubRegionProvider({ children }: { children: React.ReactNode }) {
     const hubRegion = fromUrl ?? stored;
     if (hubRegion) {
       setState({ hubRegion, arrivedWith: fromUrl });
+    }
+    // Once read (and remembered), drop `?from` from the address — valid or
+    // not — so a link copied from the docs does not carry the sender's hub
+    // to someone else. Through the router (replace, no new history entry),
+    // keeping the other parameters and the #anchor.
+    if (params.has('from')) {
+      params.delete('from');
+      const search = params.toString();
+      navigate(
+        `${location.pathname}${search ? `?${search}` : ''}${location.hash}`,
+        { replace: true },
+      );
     }
     // The <head> script (config/hub-region-script.ts) hid the hub links before
     // first paint. Show them on the next frame: by then the re-render this
