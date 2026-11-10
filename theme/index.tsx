@@ -24,6 +24,7 @@ import { PageFeedback } from 'theme/components/PageFeedback';
 import { SEOHead } from 'theme/components/SEOHead';
 import { Sidebar } from 'theme/components/Sidebar';
 import { SiteFooter } from 'theme/components/SiteFooter';
+import { HubRegionProvider } from 'theme/hooks/useHubRegion';
 import { initSentry } from 'theme/sentry';
 
 // Lazy-loaded non-critical components (separate chunks, loaded after hydration)
@@ -122,38 +123,41 @@ const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
 
   // Pass DocLayout explicitly to BasicLayout so it uses our custom one
   return (
-    <ZoneProvider>
-      <RegionProvider>
-        <AIChatbotDrawerProvider>
-          {__CONSENT_MANAGER__ && <AnalyticsBootstrap />}
-          <SEOHead />
-          <BasicLayout
-            {...props}
-            beforeDocContent={
-              <>
-                {/* ZoneBanner sits at the top of the document column so it
+    // HubRegionProvider first: the zone reads `?from` from it.
+    <HubRegionProvider>
+      <ZoneProvider>
+        <RegionProvider>
+          <AIChatbotDrawerProvider>
+            {__CONSENT_MANAGER__ && <AnalyticsBootstrap />}
+            <SEOHead />
+            <BasicLayout
+              {...props}
+              beforeDocContent={
+                <>
+                  {/* ZoneBanner sits at the top of the document column so it
                     falls naturally below whatever topbar the OVHcloud chrome
                     renders above the docs theme. Mounting it here (rather
                     than as a sticky top-level node) avoids the banner
                     visually covering the topbar at page load. */}
-                <ZoneBanner />
-                <ZoneNotice />
-                <Breadcrumbs />
-              </>
-            }
-            beforeDocFooter={__PAGE_FEEDBACK__ ? <PageFeedback /> : null}
-            afterDoc={<SiteFooter />}
-          />
-          <Suspense fallback={null}>
-            <LazyAIChatbotDrawer />
-          </Suspense>
-          <Suspense fallback={null}>
-            <LazySurveyWidget />
-          </Suspense>
-          <ZoneSwitcher />
-        </AIChatbotDrawerProvider>
-      </RegionProvider>
-    </ZoneProvider>
+                  <ZoneBanner />
+                  <ZoneNotice />
+                  <Breadcrumbs />
+                </>
+              }
+              beforeDocFooter={__PAGE_FEEDBACK__ ? <PageFeedback /> : null}
+              afterDoc={<SiteFooter />}
+            />
+            <Suspense fallback={null}>
+              <LazyAIChatbotDrawer />
+            </Suspense>
+            <Suspense fallback={null}>
+              <LazySurveyWidget />
+            </Suspense>
+            <ZoneSwitcher />
+          </AIChatbotDrawerProvider>
+        </RegionProvider>
+      </ZoneProvider>
+    </HubRegionProvider>
   );
 };
 

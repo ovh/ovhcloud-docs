@@ -10,6 +10,7 @@ import {
   useVersion,
 } from '@rspress/core/runtime';
 import { useMemo } from 'react';
+import { useHubRegion } from 'theme/hooks/useHubRegion';
 import type { Locale, NavItemConfig } from '../../../config/nav';
 
 /** A navbar entry, resolved for the current locale and translated. */
@@ -213,6 +214,9 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
   const { site } = useSite();
   const lang = useLang();
   const t = useI18n<Record<string, string>>();
+  // The visitor's Developers hub (`?from`, remembered): null until mounted,
+  // so the server render and hydration use the config's default links.
+  const { hubRegion } = useHubRegion();
 
   return useMemo(() => {
     // Fallback locale comes from the runtime site data, never from a build-time
@@ -224,11 +228,22 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
     const pick = (links: NavItemConfig['links']) =>
       links[locale] ?? links[fallback];
 
+    // The hub origins travel with the Console entry (data, not an import).
+    const consoleItem = items.find((item) => item.role === 'console');
+    const hubOrigin = hubRegion && consoleItem?.hubOrigins?.[hubRegion];
+    const resolve = (entry: {
+      links: NavItemConfig['links'];
+      hubPath?: string;
+    }) =>
+      hubOrigin && entry.hubPath
+        ? `${hubOrigin}${entry.hubPath}`
+        : pick(entry.links);
+
     // `links` is partial: a single-locale region only fills in its own
     // locale. An entry that resolves to nothing is dropped, not rendered dead.
     const tabs = items.flatMap((item): NavTab[] => {
       if (item.role !== 'tab') return [];
-      const link = pick(item.links);
+      const link = resolve(item);
       if (!link) return [];
       return [
         {
@@ -237,7 +252,7 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
           external: Boolean(item.external),
           current: Boolean(item.current),
           menu: (item.menu ?? []).flatMap((entry) => {
-            const href = pick(entry.links);
+            const href = resolve(entry);
             return href
               ? [
                   {
@@ -252,14 +267,16 @@ export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
       ];
     });
 
-    const consoleItem = items.find((item) => item.role === 'console');
-    const consoleLink = consoleItem && pick(consoleItem.links);
+    const consoleLinks =
+      (hubRegion && consoleItem?.byHub?.[hubRegion]) || consoleItem?.links;
+    const consoleLink = consoleLinks && pick(consoleLinks);
 
     return {
       tabs,
-      console: consoleLink
-        ? { text: t(consoleItem.text), link: consoleLink }
-        : null,
+      console:
+        consoleItem && consoleLink
+          ? { text: t(consoleItem.text), link: consoleLink }
+          : null,
     };
-  }, [site.themeConfig.nav, site.lang, lang, t]);
+  }, [site.themeConfig.nav, site.lang, lang, t, hubRegion]);
 }

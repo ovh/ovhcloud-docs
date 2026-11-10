@@ -18,18 +18,29 @@ export const defaultLocale: Locale = regionConfig.defaultLocale as Locale;
 // theme sorts them out (theme/components/Nav/hooks.tsx). Sub-entries live in
 // `menu`, not `items`, so Rspress leaves them alone.
 
+/** The Developers hub of each OVHcloud region (same routes on all three). */
+export const HUB_ORIGINS = {
+  eu: 'https://developers.eu.ovhcloud.com',
+  ca: 'https://developers.ca.ovhcloud.com',
+  us: 'https://developers.us.ovhcloud.com',
+} as const;
+export type HubRegion = keyof typeof HUB_ORIGINS;
+
 /** One entry of a tab's dropdown (title over a one-line description). */
 export interface NavMenuEntry {
   text: string; // i18n key
   description: string; // i18n key
   links: Partial<Record<Locale, string>>;
+  /** Path on the Developers hub: re-pointed at the visitor's hub (`?from`). */
+  hubPath?: string;
 }
 
 export interface NavItemConfig {
   /** `tab`: the centre row; `console`: the button at the end of the bar. */
   role: 'tab' | 'console';
   text: string; // i18n key
-  // Partial: a single-locale region only fills in its own locale.
+  // Partial: a single-locale region only fills in its own locale. These are
+  // the default links: server render, and the fallback without `?from`.
   links: Partial<Record<Locale, string>>;
   /** Leaves the family of sites: new tab, ↗ (Labs only). */
   external?: boolean;
@@ -37,44 +48,49 @@ export interface NavItemConfig {
   current?: boolean;
   /** A dropdown instead of a link (Tools). */
   menu?: NavMenuEntry[];
+  /** Path on the Developers hub: re-pointed at the visitor's hub (`?from`). */
+  hubPath?: string;
+  /**
+   * Console only — the data the theme needs to follow `?from` without
+   * importing this module (which would pull config/regions and its
+   * process.env reads into the browser bundle): the hub origins, and the
+   * Console link for each hub region.
+   */
+  hubOrigins?: Record<HubRegion, string>;
+  byHub?: Record<HubRegion, Partial<Record<Locale, string>>>;
 }
 
 /** The same URL for every locale (the hub and Labs are English-only). */
 const allLocales = (url: string): Partial<Record<Locale, string>> =>
   Object.fromEntries(locales.map((l) => [l, url]));
 
-/** The hub's tabs, in its own order, for a hub origin. */
-function hubTabs(hub: string): NavItemConfig[] {
+/** The hub's tabs, in its own order, pointing at the region's default hub. */
+function hubTabs(region: HubRegion): NavItemConfig[] {
+  const hub = HUB_ORIGINS[region];
+  const tab = (text: string, hubPath: string): NavItemConfig => ({
+    role: 'tab',
+    text,
+    links: allLocales(`${hub}${hubPath}`),
+    hubPath,
+  });
+  const entry = (key: string, hubPath: string): NavMenuEntry => ({
+    text: `nav.tools.${key}`,
+    description: `nav.tools.${key}Description`,
+    links: allLocales(`${hub}${hubPath}`),
+    hubPath,
+  });
   return [
-    { role: 'tab', text: 'nav.developerHub', links: allLocales(`${hub}/`) },
+    tab('nav.developerHub', '/'),
     {
-      role: 'tab',
-      text: 'nav.tools',
-      links: allLocales(`${hub}/sdks/`),
+      ...tab('nav.tools', '/sdks/'),
       menu: [
-        {
-          text: 'nav.tools.sdks',
-          description: 'nav.tools.sdksDescription',
-          links: allLocales(`${hub}/sdks/`),
-        },
-        {
-          text: 'nav.tools.cli',
-          description: 'nav.tools.cliDescription',
-          links: allLocales(`${hub}/cli/`),
-        },
-        {
-          text: 'nav.tools.terraform',
-          description: 'nav.tools.terraformDescription',
-          links: allLocales(`${hub}/terraform/`),
-        },
+        entry('sdks', '/sdks/'),
+        entry('cli', '/cli/'),
+        entry('terraform', '/terraform/'),
       ],
     },
-    { role: 'tab', text: 'nav.buildWithAi', links: allLocales(`${hub}/ai/`) },
-    {
-      role: 'tab',
-      text: 'nav.playground',
-      links: allLocales(`${hub}/playground/`),
-    },
+    tab('nav.buildWithAi', '/ai/'),
+    tab('nav.playground', '/playground/'),
     {
       role: 'tab',
       text: 'nav.labs',
@@ -92,35 +108,49 @@ const documentationTab: NavItemConfig = {
   current: true,
 };
 
-// --- EU -------------------------------------------------------------------
-const euNavItems: NavItemConfig[] = [
-  ...hubTabs('https://developers.eu.ovhcloud.com'),
-  documentationTab,
-  {
-    // The Console, signed in on the visitor's subsidiary.
+/** The Console of each hub region, signed in on the right subsidiary. */
+const euConsole = (subsidiary: string) =>
+  `https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=${subsidiary}`;
+
+const CONSOLE_BY_HUB: Record<HubRegion, Partial<Record<Locale, string>>> = {
+  eu: {
+    fr: euConsole('FR'),
+    en: euConsole('GB'),
+    de: euConsole('DE'),
+    es: euConsole('ES'),
+    it: euConsole('IT'),
+    pl: euConsole('PL'),
+    pt: euConsole('PT'),
+  },
+  // Same flow as <ManagerLink> for the CA zone (components/ManagerLink).
+  ca: allLocales(
+    'https://auth.ca.ovhcloud.com/signin/?onsuccess=https%3A//manager.ca.ovhcloud.com&ovhSubsidiary=CA',
+  ),
+  us: allLocales('https://manager.us.ovhcloud.com/#/?ovhSubsidiary=US'),
+};
+
+function consoleItem(region: HubRegion): NavItemConfig {
+  return {
     role: 'console',
     text: 'nav.console',
-    links: {
-      fr: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=FR',
-      en: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=GB',
-      de: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=DE',
-      es: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=ES',
-      it: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=IT',
-      pl: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=PL',
-      pt: 'https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=PT',
-    },
-  },
+    links: CONSOLE_BY_HUB[region],
+    hubOrigins: { ...HUB_ORIGINS },
+    byHub: CONSOLE_BY_HUB,
+  };
+}
+
+// --- EU: the EU hub and Console by default ---------------------------------
+const euNavItems: NavItemConfig[] = [
+  ...hubTabs('eu'),
+  documentationTab,
+  consoleItem('eu'),
 ];
 
 // --- US: English-only, its own hub and Console ----------------------------
 const usNavItems: NavItemConfig[] = [
-  ...hubTabs('https://developers.us.ovhcloud.com'),
+  ...hubTabs('us'),
   documentationTab,
-  {
-    role: 'console',
-    text: 'nav.console',
-    links: { en: 'https://manager.us.ovhcloud.com/#/?ovhSubsidiary=US' },
-  },
+  consoleItem('us'),
 ];
 
 // Export nav config for rspress.config.ts - contains full localized data
