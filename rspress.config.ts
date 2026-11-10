@@ -357,7 +357,6 @@ export default defineConfig({
   llms: true,
   themeConfig: {
     enableScrollToTop: true,
-    hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // See rspress.config.build.ts for rationale — disabled here too for dev parity
     localeRedirect: 'never',

@@ -395,7 +395,6 @@ export default defineConfig({
 
   themeConfig: {
     enableScrollToTop: true,
-    hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // Disable Rspress's auto-redirect based on navigator.language.
     // It assumes a single-build multi-locale setup; in our per-locale-build
