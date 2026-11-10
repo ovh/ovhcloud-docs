@@ -83,6 +83,26 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   cloud: <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />,
+  kubernetes: (
+    <>
+      <path d="m12 2.5 8.2 3.9 2 8.9-5.7 7.2H7.5L1.8 15.3l2-8.9Z" />
+      <circle cx="12" cy="12.5" r="2.5" />
+      <path d="M12 6v4M12 15v4M6.3 9.8l3.3 1.6M14.4 13.6l3.3 1.6M6.3 15.2l3.3-1.6M14.4 11.4l3.3-1.6" />
+    </>
+  ),
+  databases: (
+    <>
+      <ellipse cx="12" cy="5.5" rx="8" ry="3" />
+      <path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13" />
+      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+    </>
+  ),
+  'block-storage': (
+    <>
+      <rect x="3" y="3.5" width="18" height="17" rx="2" />
+      <path d="M3 9.2h18M3 14.8h18M7 6.4h.01M7 12h.01M7 17.6h.01" />
+    </>
+  ),
   'on-prem': (
     <>
       <rect x="4" y="2.5" width="16" height="19" rx="2" />
