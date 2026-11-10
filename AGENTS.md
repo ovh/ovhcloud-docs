@@ -200,7 +200,7 @@ Rules:
 - New components use colocated plain `.css` (native nesting) with a prefixed class (`ovh-…`), not Sass.
 - Sidebar icons: an item's untranslated i18n key travels in its `context` field (Rspress translates `text` but passes `context` through); `theme/components/Sidebar/icons.tsx` maps it to the artwork.
 - Home (`HomeLayout`): `hero.name` + `hero.highlight`, `explore[].icon` (keys in `theme/components/HomeExplore/icons.tsx`), `quickstart`, `usecases`, `closing`. The hero effect (`theme/components/HeroFx`, engine vendored unchanged from the prototype) is a dynamic import, client-only, destroyed on unmount.
-- The navbar keeps its former look (`--ovh-mark` background) until its own redesign.
+- Navbar (`theme/components/Nav`): the Developers hub's header (developers.eu.ovhcloud.com). Tabs and the Console button come from `config/nav/index.ts`, a flat array for `themeConfig.nav` whose entries carry a `role` (`tab` | `console`), `external` (Labs only), `current` (Documentation) and an optional `menu` (Tools); `useLocalizedNav()` resolves them per locale. 52 px (`--rp-nav-height`), 96 px under 1024 px where the tabs move to a second row. Language, GitHub and light / dark live in the bar; Support and Webmail in the sidebar's Documentation header.
 
 ### Build Process
 1. Turborepo runs `build:{locale}` tasks in parallel
