@@ -30,6 +30,10 @@ import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
+import {
+  pluginStripInternalFrontmatter,
+  remarkStripInternalFrontmatter,
+} from './plugins/stripInternalFrontmatter';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -126,7 +130,10 @@ const pathExcludes = devPath
 
 export default defineConfig({
   root: path.join(__dirname, regionConfig.contentDir),
-  plugins: [pluginLastUpdatedFromFrontmatter()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    pluginStripInternalFrontmatter(),
+  ],
   builderConfig: {
     plugins: [pluginSass()],
     html: {
@@ -305,6 +312,8 @@ export default defineConfig({
       // Must stay AFTER remarkNoUnresolvedCpnav: the gate reads the CP-NAV markers that
       // cpnav-rules.ts emits, and there is no point gating a block whose token is broken.
       remarkCpNavGate,
+      // Last: every plugin above may still read the internal frontmatter keys.
+      remarkStripInternalFrontmatter,
     ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [

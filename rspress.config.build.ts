@@ -35,6 +35,10 @@ import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
+import {
+  pluginStripInternalFrontmatter,
+  remarkStripInternalFrontmatter,
+} from './plugins/stripInternalFrontmatter';
 
 const locale = process.env.LOCALE || regionConfig.defaultLocale;
 const BASE_DIR = process.cwd();
@@ -127,7 +131,10 @@ export default defineConfig({
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
-  plugins: [pluginLastUpdatedFromFrontmatter()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    pluginStripInternalFrontmatter(),
+  ],
 
   builderConfig: {
     logLevel: 'error',
@@ -342,6 +349,8 @@ export default defineConfig({
       remarkNoUnresolvedTerm,
       remarkNoDatelessGuide,
       remarkCpNavGate,
+      // Last: every plugin above may still read the internal frontmatter keys.
+      remarkStripInternalFrontmatter,
     ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
