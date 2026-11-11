@@ -2272,6 +2272,7 @@
             + [Managing the security policy of an email service](web-cloud/email-and-collaborative-solutions/common-email-features/security-policy)
             + [Using email aliases and redirections](web-cloud/email-and-collaborative-solutions/common-email-features/feature-redirections)
             + [Deleting an email account](web-cloud/email-and-collaborative-solutions/common-email-features/delete-email-account)
+            + [Connecting your OVHcloud email account to an AI assistant with MCPEmails](web-cloud/email-and-collaborative-solutions/common-email-features/how-to-configure-mcpemails)
         + [Webmail](web-cloud-email-collaborative-solutions-webmail){landing=web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/landing-page-webmail}
             + [Outlook Web Application (OWA)](web-cloud-email-collaborative-solutions-using-outlook-web-access-owa)
                 + [Using the Outlook Web App (OWA) with an OVHcloud email account](web-cloud/email-and-collaborative-solutions/using-the-outlook-web-app-webmail/email-owa)
