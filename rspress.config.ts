@@ -14,6 +14,7 @@ import { defineConfig, type NavItem } from '@rspress/core';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
+import { hubRegionHeadScript } from './config/hub-region-script';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import { regionConfig } from './config/regions';
@@ -141,6 +142,15 @@ export default defineConfig({
       // ovh_delta.js is loaded dynamically from useEffect (see
       // components/Analytics) to guarantee React hydration completes first.
       tags: [
+        {
+          // Hides the navbar's Developers links before first paint when they
+          // are about to follow `?from` / a remembered hub (no flash of the
+          // default hub). See config/hub-region-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: hubRegionHeadScript,
+        },
         {
           // Trailing-slash normalization — mirrors rspress.config.build.ts.
           // Strips a trailing slash from locale-prefixed paths and replace()s
@@ -366,7 +376,6 @@ export default defineConfig({
   llms: true,
   themeConfig: {
     enableScrollToTop: true,
-    hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // See rspress.config.build.ts for rationale — disabled here too for dev parity
     localeRedirect: 'never',
