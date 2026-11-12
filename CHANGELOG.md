@@ -1,5 +1,387 @@
 # Changelog
 
+## 2026.11.10
+
+### Features
+
+#### EU
+- **pci ai v8:** notebooks, training, deploy, endpoints, ecosystem an… (#1100)
+
+### Fixes
+
+#### US
+- **docs-us:** rename 'Creating a volume from a backup' to 'from a volume snapshot'
+
+#### All regions
+- **build:** keep internal frontmatter keys out of the published site
+
+### Documentation
+- EU: 481 guides across de, en, es, fr, it, pl, pt
+- US: 3 guides across en
+
+## 2026.11.09.1
+
+### Fixes
+
+#### EU
+- **cpnav:** point the video center and managed wordpress guides at the console
+
+### Documentation
+- EU: 35 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.09
+
+### Features
+
+#### EU
+- **mks:** update gpu-operator drivers configuration (#1141)
+
+### Fixes
+
+#### All regions
+- **llms:** keep a parent product's llms-full.txt when its guides are nested
+
+### Maintenance
+
+#### All regions
+- add CODEOWNERS for automatic review requests (#1199)
+
+### Documentation
+- EU: 67 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.06.2
+
+### Fixes
+
+#### US
+- **docs-us:** give each universe page its own title
+
+#### All regions
+- **docs-us:** redirect 36 more deleted Zendesk articles
+- **docs-us:** redirect 36 deleted Zendesk articles
+
+### Documentation
+- US: 7 guides across en
+
+## 2026.11.06.1
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.06
+
+### Fixes
+
+#### All regions
+- **llms:** give nested products their own llms.txt index
+
+### Documentation
+- EU: 1020 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.05
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+- US: 13 guides across en
+
+## 2026.11.04
+
+### Fixes
+
+#### US
+- **docs-us:** rename control-panel slugs to console
+- **docs-us:** wrap WARNING/NOTE callouts and rebuild table-cell bullets (#1138)
+
+### Documentation
+- EU: 142 guides across de, en, es, fr, it, pl, pt
+- US: 170 guides across en
+
+## 2026.11.03.2
+
+### Features
+
+#### EU
+- **pci quantum v8:** emulators, qpus, users and general information (#1101)
+- **nasha  v8:** all (#1145)
+- **pci data platform v8:** console wording and access path (#1152)
+
+### Fixes
+
+#### EU
+- **cpnav:** give the Data Platform organizations guide a Console CP-NAV block
+
+### Maintenance
+
+#### EU
+- **components:** upgrade mermaid from 10.9.8 to 12.2.0 (#1132)
+
+### Documentation
+- EU: 188 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.03.1
+
+### Features
+
+#### EU
+- **EFS:** new guide about the migration of vrack (#831)
+
+### Documentation
+- EU: 32 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.03
+
+### Documentation
+- EU: 65 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.02.1
+
+### Documentation
+- EU: 20 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.02
+
+### Fixes
+
+#### US
+- **docs-us:** update home page links and add Oxford comma (#1105)
+
+### Documentation
+- EU: 42 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.10.29.1
+
+### Fixes
+
+#### All regions
+- **deps:** patch the open Dependabot advisories (#1127)
+- **deps:** patch the open Dependabot advisories
+
+## 2026.10.29
+
+### Features
+
+#### EU
+- **nasha:** add ZFS settings guide with usage templates (#987)
+
+### Maintenance
+
+#### EU
+- **okms:** update the okms-cli usage in the byok guide (#1109)
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.27
+
+### Fixes
+
+#### EU
+- drop the standalone <br/> lines from the web hosting version legend (#1095)
+
+#### All regions
+- **styles:** show the hand cursor on the collapse header only (#1096)
+
+### Documentation
+- EU: 64 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+### Fixes
+
+#### EU
+- restore the PHP 5.3 column and realign the Stable and Legacy rows (#1089)
+
+#### All regions
+- **components:** tidy mermaid arrows and labels (#1081)
+
+### Documentation
+- EU: 23 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26.1
+
+## 2026.10.26
+
+### Fixes
+
+#### All regions
+- **components:** invert mermaid diagrams in dark mode instead of a white panel (#1079)
+
+### Documentation
+- EU: 9 guides across en, es, fr, it, pl
+
+## 2026.10.23
+
+### Maintenance
+
+#### EU
+- **public-cloud:** set lastUpdated to merge date of #952 (2026-10-23) (#1067)
+
+### Documentation
+- EU: 36 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.21
+
+### Fixes
+
+#### EU
+- **callouts:** prune old formats (#1053)
+
+### Documentation
+- EU: 86 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.20
+
+### Features
+
+#### EU
+- **components:** render mermaid diagrams whole with click-to-zoom, check their source at commit (#1032)
+
+#### All regions
+- **theme:** open the region's survey from the survey widget (#1031)
+
+### Fixes
+
+#### EU
+- **okms:** backup guide: fix the backup regions and lowercase the region names (#1023)
+- correct Terraform registry links in Terraform guide (#1020)
+
+#### All regions
+- **husky:** stop the Mermaid block from failing commits without a diagram (#1051)
+
+### Documentation
+- EU: 418 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.16.1
+
+### Features
+
+#### EU
+- **databases:** update mongodb documentations (#992)
+- **block:** update about encryption (#988)
+
+### Fixes
+
+#### EU
+- **db:** remove eol versions from guides (#993)
+- **db:** update sentences about pricing (#991)
+
+#### All regions
+- **retrievability:** restore probe coverage lost to the cleaned .md export (#1042)
+- **llms:** clean the per-page Markdown export (#1028)
+
+### Maintenance
+
+#### EU
+- **cpnav:** add missing blank lines around CP-NAV tokens (#1030)
+
+#### All regions
+- **build:** upgrade Rspress to 2.0.23
+
+### Documentation
+- EU: 1258 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.16
+
+### Features
+
+#### All regions
+- **build:** load the Commanders Act cookie policy on the US site
+- **us:** add a Zendesk delta-resync script
+- **us:** drop the page feedback form on the US site
+
+### Fixes
+
+#### EU
+- point the Cloud Disk Array manager link at /public-cloud/
+
+#### All regions
+- move legacy ovh.com manager, sign-in and API hosts to ovhcloud.com
+- **us:** keep each guide's image paths with its resync base
+- **us:** make the resync reusable and image-aware
+
+### Maintenance
+
+#### All regions
+- **us:** regenerate the US redirect plan
+- **i18n:** sort the homeExploreProductPage key
+
+### Documentation
+- EU: 454 guides across de, en, es, fr, it, pl, pt
+- US: 483 guides across en
+
+## 2026.10.15
+
+### Features
+
+#### US
+- **theme:** tighter product banner, shared with US universe pages
+- **us:** add universe landing pages
+- **us:** serve US guides under /en/
+
+#### All regions
+- **us:** drop the Product changelog link from the US sidebar
+- **us:** add the redirection plan from the Zendesk help centre
+- **api:** lighter API call design, no US flag
+- **us:** show a fixed English language indicator
+- **us:** add a 301.map for the US site
+
+### Fixes
+
+#### All regions
+- **us:** commit the US redirection rule file
+- **us:** drop the arrow from the fixed language indicator
+- **us:** move the images of the guides moved by the sidebar revision
+
+### Documentation
+- EU: 355 guides across de, en, es, fr, it, pl, pt
+- US: 727 guides across en
+
+## 2026.10.14
+
+### Features
+
+#### EU
+- **compute:** update sentence in the architecture guide (#981)
+- **cold archive:** update on getting stard (#915)
+- **Clickhouse:** update guide with the new available regions 1AZ (#837)
+
+### Fixes
+
+#### EU
+- sk-2845 zimbra automatic replies need the keep in inbox action on a forwarding filter (#1000)
+
+### Documentation
+- EU: 154 guides across de, en, es, fr, it, pl, pt
+
+## 2026.10.13
+
+### Fixes
+
+#### EU
+- warn that a redirection forwards spam and document the exchange redirection (#986)
+- document the zimbra service tab and how to choose a service (#984)
+- explain how to get an email out of the Zimbra Spam folder (#980)
+
+### Documentation
+- EU: 494 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.10.12
 
 ### Fixes
@@ -8,7 +390,7 @@
 - **theme:** make file download links visible (#975)
 
 ### Documentation
-- EU: 7 guides across de, en, es, fr, it, pl, pt
+- EU: 24 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.10.09
 

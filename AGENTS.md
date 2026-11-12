@@ -182,9 +182,26 @@ pnpm sidebar:sync-i18n  # Sync i18n keys from index.md → i18n.json
 ### Theme Customization
 The custom theme (`theme/index.tsx`) extends Rspress's original theme:
 - Overrides: `Nav`, `Sidebar`, `Layout`, `DocLayout`, `HomeLayout`, `OverviewLayout`
-- Uses Tailwind CSS v4 with `tw-dark` class for dark mode
 - Frontmatter `pageType: overview` triggers `OverviewLayout`
 - Frontmatter `outline: false` or `sidebar: false` hides those elements
+
+**Design tokens (thème « Matière », from `proto/docs-matiere.html`).** Colour, type and shape come from one place:
+
+| File | Role |
+|------|------|
+| `styles/tokens.css` | **Source of truth** — semantic `--ovh-*` tokens, light on `:root`, dark on `html.dark` |
+| `styles/rspress-vars.css` | Maps every Rspress `--rp-*` colour variable onto a token (Rspress declares its own under `:where()`, so no `!important`) |
+| `styles/doc.css` | Guide pages: Rspress BEM classes (`.rp-doc h2`, `.rp-callout`, `.rp-toc-item`…) restyled on the tokens, one notch more specific than Rspress since its component CSS loads after ours |
+| `styles/index.css` | Imports the above, Tailwind v4 (`@custom-variant dark`, `@theme inline` exposes tokens as `bg-surface`, `text-ink-2`, `border-line`…) |
+
+Rules:
+- New styles read `--ovh-*` tokens, never hex values; `--rp-*` only where Rspress markup expects them.
+- Dark mode keys on `html.dark` (set by Rspress's inline script before first paint). Never `.tw-dark` (removed) or `data-theme`.
+- New components use colocated plain `.css` (native nesting) with a prefixed class (`ovh-…`), not Sass.
+- Sidebar icons: an item's untranslated i18n key travels in its `context` field (Rspress translates `text` but passes `context` through); `theme/components/Sidebar/icons.tsx` maps it to the artwork.
+- Home (`HomeLayout`): `hero.name` + `hero.highlight`, `explore[].icon` (keys in `theme/components/HomeExplore/icons.tsx`), `quickstart`, `usecases`, `closing`. The hero effect (`theme/components/HeroFx`, engine vendored unchanged from the prototype) is a dynamic import, client-only, destroyed on unmount.
+- Navbar (`theme/components/Nav`): the Developers hub's header (developers.eu.ovhcloud.com). Tabs and the Console button come from `config/nav/index.ts`, a flat array for `themeConfig.nav` whose entries carry a `role` (`tab` | `console`), `external` (Labs only), `current` (Documentation) and an optional `menu` (Tools); `useLocalizedNav()` resolves them per locale. 52 px (`--rp-nav-height`), 96 px under 1024 px where the tabs move to a second row. Language, GitHub and light / dark live in the bar; Support and Webmail in the sidebar's Documentation header.
+- `?from=EU|CA|US` (sent by the Developers hubs): `theme/hooks/useHubRegion.tsx` reads it after mount and keeps it in localStorage (`ovhcloud-docs:developers-hub`) until the next one. The hub tabs (entries with a `hubPath`) and the Console then point at that region's hub / manager (`hubOrigins` and `byHub` on the Console entry of `config/nav`); without it, the config's default links render. Arriving with `?from=EU|CA` also sets the commercial zone once (`components/Zone/ZoneContext.tsx`); `US` leaves the zone alone.
 
 ### Build Process
 1. Turborepo runs `build:{locale}` tasks in parallel
@@ -206,7 +223,9 @@ Rspress (`llms: true`) only produces the per-page `.md` files and the agent hint
 | `/<locale>/llms/<product>/llms-full.txt` | Full Markdown of the product's guides |
 | `/<locale>/llms-full.txt` | Every guide of the locale, deduplicated |
 
-Structure comes from `config/sidebar/index.md`; a product's description is its landing page's (or overview's) `description`. Excluded: `internal/`, `noindex`, `_` partials; navigational page types are listed but kept out of the full files; language fallbacks (symlinks) link to the real locale's `.md`, tagged `(en)`, and are kept in the product full files but not in the locale-wide one. Custom layouts (`theme/index.tsx` DocLayout/HomeLayout) must defer to the original layout under `process.env.__SSR_MD__`, or the `.md` export serialises the whole nav. Region-aware: a single-locale region served at the root (US, `localePrefix: false`) gets the same family without the `/<locale>` segment — `/llms.txt` is its directory and products live under `/llms/<product>/` — and the worker's `basePath` is `''` there. Test: `pnpm llms:test` (covers both layouts). `docs/public/nginx.conf` serves `.md` as `text/markdown` and answers `Accept: text/markdown` on clean URLs.
+**Per-page `.md` cleanup.** Rspress copies JSX nested below a block as raw source (a `<Region>` in a list leaks other zones' text, `<code className="action">` stays as-is), runs neither our remark plugins nor its own container plugin (`:::info` stays a directive), and glues sibling blocks inside rendered components. Step 5.5 runs `scripts/lib/llms/clean-md.ts` on every `.md` before injecting the frontmatter: every zone's `<Region>` variant kept and labelled (a block as a quote led by `**Zone : Europe / Afrique**`, inline variants as one parenthetical; `<Region>` emits markers under `__SSR_MD__`, see `components/LlmsMarkdown/zoneMarkers.ts`), UI labels and `<ManagerLink>` as quoted text, callouts as localised labels (**Note:**, **Astuce :**…), `<summary>` questions and `<Tab>` labels (recovered from the `.mdx` source) as subheadings, images, videos and heading anchors removed, component links made absolute. Code is never touched. The llms-full bundles also point guide links at the web page rather than the `.md`. Components that render layout (cards, diagrams, `Api`) return plain Markdown under `process.env.__SSR_MD__`, after their hooks: see `components/LlmsMarkdown/MdLinkItem.tsx`. A new component rendered in guides needs the same, or `findResidue()` reports it. Tests: `scripts/test-clean-md.ts` (part of `pnpm llms:test`).
+
+Structure comes from `config/sidebar/index.md`; a product's description is its landing page's (or overview's) `description`. A `products/` group nested in another product (Databases > PostgreSQL) gets its own `/llms/<product>/` pair when it has a landing page or an overview (`parseIndexMd().productKeys` tells products from sections): its parent's index links to it in place, the directory lists it indented, and its parent's `llms-full.txt` still includes its pages (consumers fetch the parent URL: Domains > DNS left `/llms/web-cloud-domains/llms-full.txt` empty and 404ing otherwise); a parent left with no page of its own is described by the products it groups. Excluded: `internal/`, `noindex`, `_` partials; navigational page types are listed but kept out of the full files; language fallbacks (symlinks) link to the real locale's `.md`, tagged `(en)`, and are kept in the product full files but not in the locale-wide one. Custom layouts (`theme/index.tsx` DocLayout/HomeLayout) must defer to the original layout under `process.env.__SSR_MD__`, or the `.md` export serialises the whole nav. Region-aware: a single-locale region served at the root (US, `localePrefix: false`) gets the same family without the `/<locale>` segment — `/llms.txt` is its directory and products live under `/llms/<product>/` — and the worker's `basePath` is `''` there. Test: `pnpm llms:test` (covers both layouts). `docs/public/nginx.conf` serves `.md` as `text/markdown` and answers `Accept: text/markdown` on clean URLs.
 
 Sitemaps are **not** produced by an Rspress plugin (`@rspress/plugin-sitemap` was dropped) — `scripts/combine-builds.ts` writes one `sitemap.xml` per locale with hreflang alternates, a root sitemap index, `robots.txt`, and promotes the legacy `sitemap-help.xml`.
 

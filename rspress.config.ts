@@ -11,24 +11,30 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
-import pluginMermaid from 'rspress-plugin-mermaid';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
+import { hubRegionHeadScript } from './config/hub-region-script';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import { regionConfig } from './config/regions';
 import type { Locale } from './config/shared';
 import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
+import { swapMermaidJsYaml } from './plugins/mermaidJsYaml';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
+import { remarkMermaid } from './plugins/remarkMermaid';
 import { remarkNoApiHardcoded } from './plugins/remarkNoApiHardcoded';
 import { remarkNoDatelessGuide } from './plugins/remarkNoDatelessGuide';
 import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
+import {
+  pluginStripInternalFrontmatter,
+  remarkStripInternalFrontmatter,
+} from './plugins/stripInternalFrontmatter';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -81,9 +87,8 @@ const allLocales = [
 const regionLocales = allLocales.filter((l) =>
   (regionConfig.locales as readonly string[]).includes(l.lang),
 );
-const devLocaleDefault = regionConfig.localePrefix
-  ? 'fr,en'
-  : regionConfig.defaultLocale;
+const devLocaleDefault =
+  regionConfig.locales.length > 1 ? 'fr,en' : regionConfig.defaultLocale;
 const devLocales = (process.env.DEV_LOCALES || devLocaleDefault).split(',');
 const activeLocales = regionLocales.filter((l) => devLocales.includes(l.lang));
 const excludedLocales = regionLocales
@@ -128,10 +133,7 @@ export default defineConfig({
   root: path.join(__dirname, regionConfig.contentDir),
   plugins: [
     pluginLastUpdatedFromFrontmatter(),
-    // Renders ```mermaid code blocks as SVG in the browser. `strict` overrides
-    // the plugin's `loose` default: diagrams are contributor-written, so no
-    // click callbacks or raw HTML in labels.
-    pluginMermaid({ mermaidConfig: { securityLevel: 'strict' } }),
+    pluginStripInternalFrontmatter(),
   ],
   builderConfig: {
     plugins: [pluginSass()],
@@ -140,6 +142,15 @@ export default defineConfig({
       // ovh_delta.js is loaded dynamically from useEffect (see
       // components/Analytics) to guarantee React hydration completes first.
       tags: [
+        {
+          // Hides the navbar's Developers links before first paint when they
+          // are about to follow `?from` / a remembered hub (no flash of the
+          // default hub). See config/hub-region-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: hubRegionHeadScript,
+        },
         {
           // Trailing-slash normalization — mirrors rspress.config.build.ts.
           // Strips a trailing slash from locale-prefixed paths and replace()s
@@ -155,6 +166,33 @@ export default defineConfig({
             '}})();',
           ].join(''),
         },
+        // Cookie policy for a region the CMP does not cover yet (see
+        // config/regions.ts `cookieScript`).
+        ...(regionConfig.cookieScript
+          ? [
+              // The container calls jQuery as soon as it runs, so jQuery must
+              // run first. Both are deferred: deferred scripts run in document
+              // order. Not async: at SSG, Unhead sorts <head> by script type
+              // and moves async scripts ahead of every other one, whatever
+              // their order here.
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: { src: '/vendor/jquery-3.7.1.min.js', defer: true },
+              },
+              {
+                tag: 'script',
+                head: true,
+                append: true,
+                attrs: {
+                  src: regionConfig.cookieScript,
+                  defer: true,
+                  'data-analytics': '',
+                },
+              },
+            ]
+          : []),
         // Consent manager + analytics, only where the region runs them.
         ...(regionConfig.consentManager
           ? [
@@ -197,24 +235,33 @@ export default defineConfig({
         __AI_ASSISTANT__: JSON.stringify(regionConfig.aiAssistant),
         // Whether the CMP and its analytics run (see config/regions.ts).
         __CONSENT_MANAGER__: JSON.stringify(regionConfig.consentManager),
+        // Whether guides end with the page feedback form (see config/regions.ts).
+        __PAGE_FEEDBACK__: JSON.stringify(regionConfig.pageFeedback),
+        // Survey opened by theme/components/SurveyWidget (see config/regions.ts).
+        __SURVEY_URL__: JSON.stringify(regionConfig.surveyUrl),
         // Legal footer values, consumed by theme/components/SiteFooter. It
         // renders in the browser and cannot import config/regions.
         __FOOTER_COPYRIGHT__: JSON.stringify(regionConfig.copyright),
         __FOOTER_CORPORATE_URL__: JSON.stringify(regionConfig.corporateUrl),
         __FOOTER_LEGAL_NOTICE__: JSON.stringify(regionConfig.legalNotice ?? ''),
         __FOOTER_LINKS__: JSON.stringify(regionConfig.footerLinks ?? []),
+        // Fixed language label for single-locale regions (see config/regions.ts).
+        __LOCALE_INDICATOR__: JSON.stringify(
+          regionConfig.localeIndicator ?? null,
+        ),
         FEEDBACK_API_URL: JSON.stringify(process.env.FEEDBACK_API_URL ?? ''),
         SENTRY_DSN: JSON.stringify(process.env.SENTRY_DSN ?? ''),
         SENTRY_ENVIRONMENT: JSON.stringify(
           process.env.SENTRY_ENVIRONMENT ?? '',
         ),
-        // Hide the language switcher on single-locale regions (e.g. US).
+        // Regions served without a /{locale}/ URL segment (none today).
         __SINGLE_LOCALE__: JSON.stringify(!regionConfig.localePrefix),
         // Mirrors rspress.config.build.ts — consumed by
         // theme/components/SEOHead. Uses the region's full locale list, not the
         // DEV_LOCALES subset, so dev matches the production markup.
         __SITE_URL__: JSON.stringify(regionConfig.siteUrl),
         __LOCALES__: JSON.stringify(regionConfig.locales),
+        __HTML_LANG_MAP__: JSON.stringify(regionConfig.htmlLang ?? {}),
       },
     },
     resolve: {
@@ -229,19 +276,23 @@ export default defineConfig({
       },
     },
     tools: {
-      rspack: {
-        // react-router guards a code path with Vite's `import.meta.hot`. Rspack
-        // implements HMR through `import.meta.webpackHot`, so it reports `hot`
-        // as an unknown `import.meta` property and substitutes `undefined` —
-        // which is exactly what the guard wants (the branch is dead outside
-        // Vite, and it is additionally gated on `isSpaMode`, never set here).
-        // Harmless, but printed on every dev start, so filter it out.
-        //
-        // Not needed in rspress.config.build.ts: that config sets
-        // `logLevel: 'error'`, which already hides build warnings.
-        // Remove once react-router stops shipping the Vite-only guard.
-        ignoreWarnings: [/Accessing unknown `import\.meta` property 'hot'/],
-      },
+      rspack: [
+        // Mermaid's bundled js-yaml swapped for the js-yaml package
+        swapMermaidJsYaml(__dirname),
+        {
+          // react-router guards a code path with Vite's `import.meta.hot`. Rspack
+          // implements HMR through `import.meta.webpackHot`, so it reports `hot`
+          // as an unknown `import.meta` property and substitutes `undefined` —
+          // which is exactly what the guard wants (the branch is dead outside
+          // Vite, and it is additionally gated on `isSpaMode`, never set here).
+          // Harmless, but printed on every dev start, so filter it out.
+          //
+          // Not needed in rspress.config.build.ts: that config sets
+          // `logLevel: 'error'`, which already hides build warnings.
+          // Remove once react-router stops shipping the Vite-only guard.
+          ignoreWarnings: [/Accessing unknown `import\.meta` property 'hot'/],
+        },
+      ],
     },
   },
   globalStyles: path.join(__dirname, 'styles/index.css'),
@@ -259,6 +310,9 @@ export default defineConfig({
   locales: [...activeLocales],
   markdown: {
     remarkPlugins: [
+      // ```mermaid → <MermaidDiagram> (scaled down to the column when wider —
+      // config/mermaid.ts). Source passed verbatim.
+      remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
       remarkNoUnresolvedFragments,
@@ -268,6 +322,8 @@ export default defineConfig({
       // Must stay AFTER remarkNoUnresolvedCpnav: the gate reads the CP-NAV markers that
       // cpnav-rules.ts emits, and there is no point gating a block whose token is broken.
       remarkCpNavGate,
+      // Last: every plugin above may still read the internal frontmatter keys.
+      remarkStripInternalFrontmatter,
     ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
@@ -279,6 +335,7 @@ export default defineConfig({
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
       path.join(__dirname, 'components/Banner/Banner.tsx'),
+      path.join(__dirname, 'components/MermaidDiagram/MermaidDiagram.tsx'),
     ],
     link: {
       checkDeadLinks: true,
@@ -318,9 +375,7 @@ export default defineConfig({
   ssg: { experimentalWorker: true },
   llms: true,
   themeConfig: {
-    outline: { level: [2, 5] },
     enableScrollToTop: true,
-    hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // See rspress.config.build.ts for rationale — disabled here too for dev parity
     localeRedirect: 'never',

@@ -38,7 +38,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { regionConfig } from '../config/regions';
+import { REGION, regionConfig } from '../config/regions';
 import { parseIndexMd } from '../config/sidebar/parser';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -83,7 +83,7 @@ function main() {
   //    A secondary region (e.g. US, with its own index-us.md) only seeds the
   //    keys it needs and never prunes — otherwise every EU key would look
   //    "obsolete" from the US run's perspective.
-  const isPrimaryRegion = regionConfig.localePrefix;
+  const isPrimaryRegion = REGION === 'eu';
   const existingGenKeys = Object.keys(i18n).filter((k) =>
     k.startsWith('sidebar.gen.'),
   );

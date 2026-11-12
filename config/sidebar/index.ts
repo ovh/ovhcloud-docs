@@ -18,9 +18,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 // In dev mode, only generate sidebar for active locales (perf optimization).
 // EU defaults to fr+en for speed; a single-locale region defaults to its locale.
-const devLocaleDefault = regionConfig.localePrefix
-  ? 'fr,en'
-  : regionConfig.defaultLocale;
+const devLocaleDefault =
+  regionConfig.locales.length > 1 ? 'fr,en' : regionConfig.defaultLocale;
 const devLocaleList = isDev
   ? (process.env.DEV_LOCALES || devLocaleDefault)
       .split(',')
@@ -75,7 +74,7 @@ function createSidebar(locale: Locale) {
 
   // Curated supplements (header links to /guides/* + Security section) reference
   // EU account guides. Regions without those guides (e.g. US) opt out to avoid
-  // dead sidebar links — they keep only the external header links.
+  // dead sidebar links — they keep only the home and the external header links.
   const headerItems = getHeaderItems(locale);
   const resolvedHeader = regionConfig.includeSupplements
     ? headerItems
@@ -83,7 +82,8 @@ function createSidebar(locale: Locale) {
         (item) =>
           'sectionHeaderText' in item ||
           (typeof (item as { link?: string }).link === 'string' &&
-            (item as { link: string }).link.startsWith('http')),
+            ((item as { link: string }).link === '/' ||
+              (item as { link: string }).link.startsWith('http'))),
       );
 
   return [

@@ -23,11 +23,32 @@ export const LINK_RULES: LinkRule[] = [
     // UK auth entry point (ovhSubsidiary=GB) pointing at the EUROPEAN manager,
     // inherited verbatim from the EU article this one was copied from. It is
     // both a build failure and simply wrong on a US site.
-    // Target is the form used by 473 other pages in this corpus.
+    // Target is the US Control Panel root.
     reason: 'remarkNoManagerHardcoded — UK/EU auth URL on a US page',
     search:
       /https:\/\/www\.ovh\.com\/auth\/\?onsuccess=https:\/\/manager\.eu\.ovhcloud\.com\/[^\s)]*/g,
-    replace: 'https://us.ovhcloud.com/manager/',
+    replace: 'https://manager.us.ovhcloud.com/',
+  },
+  {
+    // The Zendesk articles link the Control Panel through its legacy address
+    // (us.ovhcloud.com/manager, ~570 links), which now redirects to
+    // manager.us.ovhcloud.com. Plain and percent-encoded (auth `onsuccess=`)
+    // forms alike; the path after /manager is kept.
+    reason: 'legacy US Control Panel host',
+    search:
+      /(\/\/|%2F%2F)us\.ovhcloud\.com(?:\/|%2F)manager(?=[/%&?#)\]\s\\"'`]|$)/g,
+    replace: '$1manager.us.ovhcloud.com',
+  },
+  {
+    // Same move for the sign-in page: us.ovhcloud.com/auth now redirects to
+    // auth.us.ovhcloud.com/signin/, query string (onsuccess, action...) kept.
+    // The trailing slash is always written: /signin without it is a 404.
+    // Only the page itself: /auth/sso/…, /auth/api/… and /auth/oauth2/… are
+    // other services, and `https://us.ovhcloud.com/auth/` in inline code is
+    // the SAML entity ID, which has not changed.
+    reason: 'legacy US sign-in host',
+    search: /\/\/us\.ovhcloud\.com\/auth\/?(?=[?)\]])/g,
+    replace: '//auth.us.ovhcloud.com/signin/',
   },
 ];
 

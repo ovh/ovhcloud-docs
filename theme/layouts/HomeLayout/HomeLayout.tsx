@@ -1,17 +1,19 @@
+import { ProductBanner } from '@components/ProductBanner';
 import { useI18n, useLocation, usePageData } from '@rspress/core/runtime';
-import { IconMenu, SvgWrapper } from '@rspress/core/theme';
-import { HomeFooter } from '@theme-original';
+import { HomeFooter, IconMenu, SvgWrapper } from '@theme-original';
 import clsx from 'clsx';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { HomeClosing } from 'theme/components/HomeClosing';
 import { HomeExplore } from 'theme/components/HomeExplore';
-import { HomeFeature } from 'theme/components/HomeFeature';
 import { HomeHero } from 'theme/components/HomeHero';
 import { HomeQuickstart } from 'theme/components/HomeQuickstart';
-import { HomeUsecases } from 'theme/components/HomeUsecases';
+import { HomeTutorials } from 'theme/components/HomeTutorials';
+import { OverviewGoFurther } from 'theme/components/OverviewGoFurther';
 import { Sidebar } from 'theme/components/Sidebar';
-import './HomeLayout.scss';
+import './home.css';
+import { useReveal } from './useReveal';
 
 export interface HomeLayoutProps {
   beforeHero?: React.ReactNode;
@@ -90,13 +92,33 @@ function useHomeSidebarMenu() {
   };
 }
 
+interface HomeBannerFrontmatter {
+  banner?: boolean;
+  goFurther?: { title?: string; items?: { title: string; link: string }[] };
+}
+
+/**
+ * The home page and the US universe pages (`pageType: home`) — the Matière
+ * prototype's Docs page (proto/docs-matiere.html): the sidebar, a compact
+ * hero with the generative effect, Explore (icon cards), Quick Start (a
+ * carousel), Tutorials (framed rows), a closing block, then the footer.
+ *
+ * US universe pages set `banner: true` and get the product-landing banner and
+ * "Go further" instead of the hero and closing (same frontmatter keys as
+ * LandingLayout). Under `__SSR_MD__` theme/index.tsx renders Rspress's own
+ * HomeLayout instead, so the .md export never sees this markup.
+ */
 export function HomeLayout(props: HomeLayoutProps) {
   const { beforeHero, afterHero, beforeFeatures, afterFeatures } = props;
   const {
-    page: { frontmatter, routePath },
+    page: { frontmatter },
   } = usePageData();
+  const t = useI18n();
+  const { banner, goFurther } = frontmatter as HomeBannerFrontmatter;
 
   const { sidebarMenu, isSidebarOpen, sidebarLayoutRef } = useHomeSidebarMenu();
+  const mainRef = useRef<HTMLElement>(null);
+  useReveal(mainRef);
 
   return (
     <>
@@ -112,21 +134,40 @@ export function HomeLayout(props: HomeLayoutProps) {
         >
           <Sidebar />
         </aside>
-        <div className="rp-home-layout__content">
-          <div className="relative">
-            <div className="pb-12">
-              {beforeHero}
-              <HomeHero frontmatter={frontmatter} routePath={routePath} />
-              {afterHero}
-              {beforeFeatures}
-              <HomeFeature frontmatter={frontmatter} routePath={routePath} />
-              {afterFeatures}
-              <HomeExplore />
-              <HomeQuickstart />
-              <HomeUsecases />
-            </div>
-            <HomeFooter />
-          </div>
+        {/* A <div class="rp-…-layout__content"> right after the sidebar: the
+            shape scripts/preprocess-html-worker.ts moves ahead of the nav in
+            the served HTML (styles/index.css keeps the visual order). */}
+        <div className="rp-home-layout__content ovh-home">
+          <main ref={mainRef}>
+            {/* Target of the navbar's "Skip to content" link. */}
+            <span id="ovh-content" tabIndex={-1} />
+            {beforeHero}
+            {banner ? (
+              <div className="ovh-home-banner">
+                <ProductBanner />
+              </div>
+            ) : (
+              <HomeHero />
+            )}
+            {afterHero}
+            {beforeFeatures}
+            {afterFeatures}
+            <HomeExplore />
+            <HomeQuickstart />
+            <HomeTutorials />
+            {goFurther?.items && goFurther.items.length > 0 && (
+              <div className="ovh-home-go-further">
+                <OverviewGoFurther
+                  title={goFurther.title || t('overview.goFurtherTitle')}
+                  items={goFurther.items}
+                />
+              </div>
+            )}
+            {!banner && <HomeClosing />}
+            {/* themeConfig.footer: the copyright line and, in the EU, the
+              privacy-centre trigger the consent manager requires. */}
+          </main>
+          <HomeFooter />
         </div>
       </div>
     </>

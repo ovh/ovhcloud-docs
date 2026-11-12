@@ -249,6 +249,27 @@ const STRINGS: Record<string, Strings> = {
 export function DnsResolution() {
   const lang = useLang();
   const t = STRINGS[lang] ?? STRINGS.en;
+  // `.md` export: the three stages in words, from the same strings.
+  if (process.env.__SSR_MD__) {
+    return (
+      <>
+        <p>{t.intro}</p>
+        <ol>
+          <li>
+            {t.typed} ({t.lan}): <code>{DOMAIN}</code>
+          </li>
+          <li>
+            {t.dnsTitle} ({t.dnsSub}): <code>{DOMAIN}</code> {t.interpreted}{' '}
+            <code>{IP}</code>
+          </li>
+          <li>
+            {t.hostingTitle} (<code>{IP}</code>): {t.displayed}
+          </li>
+        </ol>
+        <p>{t.note}</p>
+      </>
+    );
+  }
   return (
     <figure className="dns-res">
       <figcaption className="dns-res__intro">{t.intro}</figcaption>
