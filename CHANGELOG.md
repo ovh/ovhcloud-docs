@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026.11.10
+
+### Features
+
+#### EU
+- **pci ai v8:** notebooks, training, deploy, endpoints, ecosystem an… (#1100)
+
+### Fixes
+
+#### US
+- **docs-us:** rename 'Creating a volume from a backup' to 'from a volume snapshot'
+
+#### All regions
+- **build:** keep internal frontmatter keys out of the published site
+
+### Documentation
+- EU: 481 guides across de, en, es, fr, it, pl, pt
+- US: 3 guides across en
+
 ## 2026.11.09.1
 
 ### Fixes
