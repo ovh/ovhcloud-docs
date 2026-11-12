@@ -2,6 +2,11 @@
 
 ## 2026.11.12
 
+### Features
+
+#### All regions
+- **nav:** drop the Labs tab from the US navbar
+
 ### Documentation
 - EU: 208 guides across de, en, es, fr, it, pl, pt
 
