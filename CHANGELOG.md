@@ -7,8 +7,14 @@
 #### EU
 - **pci ai v8:** notebooks, training, deploy, endpoints, ecosystem an… (#1100)
 
+### Fixes
+
+#### US
+- **docs-us:** rename 'Creating a volume from a backup' to 'from a volume snapshot'
+
 ### Documentation
 - EU: 474 guides across de, en, es, fr, it, pl, pt
+- US: 2 guides across en
 
 ## 2026.11.09.1
 
