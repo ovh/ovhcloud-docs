@@ -16,8 +16,8 @@
 - **build:** keep internal frontmatter keys out of the published site
 
 ### Documentation
-- EU: 474 guides across de, en, es, fr, it, pl, pt
-- US: 2 guides across en
+- EU: 481 guides across de, en, es, fr, it, pl, pt
+- US: 3 guides across en
 
 ## 2026.11.09.1
 
