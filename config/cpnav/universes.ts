@@ -48,4 +48,34 @@ export const CPNAV_UNIVERSES: Record<
     pl: { text: 'Kliknij swoją nazwę w prawym górnym rogu' },
     pt: { text: 'Clique no seu nome no canto superior direito' },
   },
+  // The Console's account menu: its button shows the person's initials (navbar.account_menu).
+  'console-account-menu': {
+    en: { text: 'Click your initials in the top right' },
+    fr: { text: 'Cliquez sur vos initiales en haut à droite' },
+    de: { text: 'Klicken Sie oben rechts auf Ihre Initialen' },
+    es: { text: 'Haga clic en sus iniciales en la parte superior derecha' },
+    it: { text: 'Clicca sulle tue iniziali in alto a destra' },
+    pl: { text: 'Kliknij swoje inicjały w prawym górnym rogu' },
+    pt: { text: 'Clique nas suas iniciais no canto superior direito' },
+  },
+  // The Console's left-hand menu, for its top-level entries (customer-sidebar items.*).
+  'console-left-menu': {
+    en: { text: 'In the left-hand menu' },
+    fr: { text: 'Dans le menu de gauche' },
+    de: { text: 'Im linken Menü' },
+    es: { text: 'En el menú de la izquierda' },
+    it: { text: 'Nel menu a sinistra' },
+    pl: { text: 'W menu po lewej stronie' },
+    pt: { text: 'No menu à esquerda' },
+  },
+  // The Console's left-hand menu group "My account" (customer-sidebar items.account).
+  'console-my-account': {
+    en: { text: 'In the left-hand menu, {0}', labels: ['My account'] },
+    fr: { text: 'Dans le menu de gauche, {0}', labels: ['Mon compte'] },
+    de: { text: 'Im linken Menü {0}', labels: ['Mein Account'] },
+    es: { text: 'En el menú de la izquierda, {0}', labels: ['Mi cuenta'] },
+    it: { text: 'Nel menu a sinistra, {0}', labels: ['Il mio account'] },
+    pl: { text: 'W menu po lewej stronie, {0}', labels: ['Moje konto'] },
+    pt: { text: 'No menu à esquerda, {0}', labels: ['A minha conta'] },
+  },
 };

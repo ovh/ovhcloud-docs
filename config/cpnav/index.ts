@@ -8,17 +8,26 @@
 // a move changes the canonical spelling of every multi-key token containing the key.
 
 import { accountContacts } from './keys/account-contacts';
+import { accountContactsConsole } from './keys/account-contacts-console';
 import { accountDashboard } from './keys/account-dashboard';
+import { accountCarbonConsole } from './keys/account-carbon-console';
 import { accountMessages } from './keys/account-messages';
+import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
+import { accountProfileConsole } from './keys/account-profile-console';
 import { accountSecurity } from './keys/account-security';
+import { accountSecurityConsole } from './keys/account-security-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
 import { baremetalVps } from './keys/baremetal-vps';
 import { billingInvoices } from './keys/billing-invoices';
+import { billingInvoicesConsole } from './keys/billing-invoices-console';
 import { billingOrders } from './keys/billing-orders';
+import { billingOrdersConsole } from './keys/billing-orders-console';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
+import { billingPaymentMethodsConsole } from './keys/billing-payment-methods-console';
 import { billingServices } from './keys/billing-services';
+import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
 import { iamPolicies } from './keys/iam-policies';
 import { iamSamlSso } from './keys/iam-saml-sso';
@@ -273,14 +282,23 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.
   'account-dashboard': accountDashboard,
+  'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
+  'account-profile-console': accountProfileConsole,
   'account-security': accountSecurity,
+  'account-security-console': accountSecurityConsole,
   'account-contacts': accountContacts,
+  'account-contacts-console': accountContactsConsole,
   'account-messages': accountMessages,
+  'account-messages-console': accountMessagesConsole,
   'billing-orders': billingOrders,
+  'billing-orders-console': billingOrdersConsole,
   'billing-invoices': billingInvoices,
+  'billing-invoices-console': billingInvoicesConsole,
   'billing-payment-methods': billingPaymentMethods,
+  'billing-payment-methods-console': billingPaymentMethodsConsole,
   'billing-services': billingServices,
+  'billing-services-console': billingServicesConsole,
 };
 
 /**

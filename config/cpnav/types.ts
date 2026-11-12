@@ -28,7 +28,10 @@ export type UniverseId =
   | 'network'
   | 'telecom'
   | 'identity-security-operations'
-  | 'account-menu';
+  | 'account-menu'
+  | 'console-account-menu'
+  | 'console-left-menu'
+  | 'console-my-account';
 
 /**
  * One step of the navigation path.
