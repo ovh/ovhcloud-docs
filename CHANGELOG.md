@@ -12,6 +12,9 @@
 #### US
 - **docs-us:** rename 'Creating a volume from a backup' to 'from a volume snapshot'
 
+#### All regions
+- **build:** keep internal frontmatter keys out of the published site
+
 ### Documentation
 - EU: 474 guides across de, en, es, fr, it, pl, pt
 - US: 2 guides across en
