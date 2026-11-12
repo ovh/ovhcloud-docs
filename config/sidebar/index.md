@@ -157,7 +157,7 @@
             + [Understanding the dedicated server boot process](bare-metal-cloud/dedicated-servers/boot-process)
             + [What is Encryption at Rest on a dedicated server?](bare-metal-cloud/dedicated-servers/encryption-at-rest-overview)
             + [Encryption at Rest requirements and limitations](bare-metal-cloud/dedicated-servers/encryption-at-rest-limitations)
-            + [Encryption at Rest FAQ](bare-metal-cloud/dedicated-servers/encryption-at-rest-faq)
+            + [Encryption at Rest on dedicated servers: FAQ](bare-metal-cloud/dedicated-servers/encryption-at-rest-faq)
         + [Getting Started](bare-metal-cloud-dedicated-servers-getting-started)
             + [How to get started with a dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server)
             + [How to get started with a Kimsufi, So you Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
