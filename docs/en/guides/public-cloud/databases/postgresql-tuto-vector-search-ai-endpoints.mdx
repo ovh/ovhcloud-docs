@@ -1,7 +1,7 @@
 ---
 title: Build a semantic search with AI Endpoints and Public Cloud Databases for PostgreSQL
 description: Find out how to turn your texts into vectors with AI Endpoints, store them in a managed PostgreSQL service with pgvector, and search them by meaning
-lastUpdated: 2026-11-10
+lastUpdated: 2026-11-13
 ---
 
 ## Objective
@@ -25,7 +25,7 @@ This tutorial is designed to help you as much as possible with common tasks. If 
 ## Requirements
 
 - A [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account.
-- A Public Cloud Databases for PostgreSQL service, version 17 or 18, that accepts connections from your machine (the [Configure incoming connections](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) guide explains how to authorise your IP address).
+- A Public Cloud Databases for PostgreSQL service, version 15 or later, that accepts connections from your machine (the [Configure incoming connections](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) guide explains how to authorise your IP address).
 - Command-line access to your service with the **avnadmin** user (the [Connect using the CLI](/guides/public-cloud/databases/postgresql-connect-cli) guide can help you to meet this requirement).
 - An AI Endpoints API key (see [Getting started with AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)).
 - A Python 3 environment with the `psycopg2-binary` package.
@@ -33,7 +33,7 @@ This tutorial is designed to help you as much as possible with common tasks. If 
 :::info
 On a project shared through IAM, only users with administrator rights can create an AI Endpoints API key. If you cannot create one, ask your project administrator.
 
-Without a key, AI Endpoints accepts 2 requests per minute per model: enough to try the examples below, not to process a corpus.
+Without a key, AI Endpoints accepts 2 requests per minute per model: enough to try the examples below, not to process a corpus. Beyond that, calls fail with `API rate limit exceeded` (HTTP 429).
 :::
 
 ## Instructions
@@ -42,7 +42,7 @@ Without a key, AI Endpoints accepts 2 requests per minute per model: enough to t
 
 #### Install the extension
 
-Connect as **avnadmin** to the database you will use, for example `defaultdb`, and install the extension. Its name in SQL is `vector`:
+Connect as **avnadmin** to the database you will use, for example `defaultdb`, and install the extension. Its name in SQL is `vector`. pgvector 0.8.7 is available from PostgreSQL 15 to 18:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -63,6 +63,18 @@ Then set its password with psql's `\password` meta-command:
 defaultdb=> \password rag_app
 ```
 
+:::info
+On PostgreSQL 15, `CREATE SCHEMA` fails with `must be member of role "rag_app"`. Make **avnadmin** a member of the role for the time of the command:
+
+```sql
+GRANT "rag_app" TO avnadmin;
+CREATE SCHEMA "rag" AUTHORIZATION "rag_app";
+REVOKE "rag_app" FROM avnadmin;
+```
+
+From PostgreSQL 16, **avnadmin** is a member of the roles it creates, so this step is not needed.
+:::
+
 :::warning
 A user created from the <code className="action">Users</code> tab of the OVHcloud Console or with the API cannot create tables: it gets `permission denied for schema public`, including in a database created from the Console. The schema owned by `rag_app` above solves this. For more ways to grant privileges, see [Manage users, roles and privileges](/guides/public-cloud/databases/postgresql-users-roles-grants).
 :::
@@ -82,7 +94,15 @@ The HNSW index of pgvector accepts:
 - up to **2,000 dimensions** on a `vector` column. Above, index creation fails with `column cannot have more than 2000 dimensions for hnsw index`;
 - up to **4,000 dimensions** on a `halfvec` column, which stores each value on 2 bytes instead of 4.
 
-`Qwen3-Embedding-8B` returns 4,096 dimensions by default, above both limits. Add the `dimensions` parameter to the request, for example `"dimensions": 1024`, to receive shorter vectors that fit a `vector` column.
+A `vector(d)` value takes 4 × d + 4 bytes and a `halfvec(d)` value 2 × d + 4 bytes. In our test with 2,000 rows of 1,024 dimensions, the table took 11 MB as `vector` and 5.6 MB as `halfvec`, and the HNSW index 5.6 MB and 4.3 MB.
+
+:::warning
+Choose the column type before loading your data. The dimension limit only shows when you create the index, after the vectors are stored.
+:::
+
+`Qwen3-Embedding-8B` returns 4,096 dimensions by default, above both limits. Add the `dimensions` parameter to the request, for example `"dimensions": 1024`, to receive shorter vectors that fit a `vector` column. It accepts a value from 32 to 4,096.
+
+Fewer dimensions mean a smaller table and index, at the cost of some precision. In our test with three passages and three questions, each question still found the right passage at 1,024 and at 256 dimensions, with a smaller lead over the next passage at 256. Compare a few values on your own data before choosing: up to 2,000 dimensions in a `vector` column, up to 4,000 in a `halfvec` column.
 
 This tutorial uses `bge-m3`, multilingual and the fastest of the three.
 
@@ -200,6 +220,19 @@ To check that the index is used, prefix the query with `EXPLAIN ANALYZE`. On a t
 :::info
 Always use the same model, and the same `dimensions` value for `Qwen3-Embedding-8B`, for your texts and for your questions. Vectors from two different models cannot be compared.
 :::
+
+## Troubleshooting
+
+| Error | Cause and fix |
+|---|---|
+| `permission denied for schema public` | The user was created from the Console or the API. Create the application role and its schema in SQL as **avnadmin**, as in [Step 1](#step-1---prepare-the-database). |
+| `must be member of role "rag_app"` | PostgreSQL 15 only. Grant the role to **avnadmin** before `CREATE SCHEMA`, then revoke it. |
+| `column cannot have more than 2000 dimensions for hnsw index` | The vectors have more than 2,000 dimensions. Use a `halfvec` column, or ask `Qwen3-Embedding-8B` for fewer dimensions. |
+| `column cannot have more than 4000 dimensions for hnsw index` | Even a `halfvec` column is limited to 4,000 dimensions. Use the `dimensions` parameter of `Qwen3-Embedding-8B`. |
+| HTTP 400 `given batch size overflow maximal one` | More than 25 texts in one request. Send them in batches of 25. |
+| HTTP 400 `` `dimensions` field must be between 32 and 4096 `` | The `dimensions` value is outside the range the model accepts. |
+| HTTP 403 `Forbidden: authentication failed` | The API key is invalid, expired or revoked. Generate a new one. |
+| HTTP 429 `API rate limit exceeded` | Without a key, 2 requests per minute per model. Use an API key, or wait between requests. |
 
 ## Go further
 
