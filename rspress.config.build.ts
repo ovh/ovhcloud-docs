@@ -10,9 +10,11 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
+import { appearanceHeadScript } from './config/appearance-head-script';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
+import { hubRegionHeadScript } from './config/hub-region-script';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import {
@@ -25,6 +27,7 @@ import type { Locale } from './config/shared';
 import { locales } from './config/shared';
 import { sidebar } from './config/sidebar';
 import { pluginLastUpdatedFromFrontmatter } from './plugins/lastUpdatedFromFrontmatter';
+import { swapMermaidJsYaml } from './plugins/mermaidJsYaml';
 import { rehypeLazyImages } from './plugins/rehypeLazyImages';
 import { remarkCpNavGate } from './plugins/remarkCpNavGate';
 import { remarkMermaid } from './plugins/remarkMermaid';
@@ -34,6 +37,10 @@ import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
+import {
+  pluginStripInternalFrontmatter,
+  remarkStripInternalFrontmatter,
+} from './plugins/stripInternalFrontmatter';
 
 const locale = process.env.LOCALE || regionConfig.defaultLocale;
 const BASE_DIR = process.cwd();
@@ -126,11 +133,16 @@ export default defineConfig({
   lang: locale,
 
   // lastUpdated comes from frontmatter, not the built-in (avoids 80k+ git calls)
-  plugins: [pluginLastUpdatedFromFrontmatter()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    pluginStripInternalFrontmatter(),
+  ],
 
   builderConfig: {
     logLevel: 'error',
     plugins: [pluginSass()],
+    // Mermaid's bundled js-yaml swapped for the js-yaml package
+    tools: { rspack: swapMermaidJsYaml(BASE_DIR) },
     html: {
       // jQuery loaded statically so window.jQuery is available globally
       // before ovh_delta.js runs. ovh_delta.js itself is loaded dynamically
@@ -140,6 +152,24 @@ export default defineConfig({
       // not-fully-hydrated DOM and silently fails to inject. Dynamic
       // injection from useEffect guarantees React has hydrated first.
       tags: [
+        {
+          // Lights the navbar's appearance switch (system / light / dark)
+          // on the chosen segment before first paint. See
+          // config/appearance-head-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: appearanceHeadScript,
+        },
+        {
+          // Hides the navbar's Developers links before first paint when they
+          // are about to follow `?from` / a remembered hub (no flash of the
+          // default hub). See config/hub-region-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: hubRegionHeadScript,
+        },
         ...(htmlLangFor(regionConfig, locale) !== locale
           ? [
               {
@@ -307,9 +337,11 @@ export default defineConfig({
       // the real (hashed, per-locale) asset graph, sets as="style"/as="font" and
       // adds crossorigin on fonts automatically — no hardcoded hrefs to rot on
       // the next build. Scoped to css + woff2 only to avoid over-preloading JS.
+      // Only Source Sans Pro among the fonts: JetBrains Mono draws the
+      // navbar's five-character `> DOCS_` tag and swaps in when it lands.
       preload: {
         type: 'all-chunks',
-        include: [/\.css$/, /\.woff2$/],
+        include: [/\.css$/, /source-sans-pro[^/]*\.woff2$/],
       },
     },
   },
@@ -329,8 +361,8 @@ export default defineConfig({
   markdown: {
     crossCompilerCache: true,
     remarkPlugins: [
-      // ```mermaid → <MermaidDiagram> (natural size, scroll when wider than the
-      // column — config/mermaid.ts). Source passed verbatim.
+      // ```mermaid → <MermaidDiagram> (scaled down to the column when wider —
+      // config/mermaid.ts). Source passed verbatim.
       remarkMermaid,
       remarkNoManagerHardcoded,
       remarkNoApiHardcoded,
@@ -339,6 +371,8 @@ export default defineConfig({
       remarkNoUnresolvedTerm,
       remarkNoDatelessGuide,
       remarkCpNavGate,
+      // Last: every plugin above may still read the internal frontmatter keys.
+      remarkStripInternalFrontmatter,
     ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
@@ -391,9 +425,7 @@ export default defineConfig({
   ssg: { experimentalWorker: true },
 
   themeConfig: {
-    outline: { level: [2, 5] },
     enableScrollToTop: true,
-    hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // Disable Rspress's auto-redirect based on navigator.language.
     // It assumes a single-build multi-locale setup; in our per-locale-build
