@@ -120,6 +120,7 @@ import { telecomOtb } from './keys/telecom-otb';
 import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
+import { telecomXdslFttxConsole } from './keys/telecom-xdsl-fttx-console';
 import { webCloudDatabases } from './keys/web-cloud-databases';
 import { webDnsZoneOrder } from './keys/web-dns-zone-order';
 import { webDnsZones } from './keys/web-dns-zones';
@@ -264,6 +265,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'telecom-voip-fax': telecomVoipFax,
   'telecom-sms': telecomSms,
   'telecom-xdsl-fttx': telecomXdslFttx,
+  'telecom-xdsl-fttx-console': telecomXdslFttxConsole,
   'telecom-otb': telecomOtb,
   // --- Identity, Security & Operations ------------------------------------------------
   // The tree groups these under `Identity and access management`, `Security` and
