@@ -5,6 +5,7 @@
 ### Features
 
 #### All regions
+- **theme:** restyle the AI assistant button for the new theme
 - **nav:** drop the Labs tab from the US navbar
 
 ### Fixes
