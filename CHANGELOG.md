@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.11.13
+
+### Features
+
+#### All regions
+- **nav:** drop the Labs tab from the US navbar
+
+### Fixes
+
+#### All regions
+- **nav:** stop the navbar's first row stretching on mobile
+
 ## 2026.11.12
 
 ### Features
