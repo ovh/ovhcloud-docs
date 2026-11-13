@@ -30,6 +30,7 @@ import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
 import { iamTagManagement } from './keys/iam-tag-management';
 import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
+import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
@@ -283,6 +284,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'security-kms': securityKms,
   'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
+  'logs-data-platform-console': logsDataPlatformConsole,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.

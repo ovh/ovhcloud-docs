@@ -49,6 +49,18 @@ export const CPNAV_UNIVERSES: Record<
     pl: 'Zarządzanie tożsamością i dostępem',
     pt: 'Gestão de identidades e acessos',
   },
+  // The Console's (v8) Observability side-menu group (transverse.group.observability), present
+  // under every universe. Only for the Console twin of the Logs Data Platform key, until it is
+  // repointed at its GA.
+  observability: {
+    en: 'Observability',
+    fr: 'Observabilité',
+    de: 'Observability',
+    es: 'Observabilidad',
+    it: 'Osservabilità',
+    pl: 'Observability',
+    pt: 'Observabilidade',
+  },
   // Not top navigation and not clickable, so every locale carries its own wording.
   'account-menu': {
     en: { text: 'Click your name in the top right' },
