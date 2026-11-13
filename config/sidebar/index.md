@@ -2720,6 +2720,8 @@
                 + [HA-NAS - Configuring the ZFS settings of a partition](storage-and-backup/file-storage/ha-nas/nas-zfs-settings)
                 + [HA-NAS - Managing partitions via API](storage-and-backup/file-storage/ha-nas/nas-partitions-api)
                 + [HA-NAS - Managing snapshots via API](storage-and-backup/file-storage/ha-nas/nas-snapshots-api)
+                + [HA-NAS - Private network configuration (Beta)](storage-and-backup/file-storage/ha-nas/nas-network-config)
+                + [HA-NAS - Connect a Public Cloud instance to a HA-NAS volume via vRack (Beta)](storage-and-backup/file-storage/ha-nas/nas-pci-connection-via-vrack)
             + [Migration](storage-file-storage-ha-nas-migration)
                 + [Migrating data from one HA-NAS to another via NFS](storage-and-backup/file-storage/ha-nas/nas-migration)
             + [Additional resources](storage-file-storage-ha-nas-additional-resources)
