@@ -116,6 +116,8 @@ import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-sto
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
+import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
+import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomSms } from './keys/telecom-sms';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
@@ -181,6 +183,8 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
     storageEnterpriseFileStorageConsole,
   'storage-nas-ha': storageNasHa,
   'storage-nas-ha-console': storageNasHaConsole,
+  'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
+  'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
