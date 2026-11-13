@@ -11,9 +11,11 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import { appearanceHeadScript } from './config/appearance-head-script';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
+import { hubRegionHeadScript } from './config/hub-region-script';
 import { generateLinkRules } from './config/link-rules';
 import { nav } from './config/nav';
 import { regionConfig } from './config/regions';
@@ -30,6 +32,10 @@ import { remarkNoManagerHardcoded } from './plugins/remarkNoManagerHardcoded';
 import { remarkNoUnresolvedCpnav } from './plugins/remarkNoUnresolvedCpnav';
 import { remarkNoUnresolvedFragments } from './plugins/remarkNoUnresolvedFragments';
 import { remarkNoUnresolvedTerm } from './plugins/remarkNoUnresolvedTerm';
+import {
+  pluginStripInternalFrontmatter,
+  remarkStripInternalFrontmatter,
+} from './plugins/stripInternalFrontmatter';
 
 // Dev performance: only serve selected locales (default: fr + en)
 const allLocales = [
@@ -126,7 +132,10 @@ const pathExcludes = devPath
 
 export default defineConfig({
   root: path.join(__dirname, regionConfig.contentDir),
-  plugins: [pluginLastUpdatedFromFrontmatter()],
+  plugins: [
+    pluginLastUpdatedFromFrontmatter(),
+    pluginStripInternalFrontmatter(),
+  ],
   builderConfig: {
     plugins: [pluginSass()],
     html: {
@@ -134,6 +143,24 @@ export default defineConfig({
       // ovh_delta.js is loaded dynamically from useEffect (see
       // components/Analytics) to guarantee React hydration completes first.
       tags: [
+        {
+          // Lights the navbar's appearance switch (system / light / dark)
+          // on the chosen segment before first paint. See
+          // config/appearance-head-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: appearanceHeadScript,
+        },
+        {
+          // Hides the navbar's Developers links before first paint when they
+          // are about to follow `?from` / a remembered hub (no flash of the
+          // default hub). See config/hub-region-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: hubRegionHeadScript,
+        },
         {
           // Trailing-slash normalization — mirrors rspress.config.build.ts.
           // Strips a trailing slash from locale-prefixed paths and replace()s
@@ -305,6 +332,8 @@ export default defineConfig({
       // Must stay AFTER remarkNoUnresolvedCpnav: the gate reads the CP-NAV markers that
       // cpnav-rules.ts emits, and there is no point gating a block whose token is broken.
       remarkCpNavGate,
+      // Last: every plugin above may still read the internal frontmatter keys.
+      remarkStripInternalFrontmatter,
     ],
     rehypePlugins: [rehypeLazyImages],
     globalComponents: [
@@ -357,7 +386,6 @@ export default defineConfig({
   llms: true,
   themeConfig: {
     enableScrollToTop: true,
-    hideNavbar: 'auto',
     lastUpdated: false, // Display handled by custom LastUpdated component; value set by pluginLastUpdatedFromFrontmatter
     // See rspress.config.build.ts for rationale — disabled here too for dev parity
     localeRedirect: 'never',
