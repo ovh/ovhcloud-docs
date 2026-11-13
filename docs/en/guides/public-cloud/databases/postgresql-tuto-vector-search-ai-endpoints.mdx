@@ -6,27 +6,27 @@ lastUpdated: 2026-11-13
 
 ## Objective
 
-A semantic search finds texts by their meaning rather than by their exact words. Each text is turned into a vector, called an *embedding*, by an embedding model. Texts with a close meaning get close vectors, so a question can be matched with the passages that answer it, even when they share no word.
+A semantic search finds texts by their meaning rather than by their exact words. Each text is turned into a vector, called an *embedding*, by an embedding model. Texts with similar meanings get similar vectors, so a question can be matched with the passages that answer it, even when they share no words.
 
 This tutorial builds such a search end to end, entirely on OVHcloud:
 
 - [AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started) turns your texts and your questions into vectors;
 - a Public Cloud Databases for PostgreSQL service stores them with the `vector` extension (pgvector) and finds the closest ones with an HNSW index.
 
-It also covers the points to know before you start: the rights needed in PostgreSQL, the number of texts per request, and the column type to choose according to the model.
+It also covers what you need to know before you start: the rights needed in PostgreSQL, the number of texts per request, and the column type to choose according to the model.
 
 :::warning
 OVHcloud provides services for which you are responsible for their configuration and management. You are therefore responsible for their proper functioning.
 
-This tutorial is designed to help you as much as possible with common tasks. If you are having difficulty performing these actions, please contact a specialized service provider and/or discuss it with our community of users on [https://community.ovhcloud.com/](/links/community). OVHcloud can't provide you with technical support in this regard.
+This tutorial is designed to help you as much as possible with common tasks. If you are having difficulty performing these actions, please contact a specialised service provider and/or discuss it with our community of users on [https://community.ovhcloud.com/](/links/community). OVHcloud can't provide you with technical support in this regard.
 
 :::
 
 ## Requirements
 
 - A [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account.
-- A Public Cloud Databases for PostgreSQL service, version 15 or later, that accepts connections from your machine (the [Configure incoming connections](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) guide explains how to authorise your IP address).
-- Command-line access to your service with the **avnadmin** user (the [Connect using the CLI](/guides/public-cloud/databases/postgresql-connect-cli) guide can help you to meet this requirement).
+- A [Public Cloud Databases for PostgreSQL](/links/public-cloud/databases) service, version 15 or later, that accepts connections from your machine (the [Configure incoming connections](/guides/public-cloud/databases/postgresql-prepare-for-incoming-connections) guide explains how to authorise your IP address).
+- Command-line access to your service with the `avnadmin` user (the [Connect using the CLI](/guides/public-cloud/databases/postgresql-connect-cli) guide can help you to meet this requirement).
 - An AI Endpoints API key (see [Getting started with AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)).
 - A Python 3 environment with the `psycopg2-binary` package.
 
@@ -34,23 +34,26 @@ This tutorial is designed to help you as much as possible with common tasks. If 
 On a project shared through IAM, only users with administrator rights can create an AI Endpoints API key. If you cannot create one, ask your project administrator.
 
 Without a key, AI Endpoints accepts 2 requests per minute per model: enough to try the examples below, not to process a corpus. Beyond that, calls fail with `API rate limit exceeded` (HTTP 429).
+
 :::
+
+[[cpnav:publiccloud-databases-console|en]]
 
 ## Instructions
 
-### Step 1 - Prepare the database
+### Step 1 - Preparing the database
 
-#### Install the extension
+#### Installing the extension
 
-Connect as **avnadmin** to the database you will use, for example `defaultdb`, and install the extension. Its name in SQL is `vector`. pgvector 0.8.7 is available from PostgreSQL 15 to 18:
+Connect as `avnadmin` to the database you will use, for example `defaultdb`, and install the extension. Its name in SQL is `vector`. pgvector 0.8.7 is available from PostgreSQL 15 to 18:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-#### Create an application user with its own schema
+#### Creating an application user with its own schema
 
-Do not use **avnadmin** in your application: create a dedicated user. Create it **in SQL, as avnadmin**, and give it its own schema:
+Do not use `avnadmin` in your application: create a dedicated user **in SQL, as `avnadmin`**, and give it its own schema:
 
 ```sql
 CREATE ROLE "rag_app" LOGIN;
@@ -64,7 +67,7 @@ defaultdb=> \password rag_app
 ```
 
 :::info
-On PostgreSQL 15, `CREATE SCHEMA` fails with `must be member of role "rag_app"`. Make **avnadmin** a member of the role for the time of the command:
+On PostgreSQL 15, `CREATE SCHEMA` fails with `must be member of role "rag_app"`. Make `avnadmin` a member of the role for the time of the command:
 
 ```sql
 GRANT "rag_app" TO avnadmin;
@@ -72,16 +75,17 @@ CREATE SCHEMA "rag" AUTHORIZATION "rag_app";
 REVOKE "rag_app" FROM avnadmin;
 ```
 
-From PostgreSQL 16, **avnadmin** is a member of the roles it creates, so this step is not needed.
+From PostgreSQL 16, `avnadmin` is a member of the roles it creates, so this step is not needed.
 :::
 
 :::warning
-A user created from the <code className="action">Users</code> tab of the OVHcloud Console or with the API cannot create tables: it gets `permission denied for schema public`, including in a database created from the Console. The schema owned by `rag_app` above solves this. For more ways to grant privileges, see [Manage users, roles and privileges](/guides/public-cloud/databases/postgresql-users-roles-grants).
+A user created from the <code className="action">Users</code> tab of the OVHcloud Console or with the API cannot create tables: it gets `permission denied for schema public`, including in a database created from the OVHcloud Console. The schema owned by `rag_app` above solves this. For more ways to grant privileges, see [Manage users, roles and privileges](/guides/public-cloud/databases/postgresql-users-roles-grants).
+
 :::
 
-### Step 2 - Choose the model and the column type
+### Step 2 - Choosing the model and the column type
 
-AI Endpoints offers several embedding models. The size of their vectors, called the *dimension*, decides which column type you can index:
+AI Endpoints offers several embedding models. The size of their vectors, called the *dimension*, determines which column type you can index:
 
 | Model | Dimension | Context | Column type to index |
 |---|---|---|---|
@@ -91,7 +95,7 @@ AI Endpoints offers several embedding models. The size of their vectors, called 
 
 The HNSW index of pgvector accepts:
 
-- up to **2,000 dimensions** on a `vector` column. Above, index creation fails with `column cannot have more than 2000 dimensions for hnsw index`;
+- up to **2,000 dimensions** on a `vector` column. Beyond that, index creation fails with `column cannot have more than 2000 dimensions for hnsw index`;
 - up to **4,000 dimensions** on a `halfvec` column, which stores each value on 2 bytes instead of 4.
 
 A `vector(d)` value takes 4 × d + 4 bytes and a `halfvec(d)` value 2 × d + 4 bytes. In our test with 2,000 rows of 1,024 dimensions, the table took 11 MB as `vector` and 5.6 MB as `halfvec`, and the HNSW index 5.6 MB and 4.3 MB.
@@ -104,11 +108,11 @@ Choose the column type before loading your data. The dimension limit only shows 
 
 Fewer dimensions mean a smaller table and index, at the cost of some precision. In our test with three passages and three questions, each question still found the right passage at 1,024 and at 256 dimensions, with a smaller lead over the next passage at 256. Compare a few values on your own data before choosing: up to 2,000 dimensions in a `vector` column, up to 4,000 in a `halfvec` column.
 
-This tutorial uses `bge-m3`, multilingual and the fastest of the three.
+This tutorial uses `bge-m3`, which is multilingual and the fastest of the three.
 
-#### Create the table
+#### Creating the table
 
-Connected as `rag_app`, create the table in its schema:
+Connect as `rag_app` and create the table in its schema (for `bge-multilingual-gemma2`, declare `emb halfvec(3584)` instead of `emb vector(1024)`):
 
 ```sql
 CREATE TABLE rag.docs (
@@ -118,11 +122,9 @@ CREATE TABLE rag.docs (
 );
 ```
 
-For `bge-multilingual-gemma2`, declare `emb halfvec(3584)` instead.
+### Step 3 - Turning your texts into vectors
 
-### Step 3 - Turn your texts into vectors
-
-AI Endpoints exposes an OpenAI-compatible embeddings route. Send your texts **25 at most per request**: above, the request is refused with an HTTP 400 error, `given batch size overflow maximal one`.
+AI Endpoints exposes an OpenAI-compatible embeddings route. Send at most **25 texts per request**: beyond that, the request is rejected with an HTTP 400 error, `given batch size overflow maximal one`.
 
 ```python
 import json
@@ -155,7 +157,7 @@ def embed_all(texts, **kwargs):
 
 With an API key, AI Endpoints accepts 400 requests per minute per model. To embed a large corpus faster, send several batches in parallel within this limit.
 
-### Step 4 - Load the vectors into PostgreSQL
+### Step 4 - Loading the vectors into PostgreSQL
 
 ```python
 import psycopg2
@@ -184,19 +186,18 @@ conn.commit()
 
 Replace `<service-host>` and the port with the values shown in the **Connection information** section of your service.
 
-Once the data is loaded, create the HNSW index for the cosine distance:
+Once the data is loaded, create the HNSW index for the cosine distance (for a `halfvec` column, use `halfvec_cosine_ops`):
 
 ```sql
 CREATE INDEX ON rag.docs USING hnsw (emb vector_cosine_ops);
 ```
 
-For a `halfvec` column, use `halfvec_cosine_ops`.
-
 :::info
 Building the index after loading is faster than updating it row by row. Rows inserted later are added to the index automatically.
+
 :::
 
-### Step 5 - Search by meaning
+### Step 5 - Searching by meaning
 
 Turn the question into a vector with the **same model**, then sort the rows by cosine distance (`<=>`):
 
@@ -213,20 +214,21 @@ for row in cur.fetchall():
     print(row)
 ```
 
-The passage about children comes first, although it does not contain the words of the question.
+The passage about children comes first, even though it shares no words with the question.
 
 To check that the index is used, prefix the query with `EXPLAIN ANALYZE`. On a table of a few rows, as here, PostgreSQL prefers to read the whole table and the plan shows a `Seq Scan` followed by a `Sort`. On a real corpus, or after `SET enable_seqscan = off;` in your session, the plan shows an `Index Scan` on the HNSW index, here `docs_emb_idx`.
 
 :::info
 Always use the same model, and the same `dimensions` value for `Qwen3-Embedding-8B`, for your texts and for your questions. Vectors from two different models cannot be compared.
+
 :::
 
 ## Troubleshooting
 
 | Error | Cause and fix |
 |---|---|
-| `permission denied for schema public` | The user was created from the Console or the API. Create the application role and its schema in SQL as **avnadmin**, as in [Step 1](#step-1---prepare-the-database). |
-| `must be member of role "rag_app"` | PostgreSQL 15 only. Grant the role to **avnadmin** before `CREATE SCHEMA`, then revoke it. |
+| `permission denied for schema public` | The user was created from the Console or the API. Create the application role and its schema in SQL as `avnadmin`, as in [Step 1](#step-1---preparing-the-database). |
+| `must be member of role "rag_app"` | PostgreSQL 15 only. Grant the role to `avnadmin` before `CREATE SCHEMA`, then revoke it. |
 | `column cannot have more than 2000 dimensions for hnsw index` | The vectors have more than 2,000 dimensions. Use a `halfvec` column, or ask `Qwen3-Embedding-8B` for fewer dimensions. |
 | `column cannot have more than 4000 dimensions for hnsw index` | Even a `halfvec` column is limited to 4,000 dimensions. Use the `dimensions` parameter of `Qwen3-Embedding-8B`. |
 | HTTP 400 `given batch size overflow maximal one` | More than 25 texts in one request. Send them in batches of 25. |
@@ -236,14 +238,18 @@ Always use the same model, and the same `dimensions` value for `Qwen3-Embedding-
 
 ## Go further
 
-- [Available extensions on Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-extensions)
-- [Manage users, roles and privileges](/guides/public-cloud/databases/postgresql-users-roles-grants)
-- [Getting started with AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)
+[Available extensions on Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-extensions)
+
+[Manage users, roles and privileges](/guides/public-cloud/databases/postgresql-users-roles-grants)
+
+[Getting started with AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)
+
+[[fragment:professional-services|en]]
 
 ## We want your feedback!
 
 We would love to help answer questions and appreciate any feedback you may have.
 
-[[fragment:professional-services|en]]
-
 Are you on Discord? Connect to our channel at [https://discord.gg/ovhcloud](https://discord.gg/ovhcloud) and interact directly with the team that builds our databases service!
+
+Join our [community of users](/links/community).
