@@ -18,6 +18,8 @@ import type { Locale } from '../shared';
  * and billing screens are reached from the user menu, so its "label" is instruction
  * text rather than something to click.
  * `private-cloud` is the Console's (v8) top-bar entry, for products that exist only there.
+ * `transverse` is the Console's (v8) top-bar entry for account-wide services (IAM,
+ * Observability, Cost center), for destinations that exist only there.
  */
 export type UniverseId =
   | 'web-cloud'
@@ -28,6 +30,7 @@ export type UniverseId =
   | 'network'
   | 'telecom'
   | 'identity-security-operations'
+  | 'transverse'
   | 'account-menu';
 
 /**

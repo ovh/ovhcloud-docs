@@ -38,6 +38,9 @@ export const CPNAV_UNIVERSES: Record<
     pl: 'Tożsamość, bezpieczeństwo i operacje',
     pt: 'Identidade, Segurança e Operações',
   },
+  // The Console's (v8) top-bar entry for account-wide services. enablers-sidebar
+  // `transverse.title`, "Transverse" in every locale.
+  transverse: { en: 'Transverse' },
   // Not top navigation and not clickable, so every locale carries its own wording.
   'account-menu': {
     en: { text: 'Click your name in the top right' },
