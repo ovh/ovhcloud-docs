@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.13.2
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the access block from guides with no Console procedure
+
+### Documentation
+- EU: 11 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.13.1
 
 ### Features
