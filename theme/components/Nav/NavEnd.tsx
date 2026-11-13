@@ -1,6 +1,6 @@
-import { ThemeContext, useI18n, useSite } from '@rspress/core/runtime';
-import { useContext } from 'react';
+import { useI18n, useSite } from '@rspress/core/runtime';
 import type { NavLink } from './hooks';
+import { NavAppearance } from './NavAppearance';
 import { NavLang } from './NavLang';
 
 function GitHubIcon() {
@@ -18,58 +18,7 @@ function GitHubIcon() {
   );
 }
 
-/**
- * Light / dark, through Rspress's own state (ThemeContext: stored under
- * `rspress-theme-appearance`, applied to <html> before first paint). The moon
- * shows in light, the sun in dark, as on the Developers hub.
- */
-function ThemeToggle() {
-  const t = useI18n<Record<string, string>>();
-  const { theme, setTheme } = useContext(ThemeContext);
-  const dark = theme === 'dark';
-  return (
-    <button
-      type="button"
-      className="ovh-nav-ico"
-      aria-label={t(dark ? 'nav.switchToLight' : 'nav.switchToDark')}
-      onClick={() => setTheme?.(dark ? 'light' : 'dark')}
-    >
-      {dark ? (
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
-        </svg>
-      ) : (
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a6.6 6.6 0 0 0 11 11Z" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
-/** The bar's right end: language, GitHub, light / dark, Console. */
+/** The bar's right end: language, GitHub, appearance (system / light / dark), Console. */
 export function NavEnd({ console: consoleLink }: { console: NavLink | null }) {
   const t = useI18n<Record<string, string>>();
   const { site } = useSite();
@@ -92,7 +41,7 @@ export function NavEnd({ console: consoleLink }: { console: NavLink | null }) {
           <GitHubIcon />
         </a>
       )}
-      <ThemeToggle />
+      <NavAppearance />
       {consoleLink && (
         <a
           className="ovh-nav-console"

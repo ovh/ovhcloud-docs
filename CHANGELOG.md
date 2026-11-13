@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.11.13.1
+
+### Features
+
+#### All regions
+- **nav:** system / light / dark appearance switch
+
 ## 2026.11.13
 
 ### Features

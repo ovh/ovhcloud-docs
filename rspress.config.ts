@@ -11,6 +11,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig, type NavItem } from '@rspress/core';
+import { appearanceHeadScript } from './config/appearance-head-script';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
@@ -142,6 +143,15 @@ export default defineConfig({
       // ovh_delta.js is loaded dynamically from useEffect (see
       // components/Analytics) to guarantee React hydration completes first.
       tags: [
+        {
+          // Lights the navbar's appearance switch (system / light / dark)
+          // on the chosen segment before first paint. See
+          // config/appearance-head-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: appearanceHeadScript,
+        },
         {
           // Hides the navbar's Developers links before first paint when they
           // are about to follow `?from` / a remembered hub (no flash of the
