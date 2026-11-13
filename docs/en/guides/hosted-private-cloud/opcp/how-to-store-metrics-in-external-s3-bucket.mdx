@@ -1,0 +1,143 @@
+---
+title: How to store the OPCP metrics in an external S3 bucket
+description: Find out how to configure Grafana Mimir to keep the long-term metrics of your OPCP platform in an external S3-compatible object storage bucket
+lastUpdated: 2026-11-10
+---
+
+## Objective
+
+The long-term metrics of your **OVHcloud On-Prem Cloud Platform (OPCP)** are stored by **Grafana Mimir** in an **S3<sup>1</sup>-compatible object storage** bucket. By default, this bucket is created on the object storage of the platform itself, at `s3.<base_dns_name>`.
+
+You can store these metrics in an external S3-compatible bucket instead, for instance to keep them outside the platform or to free up the platform's storage capacity.
+
+**This guide explains how to point Mimir to an external S3 bucket.** We will use the OVHcloud [Public Cloud Object Storage](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) service as an example: with another S3-compatible provider, adapt the creation of the bucket and its credentials, as well as the endpoint and region values.
+
+:::warning
+The metrics already stored in the previous bucket are **not** migrated. After the change, Grafana only shows the metrics written to the new bucket, and the history builds up again over the retention period (60 days by default). Copy the previous bucket's content out of band beforehand if you need to keep it, and perform this operation during a maintenance window.
+
+:::
+
+## Requirements
+
+- An operational [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) infrastructure, managed by yourself. On an OVHcloud-managed platform, request the change through your usual support channel.
+- Administrative access to the OPCP controller with the `opcp-cli`, `kubectl` and `flux` tools.
+- A [Public Cloud project](/guides/public-cloud/cross-functional/create-a-public-cloud-project) in your OVHcloud account.
+- Outbound HTTPS (TCP 443) access from the OPCP control plane to the Object Storage endpoint, for instance `s3.gra.io.cloud.ovh.net`. This guide does not apply to air-gapped platforms.
+
+## Instructions
+
+### 1. Preparing the bucket and its credentials
+
+In your Public Cloud project:
+
+1. Create an [Object Storage user](/guides/storage-and-backup/object-storage/s3-identity-and-access-management) dedicated to the metrics, and save its **access key** and **secret key**.
+
+2. Create a **Standard** [Object Storage bucket](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage) in the region of your choice, and link it to this user. Use a dedicated bucket: Mimir writes to the whole bucket and manages its content itself.
+
+3. Note the **region** (for instance `gra`) and the **endpoint** of the bucket (for instance `s3.gra.io.cloud.ovh.net`). Both are shown in the bucket details.
+
+:::info
+If the bucket does not exist when Mimir starts, Mimir tries to create it with the configured credentials. Creating it beforehand lets you choose its settings and check the credentials before the change.
+
+:::
+
+Do not enable an expiration lifecycle rule on this bucket: the retention of the metrics is handled by Mimir, which deletes the expired blocks itself.
+
+### 2. Storing the credentials
+
+Open the platform secrets:
+
+```bash
+sudo opcp-cli secrets passwords --edit
+```
+
+Under `stringData`, replace the values of the following keys with the credentials of your Object Storage user:
+
+```yaml
+stringData:
+  ...
+  mimir_access_key_id: "<access key>"
+  mimir_secret_access_key: "<secret key>"
+  ...
+```
+
+Save and close the editor.
+
+### 3. Updating the Mimir storage configuration
+
+Open the OPCP configuration:
+
+```bash
+sudo opcp-cli config edit
+```
+
+Update the `monitoring.mimir.storage` section with the endpoint, region and bucket name of step 1:
+
+```yaml
+monitoring:
+  mimir:
+    storage:
+      endpoint:
+        url: "s3.gra.io.cloud.ovh.net"   # without https://
+        region: gra
+      bucket: "opcp01-metrics"
+```
+
+| Field | Value |
+|---|---|
+| `endpoint.url` | Host name of the Object Storage endpoint, **without** the `https://` scheme |
+| `endpoint.region` | Region of the bucket, in lowercase |
+| `bucket` | Name of the bucket created in step 1 |
+
+When the endpoint is not the platform object storage, the platform automatically allows Mimir to reach it over HTTPS: you do not need to change any platform network setting.
+
+Save and close the editor, then apply the configuration:
+
+```bash
+sudo opcp-cli deploy --system
+```
+
+### 4. Checking the reconciliation
+
+Wait until Flux has reconciled the change. The following commands must report no resource:
+
+```bash
+flux get all -A --status-selector ready=false
+flux get all -A --status-selector ready=unknown
+```
+
+Check that the Mimir pods have restarted and are `Running`:
+
+```bash
+kubectl -n monitoring get pods -l app.kubernetes.io/name=mimir
+```
+
+If an ingester stays in `Init`, display the logs of its bucket creation step:
+
+```bash
+kubectl -n monitoring logs <mimir-ingester-pod> -c create-bucket-for-metrics
+```
+
+An `AccessDenied` or `InvalidAccessKeyId` error points to the credentials of step 2; a connection timeout points to the outbound access to the endpoint.
+
+### 5. Checking that the metrics are written to the bucket
+
+Mimir uploads the ingested metrics to the bucket in blocks, about every two hours. After this period, browse the bucket from the OVHcloud Console or with your usual S3 client: it must contain recent objects under the `anonymous` prefix (metric blocks) and the `ruler` prefix (alerting rules).
+
+In the meantime, you can check that the metrics are still ingested: in Grafana, open <code className="action">Explore</code>, select the <code className="action">Mimir</code> data source and run the `up` query. It must return recent values.
+
+Your OPCP metrics are now stored in your external S3 bucket.
+
+## Go further
+
+[Observability on OPCP](/guides/hosted-private-cloud/opcp/observability-overview)
+
+[Object Storage - Getting started](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage)
+
+[How to update the backup S3 buckets](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).
+
+[[fragment:s3-trademark|en]]
