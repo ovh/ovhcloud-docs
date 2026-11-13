@@ -3,6 +3,7 @@ import { useI18n } from '@rspress/core/runtime';
 import { useMdUrl } from '@rspress/core/theme-original';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAIChatbotDrawer } from 'theme/components/AIChatbotDrawer/context';
+import { AISparkIcon } from 'theme/components/AISparkIcon';
 import { LlmsOpenButton } from 'theme/components/LlmsOpenButton';
 import { PdfDownloadButton } from 'theme/components/PdfDownloadButton';
 import '@rspress/core/dist/theme/components/Llms/index.css';
@@ -86,18 +87,8 @@ const CheckIcon = () => (
   </svg>
 );
 
-const AIAssistantIcon = () => (
-  <svg
-    aria-hidden="true"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
-  </svg>
-);
+// The assistant's sparkle in the DOCS gradient, as on the sidebar's button.
+const AIAssistantIcon = () => <AISparkIcon size={20} />;
 
 const ChatGPTIcon = () => (
   <svg
