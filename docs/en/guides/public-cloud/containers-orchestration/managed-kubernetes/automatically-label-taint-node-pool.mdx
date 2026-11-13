@@ -1,32 +1,26 @@
 ---
-title: Adding Labels & Taint on Node Pool (Node Pool template)
-description: Find out how to add labels, annotations and taints on Nodes thanks to Node Pools template on OVHcloud Managed Kubernetes
-lastUpdated: 2026-11-12
+title: Managing labels and taints on Nodes and Node Pools
+description: Find out how to add labels, annotations and taints via Node Pool templates, and how to target Nodes in a Node Pool with kubectl on OVHcloud Managed Kubernetes
+lastUpdated: 2026-11-13
 ---
 
 import Api from '@components/Api';
 
 
-
-
 ## Objective
 
-We previously showed you how to taint, cordon and drain specific `Nodes` and `Nodes Pools`. It's useful but it's not super efficient in the case of Kubernetes cluster AutoScaling, when your Nodes are created and deleted automatically.
-In this new tutorial we will show you how to do some operations (add labels, annotations, taints...) propagated to your `Nodes` thanks to `Node Pools` template, on your OVHcloud Managed Kubernetes Service.
+This guide shows you how to manage scheduling on your OVHcloud Managed Kubernetes Service:
 
-This enables multiple scheduling scenarii, like optimizing the cost of a cluster hosting your application by distributing `Pods` accross two labelled `Node Pools` (one is in monthly billing and the other autoscaled).
+- Propagate *labels*, *annotations* and *taints* to Nodes through a `Node Pool` template (recommended with autoscaling, when Nodes are created and deleted automatically)
+- Target all Nodes in a Node Pool with `kubectl` using the propagated `nodepool` label
 
-Thanks to the `Node Pool's template`, you will:
-
-- add *labels* on Nodes
-- add *annotations* on Nodes
-- *taint* Nodes
-- mark Nodes as *unschedulable*
-- ...
+This enables multiple scheduling scenarios, like optimizing the cost of a cluster by distributing `Pods` across two labelled `Node Pools`, or dedicating a Node Pool to specific workloads.
 
 ## Requirements
 
 - a [Public Cloud project](/links/public-cloud/public-cloud) in your OVHcloud account
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) configured to access your cluster
+- [Terraform](https://developer.hashicorp.com/terraform/install), if you create the Node Pool with Terraform
 
 ## Instructions
 
@@ -34,9 +28,81 @@ Thanks to the `Node Pool's template`, you will:
 
 You can follow the Kubernetes cluster creation step by step guide if you want to create it through the [OVHcloud Console](/guides/public-cloud/containers-orchestration/managed-kubernetes/label-nodeaffinity-node-pools#cluster-creation) or through [Terraform](/guides/public-cloud/containers-orchestration/managed-kubernetes/create-cluster).
 
+### Manage Node Pools via the API
+
+You can create a Node Pool template through the API. You can use the [API Explorer](/guides/manage-and-operate/api/first-steps) for example to interact with our API.
+
+To create a Node Pool with a template (labels, annotations, taints...), you have to make a call on:
+
+<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/nodepool"} />
+
+
+with the following request body:
+
+```json
+{
+  "name": "my-system-node-pool",
+  "flavorName": "b3-8",
+  "desiredNodes": 1,
+  "minNodes": 0,
+  "maxNodes": 1,
+  "template": {
+    "metadata": {
+      "annotations": {
+        "my-annotation": "my-value"
+      },
+      "labels": {
+        "app": "my-app"
+      }
+    },
+    "spec": {
+      "unschedulable": false,
+      "taints": [
+        {
+          "effect": "NoSchedule",
+          "key": "CriticalAddonsOnly",
+          "value": "true"
+        }
+      ]
+    }
+  }
+}
+```
+
+Replace `serviceName` and `kubeId` with your Public Cloud project ID and cluster ID in the endpoint path.
+
+`effect` accepts `NoSchedule` (Pods without a matching toleration cannot be scheduled), `PreferNoSchedule` (Kubernetes avoids scheduling them), or `NoExecute` (they are evicted). `key` and `value` can be any values specific to your workloads; `CriticalAddonsOnly=true` is the pair tolerated by OVHcloud system components. Tolerations must match the key and value, and the effect when one is specified.
+
+The `CriticalAddonsOnly` taint reserves the Node Pool for OVHcloud system workloads (CoreDNS, metrics-server, etc.), which tolerate it. Workloads that do not tolerate this taint cannot be scheduled on this Node Pool.
+
+:::warning
+A MKS cluster needs at least one Node on which its system components can be deployed. This can be:
+
+- a Node with no taint at all;
+- a Node whose only taint is `CriticalAddonsOnly`.
+
+If all Nodes are tainted in a way that prevents this, the cluster will not be operational.
+
+:::
+
+To evict Pods that do not tolerate the taint instead of only preventing new scheduling, use the `NoExecute` effect. Pods that must remain on the Node need a toleration with the `NoExecute` effect.
+
+#### Delete the Node Pool through the API
+
+To delete a Node Pool with the API, use the following call:
+
+<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/nodepool/\{nodePoolId\}"} />
+
+
+with the following information:
+
+- `serviceName`: your Public Cloud project ID
+- `kubeId`: your cluster ID
+- `nodePoolId`: the ID of the node pool to delete
+
 ### Create a Node Pool Template with Terraform
 
-Since the version 0.19+ of our [OVH Terraform provider](https://registry.terraform.io/providers/ovh/ovh/latest/docs) you can add IP restrictions also through Terraform.
+Check out the [OVH Terraform provider](https://registry.terraform.io/providers/ovh/ovh/latest/docs/resources/cloud_project_kube_nodepool) for the full documentation.
 
 #### Getting your cluster/API tokens information
 
@@ -66,31 +132,17 @@ You will also use this information in Terraform resources definition files.
 
 #### Terraform instructions
 
-First, create a `provider.tf` file with the minimum version, european endpoint ("ovh-eu") and the keys previously retrieved in this guide.
+First, create a `provider.tf` file with the minimum version, the European endpoint (`ovh-eu`) and the keys previously retrieved in this guide.
 
-Terraform 0.13 and later:
-
-```bash
+```terraform
 terraform {
   required_providers {
     ovh = {
-      source  = "ovh/ovh"
+      source = "ovh/ovh"
     }
   }
 }
 
-provider "ovh" {
-  endpoint           = "ovh-eu"
-  application_key    = "<your_access_key>"
-  application_secret = "<your_application_secret>"
-  consumer_key       = "<your_consumer_key>"
-}
-```
-
-Terraform 0.12 and earlier:
-
-```bash
-# Configure the OVHcloud Provider
 provider "ovh" {
   endpoint           = "ovh-eu"
   application_key    = "<your_access_key>"
@@ -106,7 +158,7 @@ Alternatively the secret keys can be retrieved from your environment.
 - `OVH_APPLICATION_SECRET`
 - `OVH_CONSUMER_KEY`
 
-This later method (or a similar alternative) is recommended to avoid storing secret data in a source repository.
+This latter method (or a similar alternative) is recommended to avoid storing secret data in a source repository.
 
 Here, we defined the `ovh-eu` endpoint because we want to call the OVHcloud Europe API, but other endpoints exist, depending on your needs:
 
@@ -116,12 +168,12 @@ Here, we defined the `ovh-eu` endpoint because we want to call the OVHcloud Euro
 
 Then, define the resources you want to create in a new file called `ovh_kube_cluster_nodepool.tf`:
 
-```bash
+```terraform
 resource "ovh_cloud_project_kube_nodepool" "pool" {
-    service_name  = "`<service_name>`"
-    kube_id       = "`<cluster_id>`"
-    name          = "my-node-pool"
-    flavor_name   = "b2-7"
+    service_name  = "<service_name>"
+    kube_id       = "<cluster_id>"
+    name          = "my-system-node-pool"
+    flavor_name   = "b3-8"
     desired_nodes = 1
     min_nodes     = 0
     max_nodes     = 1
@@ -138,9 +190,9 @@ resource "ovh_cloud_project_kube_nodepool" "pool" {
             unschedulable = false
             taints = [
                 {
-                    effect = "PreferNoSchedule"
-                    key    = "k1"
-                    value  = "v1"
+                    effect = "NoSchedule" // NoSchedule, PreferNoSchedule or NoExecute
+                    key    = "CriticalAddonsOnly" // Or a key specific to your workloads
+                    value  = "true" // Or a value specific to your workloads
                 }
             ]
         }
@@ -149,11 +201,11 @@ resource "ovh_cloud_project_kube_nodepool" "pool" {
 ```
 
 :::info
-Don't forget to replace `<service_name>` and `<cluster_id>` by the real data.
+Don't forget to replace `<service_name>` and `<cluster_id>` with your values.
 :::
 
 
-In this resources configuration, we ask Terraform to add a Node Pool with a template to your Kubernetes cluster.
+In this resource configuration, we ask Terraform to add a Node Pool with a template to your Kubernetes cluster.
 
 :::info
 Go to the **ovh terraform provider** documentation in order to see the [ovh_cloud_project_kube_nodepool resource definition](https://registry.terraform.io/providers/ovh/ovh/latest/docs/resources/cloud_project_kube_nodepool).
@@ -166,33 +218,7 @@ Now we need to initialise Terraform, generate a plan, and apply it.
 $ terraform init
 
 Initializing the backend...
-
-Initializing provider plugins...
-- Finding latest version of ovh/ovh...
-- Finding latest version of hashicorp/local...
-- Installing ovh/ovh v0.19.1...
-- Installed ovh/ovh v0.19.1 (signed by a HashiCorp partner, key ID F56D1A6CBDAAADA5)
-- Installing hashicorp/local v2.2.3...
-- Installed hashicorp/local v2.2.3 (signed by HashiCorp)
-
-Partner and community providers are signed by their developers.
-If you'd like to know more about provider signing, you can read about it here:
-https://www.terraform.io/docs/cli/plugins/signing.html
-
-Terraform has created a lock file .terraform.lock.hcl to record the provider
-selections it made above. Include this file in your version control repository
-so that Terraform can guarantee to make the same selections by default when
-you run "terraform init" in the future.
-
-Terraform has been successfully initialized!
-
-You may now begin working with Terraform. Try running "terraform plan" to see
-any changes that are required for your infrastructure. All Terraform commands
-should now work.
-
-If you ever set or change modules or backend configuration for Terraform,
-rerun this command to reinitialize your working directory. If you forget, other
-commands will detect it and remind you to do so if necessary.
+...
 ```
 
 The `init` command will initialize your working directory which contains `.tf` configuration files.
@@ -225,13 +251,13 @@ Terraform will perform the following actions:
       + current_nodes    = (known after apply)
       + desired_nodes    = 1
       + flavor           = (known after apply)
-      + flavor_name      = "b2-7"
+      + flavor_name      = "b3-8"
       + id               = (known after apply)
       + kube_id          = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxx"
       + max_nodes        = 1
       + min_nodes        = 0
       + monthly_billed   = false
-      + name             = "my-node-pool"
+      + name             = "my-system-node-pool"
       + project_id       = (known after apply)
       + service_name     = "xxxxxxxxxxxxx"
       + size_status      = (known after apply)
@@ -253,9 +279,9 @@ Terraform will perform the following actions:
           + spec {
               + taints        = [
                   + {
-                      + "effect" = "PreferNoSchedule"
-                      + "key"    = "k1"
-                      + "value"  = "v1"
+                      + "effect" = "NoSchedule"
+                      + "key"    = "CriticalAddonsOnly"
+                      + "value"  = "true"
                     },
                 ]
               + unschedulable = false
@@ -292,13 +318,13 @@ Terraform will perform the following actions:
       + current_nodes    = (known after apply)
       + desired_nodes    = 1
       + flavor           = (known after apply)
-      + flavor_name      = "b2-7"
+      + flavor_name      = "b3-8"
       + id               = (known after apply)
       + kube_id          = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxx"
       + max_nodes        = 1
       + min_nodes        = 0
       + monthly_billed   = false
-      + name             = "my-node-pool"
+      + name             = "my-system-node-pool"
       + project_id       = (known after apply)
       + service_name     = "xxxxxxxxxxxxx"
       + size_status      = (known after apply)
@@ -320,9 +346,9 @@ Terraform will perform the following actions:
           + spec {
               + taints        = [
                   + {
-                      + "effect" = "PreferNoSchedule"
-                      + "key"    = "k1"
-                      + "value"  = "v1"
+                      + "effect" = "NoSchedule"
+                      + "key"    = "CriticalAddonsOnly"
+                      + "value"  = "true"
                     },
                 ]
               + unschedulable = false
@@ -342,33 +368,7 @@ ovh_cloud_project_kube_nodepool.pool: Creating...
 ovh_cloud_project_kube_nodepool.pool: Still creating... [10s elapsed]
 ovh_cloud_project_kube_nodepool.pool: Still creating... [20s elapsed]
 ovh_cloud_project_kube_nodepool.pool: Still creating... [30s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [40s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [50s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [1m0s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [1m10s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [1m20s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [1m30s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [1m40s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [1m50s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [2m0s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [2m10s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [2m20s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [2m30s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [2m40s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [2m50s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [3m0s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [3m10s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [3m20s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [3m30s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [3m40s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [3m50s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [4m0s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [4m10s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [4m20s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [4m30s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [4m40s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [4m50s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still creating... [5m0s elapsed]
+...
 ovh_cloud_project_kube_nodepool.pool: Creation complete after 5m8s [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
@@ -383,7 +383,7 @@ When you can access the cluster through `kubectl` command, let's display our nod
 ```bash
 $ kubectl get nodepool
 NAME           FLAVOR   AUTOSCALED   MONTHLYBILLED   ANTIAFFINITY   DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   MIN   MAX   AGE
-my-node-pool   b2-7     false        false           false          1         1         1            1           0     1     8m13s
+my-system-node-pool   b3-8     false        false           false          1         1         1            1           0     1     8m13s
 ```
 
 Our node pool exists and we can see its configuration.
@@ -391,11 +391,11 @@ Our node pool exists and we can see its configuration.
 Now let's see the node pool template:
 
 ```bash
-$ kubectl describe nodepool my-node-pool
-Name:         my-node-pool
+$ kubectl describe nodepool my-system-node-pool
+Name:         my-system-node-pool
 Namespace:
 Labels:       id=xxxxxxxx-xxxxx-xxxx-xxxx-xxxxxxxxxxx
-Annotations:  `<none>`
+Annotations:  <none>
 API Version:  kube.cloud.ovh.com/v1alpha1
 Kind:         NodePool
 ...
@@ -406,15 +406,15 @@ Spec:
   Template:
     Metadata:
       Annotations:
-        My - Annotation:  my-value
+        my-annotation:  my-value
       Finalizers:
       Labels:
         App:  my-app
     Spec:
       Taints:
-        Effect:       PreferNoSchedule
-        Key:          k1
-        Value:        v1
+        Effect:       NoSchedule
+        Key:          CriticalAddonsOnly
+        Value:        true
       Unschedulable:  false
 Status:
 ...
@@ -427,158 +427,40 @@ Let's display our node. We should have 1 node running:
 ```bash
 $ kubectl get nodes
 NAME                       STATUS   ROLES    AGE     VERSION
-my-node-pool-node-5781fa   Ready    `<none>`   7m55s   v1.34.0
+my-system-node-pool-node-5781fa   Ready    <none>   7m55s   v1.34.0
 ```
 
-Check that the label, annotation and taint you defined are well propageted to the node:
+Check that the label, annotation and taint you defined are well propagated to the node:
 
 ```bash
-$ kubectl describe node my-node-pool-node-5781fa
+$ kubectl describe node my-system-node-pool-node-5781fa
 ```
 
 ![Node's labels annotations and taints](/images/public-cloud/containers-orchestration/managed-kubernetes/automatically-label-taint-node-pool/node-labels-annotations-taints.png)
 
-And if you edit the Node Pool configuration to activate the AutoScaling and scale to 3 nodes for example, all the information you defined will be propagated to new Nodes.
+And if you edit the Node Pool configuration to activate the AutoScaling and increase its maximum size, all the information you defined will be propagated to new Nodes.
 
-### Create a Node Pool Template through API
+### Operate existing Nodes with kubectl
 
-You can also create a Node Pool template through the API. You can use the [API Explorer](/guides/manage-and-operate/api/first-steps) for example to interact with our API.
+A taint, cordon or drain applied with `kubectl` only affects the Nodes that exist at that moment. When autoscaling creates new Nodes, they do not inherit those `kubectl` changes — use the Node Pool template above for lasting configuration.
 
-To create a Node Pool with a template (labels, annotations, taints...), you have to make a call on:
+Thanks to the `nodepool` label propagated to every Node, you can target all Nodes of a given Node Pool by adding `-l "nodepool=my-system-node-pool"` to commands such as `kubectl cordon`, `kubectl drain` or `kubectl taint node`. For the operations themselves and their effects, see the Kubernetes documentation on [taints and tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) and [safely draining a Node](https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/).
 
-<Api version="v1" section="/cloud" method="POST" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/nodepool"} />
+### Delete the Node Pool with Terraform
 
-
-with the following information:
-
-```json
-{
-    "serviceName": "`<service_name>`",
-    "kubeId": "`<cluster_id>`",
-    "ProjectKubeNodePoolCreation": {
-      "name": "my-node-pool",
-      "flavorName": "b2-7",
-      "desiredNodes": 1,
-      "minNodes": 0,
-      "maxNodes": 1,
-      "template": {
-        "metadata": {
-          "annotations": {
-            "my-annotation": "my-value"
-          },
-          "labels": {
-            "app": "my-app"
-          }
-        },
-        "spec": {
-          "unschedulable": false,
-          "taints": [
-            {
-              "effect": "PreferNoSchedule",
-              "key": "k1",
-              "value": "v1"
-            }
-          ]
-        }
-      }
-    }
-  }
-```
-
-### Destroy
-
-#### Destroy the Node Pool through Terraform
-
-If you want to delete the Node Pool you added through Terraform, execute the `terraform destroy` command:
+To delete the Node Pool, remove its `ovh_cloud_project_kube_nodepool` resource block from `ovh_kube_cluster_nodepool.tf`, then review and apply the resulting plan:
 
 ```bash
-$ terraform destroy
-ovh_cloud_project_kube_nodepool.pool: Refreshing state... [id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx]
-
-Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
-  - destroy
-
-Terraform will perform the following actions:
-
-  # ovh_cloud_project_kube_nodepool.pool will be destroyed
-  - resource "ovh_cloud_project_kube_nodepool" "pool" {
-      - anti_affinity    = false -> null
-      - autoscale        = false -> null
-      - available_nodes  = 1 -> null
-      - created_at       = "2022-07-28T11:58:01Z" -> null
-      - current_nodes    = 1 -> null
-      - desired_nodes    = 1 -> null
-      - flavor           = "b2-7" -> null
-      - flavor_name      = "b2-7" -> null
-      - id               = "xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx" -> null
-      - kube_id          = "xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx" -> null
-      - max_nodes        = 1 -> null
-      - min_nodes        = 0 -> null
-      - monthly_billed   = false -> null
-      - name             = "my-node-pool" -> null
-      - project_id       = "xxxxxxxxxxxx" -> null
-      - service_name     = "xxxxxxxxxxxx" -> null
-      - size_status      = "CAPACITY_OK" -> null
-      - status           = "READY" -> null
-      - up_to_date_nodes = 1 -> null
-      - updated_at       = "2022-07-28T12:02:56Z" -> null
-
-      - template {
-          - metadata {
-              - annotations = {
-                  - "my-annotation" = "my-value"
-                } -> null
-              - finalizers  = [] -> null
-              - labels      = {
-                  - "app" = "my-app"
-                } -> null
-            }
-
-          - spec {
-              - taints        = [
-                  - {
-                      - "effect" = "PreferNoSchedule"
-                      - "key"    = "k1"
-                      - "value"  = "v1"
-                    },
-                ] -> null
-              - unschedulable = false -> null
-            }
-        }
-    }
+$ terraform plan
 
 Plan: 0 to add, 0 to change, 1 to destroy.
 
-Do you really want to destroy all resources?
-  Terraform will destroy all your managed infrastructure, as shown above.
-  There is no undo. Only 'yes' will be accepted to confirm.
+$ terraform apply
 
-  Enter a value: yes
-
-ovh_cloud_project_kube_nodepool.pool: Destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx]ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 10s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 20s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 30s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 40s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 50s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 1m0s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Still destroying... [id=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx, 1m10s elapsed]
-ovh_cloud_project_kube_nodepool.pool: Destruction complete after 1m18s
-
-Destroy complete! Resources: 1 destroyed.
+Apply complete! Resources: 0 added, 0 changed, 1 destroyed.
 ```
 
-#### Destroy the Node Pool through API
-
-To delete a Node Pool with the API, use the following call:
-
-<Api version="v1" section="/cloud" method="DELETE" route={"/cloud/project/\{serviceName\}/kube/\{kubeId\}/nodepool/\{nodePoolId\}"} />
-
-
-with the following information:
-
-- `serviceName`: your Public Cloud project ID
-- `kubeId`: your cluster ID
-- `nodePoolId`: the ID of the node pool to delete
+This targets the resource you removed from the configuration.
 
 ## Go further
 
