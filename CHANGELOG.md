@@ -5,13 +5,19 @@
 ### Features
 
 #### All regions
+- **theme:** drop the API Reference button from the home closing block
 - **theme:** restyle the AI assistant button for the new theme
 - **nav:** drop the Labs tab from the US navbar
 
 ### Fixes
 
 #### All regions
+- **nav:** set the DOCS tag to the brand kit's >DOCS_
 - **nav:** stop the navbar's first row stretching on mobile
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
 
 ## 2026.11.12
 
