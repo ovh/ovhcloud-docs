@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026.11.13.1
+
+### Features
+
+#### All regions
+- **nav:** system / light / dark appearance switch
+
+## 2026.11.13
+
+### Features
+
+#### All regions
+- **theme:** drop the API Reference button from the home closing block
+- **theme:** restyle the AI assistant button for the new theme
+- **nav:** drop the Labs tab from the US navbar
+
+### Fixes
+
+#### All regions
+- **nav:** set the DOCS tag to the brand kit's >DOCS_
+- **nav:** stop the navbar's first row stretching on mobile
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.11.12
+
+### Features
+
+#### All regions
+- **nav:** drop the Labs tab from the US navbar
+
+### Documentation
+- EU: 208 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.10
+
+### Features
+
+#### EU
+- **pci ai v8:** notebooks, training, deploy, endpoints, ecosystem an… (#1100)
+
+### Fixes
+
+#### US
+- **docs-us:** rename 'Creating a volume from a backup' to 'from a volume snapshot'
+
+#### All regions
+- **build:** keep internal frontmatter keys out of the published site
+
+### Documentation
+- EU: 481 guides across de, en, es, fr, it, pl, pt
+- US: 3 guides across en
+
 ## 2026.11.09.1
 
 ### Fixes

@@ -77,6 +77,7 @@ import { publiccloudInstanceBackupConsole } from './keys/publiccloud-instance-ba
 import { publiccloudInstances } from './keys/publiccloud-instances';
 import { publiccloudInstancesConsole } from './keys/publiccloud-instances-console';
 import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
+import { publiccloudKubernetesConsole } from './keys/publiccloud-kubernetes-console';
 import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
 import { publiccloudLoadBalancerConsole } from './keys/publiccloud-load-balancer-console';
 import { publiccloudLogs } from './keys/publiccloud-logs';
@@ -84,6 +85,7 @@ import { publiccloudLogsConsole } from './keys/publiccloud-logs-console';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudObjectStorageConsole } from './keys/publiccloud-object-storage-console';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
+import { publiccloudPrivateRegistryConsole } from './keys/publiccloud-private-registry-console';
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjectSettingsConsole } from './keys/publiccloud-project-settings-console';
 import { publiccloudProjects } from './keys/publiccloud-projects';
@@ -97,6 +99,7 @@ import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-c
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudQuotaRegionsConsole } from './keys/publiccloud-quota-regions-console';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
+import { publiccloudRancherConsole } from './keys/publiccloud-rancher-console';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
 import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
@@ -229,8 +232,11 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-gateway-console': publiccloudGatewayConsole,
   'publiccloud-subnet-console': publiccloudSubnetConsole,
   'publiccloud-rancher': publiccloudRancher,
+  'publiccloud-rancher-console': publiccloudRancherConsole,
   'publiccloud-kubernetes': publiccloudKubernetes,
+  'publiccloud-kubernetes-console': publiccloudKubernetesConsole,
   'publiccloud-private-registry': publiccloudPrivateRegistry,
+  'publiccloud-private-registry-console': publiccloudPrivateRegistryConsole,
   'publiccloud-billing': publiccloudBilling,
   'publiccloud-billing-console': publiccloudBillingConsole,
   'publiccloud-contacts-rights': publiccloudContactsRights,
