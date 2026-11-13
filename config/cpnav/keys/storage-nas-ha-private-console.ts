@@ -8,7 +8,7 @@ export const storageNasHaPrivateConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/storage/nasha',
+      route: '/beta/#/bare-metal/storage/private-nasha',
       text: {
         en: {
           product: 'NAS-HA',
