@@ -9,6 +9,7 @@
 
 ### Documentation
 - EU: 11 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
 
 ## 2026.11.13.1
 
