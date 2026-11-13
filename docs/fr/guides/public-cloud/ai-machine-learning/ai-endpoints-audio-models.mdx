@@ -1,7 +1,7 @@
 ---
-title: AI Endpoints - Transcription Audio
-description: Découvrez comment transcrire des fichiers audio avec OVHcloud AI Endpoints
-lastUpdated: 2026-06-11
+title: AI Endpoints - Transcription via l’API compatible OpenAI
+description: Transcrivez des fichiers audio avec l’API compatible OpenAI et comparez la prise en charge de Whisper et Gladia pour choisir la route adaptée à votre usage
+lastUpdated: 2026-11-06
 ---
 
 import { Tab, Tabs } from '@rspress/core/theme';
@@ -18,11 +18,13 @@ AI Endpoints est couvert par les **[Conditions particulières OVHcloud Public Cl
 
 La **transcription audio** (Speech to Text) est une fonctionnalité puissante qui permet de convertir un langage parlé en texte écrit.
 
-Les API de transcription audio sur AI Endpoints vous permettent d'intégrer facilement cette technologie dans vos applications, en transcrivant vos fichiers audio avec une grande précision. Nos endpoints prennent en charge différents [formats audio](#aperçu-des-paramètres) et proposent des options de configuration flexibles pour répondre à vos besoins spécifiques.
+L'API compatible OpenAI `POST /v1/audio/transcriptions` accepte des fichiers audio. Ses paramètres, formats de réponse et limites dépendent du modèle sélectionné. Ce guide présente **Whisper** et une section distincte sur la [compatibilité de Gladia](#gladia-compatibility) pour `solaria-3`.
+
+Pour l'audio en direct, les transcriptions partielles et les étiquettes natives de locuteurs, consultez le guide « [AI Endpoints - Transcription audio avec l'API Gladia](/guides/public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text) ». Le streaming Gladia en direct utilise une autre API, distincte du paramètre OpenAI `stream` et d'OpenAI Realtime.
 
 ## Objectif
 
-Cette documentation présente un aperçu des endpoints de transcription audio proposés sur [AI Endpoints](/links/public-cloud/ai-endpoints).
+Cette documentation explique comment transcrire des fichiers via l'API compatible OpenAI sur [AI Endpoints](/links/public-cloud/ai-endpoints). Sauf indication contraire dans la section consacrée à Gladia, les exemples et les paramètres décrits ci-dessous concernent **Whisper**, et non Gladia.
 
 Consultez notre [Catalogue](/links/public-cloud/ai-endpoints-catalog) pour découvrir quels modèles sont compatibles avec l'analyse audio.
 
@@ -58,7 +60,91 @@ Tous les exemples fournis dans ce guide utilisent une authentification anonyme, 
 
 Suivez les instructions du guide [AI Endpoints - Premiers pas](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started) pour plus d'informations sur l'authentification.
 
+<a name="gladia-compatibility"></a>
+
+## Compatibilité Gladia
+
+Le modèle `solaria-3` propose une **passerelle limitée de transcription de fichiers** via `POST /v1/audio/transcriptions`. Ne réutilisez pas les exemples Whisper sans les adapter. Pour configurer l'endpoint, l'authentification et les restrictions du service, consultez d'abord le [guide Gladia](/guides/public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text#endpoint-et-authentification).
+
+| Paramètre | Prise en charge par la passerelle Gladia |
+| :--- | :--- |
+| `model`, `file` | Obligatoires : `model=solaria-3` et les octets du fichier envoyé, pas une URL distante. |
+| `language` | Code de langue facultatif, transmis à Gladia dans `language_config.languages`. |
+| `response_format` | `json` (par défaut, `{"text":"…"}`), `text` ou `verbose_json`. Les formats SRT et VTT ne sont pas pris en charge. |
+| `timestamp_granularities[]` | `segment`, `word` ou les deux. Définissez explicitement `response_format=verbose_json`, sinon la requête renvoie `400`. Ces valeurs sélectionnent les champs de sortie, pas un mode d'alignement supplémentaire. |
+| `diarize` ou `diarization` | Extension booléenne ; n'utilisez qu'une seule des deux graphies. Avec le client Python OpenAI, utilisez `extra_body={"diarize": True}`. |
+| `diarization_config` | Extension de type objet JSON, par exemple `{"min_speakers":2,"max_speakers":4}`, à utiliser avec la diarisation. Dans les requêtes multipart, envoyez l'objet sous forme de texte JSON. |
+| `prompt`, `temperature`, `chunking_strategy` | Non pris en charge lorsqu'ils sont définis, y compris `temperature=0`. Omettez-les. |
+| `stream`, `include` et autres champs supplémentaires | Non pris en charge. Omettez-les, même `stream=false`. Cette passerelle ne transmet pas les modules complémentaires arbitraires de Gladia. |
+
+Les options non prises en charge renvoient généralement `501` ; les champs mal formés peuvent renvoyer `400`. L'utilisation simultanée des deux graphies de la diarisation renvoie `400`.
+
+Le traitement natif des enregistrements étant désactivé, la passerelle décode le fichier en **PCM mono à 16 kHz**, puis l'envoie à une session en direct à un rythme proche du temps réel. Prévoyez au minimum la durée de l'enregistrement, à laquelle s'ajoute le temps de traitement. La réponse est **unique et complète**, sans streaming, et la séparation multicanal est perdue. La sortie formatée ne contient pas non plus les étiquettes de locuteurs, même si la diarisation est activée. Pour obtenir ces étiquettes, consultez les [résultats natifs de Gladia](/guides/public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text#diarisation-et-latence).
+
+Le format `verbose_json` contient `text`, `duration`, `language` et certains champs `segments` / `words`. Il ne reprend pas les tokens Whisper, les champs de confiance, `usage` ni les métadonnées de diarisation. Les extensions de fichier acceptées sont `flac`, `m4a`, `mp3`, `mp4`, `mpeg`, `mpga`, `ogg`, `ogm`, `wav`, `webm`, `aac`, `opus` et `pcm` ; les octets doivent également pouvoir être décodés. Cette liste ne définit **pas** les encodages audio de l'API WebSocket native.
+
+À l'aide des variables d'environnement du [guide Gladia](/guides/public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text#endpoint-et-authentification), ces exemples transcrivent un court enregistrement local :
+
+<Tabs>
+  <Tab label="cURL">
+    ```bash
+    curl --fail-with-body --max-time 720 \
+      "$AI_ENDPOINTS_BASE_URL/v1/audio/transcriptions" \
+      -H "Authorization: Bearer $OVH_AI_ENDPOINTS_ACCESS_TOKEN" \
+      -F "model=solaria-3" -F "file=@audio.wav" \
+      -F "response_format=json"
+    ```
+  </Tab>
+  <Tab label="Python (requests)">
+    Installez `requests`, puis exécutez :
+
+    ```python
+    import os
+    import requests
+
+    root = os.environ["AI_ENDPOINTS_BASE_URL"].rstrip("/")
+    headers = {
+        "Authorization": "Bearer " + os.environ["OVH_AI_ENDPOINTS_ACCESS_TOKEN"]
+    }
+    with open("audio.wav", "rb") as audio:
+        response = requests.post(
+            root + "/v1/audio/transcriptions",
+            headers=headers,
+            files={"file": ("audio.wav", audio, "audio/wav")},
+            data={"model": "solaria-3", "response_format": "json"},
+            timeout=(30, 720),
+        )
+    response.raise_for_status()
+    print(response.json()["text"])
+    ```
+  </Tab>
+  <Tab label="Python (client OpenAI)">
+    Installez `openai`, puis exécutez :
+
+    ```python
+    import os
+    from openai import OpenAI
+
+    with OpenAI(
+        base_url=os.environ["AI_ENDPOINTS_BASE_URL"].rstrip("/") + "/v1",
+        api_key=os.environ["OVH_AI_ENDPOINTS_ACCESS_TOKEN"],
+        timeout=720,
+        max_retries=0,
+    ) as client:
+        with open("audio.wav", "rb") as audio:
+            result = client.audio.transcriptions.create(
+                model="solaria-3", file=audio, response_format="json",
+            )
+        print(result.text)
+    ```
+  </Tab>
+</Tabs>
+
+Commencez par de courts échantillons audio et définissez un délai d'expiration client suffisant pour couvrir la durée de l'enregistrement et le traitement. Si le service renvoie `413 Payload Too Large`, réduisez la taille de la requête avant de réessayer. Consultez les [quotas et erreurs Gladia](/guides/public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text#quotas-et-erreurs).
+
 ## Corps de la requête
+
+Le reste de ce guide concerne **Whisper**. Pour `solaria-3`, consultez plutôt la [section de compatibilité Gladia](#gladia-compatibility).
 
 ### Aperçu des paramètres
 
@@ -198,7 +284,7 @@ Maintenant que vous connaissez les paramètres disponibles, voyons comment les m
 
 **Exemple de sortie**
 
-Par défaut, l'endpoint de transcription renvoie une sortie au format `verbose_json`.
+Par défaut, l'endpoint de transcription Whisper renvoie une sortie au format `verbose_json`. Gladia utilise `json` par défaut et renvoie un sous-ensemble différent de métadonnées.
 
 Elle inclut des métadonnées détaillées telles que la langue, les segments, les tokens et les informations de diarisation :
 
@@ -655,7 +741,7 @@ Pour les **modèles basés sur Whisper**, le paramètre `prompt` ne prend en com
 
 ### Prise en charge des paramètres
 
-- Le streaming n'est **pas encore pris en charge** pour les endpoints de transcription audio. L'ensemble de l'audio doit être envoyé et traité en une seule requête.
+- Le streaming n'est **pas encore pris en charge** pour l'endpoint de transcription de fichiers Whisper. L'ensemble de l'audio doit être envoyé et traité en une seule requête. Le streaming Gladia natif utilise une API WebSocket distincte ; la passerelle Gladia compatible OpenAI ne transmet pas non plus de flux.
 
 - Les formats de réponse `srt` et `vtt` ne sont pas encore pris en charge. Les formats de réponse disponibles sont listés [ici](#formats-de-réponse).
 
@@ -663,9 +749,9 @@ Pour les **modèles basés sur Whisper**, le paramètre `prompt` ne prend en com
 
 **Formats audio**
 
-L'API prend en charge plusieurs formats audio, [mentionnés précédemment](#aperçu-des-paramètres). Assurez-vous que votre fichier est dans un format pris en charge pour qu'il puisse être transcrit avec succès.
+L'API Whisper prend en charge plusieurs formats audio, [mentionnés précédemment](#aperçu-des-paramètres). Vérifiez que votre fichier utilise un format pris en charge. Les formats de la passerelle Gladia et les encodages natifs en temps réel sont décrits séparément.
 
-**Limites de taille de fichier et de durée** :
+**Limites de taille et de durée des fichiers Whisper** (elles ne s'appliquent pas à Gladia) :
 
 - **Requêtes authentifiées** (via une [clé API](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)) : jusqu'à `2048 Mo` ou `10 800 secondes` d'audio par requête.
 - **Requêtes anonymes** : jusqu'à `10 Mo` ou `60 secondes` d'audio par requête.
@@ -718,7 +804,7 @@ OVHcloud ne fournit aucune garantie quant à l'utilisabilité ou à la sécurit�
 
 ## Conclusion
 
-Dans ce guide, nous avons expliqué comment utiliser les modèles de transcription audio disponibles sur [AI Endpoints](/links/public-cloud/ai-endpoints). Nous avons fourni un aperçu complet de cette fonctionnalité qui peut vous aider à parfaire l'intégration du modèle dans votre propre application.
+Ce guide présente la transcription de fichiers avec Whisper et le sous-ensemble limité de Gladia disponible via l'API compatible OpenAI. Pour transcrire de l'audio en direct avec des résultats partiels et des étiquettes de locuteurs, consultez le guide « [AI Endpoints - Transcription audio avec l'API Gladia](/guides/public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text) ».
 
 ## Aller plus loin
 
