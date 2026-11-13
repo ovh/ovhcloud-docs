@@ -1,124 +1,45 @@
-import type { FrontMatterMeta } from '@rspress/core';
-import { normalizeImagePath, useFrontmatter } from '@rspress/core/runtime';
-import { Button, renderHtmlOrText } from '@theme-original';
-import { useLocalizeHref } from '../../hooks/useLocalizedHref';
+import { useFrontmatter } from '@rspress/core/runtime';
+import { renderHtmlOrText } from '@theme-original';
+import { useRef } from 'react';
+import { HeroFx } from '../HeroFx';
+import { HeroTitle } from './HeroTitle';
+import './index.css';
 
-import './index.scss';
-import clsx from 'clsx';
-
-const DEFAULT_HERO = {
-  badge: '',
-  name: '',
-  text: '',
-  tagline: '',
-  actions: [],
-  image: undefined,
-} satisfies FrontMatterMeta['hero'];
-
-interface HomeHeroProps {
-  beforeHeroActions?: React.ReactNode;
-  afterHeroActions?: React.ReactNode;
+/**
+ * The home hero — the prototype's compact hero (proto/dev-fx.css `.hxd`,
+ * proto/docs-fx.css `.hxd--docs`): the generative effect on the right, a
+ * side scrim for legibility, the title with its highlighted word and
+ * blinking cursor, the tagline under it.
+ *
+ * Frontmatter: `hero.name` (title), `hero.highlight` (the word drawn in the
+ * DOCS gradient, appended to the title), `hero.tagline`.
+ */
+interface HeroFrontmatter {
+  name?: string;
+  highlight?: string;
+  tagline?: string;
 }
 
-function HomeHero({ beforeHeroActions, afterHeroActions }: HomeHeroProps) {
-  const localizeHref = useLocalizeHref();
+export function HomeHero() {
   const { frontmatter } = useFrontmatter();
-  const hero = frontmatter?.hero || DEFAULT_HERO;
-  const hasImage = hero.image !== undefined;
-  const multiHeroText = hero.text
-    ? hero.text
-        .toString()
-        .split(/\n/g)
-        .filter((text) => text !== '')
-    : [];
-  const imageSrc =
-    typeof hero.image?.src === 'string'
-      ? { light: hero.image.src, dark: hero.image.src }
-      : hero.image?.src || { light: '', dark: '' };
+  const hero = (frontmatter?.hero ?? {}) as HeroFrontmatter;
+  const ref = useRef<HTMLElement>(null);
 
   return (
-    <div
-      className={clsx('rp-home-hero', {
-        'rp-home-hero--no-image': !hasImage,
-      })}
+    <section
+      ref={ref}
+      className="ovh-hero ovh-hero--top"
+      aria-labelledby="ovh-hero-title"
     >
-      <div className="rp-home-hero__container">
-        {hero.badge && <div className="rp-home-hero__badge">{hero.badge}</div>}
-        <div className="rp-home-hero__content">
-          <h1 className="rp-home-hero__title">
-            <span
-              className="rp-home-hero__title-brand"
-              {...renderHtmlOrText(hero.name)}
-            ></span>
-          </h1>
-
-          {multiHeroText.length !== 0 &&
-            multiHeroText.map((heroText) => (
-              <div
-                key={heroText}
-                className="rp-home-hero__subtitle"
-                {...renderHtmlOrText(heroText)}
-              ></div>
-            ))}
-        </div>
-        <p
-          className="rp-home-hero__tagline"
-          {...renderHtmlOrText(hero.tagline)}
-        ></p>
-
-        {beforeHeroActions}
-        {hero.actions && hero.actions.length > 0 && (
-          <div className="rp-home-hero__actions">
-            {hero.actions.map((action) => {
-              return (
-                <Button
-                  type="a"
-                  key={action.link}
-                  href={localizeHref(action.link)}
-                  theme={action.theme}
-                  className="rp-home-hero__action"
-                  {...renderHtmlOrText(action.text)}
-                />
-              );
-            })}
-          </div>
+      <HeroFx pointerTarget={ref} />
+      <div className="ovh-hero__c">
+        <h1 id="ovh-hero-title">
+          <HeroTitle text={hero.name} highlight={hero.highlight} />
+        </h1>
+        {hero.tagline && (
+          <p className="ovh-hero__sub" {...renderHtmlOrText(hero.tagline)} />
         )}
-        {afterHeroActions}
       </div>
-      {hasImage ? (
-        <div className="rp-home-hero__image">
-          <img
-            src={normalizeImagePath(imageSrc.light)}
-            alt={hero.image?.alt || hero.name || 'Hero image'}
-            srcSet={normalizeSrcsetAndSizes(hero.image?.srcset)}
-            sizes={normalizeSrcsetAndSizes(hero.image?.sizes)}
-            width={375}
-            height={375}
-            fetchPriority="high"
-            className="rp-home-hero__image-img rp-home-hero__image-img--light"
-          />
-          <img
-            src={normalizeImagePath(imageSrc.dark)}
-            alt={hero.image?.alt || hero.name || 'Hero image'}
-            srcSet={normalizeSrcsetAndSizes(hero.image?.srcset)}
-            sizes={normalizeSrcsetAndSizes(hero.image?.sizes)}
-            width={375}
-            height={375}
-            fetchPriority="high"
-            className="rp-home-hero__image-img rp-home-hero__image-img--dark"
-          />
-        </div>
-      ) : null}
-    </div>
+    </section>
   );
 }
-
-function normalizeSrcsetAndSizes(
-  field: undefined | string | string[],
-): string | undefined {
-  const r = (Array.isArray(field) ? field : [field]).filter(Boolean).join(', ');
-  return r || undefined;
-}
-
-export type { HomeHeroProps };
-export { HomeHero };

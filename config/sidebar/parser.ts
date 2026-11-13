@@ -144,6 +144,13 @@ const UNIVERSE_TRANSLATIONS: Record<string, Record<string, string>> = {
 export interface ParseResult {
   universes: SidebarGroup[];
   i18nEntries: Record<string, Record<string, string>>;
+  /**
+   * i18n keys of the `products/` groups. The sidebar nodes do not record
+   * whether a group is a product or a section (Rspress consumes them as is),
+   * so the llms.txt generator reads this set to give a product nested in
+   * another product its own index.
+   */
+  productKeys: Set<string>;
 }
 
 interface ParsedLine {
@@ -301,6 +308,7 @@ export function parseIndexMd(
   const lines = content.split('\n');
 
   const i18nEntries: Record<string, Record<string, string>> = {};
+  const productKeys = new Set<string>();
   const universes: SidebarGroup[] = [];
 
   // Stack for building the tree
@@ -338,6 +346,7 @@ export function parseIndexMd(
       }
 
       i18nEntries[i18nKey] = translations_for_key;
+      if (parsed.kind === 'product') productKeys.add(i18nKey);
 
       // Drop empty groups (e.g. an FR-only product whose every guide was skipped
       // for non-FR locales)
@@ -349,6 +358,9 @@ export function parseIndexMd(
       if (parsed.kind === 'universe') {
         node = {
           text: i18nKey,
+          // Untranslated key, passed through by Rspress as `data-context`:
+          // the theme maps it to the universe's icon (Sidebar/icons.tsx).
+          context: i18nKey,
           collapsed: true,
           items: items as SidebarItem[],
         };
@@ -484,5 +496,5 @@ export function parseIndexMd(
   // Flush remaining entries
   flushTo(0);
 
-  return { universes, i18nEntries };
+  return { universes, i18nEntries, productKeys };
 }
