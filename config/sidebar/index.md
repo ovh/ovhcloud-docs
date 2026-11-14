@@ -1793,6 +1793,7 @@
                     + [Build the Vélib' dashboard in Superset](public-cloud/data-platform/tutorials-velib-availability-superset-dashboard){label=Build a Vélib' availability dashboard in Superset}
                 + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
                 + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
+                + [Check data quality after each load](public-cloud/data-platform/tutorials-data-quality-checks){label=Check data quality after each load}
                 + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
                 + [Apply segmentation to your jobs](public-cloud-data-platform-apply-segmentation-to-your-jobs){landing=public-cloud/data-platform/tutorials-segmentation}
                     + [Project table attribute](public-cloud/data-platform/tutorials-segmentation-table-attribute){label=Project table attribute}
@@ -1869,6 +1870,7 @@
                 + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
                     + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
                     + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel){label=Time Travel}
+                    + [Data quality](public-cloud/data-platform/lakehouse-manager-data-quality){label=Data quality}
                 + [Views](public-cloud/data-platform/lakehouse-manager-views){label=Views}
                 + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes){label=Attributes}
                 + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets){label=Buckets}
@@ -1889,6 +1891,8 @@
                         + [Advanced Mode](public-cloud/data-platform/dpe-actions-aggregate-advanced-mode){label=Advanced Mode}
                     + [Aggregate PySpark](public-cloud/data-platform/dpe-actions-aggregate-pyspark){label=Aggregate PySpark}
                     + [SQL](public-cloud/data-platform/dpe-actions-sql){label=SQL}
+                    + [Data quality](public-cloud/data-platform/dpe-actions-data-quality){label=Data quality}
+                    + [Data quality (Spark)](public-cloud/data-platform/dpe-actions-data-quality-pyspark){label=Data quality (Spark)}
                     + [Custom](public-cloud-data-platform-custom){landing=public-cloud/data-platform/dpe-actions-custom}
                         + [Default Packages](public-cloud/data-platform/dpe-actions-custom-default-packages){label=Default Packages}
                     + [Custom PySpark](public-cloud/data-platform/dpe-actions-custom-pyspark){label=Custom PySpark}
@@ -1992,6 +1996,7 @@
                     + [Override a Load action](public-cloud/data-platform/developers-python-sdk-load-override)
                     + [Use custom Python modules via Git](public-cloud/data-platform/developers-python-sdk-git){label=Use custom Python modules via Git}
                     + [Track data lineage](public-cloud/data-platform/developers-python-sdk-lineage){label=Track data lineage}
+                    + [Read rules and send quality reports](public-cloud/data-platform/developers-python-sdk-data-quality){label=Read rules and send quality reports}
             + [Front App and API SDKs](public-cloud/data-platform/developers-front-sdks)
         + [Manage your platform](public-cloud-data-platform-manage-your-platform){landing=public-cloud/data-platform/landing-page-manage}
             + [Navigate the platform](public-cloud/data-platform/manage-navigation)

@@ -1,0 +1,171 @@
+---
+title: Check the quality of your tables with data quality rules
+description: Define quality rules on a Lakehouse Manager table, run them with a Data Processing Engine action and follow the quality status of the table
+lastUpdated: 2026-11-13
+---
+
+## Objective
+
+Data quality rules describe what valid data looks like in a table: a column without nulls, values within a range, a table refreshed recently. This guide explains how to define rules on a table, how they are evaluated, and how to read the results.
+
+The flow has three steps:
+
+1. You define rules on a table. A rule belongs to the table, so you can define it before the table is built, and it is kept when the table is rebuilt.
+2. The [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action evaluates the active rules on the table's current snapshot and sends a report to the Lakehouse Manager. For large tables, use [Data quality (Spark)](/guides/public-cloud/data-platform/dpe-actions-data-quality-pyspark). You can also send results from your own code with the [Python SDK](/guides/public-cloud/data-platform/developers-python-sdk-data-quality).
+3. Each report updates the quality status of the table, which rolls up the latest result of every rule.
+
+## Define quality rules
+
+Rules are defined in the **Quality** tab of a table, up to 100 rules per table: click **+ Add rule**. Some rule types check the values of one or more columns, others check the table's metadata, such as its row count or the time since data was last added.
+
+Every rule needs a critical level, and can also have a warning level (see [Thresholds](#thresholds)). Its [job impact](#job-impact) says whether a critical result fails the Data quality job.
+
+### Rule types
+
+| Type | What it checks | Columns | Metric |
+|---|---|---|---|
+| `not_null` | The column has no null value | One | Pass rate (%) |
+| `range` | Values are between a minimum and a maximum | One, number or date | Pass rate (%) |
+| `uniqueness` | No two rows share the same value, or the same combination of values | One or more | Share of duplicates (%) |
+| `custom_sql` | Rows satisfy a boolean SQL expression | None, the expression names them | Pass rate (%) |
+| `freshness` | Data was added to the table recently | None | Age, in minutes, hours or days |
+| `volume` | The table holds a number of rows within bounds | None | Row count |
+
+The pass rate is the share of rows that pass the check.
+
+Parameters by type:
+
+- **`range`**: `min`, `max`, or both. Bounds are numbers for a number column and ISO dates for a date column. `min_included` and `max_included` say whether each bound is accepted (both by default).
+- **`uniqueness`**: by default, rows with a null in the checked columns are left out. Set `nulls_as_value` to `true` to count null as a value.
+- **`custom_sql`**: `expression`, one boolean expression over the table's columns, in the Trino SQL dialect. Example: `amount >= 0 AND status IN ('paid', 'refunded')`.
+- **`freshness`**: `unit`, `minutes`, `hours` (default) or `days`. The age is the time since data was last added to the table.
+- **`volume`**: no parameter. The bounds are set in the thresholds.
+
+:::info
+`freshness` and `volume` are read from the table's metadata, without scanning the data. The Lakehouse Manager evaluates them itself, each time a report is received and each time the status is read, so they do not need a Data quality run.
+:::
+
+### Thresholds
+
+The threshold fields depend on the rule type:
+
+| Rule type | Fields | How the result is decided |
+|---|---|---|
+| `not_null`, `range`, `custom_sql` | **Warning when below**, **Critical when below**, in percent | The pass rate is the share of rows that pass the check. The result is OK at or above Warning, Warning between the two values, Critical below Critical. |
+| `uniqueness` | **Warning when above**, **Critical when above**, in percent of duplicates | The share of rows that repeat another one: 0 % means no duplicate. Critical when above 0 makes a single duplicate critical. |
+| `freshness` | **Warning when older than**, **Critical when older than**, in the rule's unit | The age is the time since data was last added to the table. With 24 and 48 hours, the result is OK up to 24 hours, Warning up to 48 hours, Critical after. |
+| `volume` | **Expected: at least**, **Expected: at most**, **Critical when fewer than**, **Critical when more than** | A row count within the expected range is OK. Beyond the critical limits, it is Critical. In between, it is Warning. With Expected: at least 1,000 and Critical when fewer than 100, 1,000 rows or more is OK, 100 to 999 rows is Warning, fewer than 100 is Critical. |
+
+The warning level is optional: without it, a result is either OK or Critical.
+
+### Job impact
+
+The **Job impact** of a rule decides what a Critical result does to the Data quality job:
+
+- **Report only** (default): a Critical result is reported. The DPE job goes on.
+- **Fail the job**: a Critical result fails the DPE job.
+
+The job impact does not change the result of the rule, only the job. The Data quality action can also count the critical and warning results itself, see [When the job fails](/guides/public-cloud/data-platform/dpe-actions-data-quality#when-the-job-fails).
+
+### Create and manage rules with the API
+
+Rules can also be managed with the Lakehouse Manager API (see [Data Platform APIs](/guides/public-cloud/data-platform/landing-page-developers-apis)) or with the [Python SDK](/guides/public-cloud/data-platform/developers-python-sdk-data-quality):
+
+| Operation | Route |
+|---|---|
+| List the rules of a table | `GET /dwh/v4/logical/objects/{tableId}/quality-rules` |
+| Create a rule | `POST /dwh/v4/logical/objects/{tableId}/quality-rules` |
+| Check a rule without saving it | `POST /dwh/v4/logical/objects/{tableId}/quality-rules/validate` |
+| Read, replace, update or delete a rule | `GET`, `PUT`, `PATCH`, `DELETE /dwh/v4/quality-rules/{ruleId}` |
+
+In the API, the job impact is the `severity` field: `optional` for **Report only**, `mandatory` for **Fail the job**. The thresholds are the `thresholds` object, with a `warning` and a `critical` level. For a `volume` rule each level is a `{"min", "max"}` range: `warning` is the expected range and `critical` the critical limits. For a `uniqueness` rule the API stores the share of unique rows, not the share of duplicates shown in the console: 2 % of duplicates is `98`.
+
+A rule on the `amount` column, Warning when below 99 %, Critical when below 95 %, that fails the job:
+
+```json
+{
+  "display_name": "Amount is filled",
+  "type": "not_null",
+  "columns": [{"name": "amount"}],
+  "severity": "mandatory",
+  "thresholds": {"warning": 99, "critical": 95}
+}
+```
+
+A rule that data was added in the last day:
+
+```json
+{
+  "display_name": "Loaded daily",
+  "type": "freshness",
+  "params": {"unit": "hours"},
+  "thresholds": {"warning": 24, "critical": 36}
+}
+```
+
+When you manage rules:
+
+- A new rule is active. An inactive rule is kept and listed, but it is never evaluated and does not count in the status of the table. Use it to pause a rule without losing its history.
+- Every change increments the rule's `version`. Send the `version` you read with a change: if someone changed the rule in between, your change is refused with `QUALITY_RULE_VERSION_CONFLICT` instead of overwriting theirs.
+- Check a rule before saving it: the validate route returns the rule as it would be stored, or the reason it would be refused, for example a column that does not exist or thresholds in the wrong order.
+
+## Quality reports and status
+
+### Rule outcomes
+
+Each evaluation of a rule gives one outcome:
+
+| Outcome | Meaning |
+|---|---|
+| `ok` | The metric is within the thresholds |
+| `warning` | The metric crossed the warning level. A rule on a column the table no longer has is also reported in warning, with the reason "Column `<name>` is no longer in the table": update or delete the rule |
+| `critical` | The metric crossed the critical level |
+| `no_data` | There was nothing to measure, for example an empty table or a table never loaded |
+| `not_evaluated` | The rule could not be evaluated. The report gives the reason, for example a `custom_sql` expression that fails to run |
+
+### Read a report
+
+A run of the Data quality action sends one report for the table, with one entry per rule. Each entry gives the outcome, the metric, and for pass-rate rules the number of rows evaluated and the number of rows failing the rule.
+
+The report also says:
+
+- which engine evaluated the rules, and which snapshot of the table it read;
+- what started the run: a schedule, or a user;
+- when the table has grown too large for the action that ran, the package to move to (`suggested_package`), for example `data-quality-pyspark` for the Data quality (Spark) action.
+
+| Operation | Route |
+|---|---|
+| Latest run of a table, or one run by its execution id | `GET /dwh/v4/logical/objects/{tableId}/quality-reports`, with `execution_id` for one run |
+| Last runs of one rule | `GET /dwh/v4/quality-rules/{ruleId}/reports` |
+
+The Lakehouse Manager keeps the last 10 runs of each rule. Each run stores the rule as it was when evaluated, so you can see when a threshold or a parameter changed between two runs.
+
+### Table quality status
+
+Each report received from a Data quality run also sets the quality status of the table: one outcome for the whole table, shown with the table in the Lakehouse Manager. It rolls up the latest outcome of each active rule: the worst outcome among `ok`, `warning` and `critical`. Rules without a result do not lower it. When no rule has a result, the status is:
+
+- `pending` when every active rule is waiting for its first run;
+- `disabled` when every rule is inactive;
+- `not_evaluated` otherwise, also when the table has no rule.
+
+The job impact of a rule does not enter the status: a **Report only** rule ending critical makes the table critical, even though it does not fail the Data quality job. The table status says what the data looks like, the job result says whether the run should stop a workflow.
+
+The status is also updated when a rule is created, changed, switched off or deleted, so it always reflects the current rules of the table.
+
+Read it with `GET /dwh/v4/logical/objects/{tableId}/quality-status`. The answer has one entry per rule, with its outcome, metric and date, and where the result comes from:
+
+- `live`: a `freshness` or `volume` rule, evaluated at the time of the request;
+- `stored`: the latest run of the rule;
+- `none`: the rule has not run yet, or is inactive.
+
+## Go further
+
+- [Check the quality of a table after each load](/guides/public-cloud/data-platform/tutorials-data-quality-checks)
+- [Data quality action](/guides/public-cloud/data-platform/dpe-actions-data-quality)
+- [Manage quality rules and send quality reports from a Custom action](/guides/public-cloud/data-platform/developers-python-sdk-data-quality)
+
+[[fragment:professional-services|en]]
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).

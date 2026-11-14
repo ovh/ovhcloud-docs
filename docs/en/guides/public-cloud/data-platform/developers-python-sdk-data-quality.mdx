@@ -1,0 +1,192 @@
+---
+title: Manage quality rules and send quality reports from a Custom action
+description: Use the Python SDK to create the quality rules of a table, run your own checks in a Custom action and send their results as a quality report
+lastUpdated: 2026-11-10
+---
+
+## Objective
+
+The [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action covers the common checks: nulls, ranges, uniqueness, freshness, volume and custom SQL. To evaluate rules in your own code instead, for example inside a [Custom action](/guides/public-cloud/data-platform/dpe-actions-custom) that already reads the table, send the results with the Python SDK. The report goes to the same place as the Data quality action's reports, so the [quality status of the table](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#quality-reports-and-status) takes your checks into account.
+
+This guide shows how to:
+
+- create and manage the quality rules of a table;
+- read the rules of a table in a Custom action;
+- send a quality report for one run;
+- read reports and the quality status of a table.
+
+## Requirements
+
+- A Lakehouse Manager table. Rules belong to the table itself, so you can define them before the table is built, and they are kept when it is rebuilt.
+- A Custom action in Python, with the `forepaas` SDK it installs by default.
+
+All the methods below are on the `Database` class of `forepaas.dwh`. A table is addressed by its name or its id. A method raises `DwhRequestException` when the Lakehouse Manager refuses the request.
+
+```python
+from forepaas.dwh import Database
+
+api = Database()
+```
+
+## Manage the quality rules of a table
+
+### Create a rule
+
+A rule has a type, the columns it checks, type-specific parameters, a severity (the **Job impact** of the interface) and thresholds. Thresholds apply to the rule's metric: for a `not_null`, `range` or `uniqueness` rule the metric is a pass rate in percent, so a rule with a `warning` threshold of 99 and a `critical` threshold of 95 is in warning below 99 % of valid rows and critical below 95 %.
+
+```python
+rule = api.quality_rules_create("orders", {
+    "display_name": "Amount is filled",
+    "type": "not_null",
+    "columns": [{"name": "amount"}],
+    "severity": "mandatory",
+    "thresholds": {"warning": 99, "critical": 95},
+})
+print(rule["_id"], rule["version"])
+```
+
+A new rule is active. Send `"active": False` to create it inactive: an inactive rule is listed but never evaluated, and it does not count in the quality status of the table.
+
+The severity is `optional` (the default, **Report only** in the interface) or `mandatory` (**Fail the job**). Only a `mandatory` rule with a critical result fails a Data quality job that runs without **Critical Results Allowed**.
+
+To check a rule against the table without saving it, call `quality_rule_validate`. It returns the rule as it would be stored, or raises with the reason it would be refused:
+
+```python
+result = api.quality_rule_validate("orders", {
+    "display_name": "Amount is positive",
+    "type": "range",
+    "columns": [{"name": "amount"}],
+    "params": {"min": 0},
+    "thresholds": {"critical": 95},
+})
+print(result["valid"])
+```
+
+### List, update and delete rules
+
+| Method | What it does |
+|---|---|
+| `table_quality_rules_list(table)` | Lists the rules of a table, active and inactive |
+| `quality_rule_get(rule_id)` | Reads one rule |
+| `quality_rule_update(rule_id, rule)` | Replaces a rule |
+| `quality_rule_patch(rule_id, changes)` | Changes the active flag, severity, thresholds, display name or description |
+| `quality_rule_delete(rule_id)` | Deletes a rule |
+
+Every change increments the rule's `version`. To make sure you do not overwrite a change made since you read the rule, send the `version` you read: the request is refused with `QUALITY_RULE_VERSION_CONFLICT` if the rule changed in between.
+
+```python
+rule = api.quality_rule_get(rule_id)
+api.quality_rule_patch(rule_id, {"active": False, "version": rule["version"]})
+```
+
+## Send a quality report from a Custom action
+
+A report covers one run on one table. It carries an `execution_id` that identifies the run, and one entry per rule evaluated. Each entry gives the rule and the version that was evaluated, its type, the outcome and, when you measured them, the metric, the number of rows evaluated and the number of rows failing the rule.
+
+The outcome is one of:
+
+| Outcome | Meaning |
+|---|---|
+| `ok` | The metric is within the thresholds |
+| `warning` | The metric crossed the warning threshold |
+| `critical` | The metric crossed the critical threshold |
+| `not_evaluated` | The rule could not be evaluated. Give the reason in `reason` |
+| `no_data` | There was nothing to evaluate, for example an empty table |
+
+The example below evaluates the active `not_null` rules of a table in Python and sends one report for the run:
+
+```python
+import uuid
+
+from forepaas.core.settings import CONFIG
+from forepaas.dwh import Database, connect
+
+TABLE = "orders"
+
+
+def outcome(pass_rate, thresholds):
+    if "critical" in thresholds and pass_rate < thresholds["critical"]:
+        return "critical"
+    if "warning" in thresholds and pass_rate < thresholds["warning"]:
+        return "warning"
+    return "ok"
+
+
+def my_custom(event):
+    api = Database()
+    rules = [r for r in api.table_quality_rules_list(TABLE) if r["active"] and r["type"] == "not_null"]
+    if not rules:
+        return "no rule"
+
+    connector = connect("dwh/sales/")
+    entries = []
+    for rule in rules:
+        column = rule["columns"][0]["name"]
+        counts = connector.query(f"SELECT count(*) AS n, count({column}) AS valid FROM {TABLE}").iloc[0]
+        rows, valid = int(counts["n"]), int(counts["valid"])
+        if rows == 0:
+            entries.append({"rule_id": rule["_id"], "rule_version": rule["version"],
+                            "rule_type": rule["type"], "outcome": "no_data"})
+            continue
+        pass_rate = 100 * valid / rows
+        entries.append({
+            "rule_id": rule["_id"],
+            "rule_version": rule["version"],
+            "rule_type": rule["type"],
+            "outcome": outcome(pass_rate, rule["thresholds"]),
+            "metric": round(pass_rate, 2),
+            "rows": rows,
+            "violations": rows - valid,
+        })
+
+    receipt = api.table_quality_report_send(TABLE, {
+        "execution_id": CONFIG.get("execution_id") or str(uuid.uuid4()),
+        "engine": "custom",
+        "entries": entries,
+    })
+    print(receipt)
+```
+
+:::info
+Use the job's execution id as `execution_id`. A report sent twice with the same `execution_id` is stored once, so a retried job does not count its run twice. The receipt counts the entries `stored`, the `duplicates` and the entries kept only in the history.
+:::
+
+A rule evaluated by both your action and the Data quality action keeps the latest run. Evaluate each rule in one place.
+
+You do not need to report `freshness` and `volume` rules: the platform evaluates them from the metadata of the table's snapshot when a report is received, and when the quality status is read.
+
+Optional fields of a report:
+
+| Field | Content |
+|---|---|
+| `snapshot_id` | The Iceberg snapshot your checks read |
+| `engine` | A label for what evaluated the rules |
+| `evaluated_at` | When the rules were evaluated, in UTC. Defaults to the time the report is received |
+| `action_id` | The action that ran the checks |
+
+## Read reports and the quality status
+
+| Method | Returns |
+|---|---|
+| `table_quality_report_get(table, execution_id=None)` | The latest run of the table, or the run with that `execution_id` |
+| `quality_rule_report(rule_id)` | The last runs of one rule, each with the rule as it was when evaluated |
+| `table_quality_status(table)` | The quality status of the table: one entry per active rule and the outcome that rolls them up |
+
+```python
+status = api.table_quality_status("orders")
+print(status["outcome"])
+for rule in status["rules"]:
+    print(rule["display_name"], rule["outcome"])
+```
+
+The Lakehouse Manager keeps the last 10 runs of each rule. The rule stored with each run lets you see when a threshold or a parameter changed between two runs.
+
+## Go further
+
+Run the built-in checks with the [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action, and follow a first rule end to end in the [data quality tutorial](/guides/public-cloud/data-platform/tutorials-data-quality-checks).
+
+[[fragment:professional-services|en]]
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
