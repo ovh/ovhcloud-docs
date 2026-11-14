@@ -1,0 +1,396 @@
+---
+title: Collecter chaque jour la consommation électrique des régions françaises
+description: Découvrez comment charger 13 ans de consommation électrique régionale depuis un fichier, y ajouter chaque matin les données temps réel d'une API publique et modéliser l'ensemble dans une vue SQL horaire prête pour une prévision
+lastUpdated: 2026-11-02
+---
+
+## Objectif
+
+Ce guide vous explique comment construire les données dont a besoin une prévision régionale de consommation électrique : 13 ans d'historique de consommation pour les 12 régions de France métropolitaine, complétés chaque matin par les dernières données publiées par le gestionnaire du réseau de transport d'électricité, RTE. Vous chargez l'historique depuis un fichier avec une [source File Upload](/guides/public-cloud/data-platform/connectors-sources-upload-files), connectez les données temps réel avec une [source HTTP REST](/guides/public-cloud/data-platform/connectors-sources-rest), datez et dédoublonnez chaque collecte avec le [Data Processing Engine](/guides/public-cloud/data-platform/dpe-actions-deduplicate), puis réunissez les deux dans une [vue](/guides/public-cloud/data-platform/lakehouse-manager-views) horaire. Toute cette partie se passe dans l'interface de la Data Platform et en SQL.
+
+À la fin, vous disposerez de deux tables, `eco2mix_regional_history` et `eco2mix_regional_realtime`, la seconde mise à jour chaque matin par un workflow planifié, et de la vue `regional_consumption_hourly` : une ligne par région et par heure, de janvier 2013 à aujourd'hui. La deuxième partie du guide, « [Prévoir chaque jour la consommation électrique des régions avec PySpark](/guides/public-cloud/data-platform/tutorials-eco2mix-forecast-production) », entraîne un modèle de prévision sur cette vue dans un notebook, puis l'exécute chaque matin sous forme de job planifié.
+
+## Prérequis
+
+Pour suivre ce guide, vous devez :
+
+- Disposer d'un projet Data Platform.
+- Télécharger le fichier d'historique ci-dessous, exporté depuis l'API publique d'ODRÉ. L'API temps réel est publique elle aussi : aucune des deux ne demande de compte ni de clé.
+
+| Fichier | Téléchargement |
+|---|---|
+| Consommation régionale depuis janvier 2013, cinq colonnes, heures en UTC (environ 13 Mo) | [Export parquet sur ODRÉ](https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/eco2mix-regional-cons-def/exports/parquet?select=code_insee_region,libelle_region,nature,date_heure,consommation&timezone=UTC) |
+
+Enregistrez le fichier sous le nom `eco2mix_regional_history.parquet` : ce guide utilise ce nom.
+
+:::info
+**À propos des données :** consommation régionale éCO2mix de [RTE](https://www.rte-france.com/), publiée par Open Data Réseaux Énergies (ODRÉ) sous [Licence Ouverte 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence/) : les [données consolidées et définitives](https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-cons-def/) pour l'historique et les [données temps réel](https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-tr/) pour la collecte quotidienne.
+
+Si vous réutilisez ces données, mentionnez leur source et la date de leur dernière mise à jour.
+:::
+
+Avant de commencer, nous vous recommandons de suivre les [guides de démarrage](/guides/public-cloud/data-platform/landing-page-getting-started). Ce guide suppose que vous êtes à l'aise avec les principaux composants de la Data Platform.
+
+## Ce que vous allez construire
+
+| Étape | Composant | Résultat |
+|---|---|---|
+| 1. Charger l'historique régional | [Source File Upload](/guides/public-cloud/data-platform/connectors-sources-upload-files), [Analyzer](/guides/public-cloud/data-platform/connectors-analyzer-extract-metadata) et [tables du Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-tables) | `eco2mix_regional_history`, 2,9 millions de demi-heures |
+| 2. Connecter les données temps réel | [Source HTTP REST](/guides/public-cloud/data-platform/connectors-sources-rest) et [action Load](/guides/public-cloud/data-platform/dpe-actions-load) | `eco2mix_regional_realtime`, les dernières semaines au quart d'heure |
+| 3. Garder une ligne par quart d'heure | [Action SQL](/guides/public-cloud/data-platform/dpe-actions-sql) et [action Deduplicate](/guides/public-cloud/data-platform/dpe-actions-deduplicate) | Chaque ligne datée, aucun doublon après une nouvelle collecte |
+| 4. Modéliser les données en heures | [Vues du Lakehouse Manager](/guides/public-cloud/data-platform/lakehouse-manager-views) | `regional_consumption_hourly`, lisible par Trino et par Spark |
+| 5. Planifier la collecte | [Workflow](/guides/public-cloud/data-platform/dpe-workflows) et [trigger](/guides/public-cloud/data-platform/dpe-jobs-preferences#déclencheur-temporel) | Une collecte chaque matin à 06:17 UTC |
+
+## En pratique
+
+### Étape 1 : charger l'historique régional
+
+L'historique couvre les 12 régions de France métropolitaine, demi-heure par demi-heure. La Corse ne fait pas partie du jeu de données.
+
+Le fichier des prérequis est l'export du jeu de données ODRÉ, limité à cinq colonnes, avec les heures en UTC :
+
+```
+https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/eco2mix-regional-cons-def/exports/parquet?select=code_insee_region,libelle_region,nature,date_heure,consommation&timezone=UTC
+```
+
+Le téléchargement peut prendre quelques minutes. Les chiffres de ce guide viennent d'un export du 20 octobre 2026, qui s'arrête au 31 août 2026 : un export plus récent couvre davantage de mois, et les données temps réel prennent le relais après sa dernière ligne.
+
+#### Créer la source
+
+1. Ouvrez **Connectors** > **Sources** et créez une nouvelle source de type *File Upload*.
+2. Nommez-la `eco2mix_regional_history`.
+3. Dans la section *Files*, déposez `eco2mix_regional_history.parquet` ou cliquez sur **click here to upload**.
+4. Cliquez sur **Create**.
+
+<img className="thumbnail" alt="La source File Upload eco2mix_regional_history avec le fichier eco2mix_regional_history.parquet dans sa section Files" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/connectors-file-upload-history.png" loading="lazy" />
+
+#### Vérifier les attributs
+
+1. Ouvrez **Connectors** > **Analyzer**.
+2. Sélectionnez la source `eco2mix_regional_history`, puis `eco2mix_regional_history.parquet`.
+3. Cliquez sur **Extract metadata**.
+
+L'[Analyzer](/guides/public-cloud/data-platform/connectors-analyzer-extract-metadata) détecte les types sur un échantillon de 1 000 lignes. Vérifiez-les dès maintenant : ils deviennent les types des attributs de la table.
+
+| Attribut | Type détecté | Ce qu'il faut savoir |
+|---|---|---|
+| `code_insee_region` | Double | Du texte dans le fichier, converti en nombre par l'Analyzer. La vue de l'étape 4 le transforme en entier. |
+| `libelle_region` | String | Le nom de la région. |
+| `nature` | String | Le statut des données, par exemple `Données consolidées`. |
+| `date_heure` | DateTime | L'Analyzer ajoute de lui-même une [règle de blueprint](/guides/public-cloud/data-platform/connectors-analyzer-blueprint-rules), *Datetime remove timezone* : elle retire le fuseau horaire et garde l'heure UTC. |
+| `consommation` | Double | La consommation, en MW. |
+
+<img className="thumbnail" alt="L'Analyzer affichant les cinq attributs de eco2mix_regional_history.parquet, avec un blueprint sur date_heure et l'aperçu des premières lignes" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/connectors-analyzer-history.png" loading="lazy" />
+
+Le fichier est trié de la ligne la plus récente à la plus ancienne : dans l'export du 20 octobre 2026, sa première ligne est `2026-08-31 21:30` UTC, et l'échantillon de 1 000 lignes couvre quelques heures de fin août 2026. L'Explorer donne la vue complète une fois la table chargée.
+
+#### Créer la table
+
+1. Ouvrez **Lakehouse Manager** > **Tables** et cliquez sur **New table** > **Create from a Connectors source**.
+2. Sélectionnez `eco2mix_regional_history.parquet` dans la source `eco2mix_regional_history`, puis cliquez sur **Next**.
+3. Nommez la table `eco2mix_regional_history`, conservez le dataset `default_dataset` et laissez les trois options activées : *Automatically build the table*, *Automatically load the table once* et *Automatically generate Load action for later*.
+4. Cliquez sur **Create**, puis attendez la fin du premier chargement.
+
+<img className="thumbnail" alt="La fenêtre Create table from eco2mix_regional_history.parquet avec le nom eco2mix_regional_history, le dataset default_dataset et les trois options automatiques activées" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-create-table-history.png" loading="lazy" />
+
+#### Vérifier l'historique
+
+Dans **Lakehouse Manager** > **Explorer**, exécutez :
+
+```sql
+SELECT count(*) AS rows,
+       count(consommation) AS with_consumption,
+       count(DISTINCT code_insee_region) AS regions,
+       count(DISTINCT CAST(code_insee_region AS varchar) || CAST(date_heure AS varchar)) AS distinct_region_timestamps,
+       min(date_heure) AS first_row,
+       max(date_heure) AS last_row
+FROM eco2mix_regional_history
+```
+
+Avec l'export du 20 octobre 2026 :
+
+| rows | with_consumption | regions | distinct_region_timestamps | first_row | last_row |
+|---|---|---|---|---|---|
+| 2 874 816 | 2 874 792 | 12 | 2 874 480 | 2012-12-31 23:00 | 2026-08-31 21:30 |
+
+<img className="thumbnail" alt="L'Explorer avec la requête de contrôle sur eco2mix_regional_history et son unique ligne de résultat" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-history-check.png" loading="lazy" />
+
+Ce que disent ces chiffres :
+
+- **12 régions, toutes les demi-heures, du 1er janvier 2013 au 31 août 2026, heure de Paris.** La première ligne, `2012-12-31 23:00` UTC, correspond à minuit à Paris.
+- **336 doublons** (`rows` moins `distinct_region_timestamps`). Le jeu de données suit l'heure de Paris : le jour du passage à l'heure d'été, l'heure qui n'existe pas en heure de Paris apparaît deux fois en UTC, soit deux demi-heures par région et par printemps. En automne, l'heure qui se répète en heure de Paris manque en UTC. La vue horaire de l'étape 4 fait la moyenne de tous les points d'une heure, doublons compris.
+- **24 consommations vides** : pour chaque région, la première demi-heure du 1er janvier 2013 et celle du 1er janvier 2026, où commence une nouvelle série (données définitives, puis données consolidées).
+
+### Étape 2 : connecter les données temps réel
+
+Le jeu de données temps réel ne garde que les mois récents : les mois plus anciens passent dans le jeu de données consolidé. L'export du 20 octobre 2026 s'arrête au 31 août 2026, et les données temps réel prennent le relais à partir du 1er septembre.
+
+#### Créer la source
+
+1. Ouvrez **Connectors** > **Sources** et créez une nouvelle source de type *HTTP REST*.
+2. Nommez-la `eco2mix_realtime`.
+3. Dans *Base URL*, saisissez `https://odre.opendatasoft.com/api/explore/v2.1/`. L'API est publique : laissez *Authentication mode* sur **None**, puis cliquez sur **Connect**.
+4. Dans *Endpoints to connect*, cliquez sur **Add an endpoint** et renseignez l'endpoint :
+
+| Paramètre | Valeur |
+|---|---|
+| Method | `GET` |
+| Endpoint | `/catalog/datasets/eco2mix-regional-tr/exports/json` |
+| Onglet *Query*, paramètre `select` | `code_insee_region,libelle_region,nature,date_heure,consommation` |
+| Onglet *Query*, paramètre `timezone` | `UTC` |
+| Source object technical name, dans l'onglet *Options* | `regional` |
+
+5. Cliquez sur **Confirm**.
+
+<img className="thumbnail" alt="La fenêtre Configure an endpoint avec la méthode GET, le chemin d'export de eco2mix-regional-tr et les paramètres de requête select et timezone" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/connectors-http-rest-endpoint.png" loading="lazy" />
+
+6. Cliquez sur **Create**.
+
+La source liste un endpoint, `regional.json`.
+
+<img className="thumbnail" alt="La source eco2mix_realtime avec l'URL de base d'ODRÉ et l'endpoint regional.json" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/connectors-http-rest-source.png" loading="lazy" />
+
+Deux choix comptent ici :
+
+- **L'endpoint d'export**, pas `records` : l'endpoint `records` renvoie un nombre limité de lignes par appel, l'endpoint d'export renvoie tout le jeu de données d'un coup.
+- **Aucun filtre de date** : le jeu temps réel ne contient de toute façon que des données récentes, et chaque collecte recouvre la précédente. L'étape 3 supprime ce recouvrement.
+
+#### Vérifier les attributs
+
+Dans **Connectors** > **Analyzer**, sélectionnez la source `eco2mix_realtime`, puis `regional.json`, et cliquez sur **Extract metadata**. Vous obtenez les mêmes types que pour l'historique : `code_insee_region` en Double, `date_heure` en DateTime avec le même blueprint, `consommation` en Double. Contrairement au fichier d'historique, ce JSON est trié de la ligne la plus ancienne à la plus récente.
+
+#### Créer la table à partir de la table d'historique
+
+La table temps réel a les mêmes colonnes que l'historique, plus l'heure de chaque collecte. Partez d'une copie de la table d'historique :
+
+1. Ouvrez **Lakehouse Manager** > **Tables**, survolez la ligne de `eco2mix_regional_history` et cliquez sur son icône *Duplicate*. La fenêtre *Create new empty table* s'ouvre avec le nom `eco2mix_regional_history_copy`.
+2. Renommez-la `eco2mix_regional_realtime`, conservez le dataset `default_dataset` et cliquez sur **Create**.
+3. Ouvrez la table `eco2mix_regional_realtime`, puis son onglet *Schema*.
+4. Cliquez sur **New attribute**, nommez-le `collected_at`, sélectionnez le type de données *Datetime* et cliquez sur **Save**.
+5. Cliquez sur **Build**.
+
+<img className="thumbnail" alt="L'onglet Schema de eco2mix_regional_realtime avec les six attributs, collected_at en Datetime, et date_heure marqué comme identifier field" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-realtime-schema.png" loading="lazy" />
+
+:::info
+**Remarque :** la copie conserve l'[identifier field](/guides/public-cloud/data-platform/lakehouse-manager-manage-tables#contraintes-dattribut) de la table d'origine, `date_heure`. Laissez-le tel quel : dans ce guide, l'action *Deduplicate* de l'étape 3 gère la clé d'une ligne, la région et le quart d'heure.
+:::
+
+#### Créer l'action Load
+
+1. Ouvrez **Data Processing Engine** > **Actions**, cliquez sur **New action** et sélectionnez l'action *Load*.
+2. Dans *Sources*, sélectionnez `regional.json` de `eco2mix_realtime`. Dans *Destination*, sélectionnez `eco2mix_regional_realtime` de `default_dataset`.
+3. Les cinq attributs sont associés aux attributs du même nom. Laissez `collected_at` sans source : l'action SQL de l'étape 3 le remplit.
+4. Renommez l'action `Load regional realtime`.
+5. Cliquez sur **Create**, puis sur **Run**.
+
+<img className="thumbnail" alt="L'action Load regional realtime de regional.json vers eco2mix_regional_realtime, avec la clé unique date_heure, quatre attributs associés et collected_at laissé sans source" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-load-realtime.png" loading="lazy" />
+
+#### Vérifier les données temps réel
+
+Dans l'Explorer, exécutez :
+
+```sql
+SELECT count(*) AS rows,
+       count(consommation) AS with_consumption,
+       count(DISTINCT code_insee_region) AS regions,
+       min(date_heure) AS first_row,
+       max(date_heure) AS last_row
+FROM eco2mix_regional_realtime
+```
+
+Le 23 octobre 2026, la table contient **61 056 lignes** : 12 régions × 96 quarts d'heure × 53 jours, de `2026-08-31 22:00` UTC, juste après la dernière ligne de l'historique, jusqu'à la fin de la journée en cours. Les données temps réel sont publiées au quart d'heure et listent à l'avance tous les quarts d'heure de la journée en cours : ceux qui ne sont pas encore mesurés ont une consommation vide. Elles n'ont aucune ligne pour le lendemain.
+
+### Étape 3 : garder une ligne par quart d'heure
+
+Chaque collecte recharge toutes les dernières semaines. Pour garder une ligne par région et par quart d'heure, vous datez chaque collecte, puis gardez la ligne la plus récente de chaque quart d'heure.
+
+#### Dater chaque collecte
+
+Créez une [action SQL](/guides/public-cloud/data-platform/dpe-actions-sql) qui date les lignes qui viennent d'être chargées.
+
+1. Dans **Data Processing Engine** > **Actions**, cliquez sur **New action** et sélectionnez l'action *SQL*.
+2. Nommez-la `Stamp regional collection`.
+3. Dans le panneau *Tables*, cliquez sur l'icône de copie de `eco2mix_regional_realtime` : une action SQL a besoin du nom complet `catalog.schema.table`, et le nom du catalogue, `db_<id>_default_dataset`, est propre à votre projet.
+4. Collez la requête ci-dessous, avec ce nom complet à la place de `<catalog>.default_dataset.eco2mix_regional_realtime` :
+
+    ```sql
+    UPDATE <catalog>.default_dataset.eco2mix_regional_realtime
+    SET collected_at = CAST(current_timestamp AT TIME ZONE 'UTC' AS timestamp(6))
+    WHERE collected_at IS NULL
+    ```
+
+5. Cliquez sur **Validate**. La validation est un essai à blanc : elle vérifie la requête sans modifier la table.
+6. Cliquez sur **Create**.
+
+<img className="thumbnail" alt="L'action SQL Stamp regional collection avec la requête UPDATE sur le nom complet de eco2mix_regional_realtime et une validation réussie" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-sql-action-stamp.png" loading="lazy" />
+
+Notez le nom du catalogue : la vue de l'étape 4 et la deuxième partie de ce guide en ont besoin.
+
+#### Constater que l'action Load ajoute
+
+1. Exécutez `Stamp regional collection`.
+2. Exécutez de nouveau `Load regional realtime`.
+3. Dans l'Explorer, exécutez :
+
+    ```sql
+    SELECT count(*) AS rows,
+           count(collected_at) AS stamped,
+           count(*) - count(collected_at) AS not_stamped,
+           count(DISTINCT collected_at) AS collections
+    FROM eco2mix_regional_realtime
+    ```
+
+La table contient maintenant deux fois plus de lignes : 122 112, dont 61 056 datées par la première collecte et 61 056 pas encore datées. **L'action Load ajoute toutes les lignes qu'elle lit** : chaque collecte est conservée, et l'étape suivante garde la ligne la plus récente de chaque quart d'heure.
+
+<img className="thumbnail" alt="L'Explorer affichant 122 112 lignes dans eco2mix_regional_realtime, 61 056 datées, 61 056 non datées et une collecte" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-load-appends.png" loading="lazy" />
+
+#### Garder la ligne la plus récente
+
+1. Exécutez de nouveau `Stamp regional collection` : les nouvelles lignes reçoivent une heure de collecte plus récente.
+2. Dans **Data Processing Engine** > **Actions**, cliquez sur **New action** et sélectionnez l'action *Deduplicate*.
+3. Renseignez l'action :
+
+| Paramètre | Valeur |
+|---|---|
+| Table | `eco2mix_regional_realtime` de `default_dataset` |
+| Key column(s) | `code_insee_region`, `date_heure` |
+| Row to keep | *Most recent / oldest entry*, puis **Most recent**, trié selon la colonne `collected_at` |
+| Keep a backup of this table | Désactivé : le [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) conserve déjà l'état précédent |
+
+L'action indique que cette clé diffère des identifier fields de la table : c'est attendu, puisque la clé est ici la région et le quart d'heure.
+
+4. Cliquez sur **Scan** : il estime, sans rien modifier, combien de lignes la clé supprimerait. Il trouve 61 056 lignes à supprimer, une par région et par quart d'heure.
+5. Cliquez sur **Create**. L'action s'appelle `Deduplicate - eco2mix_regional_realtime`. Exécutez-la.
+
+<img className="thumbnail" alt="L'action Deduplicate sur eco2mix_regional_realtime avec la clé date_heure et code_insee_region, la ligne la plus récente conservée selon collected_at, et un Scan qui trouve 61 056 lignes à supprimer" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-deduplicate-action.png" loading="lazy" />
+
+Exécutez de nouveau la requête de comptage : la table revient à 61 056 lignes, toutes datées.
+
+Pourquoi ajouter puis dédoublonner, plutôt que vider la table et la recharger : RTE retire les mois les plus anciens du jeu temps réel, et le fichier d'historique s'arrête à la fin du dernier mois consolidé. Vider la table avant chaque chargement ferait perdre les mois qui ne sont plus dans les données temps réel et pas encore dans l'historique.
+
+### Étape 4 : modéliser les données en heures
+
+La vue `regional_consumption_hourly` réunit l'historique et les données temps réel en une ligne par région et par heure.
+
+1. Ouvrez **Lakehouse Manager** > **Views** et cliquez sur **New View**.
+2. Nommez la vue `regional_consumption_hourly` et sélectionnez le dataset `default_dataset`.
+3. Saisissez la définition ci-dessous, avec le nom de votre catalogue à la place de `<catalog>` :
+
+```sql
+WITH all_rows AS (
+    SELECT code_insee_region, libelle_region, nature, date_heure, consommation
+    FROM <catalog>.default_dataset.eco2mix_regional_history
+    UNION ALL
+    SELECT code_insee_region, libelle_region, nature, date_heure, consommation
+    FROM <catalog>.default_dataset.eco2mix_regional_realtime
+    WHERE date_heure > (SELECT max(date_heure) FROM <catalog>.default_dataset.eco2mix_regional_history)
+)
+SELECT
+    CAST(code_insee_region AS BIGINT) AS region_code,
+    max(libelle_region)               AS region_name,
+    date_trunc('hour', date_heure)    AS hour_utc,
+    avg(consommation)                 AS consumption_mw,
+    count(consommation)               AS consumption_points,
+    max(nature)                       AS nature
+FROM all_rows
+GROUP BY CAST(code_insee_region AS BIGINT), date_trunc('hour', date_heure)
+```
+
+4. Cliquez sur **Create**.
+
+<img className="thumbnail" alt="La fenêtre Create a new view avec le nom de vue regional_consumption_hourly, le dataset default_dataset et le début de sa définition SQL" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-view-regional-hourly.png" loading="lazy" />
+
+Les règles de cette vue :
+
+- **L'historique est prioritaire** : les données temps réel ne sont lues qu'après la dernière ligne de l'historique.
+- **Une heure est la moyenne de ses points**, en UTC : deux demi-heures dans l'historique, quatre quarts d'heure dans les données temps réel. Rester en UTC évite le piège de l'automne, quand deux heures UTC tombent sur la même heure de Paris.
+- **Un SQL portable** : Trino lit cette vue dans l'Explorer, et Spark la lit dans le notebook et dans le job de la deuxième partie. La vue n'utilise que des fonctions connues des deux moteurs : les fonctions propres à Trino, comme `with_timezone`, `AT TIME ZONE`, `timestamp(6)` ou `day_of_week`, n'y figurent pas, et l'heure de Paris est calculée là où la vue est lue.
+- **Le code de région est un `BIGINT`**, un type commun aux deux moteurs.
+- **Les tables sont nommées en entier**, `<catalog>.default_dataset.<table>`.
+
+#### Vérifier la vue
+
+Dans l'Explorer, une vue se préfixe de son dataset :
+
+```sql
+SELECT region_code, region_name,
+       count(*) AS hours,
+       count(consumption_mw) AS measured_hours,
+       min(hour_utc) AS first_hour,
+       max(hour_utc) AS last_hour
+FROM default_dataset.regional_consumption_hourly
+GROUP BY region_code, region_name
+ORDER BY region_code
+```
+
+Le 23 octobre 2026, chaque région compte 121 042 heures, de `2012-12-31 23:00` à `2026-10-23 21:00` UTC. 121 028 d'entre elles sont mesurées : les 14 restantes sont les heures de la journée en cours, pas encore mesurées.
+
+<img className="thumbnail" alt="L'Explorer affichant les heures par région de regional_consumption_hourly, 121 042 heures chacune de 2012-12-31 23:00 à 2026-10-23 21:00" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-regional-hourly-check.png" loading="lazy" />
+
+### Étape 5 : planifier la collecte
+
+#### Arrêter le workflow en cas d'échec
+
+Si une action de la collecte échoue, les suivantes ne doivent pas s'exécuter sur des données incomplètes. Pour chacune des trois actions, `Load regional realtime`, `Stamp regional collection` et `Deduplicate - eco2mix_regional_realtime` :
+
+1. Ouvrez l'action, puis son onglet *Preferences*.
+2. Dans la section *Timeout options*, activez **Stop workflow on failure**.
+
+<img className="thumbnail" alt="L'onglet Preferences de Load regional realtime avec Stop workflow on failure activé dans la section Timeout options" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-stop-workflow-on-failure.png" loading="lazy" />
+
+#### Créer le workflow
+
+1. Ouvrez **Data Processing Engine** > **Workflows** et cliquez sur **New workflow**.
+2. Nommez-le `Daily realtime collection`.
+3. Ajoutez une action par stage, dans cet ordre :
+
+| Stage | Action |
+|---|---|
+| 1 | `Load regional realtime` |
+| 2 | `Stamp regional collection` |
+| 3 | `Deduplicate - eco2mix_regional_realtime` |
+
+4. Cliquez sur **Create**.
+
+<img className="thumbnail" alt="Le workflow Daily realtime collection avec Load regional realtime, Stamp regional collection et Deduplicate - eco2mix_regional_realtime dans trois stages successifs" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-collection.png" loading="lazy" />
+
+Chaque action doit être dans son propre stage : les actions d'un même stage s'exécutent en même temps, et chaque stage attend la fin du précédent.
+
+#### Le planifier
+
+Dans l'onglet *Preferences* du workflow, dans la section *Triggers*, cliquez sur **Add** et renseignez le [trigger](/guides/public-cloud/data-platform/dpe-jobs-preferences#déclencheur-temporel) horaire :
+
+| Paramètre | Valeur |
+|---|---|
+| Name | `Every morning` |
+| Type | Cron |
+| Mode | Advanced |
+| Expression | `17 6 * * *` |
+
+Cliquez sur **Confirm**.
+
+<img className="thumbnail" alt="La fenêtre New trigger avec l'expression cron 17 6 * * * en mode Advanced, lue comme à 06:17 UTC" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-trigger.png" loading="lazy" />
+
+Le workflow s'exécute tous les jours à 06:17 UTC : les planifications sont en UTC, alors que l'interface affiche les heures en heure de Paris, 07:17 en hiver et 08:17 en été.
+
+#### Vérifier une exécution
+
+Cliquez sur **Run** pour lancer une première collecte tout de suite. Elle dure un peu plus d'une minute. Les logs affichent un avertissement sur `collected_at`, qui n'a pas d'attribut associé dans l'action *Load* : c'est attendu, puisque l'action SQL le remplit.
+
+<img className="thumbnail" alt="L'onglet Preferences du workflow Daily realtime collection après une exécution de 69 secondes, avec les logs de l'exécution" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-collection-run.png" loading="lazy" />
+
+## Ce que vous avez construit
+
+Vous disposez de 13 ans de consommation régionale, complétés chaque matin par un workflow en trois étapes qui charge, date et dédoublonne les données temps réel de RTE, et d'une vue qui réunit les deux en une ligne par région et par heure, lisible par Trino et par Spark.
+
+La partie suivante, « [Prévoir chaque jour la consommation électrique des régions avec PySpark](/guides/public-cloud/data-platform/tutorials-eco2mix-forecast-production) », explore cette vue dans un notebook, entraîne un modèle de prévision par région avec PySpark, puis transforme le notebook en job Custom PySpark planifié, avec ses logs, son historique Spark, son lignage et un suivi quotidien de sa précision.
+
+## Aller plus loin
+
+[[fragment:professional-services]]
+
+Posez vos questions, faites-nous part de vos commentaires et interagissez directement avec l’équipe qui développe la Data Platform sur le [canal Discord](https://discord.gg/ovhcloud) dédié.
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
