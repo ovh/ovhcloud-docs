@@ -1,7 +1,7 @@
 ---
 title: How to update the backup S3 buckets
 description: Find out how to change the S3 object storage buckets used by the OPCP platform backups
-lastUpdated: 2026-11-03
+lastUpdated: 2026-11-12
 ---
 
 ## Objective
@@ -12,6 +12,12 @@ Your **OVHcloud On-Prem Cloud Platform (OPCP)** stores its platform backups in a
 - the **persistent volumes** (`pv`),
 - the **Terraform state** (`tfState`),
 - the **KMS auto-unsealer shares** (`kmsShares`).
+- the **configuration files** (`opcp-config`)
+- the **etcd snapshots** (`etcd-snapshots`)
+
+:::warning
+Backups for configuration files are available from OPCP v3.2 and newer.
+:::
 
 You may need to change the object storage buckets or endpoint used for these backups in several situations: migrating to a new S3 endpoint or region, moving to a different object storage provider, renaming buckets, or adjusting the retention policy.
 
@@ -24,7 +30,7 @@ This procedure modifies the backup configuration of the platform and re-initiali
 ## Requirements
 
 - An operational [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) infrastructure.
-- Administrative access to the OPCP controller with the `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl` and `velero` tools installed and configured.
+- Administrative access to the OPCP controller with the `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl`, `velero` and `restic` tools installed and configured.
 - The connection details of the **target** S3 object storage: endpoint URL, region, and the names of the buckets to use for the backups.
 - A maintenance window, as the control plane is redeployed during the operation.
 
@@ -68,6 +74,14 @@ backups:
       retention: "720h0m0s"
     kmsShares:
       retention: "720h0m0s"
+  controller_fs:
+    resources:
+      opcp-config:
+        s3_bucket: opcp01-fs-backups-region/opcp-config # A prefix can be configured, as in this case "opcp-config".
+      etcd-snapshots:
+        s3_bucket: opcp01-fs-backups-region/etcd-snapshots # A prefix can be configured, as in this case "etcd-snapshots".
+    defaults:
+      retention: "3m"
 ...
 ```
 
@@ -76,7 +90,10 @@ The fields to review are:
 - **`endpoint.region`** / **`endpoint.url`**: the region and URL of the target S3-compatible service.
 - **`db.bucket`**: the bucket storing the database backups, with its `retention` (here `30d`).
 - **`pv.bucket`**: the bucket storing the persistent volume backups, with its `retention` (here `720h0m0s`, i.e. 30 days).
+- **`controller_fs.resources.opcp-config.s3_bucket`**: the bucket with optional prefix storing the opcp-config backups.
+- **`controller_fs.resources.etcd-snapshots.s3_bucket`**: the bucket with optional prefix storing the etcd snapshots backups.
 - **`pv.tfState.retention`** / **`pv.kmsShares.retention`**: the retention applied to the Terraform state and KMS shares backups.
+- **`controller_fs.defaults`**: the retention applied to the filesystem backups. By default this is set to 3 months.
 
 :::info
 Retention values can be expressed either as a day-based duration (for example `30d`) or as a Go duration string (for example `720h0m0s`, which is also 30 days). Keep the format used by the existing configuration.
@@ -314,13 +331,31 @@ kubectl get backups -n placement
 placement-db-20260707124646   5s      placement-db   barmanObjectStore   completed
 ```
 
-### 10. Checking that data has been written to the new buckets
+### 10. Backing up the filesystem
+
+Back up the config files and etcd-snapshots:
+
+```bash
+systemctl start opcp-config-backup.service
+systemctl start etcd-snapshots-backup.service
+```
+
+Check the systemd units afterwards:
+
+```bash
+systemctl status opcp-config-backup.service
+systemctl status etcd-snapshots-backup.service
+```
+
+To check if the filesystem backups were successful, you can go to the Grafana dashboards and open the one called "Controller local filesystem backups". There you can see after 5 minutes a list of backups available as well as the status.
+
+### 11. Checking that data has been written to the new buckets
 
 The previous steps report that the backups completed from the platform's point of view. As an additional check, verify that the objects were actually created in the **new** S3 buckets.
 
 Using your usual S3 client or object storage interface, browse each backup bucket and confirm that new objects have appeared since the operation. You should see recently dated objects corresponding to the database, persistent volume, Terraform state and KMS shares backups you triggered. This confirms that the backups are actually stored on the new object storage.
 
-### 11. Final verification
+### 12. Final verification
 
 Run the diagnostic again to confirm the platform is healthy after the change:
 

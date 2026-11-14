@@ -1,0 +1,128 @@
+---
+title: "How to enable configuration file backups"
+excerpt: "Find out how to enable and set up backups of configuration files"
+lastUpdated: 2026-11-12
+---
+
+# How to enable configuration file backups
+
+:::warning
+Backups for configuration files are available from OPCP v3.2 and newer.
+:::
+
+## Objective
+
+This guide explains how to configure automated backups and snapshots of the configuration files and etcd for **OVHcloud On-Prem Cloud Platform (OPCP)** to an external S3 bucket.
+
+## Prerequisites
+
+- Have access to the controller node via SSH with a user allowed to use `sudo` for `opcp-cli`.
+- Have an [S3 bucket with credentials created](/guides/storage-and-backup/object-storage/s3-getting-started-with-object-storage). Make sure it is not the same bucket as the velero backups.
+
+## Instructions
+
+Backups of config files and etcd snapshots are enabled by default.
+
+Make sure `config_backups_encryption_secret` is set in the secrets file using `opcp-cli secrets passwords --edit` to properly encrypt your backups. Also you have to make sure, that you have set the S3 credentials in the secrets: `backup_access_key_id` and `backup_secret_access_key`.
+
+:::info
+Keep your encryption password in a safe place. You need it for restoring the configuration files.
+:::
+
+You can disable config file backups by setting `backups.controller_fs.resources.opcp-config.enabled` to `false` using `opcp-cli config edit`.
+
+To disable backups of etcd snapshots, set `backups.controller_fs.resources.etcd-snapshots.enabled` to `false`.
+
+You can disable filesystem backups completely by setting `backups.controller_fs.enabled` to `false`.
+
+:::warning
+If you disable the default filesystem backups, you will have problems restoring your OPCP in case of disaster recovery.
+:::
+
+After setting these parameters, you have to run `opcp-cli deploy --system` to apply the config changes.
+
+## Go further
+
+You can also add more backups of the local filesystem. By adding a new key to the `backups.controller_fs` config:
+
+```yaml
+---
+backups:
+  controller_fs:
+    resources:
+      my-backup:
+        enabled: true # Required field.
+        src: # Required field. The sources of the backup. Put multiple sources here.
+          - "/path/to/backup-source"
+        s3_bucket: "%{stage}-%{env}-my-bucket" # Required field. Put any bucket here with an optional prefix at the end.
+        # s3_url: "" # specify a custom S3 URL if needed
+        calendar: "*-*-* 02:00:00" # Schedule in the form of systemd timer. Optional, filled default if empty.
+        retention: "3m" # Keep backups from the last three months. Optional, filled with default if empty.
+        s3_access_key_id: "{{ backup_access_key_id }}" # Add a custom s3 access key here if needed. Optional, filled with default if empty.
+        s3_secret_access_key: "{{ backup_secret_access_key }}" # Add a custom s3 access key secret if needed. Optional, filled with default if empty.
+        pre_scripts: [] # Optional
+        password_command: "/usr/local/bin/sops decrypt --extract '[\\\"stringData\\\"][\\\"config_backups_encryption_secret\\\"]' /opt/opcp/secrets/controller/common-secret.yaml" # Just keep this except you want some different encryption secret. Optional, filled with default if empty.
+        additional_env: # You can add additional environment variables for encryption password command here. Optional, filled with default if empty.
+          SOPS_AGE_KEY_FILE: "/opt/opcp/secrets/opcp-age-key.pem"
+```
+
+To set the default values, edit the opcp config to contain something like this:
+
+```yaml
+backups:
+  controller_fs:
+    defaults:
+      calendar: "*-*-* 02:00:00" # Adjust the time the backups are created. Format is for a systemd-timer.
+      retention: "3m" # Keep backups from the last three months
+      s3_access_key_id: "{{ backup_access_key_id }}" # Keep the access key in the secrets and only reference it here.
+      s3_secret_access_key: "{{ backup_secret_access_key }}" # Keep the access key in the secrets and only reference it here.
+      pre_scripts: [] # Add your custom pre_scripts.
+      password_command: "/usr/local/bin/sops decrypt --extract '[\\\"stringData\\\"][\\\"config_backups_encryption_secret\\\"]' /opt/opcp/secrets/controller/common-secret.yaml" # Adjust for custom password command.
+      additional_env: # Only adjust if needed.
+        SOPS_AGE_KEY_FILE: "/opt/opcp/secrets/opcp-age-key.pem"
+```
+
+Backups of configuration files are done using [`restic`](https://restic.net/). See [the documentation](https://restic.readthedocs.io/en/stable/) for a full overview of what is possible.
+
+### Security
+
+You should use a user with only `read` and `write` permissions on your bucket using [Advanced resource access management](/guides/storage-and-backup/object-storage/s3-identity-and-access-management#advanced-resource-access-management). With this you make sure, that you can't delete backups by accident from this machine.
+
+Here is an example of the ACL:
+
+```json
+{
+  "Statement":[{
+    "Sid": "RWContainer",
+    "Effect": "Allow",
+    "Action":["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:ListMultipartUploadParts", "s3:ListBucketMultipartUploads", "s3:AbortMultipartUpload", "s3:GetBucketLocation"],
+    "Resource":["arn:aws:s3:::<bucket_name>", "arn:aws:s3:::<bucket_name>/*"]
+  }]
+}
+```
+
+To really make sure you don't lose your snapshots due to ransomware, turn on [versioning](/guides/storage-and-backup/object-storage/s3-versioning).
+
+:::warning
+If you provide access with only `read` and `write` permissions (no right to delete files), you must do the cleanup with other credentials, ideally on a separate host, that can not be accessed from anywhere within OPCP. Also set the `retention` key to `false`.
+:::
+
+### Cleaning up snapshots
+
+By default a periodic cleanup job is triggered. If you set your retention to `false`, you have to take care of cleaning up yourself.
+
+Set up a periodic task to clean up the snapshots using `restic forget` and `restic prune`. Ideally this is done on a separate machine with a separate pair of credentials.
+
+For more information there is a [page on removing snapshots in the restic documentation](https://restic.readthedocs.io/en/stable/060_forget.html).
+
+### Additional encryption keys
+
+For easier Backup restore, you can set up additional encryption keys for your backups. Use `restic key add` for this.
+
+For more information, read [the restic documentation on encryption](https://restic.readthedocs.io/en/stable/070_encryption.html).
+
+### Restore config files
+
+To restore your config files from the backup, use `restic restore <snapshot-id> --target /opt/opcp/config`.
+
+For more information on restore procedures, read [the restic documentation on restores](https://restic.readthedocs.io/en/stable/050_restore.html)

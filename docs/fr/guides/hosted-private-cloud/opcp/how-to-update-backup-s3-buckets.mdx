@@ -1,7 +1,7 @@
 ---
 title: "Comment mettre à jour les buckets S3 de sauvegarde"
 description: "Découvrez comment changer les buckets de stockage objet S3 utilisés par les sauvegardes de la plateforme OPCP"
-lastUpdated: 2026-11-03
+lastUpdated: 2026-11-12
 ---
 
 ## Objectif
@@ -11,7 +11,13 @@ Votre plateforme **OVHcloud On-Prem Cloud Platform (OPCP)** stocke ses sauvegard
 - les **bases de données** internes (`db`),
 - les **volumes persistants** (`pv`),
 - l’**état Terraform** (`tfState`),
-- les **parts de l’auto-unsealer KMS** (`kmsShares`).
+- les **parts de l’auto-unsealer KMS** (`kmsShares`),
+- les **fichiers de configuration** (`opcp-config`),
+- les **snapshots etcd** (`etcd-snapshots`).
+
+:::warning
+Les sauvegardes des fichiers de configuration sont disponibles à partir d’OPCP v3.2.
+:::
 
 Vous pouvez être amené à changer les buckets de stockage objet ou l’endpoint utilisés pour ces sauvegardes dans plusieurs situations : migration vers un nouvel endpoint ou une nouvelle région S3, changement de fournisseur de stockage objet, renommage des buckets, ou ajustement de la politique de rétention.
 
@@ -24,7 +30,7 @@ Cette procédure modifie la configuration de sauvegarde de la plateforme et réi
 ## Prérequis
 
 - Disposer d’une infrastructure [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) opérationnelle.
-- Disposer d’un accès administrateur au contrôleur OPCP avec les outils `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl` et `velero` installés et configurés.
+- Disposer d’un accès administrateur au contrôleur OPCP avec les outils `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl`, `velero` et `restic` installés et configurés.
 - Disposer des informations de connexion du stockage objet S3 **cible** : URL de l’endpoint, région et noms des buckets à utiliser pour les sauvegardes.
 - Prévoir une fenêtre de maintenance, le plan de contrôle étant redéployé pendant l’opération.
 
@@ -68,6 +74,14 @@ backups:
       retention: "720h0m0s"
     kmsShares:
       retention: "720h0m0s"
+  controller_fs:
+    resources:
+      opcp-config:
+        s3_bucket: opcp01-fs-backups-region/opcp-config # Un préfixe peut être configuré, ici « opcp-config ».
+      etcd-snapshots:
+        s3_bucket: opcp01-fs-backups-region/etcd-snapshots # Un préfixe peut être configuré, ici « etcd-snapshots ».
+    defaults:
+      retention: "3m"
 ...
 ```
 
@@ -76,7 +90,10 @@ Les champs à vérifier sont :
 - **`endpoint.region`** / **`endpoint.url`** : la région et l’URL du service S3 compatible cible.
 - **`db.bucket`** : le bucket qui stocke les sauvegardes des bases de données, avec sa `retention` (ici `30d`).
 - **`pv.bucket`** : le bucket qui stocke les sauvegardes des volumes persistants, avec sa `retention` (ici `720h0m0s`, soit 30 jours).
+- **`controller_fs.resources.opcp-config.s3_bucket`** : le bucket, avec un préfixe facultatif, qui stocke les sauvegardes de `opcp-config`.
+- **`controller_fs.resources.etcd-snapshots.s3_bucket`** : le bucket, avec un préfixe facultatif, qui stocke les sauvegardes des snapshots etcd.
 - **`pv.tfState.retention`** / **`pv.kmsShares.retention`** : la rétention appliquée aux sauvegardes de l’état Terraform et des parts KMS.
+- **`controller_fs.defaults`** : la rétention appliquée aux sauvegardes du système de fichiers. Par défaut, elle est fixée à 3 mois.
 
 :::info
 Les valeurs de rétention peuvent être exprimées soit sous forme de durée en jours (par exemple `30d`), soit sous forme de durée Go (par exemple `720h0m0s`, ce qui équivaut également à 30 jours). Conservez le format utilisé par la configuration existante.
@@ -314,13 +331,31 @@ kubectl get backups -n placement
 placement-db-20260707124646   5s      placement-db   barmanObjectStore   completed
 ```
 
-### 10. Vérifier que les données ont bien été écrites dans les nouveaux buckets
+### 10. Sauvegarder le système de fichiers
+
+Sauvegardez les fichiers de configuration et les snapshots etcd :
+
+```bash
+systemctl start opcp-config-backup.service
+systemctl start etcd-snapshots-backup.service
+```
+
+Vérifiez ensuite l’état des unités systemd :
+
+```bash
+systemctl status opcp-config-backup.service
+systemctl status etcd-snapshots-backup.service
+```
+
+Pour vérifier que les sauvegardes du système de fichiers ont réussi, ouvrez le tableau de bord Grafana « Controller local filesystem backups ». Au bout de 5 minutes, il affiche la liste des sauvegardes disponibles ainsi que leur statut.
+
+### 11. Vérifier que les données ont bien été écrites dans les nouveaux buckets
 
 Les étapes précédentes indiquent que les sauvegardes se sont terminées du point de vue de la plateforme. Par précaution supplémentaire, vérifiez que les objets ont réellement été créés dans les **nouveaux** buckets S3.
 
 À l’aide de votre client S3 habituel ou de l’interface de votre stockage objet, parcourez chaque bucket de sauvegarde et confirmez que de nouveaux objets sont apparus depuis l’opération. Vous devriez voir des objets récemment datés correspondant aux sauvegardes des bases de données, des volumes persistants, de l’état Terraform et des parts KMS que vous avez déclenchées. Cela confirme que les sauvegardes sont effectivement stockées sur le nouveau stockage objet.
 
-### 11. Vérification finale
+### 12. Vérification finale
 
 Relancez le diagnostic pour confirmer que la plateforme est en bonne santé après la modification :
 
