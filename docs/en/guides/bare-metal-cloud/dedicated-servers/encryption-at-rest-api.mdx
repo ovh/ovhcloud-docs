@@ -1,0 +1,196 @@
+---
+title: Manage Encryption at Rest on a dedicated server with the API
+description: Check eligibility, enable or disable Encryption at Rest and follow the operation on an OVHcloud dedicated server with the OVHcloud API v2
+lastUpdated: 2026-11-12
+---
+
+import Api from '@components/Api';
+
+{/* REVIEW SK-2772 — FOR WRITERS AND REVIEWERS (pubm-api: Alexandre Legent / Anas Ameziane)
+Checked against the production schema eu/ca.api.ovh.com/v2/dedicated/server.json on 2026-11-12:
+- GET /v2/dedicated/server/{serviceName} (with ?actions=true): apiStatus BETA, public.
+- PUT and PATCH /v2/dedicated/server/{serviceName}: apiStatus INTERNAL — NOT callable by customers yet.
+  This page is written as if they were public. Before publishing, confirm that PUT/PATCH are exposed
+  to customers (EU and CA), then remove this comment. If they stay internal at GA, sections 2 and 3
+  must be held back and the page reduced to the eligibility check.
+- The production contract differs from the Product draft V0.1: action ENABLE_ENCRYPTION_AT_REST
+  (not enableEncryptionAtRest), reason NOT_ELIGIBLE (not FEATURE_NOT_OFFERED), ChecksumMismatch is a
+  409 Conflict (not 412), new errors EncryptionAtRestAlreadyEnabled / EncryptionAtRestNotEnabled,
+  PATCH route not in the draft. This page follows production.
+- Confirmed 2026-11-12 (pubm-api PR 405 merged into develop, public-schemas-v2 PR 2022 merged): a request
+  that does not change the state is refused without starting a run — enabling when already enabled
+  returns 409 EncryptionAtRestAlreadyEnabled (previously 200 + reboot), disabling when not enabled
+  returns 409 EncryptionAtRestNotEnabled (previously 400 EncryptionAtRestNotEligible).
+  EncryptionAtRestNotEligible is now only returned for offers without the feature.
+- GO LIVE PLAN (CPO 1105373431): public schema push (PR 1976) and Console release planned 16 Nov 2026.
+- HTTP status codes are inferred from the error class prefix (BadRequest = 400, NotFound = 404,
+  Conflict = 409). The task type name (encryptionAtRestTargetSpecUpdate) comes from the draft only.
+- Terraform: not supported in V1.0 (PUBM-56142). */}
+
+## Objective
+
+The <Tooltip term="ovhcloudApi">OVHcloud API</Tooltip> v2 lets you automate Encryption at Rest on your dedicated servers. **This guide explains how to check that a server accepts Encryption at Rest, enable or disable it, and follow the operation with the OVHcloud API.**
+
+:::info
+The encryption keys are generated, stored and rotated by OVHcloud. Using your own keys is not available. For more information, read [What is Encryption at Rest on a dedicated server?](./encryption-at-rest-overview)
+:::
+
+:::danger
+**Enabling and disabling Encryption at Rest both erase all the data on the server.** Disabling erases the disks through a cryptographic erase: there is no in-place decryption. In both cases, the operating system must be reinstalled afterwards. The API asks for no confirmation: the request alone starts the operation. Back up your data first.
+:::
+
+## Requirements
+
+- A [dedicated server](/links/bare-metal/bare-metal) on an eligible range and in an eligible region (see [Encryption at Rest requirements and limitations](./encryption-at-rest-limitations))
+- Access to the OVHcloud API v2 (see [OVHcloud API v2 - Operating principles](/guides/manage-and-operate/api/apiv2))
+- A backup of your data
+
+## Introduction
+
+On the API v2, a dedicated server is a resource with two views of its configuration:
+
+- `targetSpec` is the state you request.
+- `currentState` is the state actually applied on the server.
+
+You change the configuration by sending a new `targetSpec` along with the resource's `checksum`. OVHcloud then applies it asynchronously and reports progress in `currentTasks` and `resourceStatus`.
+
+Encryption at Rest is not available in the OVHcloud Terraform provider.
+
+## Instructions
+
+This section covers the three steps of the operation: check, request, follow.
+
+<a name="eligibility-check"></a>
+
+### Step 1 - Check that the server accepts the operation
+
+Read the server and ask for the availability of its actions:
+
+<Api version="v2" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}"} />
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Service name of the dedicated server. | `ns1234567.ip-203-0-113.eu` |
+| `actions` | No | Set to `true` to return `currentState.actions`. | `true` |
+
+Without `actions=true`, the response does not contain `currentState.actions`. This absence means the information was not requested, not that the action is unavailable.
+
+The `ENABLE_ENCRYPTION_AT_REST` entry of `currentState.actions` carries a `status`:
+
+| `status` | Meaning |
+|---|---|
+| `AVAILABLE` | The server accepts the operation now. |
+| `UNAVAILABLE` | The server refuses the operation. `blockedBy` lists every reason. |
+| `UNDETERMINED` | Nothing known blocks the operation, but one check could not be completed. You can try. |
+
+Each reason in `blockedBy` has a `code` and a `nature`:
+
+| `code` | `nature` | Meaning |
+|---|---|---|
+| `NOT_ELIGIBLE` | `PERMANENT` | The server does not offer Encryption at Rest. |
+| `EXCLUSIVE_OPERATION_RUNNING` | `TRANSIENT` | Another operation is running on the server. `details.operationId` identifies it. Try again once it has finished. |
+
+Example of response extract:
+
+```json
+{
+  "currentState": {
+    "actions": [
+      {
+        "action": "ENABLE_ENCRYPTION_AT_REST",
+        "status": "AVAILABLE",
+        "blockedBy": null
+      }
+    ],
+    "features": {
+      "encryptionAtRest": {
+        "enabled": false
+      }
+    }
+  }
+}
+```
+
+Note the `checksum` returned in the same response: you need it in the next step.
+
+### Step 2 - Enable or disable Encryption at Rest
+
+Send the target state with the `checksum` from your last read. Two methods are available:
+
+- `PATCH` changes only the features you name. Use it to change Encryption at Rest alone.
+- `PUT` replaces the whole target specification: every feature must be present in the body.
+
+<Api version="v2" section="/dedicated/server" method="PATCH" route={"/dedicated/server/\{serviceName\}"} />
+
+```json
+{
+  "checksum": "<checksum from your last read>",
+  "targetSpec": {
+    "features": {
+      "encryptionAtRest": {
+        "enabled": true
+      }
+    }
+  }
+}
+```
+
+<Api version="v2" section="/dedicated/server" method="PUT" route={"/dedicated/server/\{serviceName\}"} />
+
+The body has the same shape, with every feature of `targetSpec.features` filled in.
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `serviceName` | Yes | Service name of the dedicated server. | `ns1234567.ip-203-0-113.eu` |
+| `checksum` (body) | Yes | Checksum returned by your last read of the server. | `"a1b2c3..."` |
+| `targetSpec.features.encryptionAtRest.enabled` (body) | Yes | `true` to enable, `false` to disable. | `true` |
+
+The response returns the server with `resourceStatus` set to `UPDATING` and the operation listed in `currentTasks`.
+
+{/* DRAFT: To verify — task type name in currentTasks (draft: encryptionAtRestTargetSpecUpdate; not in the public schema). */}
+
+### Step 3 - Follow the operation
+
+Read the server again with the same `GET` request, as often as needed. The operation can take up to 24 hours from end to end, and longer if an intervention in the datacentre is needed.
+
+| Field | What it tells you |
+|---|---|
+| `targetSpec.features.encryptionAtRest.enabled` | The state you requested. |
+| `currentState.features.encryptionAtRest.enabled` | The state actually applied on the disks. |
+| `currentTasks` | The operation in progress. The field is omitted when no operation is running. |
+| `resourceStatus` | `UPDATING` during the operation, then `READY`. |
+
+The operation is complete when `resourceStatus` is `READY` and `currentState` matches `targetSpec`. Then reinstall the operating system (see [OVHcloud API & OS Installation](./api-os-installation)).
+
+If the operation fails, `currentState` keeps its previous value, `targetSpec` keeps your request, and no task remains in progress. Send the same request again to retry.
+
+> [!INFO]
+> The task link returned in `currentTasks` does not open a detailed task view yet. Follow the operation by reading the server.
+
+### Errors
+
+The table below lists the errors you may receive when you request the operation, and what to do about each one.
+
+| HTTP | Error class | Cause | What to do |
+|---|---|---|---|
+| 400 | `Client::BadRequest::EncryptionAtRestNotEligible` | The server does not offer Encryption at Rest. | Check the [requirements and limitations](./encryption-at-rest-limitations). |
+| 400 | `Client::BadRequest::EncryptionAtRestNotAvailableInRegion` | Encryption at Rest is not available in the server's region. | No action is possible on this server for now. |
+| 400 | `Client::BadRequest::ChecksumMissing` | The body does not contain `checksum`. | Read the server again and send its `checksum`. |
+| 400 | `Client::BadRequest::TargetSpecEmpty` | The `PATCH` body sets no feature. | Fill in `targetSpec.features.encryptionAtRest`. |
+| 400 | `Client::BadRequest::InvalidPayload` | The body is not valid. | Check the body against the examples above. |
+| 404 | `Client::NotFound::DedicatedServer` | No server matches `serviceName`. | Check the service name. |
+| 409 | `Client::Conflict::ChecksumMismatch` | The server changed since your last read. | Read it again and send the new `checksum`. |
+| 409 | `Client::Conflict::EncryptionAtRestAlreadyEnabled` | Encryption at Rest is already enabled. | No action needed. |
+| 409 | `Client::Conflict::EncryptionAtRestNotEnabled` | You requested disabling, but Encryption at Rest is not enabled. | No action needed. |
+| 409 | `Client::Conflict::EncryptionAtRestNetworkPrerequisiteNotMet` | The server has no bootable IP address, for example because OVHcloud Link Aggregation (OLA) is enabled. | Restore the standard network configuration, then try again. |
+| 409 | `Client::Conflict::OperationAlreadyRunning` | Another operation is running on the server. | Wait until it finishes, then try again. |
+
+## Go further
+
+[What is Encryption at Rest on a dedicated server?](./encryption-at-rest-overview)
+
+[Encryption at Rest requirements and limitations](./encryption-at-rest-limitations)
+
+[Encryption at Rest on dedicated servers: FAQ](./encryption-at-rest-faq)
+
+Join our [community of users](/links/community).
