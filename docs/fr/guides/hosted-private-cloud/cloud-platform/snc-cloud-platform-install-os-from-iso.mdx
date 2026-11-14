@@ -1,0 +1,377 @@
+---
+title: Installer un système d'exploitation à partir d'une image ISO
+description: Découvrez comment installer un système d'exploitation sur une instance SNC Cloud Platform à partir d'une image ISO (ici Debian 13) via la CLI OpenStack
+lastUpdated: 2026-11-16
+---
+
+## Objectif
+
+Guide pratique pour installer un système d'exploitation à partir d'une image ISO sur une instance SNC Cloud Platform, lorsqu'aucune image prête à l'emploi de ce système n'est disponible dans le catalogue. Debian 13 sert d'exemple. Public visé : toute personne à l'aise avec la ligne de commande et avec l'installateur d'un système d'exploitation.
+
+Ce guide couvre l'installation côté plateforme : import de l'image ISO, création des volumes et du port réseau, démarrage de l'installateur, connexion au système installé, puis, éventuellement, création d'une image réutilisable à partir de celui-ci. Les étapes de l'installateur lui-même (ici le debian-installer) ne sont **pas** couvertes : reportez-vous à la documentation du système d'exploitation — pour Debian, le [Guide d'installation de Debian](https://www.debian.org/releases/stable/installmanual.fr.html). Seuls les points spécifiques à la plateforme sont indiqués.
+
+## Prérequis
+
+- Avoir configuré la CLI OpenStack (consultez le guide « [Créer une instance et s'y connecter](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-create-instance) » pour l'installation et la configuration de la CLI).
+- Disposer du rôle `member`, au minimum, sur le projet.
+- Faire « whitelister » chez OVHcloud l'adresse IP depuis laquelle vous vous connectez — pour cela, [ouvrez un ticket au support OVHcloud](/links/support).
+- Disposer de l'image ISO du système d'exploitation, téléchargée sur votre poste (environ 800 Mo pour l'image netinst de Debian 13).
+- Disposer d'un groupe de sécurité qui autorise les connexions SSH entrantes (port TCP 22) : le groupe `default` seul n'autorise aucune connexion entrante. Pour la procédure, consultez la section « [Gérer les règles de votre firewall privé](/guides/public-cloud/cross-functional/security-group-private-network#gérer-les-règles-de-votre-firewall-privé) » du guide « Gestion des règles de firewall et port security sur les réseaux utilisant OpenStack CLI ».
+
+## En pratique
+
+### Vue d'ensemble
+
+Sur SNC Cloud Platform, une instance ne peut démarrer que depuis un volume. Une image ISO ne peut donc pas servir directement de source de démarrage à une instance — la plateforme la refuse (`403 ... Only volume-backed servers are allowed for flavors with zero disk`).
+
+La procédure passe par des volumes : l'image ISO est copiée dans un volume attaché à l'instance comme lecteur de CD-ROM, et le système d'exploitation est installé sur un second volume vierge. Elle suit ces étapes :
+
+1. télécharger et vérifier l'image ISO ;
+2. importer l'image ISO dans Glance ;
+3. créer un volume à partir de l'image ISO (l'installateur) et un volume vierge (le futur disque système), puis marquer le volume vierge comme `bootable` ;
+4. créer un port réseau sur le réseau externe partagé, pour connaître les paramètres réseau avant l'installation ;
+5. créer une instance qui démarre sur le volume système, avec le volume de l'installateur attaché comme lecteur de CD-ROM ;
+6. suivre l'installation via la console ;
+7. se connecter à l'instance ;
+8. éventuellement, retirer le volume de l'installateur ;
+9. éventuellement, créer une image réutilisable à partir du volume système.
+
+| Volume | Contenu | Présenté à l'instance comme | `boot_index` | Après l'installation |
+|---|---|---|---|---|
+| `system-volume` | Vierge, puis le système installé | Un disque | `0` : premier périphérique de démarrage | Conservé : il contient le système de l'instance, et peut être copié dans une image réutilisable (étape 9) |
+| `iso-volume` | L'installateur (copie de l'image ISO) | Un lecteur de CD-ROM | `1` : second périphérique de démarrage | Éventuellement détaché, puis supprimé (étape 8) |
+
+`boot_index` est l'ordre dans lequel l'instance tente de démarrer : `0` passe en premier. Au premier démarrage, le volume système est vierge : le BIOS n'y trouve rien à démarrer et passe au périphérique suivant, l'installateur. Une fois le système installé, l'instance démarre sur le volume système : il n'est pas nécessaire de la recréer.
+
+:::info
+L'image ISO est présentée à l'instance comme un **lecteur de CD-ROM**, et l'instance démarre en mode BIOS (legacy). Cette méthode a été validée avec l'image netinst de Debian 13 : les autres images n'ont pas été testées.
+
+Un système d'exploitation installé à partir d'une image ISO n'est pas une image cloud : sauf si vous installez vous-même cloud-init, la paire de clés, les user data et la configuration réseau fournies par OpenStack ne sont pas appliquées. Le réseau et l'accès SSH se configurent manuellement, comme décrit ci-dessous.
+
+:::
+
+### Étape 1 — Télécharger et vérifier l'image ISO
+
+Téléchargez l'image ISO depuis le site officiel de la distribution (pour Debian, la [page de téléchargement de Debian](https://www.debian.org/distrib/index.fr.html)), puis vérifiez son intégrité avec les sommes de contrôle publiées par la distribution (pour Debian, consultez [Vérification de l'authenticité des images Debian](https://www.debian.org/CD/verify.fr.html)) :
+
+```bash
+$ sha256sum debian-13.7.0-amd64-netinst.iso
+<somme-de-contrôle>  debian-13.7.0-amd64-netinst.iso
+```
+
+Le résultat doit être identique à celui publié pour cette image. Dans ce guide, le fichier s'appelle `debian-13.7.0-amd64-netinst.iso` : adaptez le nom à la version que vous avez téléchargée.
+
+### Étape 2 — Importer l'image ISO dans Glance
+
+```bash
+openstack image create \
+  --disk-format iso \
+  --container-format bare \
+  --min-disk 1 \
+  --min-ram 512 \
+  --private \
+  --progress \
+  --file debian-13.7.0-amd64-netinst.iso \
+  debian-13-iso
+```
+
+L'image est téléversée depuis votre poste. `--min-disk` (en Go) et `--min-ram` (en Mo) indiquent les ressources minimales requises par l'image ISO. Vérifiez que l'image est `active` avant de poursuivre :
+
+```bash
+openstack image show debian-13-iso -f value -c status
+active
+```
+
+Pour plus de détails sur l'import et la gestion des images, consultez le guide « [Gérer les images Glance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management) ».
+
+:::warning
+Laissez les propriétés de l'image à leurs valeurs par défaut. L'ajout des propriétés `hw_cdrom_bus=scsi` et `hw_firmware_type=uefi` à l'image ISO laisse l'instance bloquée en phase de planification (`scheduling`).
+
+:::
+
+### Étape 3 — Créer les volumes
+
+```bash
+openstack volume create --image debian-13-iso --size 1 iso-volume
+openstack volume create --size 20 system-volume
+```
+
+- `iso-volume` contient une copie de l'image ISO. Sa taille doit être au moins égale à celle de l'image ISO, arrondie au Gio supérieur : 1 Gio suffit pour l'image netinst de Debian 13.
+- `system-volume` est vierge : il reçoit le système installé. Sa taille est celle du disque de la future instance (ici 20 Gio, à adapter à vos besoins).
+
+Comme le recommande le guide « [Gérer les images Glance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management) », le volume est créé à partir de l'image au préalable, et non à la création de l'instance. Attendez que les deux volumes soient `available` :
+
+```bash
+openstack volume list -c Name -c Status
+```
+
+Marquez ensuite le volume système comme `bootable`. Cinder ne marque jamais un volume vierge comme `bootable`, et l'instance démarre d'abord sur ce volume : sans cet attribut, la création de l'instance échoue avec l'erreur `400 ... Block Device <id> is not bootable`.
+
+```bash
+openstack volume set --bootable system-volume
+```
+
+`--bootable` est un indicateur sans valeur : le volume est passé en argument.
+
+### Étape 4 — Créer le port réseau
+
+Le sous-réseau public du réseau externe partagé n'a pas de serveur DHCP : l'installateur ne peut pas obtenir d'adresse seul, et vous saisissez les paramètres réseau manuellement pendant l'installation. Pour les connaître au préalable, créez le port réseau **avant** l'instance.
+
+Un port créé indépendamment de l'instance survit aussi à sa suppression (consultez le guide « [Gérer les IP publiques](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management) »). L'instance créée à l'étape 5 utilise ce port : son adresse IP est connue avant l'installation et ne change pas ensuite, de sorte que la configuration réseau saisie dans l'installateur reste valide.
+
+Identifiez le réseau externe partagé de votre projet (son nom commence par `Ext-Net`) et notez son identifiant :
+
+```bash
+openstack network list -f value -c ID -c Name
+EXTNET_ID=<id-réseau>
+```
+
+Créez le port, avec un groupe de sécurité qui autorise les connexions SSH entrantes :
+
+```bash
+openstack port create --network $EXTNET_ID --security-group <groupe-de-sécurité> instance-port
+```
+
+:::info
+- Le groupe de sécurité se positionne sur le port : les groupes de sécurité indiqués à la création d'une instance ne s'appliquent pas à un port qui existe déjà. Un port sans groupe de sécurité bloque tout le trafic entrant, ping compris.
+- L'adresse IP est attribuée automatiquement depuis le pool du réseau. Choisir une adresse précise est refusé par la plateforme (`403 Forbidden`).
+
+:::
+
+Récupérez l'adresse IP du port et l'identifiant de son sous-réseau :
+
+```bash
+openstack port show instance-port -f value -c fixed_ips
+ip_address='203.0.113.9', subnet_id='01234567-89ab-cdef-0123-456789abcde4'
+```
+
+Lisez ensuite les paramètres du sous-réseau :
+
+```bash
+openstack subnet show <id-sous-réseau> -c cidr -c dns_nameservers -c gateway_ip
++-----------------+----------------+
+| Field           | Value          |
++-----------------+----------------+
+| cidr            | 203.0.113.0/28 |
+| dns_nameservers | 198.51.100.1   |
+| gateway_ip      | 203.0.113.1    |
++-----------------+----------------+
+```
+
+Notez ces 4 paramètres : vous en aurez besoin dans l'installateur.
+
+| Paramètre | Où le trouver | Exemple |
+|---|---|---|
+| Adresse IP | `ip_address` du port | `203.0.113.9` |
+| Masque de sous-réseau | `cidr` du sous-réseau, converti en masque (un `/28` donne `255.255.255.240`) | `255.255.255.240` |
+| Passerelle | `gateway_ip` du sous-réseau | `203.0.113.1` |
+| Serveur DNS | `dns_nameservers` du sous-réseau ; si le sous-réseau n'en fournit aucun, utilisez un serveur DNS joignable depuis le réseau public | `198.51.100.1` |
+
+### Étape 5 — Créer l'instance avec l'installateur
+
+Créez l'instance avec les deux volumes : le volume système en premier, puis l'installateur comme lecteur de CD-ROM :
+
+```bash
+SYSTEM_VOLUME_ID=$(openstack volume show system-volume -f value -c id)
+ISO_VOLUME_ID=$(openstack volume show iso-volume -f value -c id)
+
+openstack server create \
+  --flavor b3-8 \
+  --port instance-port \
+  --block-device uuid=$SYSTEM_VOLUME_ID,source_type=volume,destination_type=volume,boot_index=0,device_type=disk,disk_bus=virtio,delete_on_termination=false \
+  --block-device uuid=$ISO_VOLUME_ID,source_type=volume,destination_type=volume,boot_index=1,device_type=cdrom,disk_bus=sata,delete_on_termination=false \
+  instance
+```
+
+Points clés de cette commande :
+
+- **Les deux volumes existent déjà** et sont référencés avec `source_type=volume`.
+- **`boot_index=0` est sur `system-volume`**, attaché comme disque (`device_type=disk`, `disk_bus=virtio`). Tant qu'il est vierge, le BIOS passe au périphérique suivant. Le volume qui porte `boot_index=0` est le périphérique racine de l'instance et ne peut pas être détaché : c'est pourquoi c'est le volume système, et non l'installateur.
+- **`boot_index=1` est sur `iso-volume`**, attaché comme lecteur de CD-ROM (`device_type=cdrom`, `disk_bus=sata`) : c'est le périphérique sur lequel démarre l'installateur.
+- **`delete_on_termination=false`** : les volumes sont conservés à la suppression de l'instance. C'est indispensable pour `system-volume`, qui contiendra le système installé.
+- **`--port`** attache le port créé à l'étape 4.
+- `--block-device` attend des paires `clé=valeur` séparées par des virgules, pas une structure JSON.
+
+Attendez que l'instance passe au statut `ACTIVE` :
+
+```bash
+openstack server show instance -f value -c status
+ACTIVE
+```
+
+### Étape 6 — Suivre l'installation via la console
+
+Depuis un poste dont l'adresse IP a été « whitelistée », récupérez l'URL de la console et ouvrez-la dans un navigateur (vous pouvez aussi utiliser l'onglet <code className="action">Console</code> de l'instance dans Horizon) :
+
+```bash
+openstack console url show --novnc instance
+```
+
+Le menu de démarrage de l'installateur apparaît. Suivez l'installation comme décrit dans la documentation du système d'exploitation. Points spécifiques à la plateforme :
+
+- **Réseau** : choisissez la configuration réseau manuelle et saisissez les paramètres notés à l'étape 4 (adresse IP, masque, passerelle, serveur DNS). Les valeurs par défaut proposées par l'installateur, le masque en particulier, peuvent ne pas correspondre à votre sous-réseau.
+- **Disque d'installation** : l'installateur propose un seul disque, le volume système (`/dev/vda`, 20 Gio ici). Le volume de l'installateur apparaît comme un lecteur de CD-ROM, pas comme un disque.
+- **Paquets supplémentaires** : l'étape qui configure apt pour installer des paquets supplémentaires depuis le support d'installation échoue (`An attempt to configure apt to install additional packages from the media failed` dans l'installateur en anglais). Validez le message pour continuer : cette étape peut être ignorée, les paquets sont téléchargés depuis le miroir réseau.
+- **Serveur SSH** : pour vous connecter ensuite en SSH, sélectionnez le serveur SSH dans la sélection de logiciels, ou installez `openssh-server` une fois le système installé.
+
+:::info
+L'URL de la console est temporaire. Si la connexion échoue ou si la session est fermée (`Failed to connect to server`, `Display output is not active`), demandez une nouvelle URL avec la même commande : l'installateur continue de s'exécuter.
+
+:::
+
+Lorsque l'installateur indique que l'installation est terminée, poursuivez : l'instance redémarre sur le système installé, car le volume système est son premier périphérique de démarrage. Rien d'autre n'est nécessaire côté plateforme. Passez à l'étape 7.
+
+### Étape 7 — Se connecter à l'instance
+
+Une fois l'instance redémarrée sur le système installé, connectez-vous en SSH à l'adresse IP du port (étape 4), avec l'utilisateur créé pendant l'installation :
+
+```bash
+ssh user@203.0.113.9
+```
+
+Si la connexion échoue, vérifiez que le serveur SSH est installé dans le système et que le groupe de sécurité du port autorise le port TCP 22. Pour ajouter un groupe de sécurité au port :
+
+```bash
+openstack port set --security-group <groupe-de-sécurité> instance-port
+```
+
+Mettez ensuite en place l'authentification par clé en copiant votre clé publique sur l'instance :
+
+```bash
+ssh-copy-id -i ~/.ssh/id_ed25519.pub user@203.0.113.9
+```
+
+La paire de clés d'OpenStack n'est pas appliquée à un système installé à partir d'une image ISO : installez votre clé publique comme indiqué ci-dessus. Une fois l'authentification par clé fonctionnelle, vous pouvez désactiver l'authentification par mot de passe dans la configuration du serveur SSH (`PasswordAuthentication no`).
+
+Si vous prévoyez de créer une image réutilisable à partir de ce système (étape 9), installez aussi cloud-init dans le système. cloud-init applique aux instances créées à partir de l'image la configuration fournie par OpenStack (paire de clés, user data, configuration réseau). Cela ne suffit pas : le système doit aussi être préparé avant la création de l'image, comme décrit à l'étape 9. Sous Debian, depuis l'instance, en tant que root :
+
+```bash
+apt install cloud-init net-tools
+```
+
+net-tools fournit la commande `route`, que cloud-init utilise pour définir la route par défaut lorsque le réseau est géré par ifupdown. L'installateur ne l'installe pas, et sans elle l'instance n'a pas de route par défaut.
+
+### Étape 8 — Retirer l'installateur (facultatif)
+
+Une fois le système fonctionnel, le volume de l'installateur n'est plus nécessaire : l'instance démarre sur le volume système avec ou sans lui. Un lecteur de CD-ROM SATA ne peut pas être détaché d'une instance en cours d'exécution. Pour retirer le volume de l'installateur, arrêtez d'abord l'instance, détachez `iso-volume`, puis redémarrez l'instance :
+
+```bash
+openstack server stop instance
+openstack server show instance -f value -c status
+SHUTOFF
+```
+
+Une fois l'instance `SHUTOFF`, détachez le volume et attendez qu'il soit de nouveau `available` :
+
+```bash
+openstack server remove volume instance iso-volume
+openstack volume list -c Name -c Status
+```
+
+Redémarrez l'instance, puis supprimez ce qui n'est plus nécessaire. Les volumes sont facturés tant qu'ils existent, qu'ils soient attachés ou non :
+
+```bash
+openstack server start instance
+openstack volume delete iso-volume
+openstack image delete debian-13-iso
+```
+
+Conservez l'image si vous prévoyez d'installer d'autres instances à partir de la même image ISO.
+
+### Étape 9 — Créer une image réutilisable à partir du volume système (facultatif)
+
+`system-volume` contient désormais un système installé : vous pouvez le transformer en image Glance pour créer d'autres instances à partir de ce système sans repasser par l'installateur. La méthode est celle du guide « [Sauvegarder et cloner une instance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance) » : un snapshot du volume système est transformé en volume temporaire, qui est ensuite téléversé en tant qu'image. Seul `system-volume` est utilisé : cette étape ne dépend pas de l'étape 8, mais elle nécessite que cloud-init et net-tools soient installés dans le système (voir l'étape 7) et que la configuration réseau de l'installateur en soit retirée (voir ci-dessous).
+
+Avant de créer l'image, préparez le système. L'installateur a écrit sur le disque système une configuration réseau statique (adresse IP, passerelle, serveur DNS) : l'image la contient, et une instance créée à partir de celle-ci conserverait l'adresse saisie dans l'installateur au lieu de celle de son propre port. Le port attribue l'adresse IP côté OpenStack, mais c'est cloud-init qui l'applique dans le système. Depuis l'instance, en tant que root :
+
+1. Vérifiez que cloud-init et net-tools sont installés et que cloud-init est activé (étape 7).
+2. Supprimez la configuration réseau statique écrite par l'installateur, sans supprimer les fichiers dont cloud-init a besoin. Sous Debian avec ifupdown, modifiez `/etc/network/interfaces` : supprimez le bloc d'interface écrit par l'installateur (la ligne `allow-hotplug` ou `auto` et le bloc `iface … inet static` avec son adresse, sa passerelle et ses paramètres DNS), et conservez la ligne `source /etc/network/interfaces.d/*` ainsi que le bloc `lo`. cloud-init écrit sa propre configuration dans `/etc/network/interfaces.d/50-cloud-init`, qui n'est lu que via cette ligne `source` : si vous supprimez le fichier entier, ou si vous laissez le bloc de l'installateur à côté de celui de cloud-init, l'instance démarre sans réseau. Si votre système utilise un autre backend réseau (par exemple `/etc/netplan/`), identifiez les fichiers utilisés par votre système avant de modifier quoi que ce soit.
+3. Facultatif : nettoyez l'état et les journaux de cloud-init de l'instance source avant le snapshot :
+
+   ```bash
+   cloud-init clean --logs
+   ```
+
+Une fois le système préparé, arrêtez l'instance, pour garantir la cohérence des données : un snapshot d'un volume en cours d'utilisation est crash-consistent, mais pas application-consistent. Le volume reste en cours d'utilisation tant qu'il est attaché à l'instance, même arrêtée : le snapshot nécessite donc `--force`.
+
+```bash
+openstack server stop instance
+openstack server show instance -f value -c status
+SHUTOFF
+openstack volume snapshot create --force --volume system-volume system-snapshot
+```
+
+Attendez que le snapshot soit `available`. Les opérations suivantes n'impliquent pas l'instance : vous pouvez la redémarrer.
+
+```bash
+openstack volume snapshot list -c Name -c Status
+openstack server start instance
+```
+
+Créez un volume temporaire à partir du snapshot, et attendez qu'il soit `available` :
+
+```bash
+openstack volume create --snapshot system-snapshot system-copy
+openstack volume list -c Name -c Status
+```
+
+Téléversez ce volume en tant qu'image. Selon la taille du volume, la création de l'image peut prendre du temps :
+
+```bash
+openstack image create --volume system-copy debian-13-custom
+```
+
+Vérifiez que l'image est `active` :
+
+```bash
+openstack image show debian-13-custom -f value -c status
+active
+```
+
+Une fois l'image `active`, supprimez d'abord le volume temporaire, puis le snapshot :
+
+```bash
+openstack volume delete system-copy
+openstack volume snapshot delete system-snapshot
+```
+
+`system-volume` reste le disque système de `instance`. L'image `debian-13-custom` est privée : elle n'est visible que dans votre projet. Pour la partager avec un autre projet, reportez-vous au guide « [Gérer les images Glance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management) ».
+
+Pour créer une instance à partir de cette image, suivez le guide « [Sauvegarder et cloner une instance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance) », qui décrit aussi la procédure dans Horizon.
+
+:::warning
+Le guide « Sauvegarder et cloner une instance » indique que cloud-init réinstalle la configuration réseau au démarrage de la nouvelle instance : cela ne fonctionne que si le système a été préparé avant la création de l'image (voir ci-dessus). Sans cette préparation, l'image contient la configuration réseau statique saisie dans l'installateur et une instance créée à partir de celle-ci conserve l'ancienne adresse au lieu des paramètres de son propre port, ce qui peut couper son réseau : ouvrez sa console et adaptez la configuration réseau du système aux paramètres de son port, que vous trouvez comme à l'[étape 4](#étape-4--créer-le-port-réseau).
+
+:::
+
+### Pièges connus (dépannage)
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| `403 ... Only volume-backed servers are allowed for flavors with zero disk` à la création de l'instance | L'image ISO est utilisée directement comme source de démarrage (`--image`) : une instance ne peut démarrer que depuis un volume | Créer un volume à partir de l'image ISO et l'attacher à l'instance ([étapes 3 et 5](#étape-3--créer-les-volumes)) |
+| `400 Mapping image to local is not supported` | Un périphérique bloc avec `destination_type=local` | Utiliser `destination_type=volume` |
+| `unhashable type: dict` sur `--block-device` | L'option a été donnée sous forme de structure JSON | Donner des paires `clé=valeur` séparées par des virgules ([étape 5](#étape-5--créer-linstance-avec-linstallateur)) |
+| L'instance reste en phase de planification (`scheduling`) et ne passe jamais à `ACTIVE` | Les propriétés `hw_cdrom_bus=scsi` et `hw_firmware_type=uefi` sont positionnées sur l'image ISO | Retirer ces propriétés, ou réimporter l'image sans elles ([étape 2](#étape-2--importer-limage-iso-dans-glance)) |
+| `400 ... Block Device <id> is not bootable` à la création de l'instance | `system-volume` n'est pas marqué `bootable` | `openstack volume set --bootable system-volume` ([étape 3](#étape-3--créer-les-volumes)) |
+| `unrecognized arguments` avec `openstack volume set --bootable` | `--bootable` est un indicateur sans valeur, et un argument supplémentaire le suit | Ne donner que le volume : `openstack volume set --bootable system-volume` |
+| L'installateur n'obtient pas d'adresse IP | Le sous-réseau public n'a pas de serveur DHCP | Saisir les paramètres réseau manuellement ([étape 4](#étape-4--créer-le-port-réseau)) |
+| Pas de connexion réseau après l'installation, alors que les paramètres semblent corrects | Le masque ne correspond pas au préfixe du sous-réseau (la valeur par défaut proposée par l'installateur peut être erronée) | Utiliser le masque déduit du `cidr` du sous-réseau, et corriger si besoin la configuration réseau du système |
+| `An attempt to configure apt to install additional packages from the media failed` dans l'installateur | L'étape échoue lorsque le support d'installation est attaché comme lecteur de CD-ROM | Valider le message pour continuer : cette étape peut être ignorée, les paquets sont téléchargés depuis le miroir réseau |
+| `Failed to connect to server` ou `Display output is not active` dans la console | L'URL de la console a expiré ou a déjà été utilisée, ou la session a été fermée | Demander une nouvelle URL avec `openstack console url show --novnc instance` |
+| L'instance ne répond ni au ping ni au SSH | Le port n'a pas de groupe de sécurité, ou son groupe n'autorise pas le trafic, ou aucun serveur SSH n'est installé | Ajouter un groupe de sécurité au port (`openstack port set --security-group`) et installer `openssh-server` ([étape 7](#étape-7--se-connecter-à-linstance)) |
+
+## Aller plus loin
+
+[Créer une instance et s'y connecter](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-create-instance) — configuration de la CLI OpenStack, connexion à une instance.
+
+[Gérer les images Glance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management) — importer, vérifier et supprimer des images, créer des volumes à partir d'images.
+
+[Gérer les IP publiques](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management) — ports indépendants, conserver la même IP publique d'une instance à l'autre.
+
+[Sauvegarder et cloner une instance](/guides/hosted-private-cloud/cloud-platform/snc-cloud-platform-save-instance) — sauvegarder l'instance installée : la méthode de l'étape 9 en détail (y compris dans Horizon), et la création d'une instance à partir d'une image.
+
+Documentation Debian : [Guide d'installation de Debian](https://www.debian.org/releases/stable/installmanual.fr.html), [Obtenir Debian](https://www.debian.org/distrib/index.fr.html), [Vérification de l'authenticité des images Debian](https://www.debian.org/CD/verify.fr.html).
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
