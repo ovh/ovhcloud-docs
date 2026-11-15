@@ -174,10 +174,45 @@ function walk(dir: string): void {
 function scan(file: string): void {
   const raw = fs.readFileSync(file, 'utf-8');
   if (!raw.includes('[[fragment:')) return;
+  const rel = path.relative(DOCS_DIR, file).replace(/\\/g, '/');
+
+  // replaceRules see raw text, so a token for a REAL key expands even inside
+  // backticks or a fence: the page then shows the whole body, and a body that
+  // opens a callout (`:::`) breaks the inline code around it. Document the
+  // syntax with a placeholder key (`[[fragment:<key>]]`), which no rule matches.
+  // Fences per CommonMark: a fence closes only on the same character, at least
+  // as long as its opener — a `~~~~` line inside a ``` block is content.
+  let fence: string | null = null;
+  for (const line of raw.split('\n')) {
+    const marker = line.match(/^\s*(`{3,}|~{3,})/)?.[1];
+    if (fence) {
+      if (
+        marker &&
+        marker[0] === fence[0] &&
+        marker.length >= fence.length &&
+        !line.trim().slice(marker.length).trim()
+      ) {
+        fence = null;
+      }
+    } else if (marker) {
+      fence = marker;
+      continue;
+    }
+    const code = fence ? [line] : (line.match(/`[^`]*`/g) ?? []);
+    for (const span of code) {
+      for (const m of span.matchAll(TOKEN)) {
+        if (!(m[1].split('|')[0] in textFragments)) continue;
+        unknown.push(
+          `${rel}: [[fragment:${m[1]}]] inside code still expands at build time — ` +
+            'write the key as a placeholder, e.g. [[fragment:<key>]]',
+        );
+      }
+    }
+  }
+
   const text = stripCode(raw);
   if (!text.includes('[[fragment:')) return;
 
-  const rel = path.relative(DOCS_DIR, file).replace(/\\/g, '/');
   const universe = rel.split('/')[2] ?? '(root)'; // <locale>/guides/<universe>/…
   const modifiers = new Set<string>();
   for (const m of text.matchAll(TOKEN)) {
