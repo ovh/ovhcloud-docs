@@ -78,6 +78,12 @@ for (const key of keys) {
   }
   for (const locale of LOCALES.filter((l) => bodies[l])) {
     const body = bodies[locale] as string;
+    if ((bodies.en ?? '').includes('{{v6}}') !== body.includes('{{v6}}')) {
+      errors.push(
+        `${key}/${locale}.md: {{v6}} placeholder present in some locales and not others — ` +
+          'every locale must link to the former Control Panel, or none',
+      );
+    }
     if (/\[\[fragment:/.test(body)) {
       errors.push(
         `${key}/${locale}.md: contains a [[fragment:…]] token — fragments do not nest`,
@@ -179,7 +185,9 @@ function scan(file: string): void {
     // The one-language-decision check below cares about the PIN only: |n=3 and a
     // bare token agree on language, so only the |en presence is tracked.
     modifiers.add(mods.includes('en') ? 'en' : '');
-    const bad = mods.filter((mod) => mod !== 'en' && !/^n=\d+$/.test(mod));
+    const bad = mods.filter(
+      (mod) => mod !== 'en' && !/^n=\d+$/.test(mod) && !/^v6=\S+$/.test(mod),
+    );
     if (bad.length) {
       unknown.push(
         `${rel}: unsupported modifier(s) ${bad.join(', ')} in [[fragment:${m[1]}]]`,
@@ -202,6 +210,25 @@ function scan(file: string): void {
             'no rule is generated for it, so the token ships to readers as literal text',
         );
       }
+    }
+    // |v6= is required by, and only allowed on, a key whose body carries {{v6}}:
+    // either mismatch matches no rule, so the token would reach the build raw.
+    const takesV6 = (textFragments[key]?.en ?? '').includes('{{v6}}');
+    const v6 = mods.find((mod) => mod.startsWith('v6='));
+    if (takesV6 && !v6) {
+      unknown.push(
+        `${rel}: "${key}" needs the guide's former Control Panel route — ` +
+          `[[fragment:${key}|v6=/#/…]]`,
+      );
+    } else if (!takesV6 && v6) {
+      unknown.push(
+        `${rel}: |v6= on "${key}", whose body carries no {{v6}} placeholder — ` +
+          'no rule is generated for it, so the token ships to readers as literal text',
+      );
+    } else if (v6 && !/^v6=\/#\/[^|\]\s]*$/.test(v6)) {
+      unknown.push(
+        `${rel}: ${v6} — the route must be a Manager v6 hash route starting with /#/`,
+      );
     }
     u.total += 1;
     u.universes[universe] = (u.universes[universe] ?? 0) + 1;
