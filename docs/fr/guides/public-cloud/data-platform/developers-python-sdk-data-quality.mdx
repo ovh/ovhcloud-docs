@@ -1,1 +1,193 @@
-../../../../en/guides/public-cloud/data-platform/developers-python-sdk-data-quality.mdx
+---
+title: Gérer les règles de qualité et envoyer des rapports avec le SDK Python
+description: Utiliser le SDK Python pour créer les règles de qualité d'une table, exécuter vos propres contrôles dans une action Custom et envoyer leurs résultats sous forme de rapport de qualité
+lastUpdated: 2026-11-16
+---
+
+## Objectif
+
+L'action [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) couvre les contrôles courants : valeurs nulles, plages, unicité et SQL personnalisé (la fraîcheur et le volume sont évalués par le Lakehouse Manager lui-même). Pour évaluer des règles dans votre propre code, par exemple dans une [action Custom](/guides/public-cloud/data-platform/dpe-actions-custom) qui lit déjà la table, envoyez les résultats avec le SDK Python. Le rapport arrive au même endroit que ceux de l'action Data quality : le [statut de qualité de la table](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#rapports-et-statut-de-qualité) tient donc compte de vos contrôles.
+
+Ce guide explique comment :
+
+- créer et gérer les règles de qualité d'une table ;
+- lire les règles d'une table dans une action Custom ;
+- envoyer un rapport de qualité pour une exécution ;
+- lire les rapports et le statut de qualité d'une table.
+
+## Prérequis
+
+- Une table du Lakehouse Manager. Les règles appartiennent à la table elle-même : vous pouvez donc les définir avant que la table ne soit construite, et elles sont conservées lorsqu'elle est reconstruite.
+- Une action Custom en Python, avec le SDK `forepaas` qu'elle installe par défaut.
+- Des permissions sur la ressource *Quality Rule* pour gérer les règles, et sur la ressource *Quality Report* pour envoyer et consulter les rapports. Consultez [Rôles et conditions](/guides/public-cloud/data-platform/iam-roles-conditions).
+
+Toutes les méthodes ci-dessous appartiennent à la classe `Database` de `forepaas.dwh`. Une table est désignée par son nom ou par son identifiant. Une méthode lève `DwhRequestException` lorsque le Lakehouse Manager refuse la requête.
+
+```python
+from forepaas.dwh import Database
+
+api = Database()
+```
+
+## Gérer les règles de qualité d'une table
+
+### Créer une règle
+
+Une règle a un type, les colonnes qu'elle vérifie, des paramètres propres à son type, une sévérité (l'**Impact sur le job** de l'interface) et des seuils. Les seuils s'appliquent à la mesure de la règle : pour une règle `not_null`, `range` ou `custom_sql`, la mesure est un taux de conformité en pourcentage. Une règle avec un seuil `warning` de 99 et un seuil `critical` de 95 est donc en avertissement sous 99 % de lignes valides et critique sous 95 %. Pour une règle `uniqueness`, la mesure est la part de lignes uniques : 2 % de doublons correspondent à `98`.
+
+```python
+rule = api.quality_rules_create("orders", {
+    "display_name": "Amount is filled",
+    "type": "not_null",
+    "columns": [{"name": "amount"}],
+    "severity": "mandatory",
+    "thresholds": {"warning": 99, "critical": 95},
+})
+print(rule["_id"], rule["version"])
+```
+
+Une nouvelle règle est active. Envoyez `"active": False` pour la créer inactive : une règle inactive est listée mais jamais évaluée, et elle ne compte pas dans le statut de qualité de la table.
+
+La sévérité vaut `optional` (par défaut, **Signaler seulement** dans l'interface) ou `mandatory` (**Faire échouer le job**). Seule une règle `mandatory` avec un résultat critique fait échouer un job Data quality exécuté sans **Résultats critiques autorisés**.
+
+Pour vérifier une règle sur la table sans l'enregistrer, appelez `quality_rule_validate`. La méthode renvoie `valid` et, dans `rule`, la règle telle qu'elle serait enregistrée. Lorsque la règle serait refusée, elle lève `DwhRequestException` avec la raison, par exemple une colonne que la table n'a pas :
+
+```python
+result = api.quality_rule_validate("orders", {
+    "display_name": "Amount is positive",
+    "type": "range",
+    "columns": [{"name": "amount"}],
+    "params": {"min": 0},
+    "thresholds": {"critical": 95},
+})
+print(result["valid"], result["rule"]["params"])
+```
+
+### Lister, modifier et supprimer des règles
+
+| Méthode | Ce qu'elle fait |
+|---|---|
+| `table_quality_rules_list(table)` | Liste les règles d'une table, actives et inactives |
+| `quality_rule_get(rule_id)` | Lit une règle |
+| `quality_rule_update(rule_id, rule)` | Remplace une règle |
+| `quality_rule_patch(rule_id, changes)` | Modifie l'état actif, la sévérité, les seuils, le nom affiché ou la description |
+| `quality_rule_delete(rule_id)` | Supprime une règle |
+
+Chaque modification incrémente le champ `version` de la règle. Pour ne pas écraser une modification faite depuis que vous avez lu la règle, envoyez la `version` que vous avez lue : la requête est refusée avec `QUALITY_RULE_VERSION_CONFLICT` si la règle a changé entre-temps.
+
+```python
+rule = api.quality_rule_get(rule_id)
+api.quality_rule_patch(rule_id, {"active": False, "version": rule["version"]})
+```
+
+## Envoyer un rapport de qualité depuis une action Custom
+
+Un rapport couvre une exécution sur une table. Il porte un `execution_id` qui identifie l'exécution, et une entrée par règle évaluée. Chaque entrée indique la règle et la version évaluée, son type, le résultat et, si vous les avez mesurés, la mesure, le nombre de lignes évaluées et le nombre de lignes qui ne respectent pas la règle.
+
+Le résultat est l'un des suivants :
+
+| Résultat | Signification |
+|---|---|
+| `ok` | La mesure respecte les seuils |
+| `warning` | La mesure a franchi le niveau d'avertissement |
+| `critical` | La mesure a franchi le niveau critique |
+| `no_data` | Il n'y avait rien à mesurer, par exemple une table vide |
+| `not_evaluated` | La règle n'a pas pu être évaluée. Donnez la raison dans `reason` |
+
+L'exemple ci-dessous évalue en Python les règles `not_null` actives d'une table et envoie un rapport pour l'exécution :
+
+```python
+import uuid
+
+from forepaas.core.settings import CONFIG
+from forepaas.dwh import Database, connect
+
+TABLE = "orders"
+
+
+def outcome(pass_rate, thresholds):
+    if "critical" in thresholds and pass_rate < thresholds["critical"]:
+        return "critical"
+    if "warning" in thresholds and pass_rate < thresholds["warning"]:
+        return "warning"
+    return "ok"
+
+
+def my_custom(event):
+    api = Database()
+    rules = [r for r in api.table_quality_rules_list(TABLE) if r["active"] and r["type"] == "not_null"]
+    if not rules:
+        return "no rule"
+
+    connector = connect("dwh/sales/")
+    entries = []
+    for rule in rules:
+        column = rule["columns"][0]["name"]
+        counts = connector.query(f"SELECT count(*) AS n, count({column}) AS valid FROM {TABLE}").iloc[0]
+        rows, valid = int(counts["n"]), int(counts["valid"])
+        if rows == 0:
+            entries.append({"rule_id": rule["_id"], "rule_version": rule["version"],
+                            "rule_type": rule["type"], "outcome": "no_data"})
+            continue
+        pass_rate = 100 * valid / rows
+        entries.append({
+            "rule_id": rule["_id"],
+            "rule_version": rule["version"],
+            "rule_type": rule["type"],
+            "outcome": outcome(pass_rate, rule["thresholds"]),
+            "metric": round(pass_rate, 2),
+            "rows": rows,
+            "violations": rows - valid,
+        })
+
+    receipt = api.table_quality_report_send(TABLE, {
+        "execution_id": CONFIG.get("execution_id") or str(uuid.uuid4()),
+        "engine": "custom",
+        "entries": entries,
+    })
+    print(receipt)
+```
+
+:::info
+Utilisez l'identifiant d'exécution du job comme `execution_id`. Un rapport envoyé deux fois avec le même `execution_id` n'est enregistré qu'une fois : un job relancé ne compte pas son exécution deux fois. L'accusé de réception compte les entrées enregistrées (`stored`), les doublons (`duplicates`) et les entrées conservées seulement dans l'historique.
+:::
+
+Si votre action et l'action Data quality évaluent la même règle, c'est l'exécution la plus récente qui compte : évaluez chaque règle à un seul endroit.
+
+Vous n'avez pas besoin de rapporter les règles `freshness` et `volume` : la plateforme les évalue à partir des métadonnées du snapshot de la table à la réception d'un rapport et à la lecture du statut de qualité.
+
+Champs facultatifs d'un rapport :
+
+| Champ | Contenu |
+|---|---|
+| `snapshot_id` | Le snapshot Iceberg lu par vos contrôles |
+| `engine` | Un libellé pour ce qui a évalué les règles |
+| `evaluated_at` | Le moment de l'évaluation des règles, en UTC. Par défaut, le moment de réception du rapport |
+| `action_id` | L'action qui a exécuté les contrôles |
+
+## Lire les rapports et le statut de qualité
+
+| Méthode | Renvoie |
+|---|---|
+| `table_quality_report_get(table, execution_id=None)` | La dernière exécution de la table, ou l'exécution avec cet `execution_id` |
+| `quality_rule_report(rule_id)` | Les dernières exécutions d'une règle, chacune avec la règle telle qu'elle était au moment de l'évaluation |
+| `table_quality_status(table)` | Le statut de qualité de la table : une entrée par règle, règles inactives comprises, et le résultat qui les agrège |
+
+```python
+status = api.table_quality_status("orders")
+print(status["outcome"])
+for rule in status["rules"]:
+    print(rule["display_name"], rule["outcome"])
+```
+
+Le Lakehouse Manager conserve les 10 dernières exécutions de chaque règle. La règle enregistrée avec chaque exécution vous permet de voir quand un seuil ou un paramètre a changé entre deux exécutions.
+
+## Aller plus loin
+
+Exécutez les contrôles intégrés avec l'action [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality), et suivez une première règle de bout en bout dans le [tutoriel sur la qualité des données](/guides/public-cloud/data-platform/tutorials-data-quality-checks).
+
+[[fragment:professional-services|fr]]
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

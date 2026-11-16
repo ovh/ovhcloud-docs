@@ -1,1 +1,102 @@
-../../../../en/guides/public-cloud/data-platform/dpe-actions-data-quality.mdx
+---
+title: Contrôler la qualité d'une table avec l'action Data quality
+description: L'action Data quality évalue les règles de qualité d'une table du Lakehouse Manager et envoie un rapport au Lakehouse Manager
+lastUpdated: 2026-11-16
+---
+
+## Objectif
+
+L'action *Data quality* évalue les [règles de qualité](/guides/public-cloud/data-platform/lakehouse-manager-data-quality) d'une table du Lakehouse Manager et envoie le résultat au Lakehouse Manager sous forme de rapport, avec une entrée par règle. Le rapport met à jour le statut de qualité de la table. L'action fait ensuite échouer le job lorsqu'une règle réglée sur **Faire échouer le job** finit en critique, ou lorsque les limites de **Quand le job échoue** sont dépassées : un [workflow](/guides/public-cloud/data-platform/dpe-workflows) peut ainsi s'arrêter avant que des données incorrectes n'aillent plus loin.
+
+Comme toute autre action, elle peut être exécutée à la demande, planifiée avec un déclencheur cron, ou placée dans un workflow, par exemple juste après l'action [Load](/guides/public-cloud/data-platform/dpe-actions-load) qui alimente la table.
+
+## Prérequis
+
+- Une table du Lakehouse Manager avec au moins une règle de qualité active. Les règles sont lues dans le Lakehouse Manager à chaque exécution : l'action n'a rien à configurer règle par règle.
+- Un environnement Python 3.11 ou 3.13. Python 3.11 est la version par défaut.
+
+## Configurer l'action
+
+### Paramètres
+
+| Paramètre | Obligatoire | Description |
+|---|---|---|
+| **Table à vérifier** (`table`) | Oui | La table à vérifier, écrite `dwh/<dataset>/<table>`, par exemple `dwh/sales/orders` |
+| **Résultats critiques autorisés** (`max_criticals`) | Non | Dans **Quand le job échoue**. Le job échoue lorsque plus de règles que cette valeur finissent en critique. Non défini : seules les règles réglées sur [**Faire échouer le job**](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#impact-sur-le-job) peuvent le faire échouer |
+| **Avertissements autorisés** (`max_warnings`) | Non | Dans **Quand le job échoue**. Le job échoue lorsque plus de règles que cette valeur finissent en avertissement. Non défini : les avertissements ne font jamais échouer le job |
+| **Moteur** (`engine`) | Non | `auto` (par défaut), `polars` ou `trino`. Voir [Moteur et taille de la table](#moteur-et-taille-de-la-table) |
+| **Limite du worker (cellules)** (`max_cells`) | Non | Taille de la table, en lignes multipliées par colonnes, que le worker peut charger. Au-delà, le worker ne charge pas la table. Non défini : l'action la fixe d'après la taille du worker |
+| **Très grande à partir de (cellules)** (`very_large_cells`) | Non | Taille de la table, en lignes multipliées par colonnes, au-delà de laquelle le rapport suggère l'action Data quality (Spark). 1 000 000 000 par défaut |
+
+Par défaut, l'action s'exécute sur 2 DPU (`fpu` de taille 2). La **Limite du worker** suit la taille du worker : un worker plus grand charge des tables plus grandes.
+
+### Moteur et taille de la table
+
+L'action lit une seule fois le snapshot courant de la table, au début de l'exécution, et évalue chaque règle sur ce snapshot : toutes les règles voient les mêmes données, même si un chargement s'exécute en même temps.
+
+L'endroit où les règles s'exécutent dépend de la taille de la table, lue dans ses métadonnées avant tout chargement :
+
+| Moteur | Comportement |
+|---|---|
+| `auto` | Les tables jusqu'à la limite du worker sont chargées dans le worker et vérifiées avec Polars. Les règles `custom_sql` s'exécutent toujours sur le moteur de requêtes. Au-delà de la limite du worker, ou lorsque la table a des suppressions en attente, tout le contrôle s'exécute sur le moteur de requêtes. |
+| `polars` | Vérifie toujours dans le worker. Une table au-delà de la limite du worker est refusée. |
+| `trino` | Vérifie toujours sur le moteur de requêtes. |
+
+Les contrôles de date et d'heure lisent les valeurs en UTC, et comptent les jours à partir du jour de l'exécution.
+
+:::info
+Les contrôles exécutés sur le moteur de requêtes comptent dans la consommation de requêtes de votre projet.
+:::
+
+Au-delà de **Très grande à partir de**, le rapport contient `suggested_package: data-quality-pyspark` : passez la table sur l'action [Data quality (Spark)](/guides/public-cloud/data-platform/dpe-actions-data-quality-pyspark). Le moteur `trino` est un choix délibéré et n'envoie aucune suggestion.
+
+### Exemple de corps de requête
+
+Pour créer l'action par l'API, envoyez le corps de l'action à l'API du Data Processing Engine. Le module de connecteur `polar-data` est requis à côté de l'action :
+
+```json
+{
+  "display_name": "Quality of orders",
+  "repository": "<repository id>",
+  "repository_version": "<repository version id>",
+  "action": "data-quality",
+  "language": "python3",
+  "modules": [
+    {"type": "action", "id": "data-quality", "version": "latest"},
+    {"type": "connector", "id": "polar-data", "version": "latest"}
+  ],
+  "params": {"table": "dwh/sales/orders"},
+  "environment": {"fpu": {"size": 2, "instances": 1}}
+}
+```
+
+Pour exécuter l'action en Python 3.13, ajoutez `"language_version": "3.13"` à `environment`. Pour que les règles fassent échouer le job selon leur nombre, ajoutez `max_criticals` ou `max_warnings` à `params`, voir [Quand le job échoue](#quand-le-job-échoue).
+
+## Quand le job échoue
+
+Le rapport est toujours envoyé en premier : un job en échec a quand même son rapport dans le Lakehouse Manager, avec la raison de chaque résultat, et le [statut de qualité de la table](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#statut-de-qualité-de-la-table) est mis à jour quel que soit le résultat du job. Le résultat du job et le statut de la table sont deux choses différentes : une règle **Signaler seulement** qui finit en critique rend la table critique sans faire échouer le job.
+
+Le job échoue lorsque :
+
+- plus de règles que **Résultats critiques autorisés** finissent en critique ou, lorsque ce champ n'est pas défini, une règle réglée sur **Faire échouer le job** finit en critique ;
+- plus de règles que **Avertissements autorisés** finissent en avertissement, lorsque ce champ est défini ;
+- aucune règle n'a pu être évaluée, par exemple lorsque la table ne peut pas être lue.
+
+Le job réussit lorsque la table n'a aucune règle active, ou lorsque la table n'a jamais été chargée : chaque règle renvoie alors `no_data` avec la raison « This table has no data yet: it was never loaded ».
+
+Résultats qui ne font jamais échouer le job :
+
+- les résultats `not_evaluated` et `no_data`, tant qu'au moins une règle a pu être évaluée ;
+- une règle portant sur une colonne que la table n'a plus. Elle est signalée en avertissement, avec la raison « Column `<name>` is no longer in the table », et n'est pas comptée dans **Avertissements autorisés**. Modifiez ou supprimez la règle.
+
+## Aller plus loin
+
+- [Contrôler la qualité de vos tables avec des règles de qualité des données](/guides/public-cloud/data-platform/lakehouse-manager-data-quality)
+- [Contrôler la qualité des données après chaque chargement](/guides/public-cloud/data-platform/tutorials-data-quality-checks)
+- [Configurer une alerte d'exécution de job](/guides/public-cloud/data-platform/control-center-alerting-job-execution) pour être prévenu lorsqu'un job de qualité échoue
+
+[[fragment:professional-services|fr]]
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).

@@ -1,1 +1,176 @@
-../../../../en/guides/public-cloud/data-platform/lakehouse-manager-data-quality.mdx
+---
+title: Contrôler la qualité de vos tables avec des règles de qualité des données
+description: Définir des règles de qualité sur une table du Lakehouse Manager, les exécuter avec une action du Data Processing Engine et suivre le statut de qualité de la table
+lastUpdated: 2026-11-16
+---
+
+## Objectif
+
+Les règles de qualité des données décrivent ce que sont des données valides dans une table : une colonne sans valeur nulle, des valeurs comprises dans un intervalle, une table rafraîchie récemment. Ce guide explique comment définir des règles sur une table, comment elles sont évaluées et comment lire les résultats.
+
+Le fonctionnement se fait en trois temps :
+
+1. Vous définissez des règles sur une table. Une règle appartient à la table : vous pouvez donc la définir avant que la table ne soit construite, et elle est conservée lorsque la table est reconstruite.
+2. L'action [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) évalue les règles actives sur le snapshot courant de la table et envoie un rapport au Lakehouse Manager. Pour les grandes tables, utilisez [Data quality (Spark)](/guides/public-cloud/data-platform/dpe-actions-data-quality-pyspark). Vous pouvez aussi envoyer des résultats depuis votre propre code avec le [SDK Python](/guides/public-cloud/data-platform/developers-python-sdk-data-quality).
+3. Chaque rapport met à jour le statut de qualité de la table, qui agrège le dernier résultat de chaque règle.
+
+## Prérequis
+
+- Une table du Lakehouse Manager.
+- Des permissions sur la ressource *Quality Rule* pour consulter ou gérer les règles, et sur la ressource *Quality Report* pour consulter les rapports. Consultez [Rôles et conditions](/guides/public-cloud/data-platform/iam-roles-conditions).
+
+## Définir des règles de qualité
+
+Définissez les règles dans l'onglet **Qualité** d'une table : cliquez sur **+ Ajouter une règle**. Une table peut contenir jusqu'à 100 règles. Certains types de règles vérifient les valeurs d'une ou plusieurs colonnes, d'autres vérifient les métadonnées de la table, comme son nombre de lignes ou le temps écoulé depuis le dernier ajout de données.
+
+Chaque règle a besoin d'un niveau critique et peut aussi avoir un niveau d'avertissement (voir [Seuils](#seuils)). Son [impact sur le job](#impact-sur-le-job) indique si un résultat critique fait échouer le job Data quality.
+
+### Types de règles
+
+| Type | Ce qu'elle vérifie | Colonnes | Mesure |
+|---|---|---|---|
+| `not_null` | La colonne n'a aucune valeur nulle | Une | Taux de conformité (%) |
+| `range` | Les valeurs sont comprises entre un minimum et un maximum | Une, nombre ou date | Taux de conformité (%) |
+| `uniqueness` | Deux lignes ne partagent jamais la même valeur, ou la même combinaison de valeurs | Une ou plusieurs | Part de doublons (%) |
+| `custom_sql` | Les lignes vérifient une expression SQL booléenne | Aucune, l'expression les nomme | Taux de conformité (%) |
+| `freshness` | Des données ont été ajoutées récemment à la table | Aucune | Âge, en minutes, heures ou jours |
+| `volume` | La table contient un nombre de lignes compris dans des bornes | Aucune | Nombre de lignes |
+
+Le taux de conformité est la part des lignes qui passent le contrôle.
+
+Paramètres par type :
+
+- **`range`** : `min`, `max`, ou les deux. Les bornes sont des nombres pour une colonne numérique et des dates ISO pour une colonne de date. `min_included` et `max_included` indiquent si chaque borne est acceptée (les deux par défaut).
+- **`uniqueness`** : par défaut, les lignes qui ont une valeur nulle dans les colonnes vérifiées sont ignorées. Réglez `nulls_as_value` sur `true` pour compter la valeur nulle comme une valeur.
+- **`custom_sql`** : `expression`, une expression booléenne sur les colonnes de la table, dans le dialecte SQL de Trino. Exemple : `amount >= 0 AND status IN ('paid', 'refunded')`.
+- **`freshness`** : `unit`, `minutes`, `hours` (par défaut) ou `days`. L'âge est le temps écoulé depuis le dernier ajout de données dans la table.
+- **`volume`** : aucun paramètre. Les bornes se définissent dans les seuils.
+
+:::info
+`freshness` et `volume` sont lus dans les métadonnées de la table, sans parcourir les données. Le Lakehouse Manager les évalue lui-même, à chaque réception de rapport et à chaque lecture du statut : ils n'ont pas besoin d'une exécution Data quality.
+:::
+
+### Seuils
+
+Les champs de seuil dépendent du type de règle :
+
+| Type de règle | Champs | Comment le résultat est déterminé |
+|---|---|---|
+| `not_null`, `range`, `custom_sql` | **Avertissement si inférieur à (%)**, **Critique si inférieur à (%)** | Le taux de conformité est la part des lignes qui passent le contrôle. Le résultat est OK à partir du niveau d'avertissement, en avertissement entre les deux niveaux, et critique sous le niveau critique. |
+| `uniqueness` | **Avertissement si supérieur à (%)**, **Critique si supérieur à (%)**, en pourcentage de doublons | La part des lignes qui en répètent une autre : 0 % signifie aucun doublon. Critique si supérieur à 0 rend un seul doublon critique. |
+| `freshness` | **Avertissement si plus ancien que**, **Critique si plus ancien que**, dans l'unité de la règle | L'âge est le temps écoulé depuis le dernier ajout de données dans la table. Avec 24 et 48 heures, le résultat est OK jusqu'à 24 heures, en avertissement jusqu'à 48 heures, critique au-delà. |
+| `volume` | **Attendu : au moins**, **Attendu : au plus**, **Critique si moins de**, **Critique si plus de** | Un nombre de lignes compris dans la plage attendue est OK. Au-delà des limites critiques, il est critique. Entre les deux, il est en avertissement. Avec Attendu : au moins 1 000 et Critique si moins de 100, 1 000 lignes ou plus est OK, 100 à 999 lignes est en avertissement, moins de 100 est critique. |
+
+Le niveau d'avertissement est facultatif : sans lui, un résultat est soit OK, soit critique.
+
+### Impact sur le job
+
+L'**Impact sur le job** d'une règle décide de l'effet d'un résultat critique sur le job Data quality :
+
+- **Signaler seulement** (par défaut) : un résultat critique est signalé. Le job DPE continue.
+- **Faire échouer le job** : un résultat critique fait échouer le job DPE, sauf si l'action définit **Résultats critiques autorisés**.
+
+L'impact sur le job ne change pas le résultat de la règle, seulement le job. L'action Data quality peut aussi compter elle-même les résultats critiques et les avertissements, voir [Quand le job échoue](/guides/public-cloud/data-platform/dpe-actions-data-quality#quand-le-job-échoue).
+
+### Créer et gérer les règles avec l'API
+
+Les règles peuvent aussi être gérées avec l'API du Lakehouse Manager (voir [API de la Data Platform](/guides/public-cloud/data-platform/landing-page-developers-apis)) ou avec le [SDK Python](/guides/public-cloud/data-platform/developers-python-sdk-data-quality) :
+
+| Opération | Route |
+|---|---|
+| Lister les règles d'une table | `GET /dwh/v4/logical/objects/{tableId}/quality-rules` |
+| Créer une règle | `POST /dwh/v4/logical/objects/{tableId}/quality-rules` |
+| Vérifier une règle sans l'enregistrer | `POST /dwh/v4/logical/objects/{tableId}/quality-rules/validate` |
+| Lire, remplacer, modifier ou supprimer une règle | `GET`, `PUT`, `PATCH`, `DELETE /dwh/v4/quality-rules/{ruleId}` |
+
+Dans l'API, l'impact sur le job est le champ `severity` : `optional` pour **Signaler seulement**, `mandatory` pour **Faire échouer le job**. Les seuils sont l'objet `thresholds`, avec un niveau `warning` et un niveau `critical`. Pour une règle `volume`, chaque niveau est une plage `{"min", "max"}` : `warning` est la plage attendue et `critical` les limites critiques. Pour une règle `uniqueness`, l'API enregistre la part de lignes uniques, et non la part de doublons affichée dans l'interface : 2 % de doublons correspondent à `98`.
+
+Une règle sur la colonne `amount`, avertissement si inférieur à 99 %, critique si inférieur à 95 %, qui fait échouer le job :
+
+```json
+{
+  "display_name": "Amount is filled",
+  "type": "not_null",
+  "columns": [{"name": "amount"}],
+  "severity": "mandatory",
+  "thresholds": {"warning": 99, "critical": 95}
+}
+```
+
+Une règle qui vérifie que des données ont été ajoutées au cours de la dernière journée :
+
+```json
+{
+  "display_name": "Loaded daily",
+  "type": "freshness",
+  "params": {"unit": "hours"},
+  "thresholds": {"warning": 24, "critical": 36}
+}
+```
+
+Lorsque vous gérez des règles :
+
+- Une nouvelle règle est active. Une règle inactive est conservée et listée, mais elle n'est jamais évaluée et ne compte pas dans le statut de la table. Utilisez-la pour mettre une règle en pause sans perdre son historique.
+- Chaque modification incrémente le champ `version` de la règle. Envoyez avec votre modification la `version` que vous avez lue : si quelqu'un a modifié la règle entre-temps, votre modification est refusée avec `QUALITY_RULE_VERSION_CONFLICT` au lieu d'écraser la sienne.
+- Vérifiez une règle avant de l'enregistrer : la route de validation renvoie la règle telle qu'elle serait enregistrée, ou la raison pour laquelle elle serait refusée, par exemple une colonne qui n'existe pas ou des seuils dans le mauvais ordre.
+
+## Rapports et statut de qualité
+
+### Résultats d'une règle
+
+Chaque évaluation d'une règle donne un résultat :
+
+| Résultat | Signification |
+|---|---|
+| `ok` | La mesure respecte les seuils |
+| `warning` | La mesure a franchi le niveau d'avertissement. Une règle portant sur une colonne que la table n'a plus est aussi signalée en avertissement, avec la raison « Column `<name>` is no longer in the table » : modifiez ou supprimez la règle |
+| `critical` | La mesure a franchi le niveau critique |
+| `no_data` | Il n'y avait rien à mesurer, par exemple une table vide ou jamais chargée |
+| `not_evaluated` | La règle n'a pas pu être évaluée. Le rapport en donne la raison, par exemple une expression `custom_sql` qui échoue à l'exécution |
+
+### Lire un rapport
+
+Une exécution de l'action Data quality envoie un rapport pour la table, avec une entrée par règle. Chaque entrée donne le résultat, la mesure et, pour les règles à taux de conformité, le nombre de lignes évaluées et le nombre de lignes qui ne respectent pas la règle.
+
+Le rapport indique aussi :
+
+- quel moteur a évalué les règles, et quel snapshot de la table il a lu ;
+- ce qui a lancé l'exécution : une planification ou un utilisateur ;
+- lorsque la table est devenue trop grande pour l'action exécutée, le package vers lequel passer (`suggested_package`), par exemple `data-quality-pyspark` pour l'action Data quality (Spark).
+
+| Opération | Route |
+|---|---|
+| Dernière exécution d'une table, ou une exécution par son identifiant | `GET /dwh/v4/logical/objects/{tableId}/quality-reports`, avec `execution_id` pour une exécution |
+| Dernières exécutions d'une règle | `GET /dwh/v4/quality-rules/{ruleId}/reports` |
+
+Le Lakehouse Manager conserve les 10 dernières exécutions de chaque règle. Chaque exécution enregistre la règle telle qu'elle était au moment de l'évaluation : vous pouvez ainsi voir quand un seuil ou un paramètre a changé entre deux exécutions.
+
+### Statut de qualité de la table
+
+Chaque rapport reçu, d'une exécution Data quality ou d'une action Custom, met aussi à jour le statut de qualité de la table : un résultat unique pour toute la table, affiché avec la table dans le Lakehouse Manager. Il agrège le dernier résultat de chaque règle active : le plus mauvais résultat parmi `ok`, `warning` et `critical`. Les règles sans résultat ne le dégradent pas. Lorsqu'aucune règle n'a de résultat, le statut est :
+
+- `pending` lorsque chaque règle active attend sa première exécution ;
+- `disabled` lorsque toutes les règles sont inactives ;
+- `not_evaluated` dans les autres cas, y compris lorsque la table n'a aucune règle.
+
+L'impact sur le job d'une règle n'entre pas dans le statut : une règle **Signaler seulement** qui finit en critique rend la table critique, même si elle ne fait pas échouer le job Data quality. Le statut de la table dit à quoi ressemblent les données ; le résultat du job dit si l'exécution doit arrêter un workflow.
+
+Le statut est aussi mis à jour lorsqu'une règle est créée, modifiée, désactivée ou supprimée : il reflète donc toujours les règles actuelles de la table.
+
+Lisez-le avec `GET /dwh/v4/logical/objects/{tableId}/quality-status`. La réponse contient une entrée par règle, avec son résultat, sa mesure, sa date et la provenance du résultat :
+
+- `live` : une règle `freshness` ou `volume`, évaluée au moment de la requête ;
+- `stored` : la dernière exécution de la règle ;
+- `none` : la règle n'a pas encore été exécutée, ou elle est inactive. Une règle inactive est listée avec le résultat `disabled`.
+
+## Aller plus loin
+
+- [Contrôler la qualité des données après chaque chargement](/guides/public-cloud/data-platform/tutorials-data-quality-checks)
+- [Contrôler la qualité d'une table avec l'action Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality)
+- [Gérer les règles de qualité et envoyer des rapports avec le SDK Python](/guides/public-cloud/data-platform/developers-python-sdk-data-quality)
+
+[[fragment:professional-services|fr]]
+
+Si vous avez besoin d'une assistance concernant vos services OVHcloud, créez une demande depuis notre [centre d'aide](/links/support-contact).
+
+Rejoignez notre [communauté d'utilisateurs](/links/community).
