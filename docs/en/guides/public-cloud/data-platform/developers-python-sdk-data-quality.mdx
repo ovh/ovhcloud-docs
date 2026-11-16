@@ -1,12 +1,12 @@
 ---
-title: Manage quality rules and send quality reports from a Custom action
+title: Manage quality rules and send reports with the Python SDK
 description: Use the Python SDK to create the quality rules of a table, run your own checks in a Custom action and send their results as a quality report
-lastUpdated: 2026-11-10
+lastUpdated: 2026-11-16
 ---
 
 ## Objective
 
-The [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action covers the common checks: nulls, ranges, uniqueness, freshness, volume and custom SQL. To evaluate rules in your own code instead, for example inside a [Custom action](/guides/public-cloud/data-platform/dpe-actions-custom) that already reads the table, send the results with the Python SDK. The report goes to the same place as the Data quality action's reports, so the [quality status of the table](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#quality-reports-and-status) takes your checks into account.
+The [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action covers the common checks: nulls, ranges, uniqueness and custom SQL (freshness and volume are evaluated by the Lakehouse Manager itself). To evaluate rules in your own code instead, for example inside a [Custom action](/guides/public-cloud/data-platform/dpe-actions-custom) that already reads the table, send the results with the Python SDK. The report goes to the same place as the Data quality action's reports, so the [quality status of the table](/guides/public-cloud/data-platform/lakehouse-manager-data-quality#quality-reports-and-status) takes your checks into account.
 
 This guide shows how to:
 
@@ -19,6 +19,7 @@ This guide shows how to:
 
 - A Lakehouse Manager table. Rules belong to the table itself, so you can define them before the table is built, and they are kept when it is rebuilt.
 - A Custom action in Python, with the `forepaas` SDK it installs by default.
+- Permissions on the *Quality Rule* resource to manage rules, and on the *Quality Report* resource to send and read reports. See [Roles and conditions](/guides/public-cloud/data-platform/iam-roles-conditions).
 
 All the methods below are on the `Database` class of `forepaas.dwh`. A table is addressed by its name or its id. A method raises `DwhRequestException` when the Lakehouse Manager refuses the request.
 
@@ -32,7 +33,7 @@ api = Database()
 
 ### Create a rule
 
-A rule has a type, the columns it checks, type-specific parameters, a severity (the **Job impact** of the interface) and thresholds. Thresholds apply to the rule's metric: for a `not_null`, `range` or `uniqueness` rule the metric is a pass rate in percent, so a rule with a `warning` threshold of 99 and a `critical` threshold of 95 is in warning below 99 % of valid rows and critical below 95 %.
+A rule has a type, the columns it checks, type-specific parameters, a severity (the **Job impact** of the interface) and thresholds. Thresholds apply to the rule's metric: for a `not_null`, `range` or `custom_sql` rule the metric is a pass rate in percent, so a rule with a `warning` threshold of 99 and a `critical` threshold of 95 is in warning below 99% of valid rows and critical below 95%. For a `uniqueness` rule, the metric is the share of unique rows: 2% of duplicates is `98`.
 
 ```python
 rule = api.quality_rules_create("orders", {
@@ -49,7 +50,7 @@ A new rule is active. Send `"active": False` to create it inactive: an inactive 
 
 The severity is `optional` (the default, **Report only** in the interface) or `mandatory` (**Fail the job**). Only a `mandatory` rule with a critical result fails a Data quality job that runs without **Critical Results Allowed**.
 
-To check a rule against the table without saving it, call `quality_rule_validate`. It returns the rule as it would be stored, or raises with the reason it would be refused:
+To check a rule against the table without saving it, call `quality_rule_validate`. It returns `valid` and, in `rule`, the rule as it would be stored. When the rule would be refused, it raises `DwhRequestException` with the reason, for example a column the table does not have:
 
 ```python
 result = api.quality_rule_validate("orders", {
@@ -59,7 +60,7 @@ result = api.quality_rule_validate("orders", {
     "params": {"min": 0},
     "thresholds": {"critical": 95},
 })
-print(result["valid"])
+print(result["valid"], result["rule"]["params"])
 ```
 
 ### List, update and delete rules
@@ -88,10 +89,10 @@ The outcome is one of:
 | Outcome | Meaning |
 |---|---|
 | `ok` | The metric is within the thresholds |
-| `warning` | The metric crossed the warning threshold |
-| `critical` | The metric crossed the critical threshold |
+| `warning` | The metric crossed the warning level |
+| `critical` | The metric crossed the critical level |
+| `no_data` | There was nothing to measure, for example an empty table |
 | `not_evaluated` | The rule could not be evaluated. Give the reason in `reason` |
-| `no_data` | There was nothing to evaluate, for example an empty table |
 
 The example below evaluates the active `not_null` rules of a table in Python and sends one report for the run:
 
@@ -151,7 +152,7 @@ def my_custom(event):
 Use the job's execution id as `execution_id`. A report sent twice with the same `execution_id` is stored once, so a retried job does not count its run twice. The receipt counts the entries `stored`, the `duplicates` and the entries kept only in the history.
 :::
 
-A rule evaluated by both your action and the Data quality action keeps the latest run. Evaluate each rule in one place.
+If both your action and the Data quality action evaluate the same rule, the most recent run wins: evaluate each rule in one place.
 
 You do not need to report `freshness` and `volume` rules: the platform evaluates them from the metadata of the table's snapshot when a report is received, and when the quality status is read.
 
@@ -170,7 +171,7 @@ Optional fields of a report:
 |---|---|
 | `table_quality_report_get(table, execution_id=None)` | The latest run of the table, or the run with that `execution_id` |
 | `quality_rule_report(rule_id)` | The last runs of one rule, each with the rule as it was when evaluated |
-| `table_quality_status(table)` | The quality status of the table: one entry per active rule and the outcome that rolls them up |
+| `table_quality_status(table)` | The quality status of the table: one entry per rule, inactive rules included, and the outcome that rolls them up |
 
 ```python
 status = api.table_quality_status("orders")

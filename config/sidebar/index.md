@@ -1999,7 +1999,7 @@
                     + [Override a Load action](public-cloud/data-platform/developers-python-sdk-load-override)
                     + [Use custom Python modules via Git](public-cloud/data-platform/developers-python-sdk-git){label=Use custom Python modules via Git}
                     + [Track data lineage](public-cloud/data-platform/developers-python-sdk-lineage){label=Track data lineage}
-                    + [Read rules and send quality reports](public-cloud/data-platform/developers-python-sdk-data-quality){label=Read rules and send quality reports}
+                    + [Manage rules and send quality reports](public-cloud/data-platform/developers-python-sdk-data-quality){label=Manage rules and send quality reports}
             + [Front App and API SDKs](public-cloud/data-platform/developers-front-sdks)
         + [Manage your platform](public-cloud-data-platform-manage-your-platform){landing=public-cloud/data-platform/landing-page-manage}
             + [Navigate the platform](public-cloud/data-platform/manage-navigation)

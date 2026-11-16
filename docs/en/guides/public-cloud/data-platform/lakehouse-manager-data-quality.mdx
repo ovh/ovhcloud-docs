@@ -1,7 +1,7 @@
 ---
 title: Check the quality of your tables with data quality rules
 description: Define quality rules on a Lakehouse Manager table, run them with a Data Processing Engine action and follow the quality status of the table
-lastUpdated: 2026-11-13
+lastUpdated: 2026-11-16
 ---
 
 ## Objective
@@ -14,9 +14,14 @@ The flow has three steps:
 2. The [Data quality](/guides/public-cloud/data-platform/dpe-actions-data-quality) action evaluates the active rules on the table's current snapshot and sends a report to the Lakehouse Manager. For large tables, use [Data quality (Spark)](/guides/public-cloud/data-platform/dpe-actions-data-quality-pyspark). You can also send results from your own code with the [Python SDK](/guides/public-cloud/data-platform/developers-python-sdk-data-quality).
 3. Each report updates the quality status of the table, which rolls up the latest result of every rule.
 
+## Requirements
+
+- A Lakehouse Manager table.
+- Permissions on the *Quality Rule* resource to read or manage rules, and on the *Quality Report* resource to read reports. See [Roles and conditions](/guides/public-cloud/data-platform/iam-roles-conditions).
+
 ## Define quality rules
 
-Rules are defined in the **Quality** tab of a table, up to 100 rules per table: click **+ Add rule**. Some rule types check the values of one or more columns, others check the table's metadata, such as its row count or the time since data was last added.
+Define rules in the **Quality** tab of a table: click **+ Add rule**. A table holds up to 100 rules. Some rule types check the values of one or more columns, others check the table's metadata, such as its row count or the time since data was last added.
 
 Every rule needs a critical level, and can also have a warning level (see [Thresholds](#thresholds)). Its [job impact](#job-impact) says whether a critical result fails the Data quality job.
 
@@ -51,8 +56,8 @@ The threshold fields depend on the rule type:
 
 | Rule type | Fields | How the result is decided |
 |---|---|---|
-| `not_null`, `range`, `custom_sql` | **Warning when below**, **Critical when below**, in percent | The pass rate is the share of rows that pass the check. The result is OK at or above Warning, Warning between the two values, Critical below Critical. |
-| `uniqueness` | **Warning when above**, **Critical when above**, in percent of duplicates | The share of rows that repeat another one: 0 % means no duplicate. Critical when above 0 makes a single duplicate critical. |
+| `not_null`, `range`, `custom_sql` | **Warning when below**, **Critical when below**, in percent | The pass rate is the share of rows that pass the check. The result is OK at or above the warning level, in warning between the two levels, and critical below the critical level. |
+| `uniqueness` | **Warning when above**, **Critical when above**, in percent of duplicates | The share of rows that repeat another one: 0% means no duplicate. Critical when above 0 makes a single duplicate critical. |
 | `freshness` | **Warning when older than**, **Critical when older than**, in the rule's unit | The age is the time since data was last added to the table. With 24 and 48 hours, the result is OK up to 24 hours, Warning up to 48 hours, Critical after. |
 | `volume` | **Expected: at least**, **Expected: at most**, **Critical when fewer than**, **Critical when more than** | A row count within the expected range is OK. Beyond the critical limits, it is Critical. In between, it is Warning. With Expected: at least 1,000 and Critical when fewer than 100, 1,000 rows or more is OK, 100 to 999 rows is Warning, fewer than 100 is Critical. |
 
@@ -63,7 +68,7 @@ The warning level is optional: without it, a result is either OK or Critical.
 The **Job impact** of a rule decides what a Critical result does to the Data quality job:
 
 - **Report only** (default): a Critical result is reported. The DPE job goes on.
-- **Fail the job**: a Critical result fails the DPE job.
+- **Fail the job**: a Critical result fails the DPE job, unless the action sets **Critical Results Allowed**.
 
 The job impact does not change the result of the rule, only the job. The Data quality action can also count the critical and warning results itself, see [When the job fails](/guides/public-cloud/data-platform/dpe-actions-data-quality#when-the-job-fails).
 
@@ -78,9 +83,9 @@ Rules can also be managed with the Lakehouse Manager API (see [Data Platform API
 | Check a rule without saving it | `POST /dwh/v4/logical/objects/{tableId}/quality-rules/validate` |
 | Read, replace, update or delete a rule | `GET`, `PUT`, `PATCH`, `DELETE /dwh/v4/quality-rules/{ruleId}` |
 
-In the API, the job impact is the `severity` field: `optional` for **Report only**, `mandatory` for **Fail the job**. The thresholds are the `thresholds` object, with a `warning` and a `critical` level. For a `volume` rule each level is a `{"min", "max"}` range: `warning` is the expected range and `critical` the critical limits. For a `uniqueness` rule the API stores the share of unique rows, not the share of duplicates shown in the console: 2 % of duplicates is `98`.
+In the API, the job impact is the `severity` field: `optional` for **Report only**, `mandatory` for **Fail the job**. The thresholds are the `thresholds` object, with a `warning` and a `critical` level. For a `volume` rule each level is a `{"min", "max"}` range: `warning` is the expected range and `critical` the critical limits. For a `uniqueness` rule the API stores the share of unique rows, not the share of duplicates shown in the interface: 2% of duplicates is `98`.
 
-A rule on the `amount` column, Warning when below 99 %, Critical when below 95 %, that fails the job:
+A rule on the `amount` column, Warning when below 99%, Critical when below 95%, that fails the job:
 
 ```json
 {
@@ -92,7 +97,7 @@ A rule on the `amount` column, Warning when below 99 %, Critical when below 95 %
 }
 ```
 
-A rule that data was added in the last day:
+A rule that checks that data was added in the last day:
 
 ```json
 {
@@ -142,13 +147,13 @@ The Lakehouse Manager keeps the last 10 runs of each rule. Each run stores the r
 
 ### Table quality status
 
-Each report received from a Data quality run also sets the quality status of the table: one outcome for the whole table, shown with the table in the Lakehouse Manager. It rolls up the latest outcome of each active rule: the worst outcome among `ok`, `warning` and `critical`. Rules without a result do not lower it. When no rule has a result, the status is:
+Each report received, from a Data quality run or from a Custom action, also sets the quality status of the table: one outcome for the whole table, shown with the table in the Lakehouse Manager. It rolls up the latest outcome of each active rule: the worst outcome among `ok`, `warning` and `critical`. Rules without a result do not lower it. When no rule has a result, the status is:
 
 - `pending` when every active rule is waiting for its first run;
 - `disabled` when every rule is inactive;
 - `not_evaluated` otherwise, also when the table has no rule.
 
-The job impact of a rule does not enter the status: a **Report only** rule ending critical makes the table critical, even though it does not fail the Data quality job. The table status says what the data looks like, the job result says whether the run should stop a workflow.
+The job impact of a rule does not enter the status: a **Report only** rule ending critical makes the table critical, even though it does not fail the Data quality job. The table status says what the data looks like; the job result says whether the run should stop a workflow.
 
 The status is also updated when a rule is created, changed, switched off or deleted, so it always reflects the current rules of the table.
 
@@ -160,9 +165,9 @@ Read it with `GET /dwh/v4/logical/objects/{tableId}/quality-status`. The answer 
 
 ## Go further
 
-- [Check the quality of a table after each load](/guides/public-cloud/data-platform/tutorials-data-quality-checks)
-- [Data quality action](/guides/public-cloud/data-platform/dpe-actions-data-quality)
-- [Manage quality rules and send quality reports from a Custom action](/guides/public-cloud/data-platform/developers-python-sdk-data-quality)
+- [Check data quality after each load](/guides/public-cloud/data-platform/tutorials-data-quality-checks)
+- [Check table quality with the Data quality action](/guides/public-cloud/data-platform/dpe-actions-data-quality)
+- [Manage quality rules and send reports with the Python SDK](/guides/public-cloud/data-platform/developers-python-sdk-data-quality)
 
 [[fragment:professional-services|en]]
 
