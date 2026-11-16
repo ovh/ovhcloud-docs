@@ -599,6 +599,7 @@
             + [Using Terraform with SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform)
             + [Managing Glance images](hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management)
             + [Managing public IPs](hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management)
+            + [Installing an operating system from an ISO image](hosted-private-cloud/cloud-platform/snc-cloud-platform-install-os-from-iso)
     + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
@@ -630,6 +631,8 @@
             + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
             + [How to restore OPCP from a backup](hosted-private-cloud/opcp/how-to-restore-backup)
             + [How to diagnose the OPCP control plane with opcp-diag](hosted-private-cloud/opcp/how-to-diagnose-control-plane)
+            + [Observability on OPCP](hosted-private-cloud/opcp/observability-overview)
+            + [How to store the OPCP metrics in an external S3 bucket](hosted-private-cloud/opcp/how-to-store-metrics-in-external-s3-bucket)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
@@ -1793,6 +1796,7 @@
                     + [Build the Vélib' dashboard in Superset](public-cloud/data-platform/tutorials-velib-availability-superset-dashboard){label=Build a Vélib' availability dashboard in Superset}
                 + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
                 + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
+                + [Check data quality after each load](public-cloud/data-platform/tutorials-data-quality-checks){label=Check data quality after each load}
                 + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
                 + [Apply segmentation to your jobs](public-cloud-data-platform-apply-segmentation-to-your-jobs){landing=public-cloud/data-platform/tutorials-segmentation}
                     + [Project table attribute](public-cloud/data-platform/tutorials-segmentation-table-attribute){label=Project table attribute}
@@ -1869,6 +1873,7 @@
                 + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
                     + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
                     + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel){label=Time Travel}
+                    + [Data quality](public-cloud/data-platform/lakehouse-manager-data-quality){label=Data quality}
                 + [Views](public-cloud/data-platform/lakehouse-manager-views){label=Views}
                 + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes){label=Attributes}
                 + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets){label=Buckets}
@@ -1889,6 +1894,8 @@
                         + [Advanced Mode](public-cloud/data-platform/dpe-actions-aggregate-advanced-mode){label=Advanced Mode}
                     + [Aggregate PySpark](public-cloud/data-platform/dpe-actions-aggregate-pyspark){label=Aggregate PySpark}
                     + [SQL](public-cloud/data-platform/dpe-actions-sql){label=SQL}
+                    + [Data quality](public-cloud/data-platform/dpe-actions-data-quality){label=Data quality}
+                    + [Data quality (Spark)](public-cloud/data-platform/dpe-actions-data-quality-pyspark){label=Data quality (Spark)}
                     + [Custom](public-cloud-data-platform-custom){landing=public-cloud/data-platform/dpe-actions-custom}
                         + [Default Packages](public-cloud/data-platform/dpe-actions-custom-default-packages){label=Default Packages}
                     + [Custom PySpark](public-cloud/data-platform/dpe-actions-custom-pyspark){label=Custom PySpark}
@@ -1992,6 +1999,7 @@
                     + [Override a Load action](public-cloud/data-platform/developers-python-sdk-load-override)
                     + [Use custom Python modules via Git](public-cloud/data-platform/developers-python-sdk-git){label=Use custom Python modules via Git}
                     + [Track data lineage](public-cloud/data-platform/developers-python-sdk-lineage){label=Track data lineage}
+                    + [Manage rules and send quality reports](public-cloud/data-platform/developers-python-sdk-data-quality){label=Manage rules and send quality reports}
             + [Front App and API SDKs](public-cloud/data-platform/developers-front-sdks)
         + [Manage your platform](public-cloud-data-platform-manage-your-platform){landing=public-cloud/data-platform/landing-page-manage}
             + [Navigate the platform](public-cloud/data-platform/manage-navigation)
@@ -2364,7 +2372,8 @@
                 + [Exporting an Exchange mailbox to a PST file](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-export-pst)
                 + [Creating automatic signatures](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-footers)
                 + [How to obtain an Outlook licence for Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/office-outlook-license)
-                + [Creating send connector for Private and Trusted Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
+                + [Exchange - Configure a send connector](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
+                + [Exchange - Configure a receive connector](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-receive-connector)
                 + [Signing and encrypting Exchange emails with S/MIME](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-smime)
             + [Setting up an email application on your computer](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-computer)
                 + [Configuring your Exchange account in Outlook for Windows](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-2016)

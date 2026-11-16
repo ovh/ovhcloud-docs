@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026.11.13.2
+
+### Features
+
+#### EU
+- **managed veeam vcd v8:** gold repository activation from the console (#1249)
+
+### Fixes
+
+#### EU
+- **public-cloud:** update MKS Free to Standard migration for the Console and drop legacy cpnav tokens from 5 guides with no Console action (#1257)
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the access block from guides with no Console procedure
+
+### Documentation
+- EU: 96 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.11.13.1
+
+### Features
+
+#### All regions
+- **nav:** system / light / dark appearance switch
+
 ## 2026.11.13
 
 ### Features
