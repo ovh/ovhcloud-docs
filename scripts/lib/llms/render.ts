@@ -10,7 +10,7 @@
  *
  * A product nested in another one (Databases > PostgreSQL) gets its own
  * <product>/ pair when it has a landing page or overview. Its parent's index
- * links to it in place and its parent's full text leaves its pages out; the
+ * links to it in place, its parent's full text includes its pages, and the
  * directory lists it indented under the parent.
  *   <base>/llms-full.txt                every guide of the locale
  *
@@ -139,7 +139,7 @@ export function renderProductIndex(
   }
   if (product.children.length > 0) {
     lines.push(
-      '> Products nested in this one have their own index and full text, linked below; they are not repeated here.',
+      '> Products nested in this one have their own index and full text, linked below; their pages are not listed here but are included in the full text of this product.',
     );
   }
   lines.push(`> Other OVHcloud products: ${urlBase}/llms.txt`);

@@ -41,11 +41,16 @@ import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
+import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
+import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
+import { publiccloudAiEndpointsConsole } from './keys/publiccloud-ai-endpoints-console';
 import { publiccloudAiNotebooks } from './keys/publiccloud-ai-notebooks';
+import { publiccloudAiNotebooksConsole } from './keys/publiccloud-ai-notebooks-console';
 import { publiccloudAiTraining } from './keys/publiccloud-ai-training';
+import { publiccloudAiTrainingConsole } from './keys/publiccloud-ai-training-console';
 import { publiccloudAnalytics } from './keys/publiccloud-analytics';
 import { publiccloudAnalyticsConsole } from './keys/publiccloud-analytics-console';
 import { publiccloudBilling } from './keys/publiccloud-billing';
@@ -73,6 +78,7 @@ import { publiccloudInstanceBackupConsole } from './keys/publiccloud-instance-ba
 import { publiccloudInstances } from './keys/publiccloud-instances';
 import { publiccloudInstancesConsole } from './keys/publiccloud-instances-console';
 import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
+import { publiccloudKubernetesConsole } from './keys/publiccloud-kubernetes-console';
 import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
 import { publiccloudLoadBalancerConsole } from './keys/publiccloud-load-balancer-console';
 import { publiccloudLogs } from './keys/publiccloud-logs';
@@ -80,6 +86,7 @@ import { publiccloudLogsConsole } from './keys/publiccloud-logs-console';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudObjectStorageConsole } from './keys/publiccloud-object-storage-console';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
+import { publiccloudPrivateRegistryConsole } from './keys/publiccloud-private-registry-console';
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjectSettingsConsole } from './keys/publiccloud-project-settings-console';
 import { publiccloudProjects } from './keys/publiccloud-projects';
@@ -93,6 +100,7 @@ import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-c
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudQuotaRegionsConsole } from './keys/publiccloud-quota-regions-console';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
+import { publiccloudRancherConsole } from './keys/publiccloud-rancher-console';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
 import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
@@ -125,8 +133,10 @@ import { webMicrosoft365 } from './keys/web-microsoft-365';
 import { webMxPlan } from './keys/web-mx-plan';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webVideoCenter } from './keys/web-video-center';
+import { webVideoCenterConsole } from './keys/web-video-center-console';
 import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
+import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
 import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
@@ -141,7 +151,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-hosting': webHosting,
   'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
+  'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
+  'web-video-center-console': webVideoCenterConsole,
   'web-cloud-databases': webCloudDatabases,
   'web-zimbra': webZimbra,
   'web-email-pro': webEmailPro,
@@ -151,6 +163,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
+  'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
@@ -186,9 +199,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-logs': publiccloudLogs,
   'publiccloud-logs-console': publiccloudLogsConsole,
   'publiccloud-ai-notebooks': publiccloudAiNotebooks,
+  'publiccloud-ai-notebooks-console': publiccloudAiNotebooksConsole,
   'publiccloud-ai-training': publiccloudAiTraining,
+  'publiccloud-ai-training-console': publiccloudAiTrainingConsole,
   'publiccloud-ai-deploy': publiccloudAiDeploy,
+  'publiccloud-ai-deploy-console': publiccloudAiDeployConsole,
   'publiccloud-ai-endpoints': publiccloudAiEndpoints,
+  'publiccloud-ai-endpoints-console': publiccloudAiEndpointsConsole,
   'publiccloud-quantum-emulators': publiccloudQuantumEmulators,
   'publiccloud-quantum-emulators-console': publiccloudQuantumEmulatorsConsole,
   'publiccloud-quantum-qpus': publiccloudQuantumQpus,
@@ -217,8 +234,11 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-gateway-console': publiccloudGatewayConsole,
   'publiccloud-subnet-console': publiccloudSubnetConsole,
   'publiccloud-rancher': publiccloudRancher,
+  'publiccloud-rancher-console': publiccloudRancherConsole,
   'publiccloud-kubernetes': publiccloudKubernetes,
+  'publiccloud-kubernetes-console': publiccloudKubernetesConsole,
   'publiccloud-private-registry': publiccloudPrivateRegistry,
+  'publiccloud-private-registry-console': publiccloudPrivateRegistryConsole,
   'publiccloud-billing': publiccloudBilling,
   'publiccloud-billing-console': publiccloudBillingConsole,
   'publiccloud-contacts-rights': publiccloudContactsRights,

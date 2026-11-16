@@ -399,16 +399,22 @@ export function productPages(product: LlmsProduct): LlmsPage[] {
 }
 
 /**
- * Pages of a product's full text: its own pages, once each, without
- * navigational ones. Empty for a product whose content all sits in nested
- * products — it then gets an index but no full text.
+ * Pages of a product's full text, once each, without navigational ones: its
+ * own pages and, in place, those of its nested products. A parent keeps the
+ * full text it had before its products were nested (Domains > DNS): readers
+ * fetch /llms/<parent>/llms-full.txt by URL, and a parent whose guides all
+ * moved down would otherwise lose it.
  */
 export function fullPages(product: LlmsProduct): LlmsPage[] {
+  const out: LlmsPage[] = [];
+  const walk = (g: LlmsGroup) => {
+    out.push(...g.pages);
+    for (const sub of g.groups) walk(sub.product ? sub.product.root : sub);
+  };
+  walk(product.root);
   return [
     ...new Map(
-      productPages(product)
-        .filter((p) => !p.navigational)
-        .map((p) => [p.route, p]),
+      out.filter((p) => !p.navigational).map((p) => [p.route, p]),
     ).values(),
   ];
 }

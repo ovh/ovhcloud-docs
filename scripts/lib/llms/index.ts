@@ -132,7 +132,7 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
         renderProductIndex(product, ctx),
       );
       const unique = fullPages(product);
-      // A product whose pages all sit in nested products has no full text.
+      // A product with only navigational pages has no full text.
       if (unique.length > 0) {
         fs.writeFileSync(
           path.join(dir, 'llms-full.txt'),
