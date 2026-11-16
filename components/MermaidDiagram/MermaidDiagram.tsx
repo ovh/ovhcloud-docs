@@ -4,7 +4,6 @@ import {
   type KeyboardEvent,
   useEffect,
   useId,
-  useMemo,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -14,6 +13,7 @@ import {
   MERMAID_THEME,
   spreadConfig,
 } from '../../config/mermaid';
+import { inTurn, loadMermaid } from './load';
 import './MermaidDiagram.css';
 import { flowDirection, polishSvg } from './polish';
 
@@ -46,31 +46,60 @@ import { flowDirection, polishSvg } from './polish';
 
 type Mermaid = typeof import('mermaid').default;
 
-let mermaidLoader: Promise<Mermaid> | null = null;
-function loadMermaid(): Promise<Mermaid> {
-  mermaidLoader ??= import('mermaid').then((m) => m.default);
-  return mermaidLoader;
+// diagrams waiting for their turn (inTurn, load.ts)
+let queued = 0;
+
+// the empty frame, on the server and until the drawing is ready
+const NO_DRAWING = { __html: '' };
+
+// WebKit restyles the whole page each time a style sheet leaves it, comes in
+// anywhere but last, or holds @keyframes — Mermaid's always holds two: 100 to
+// 200 ms on a guide page, whose sidebar alone holds some 16,000 elements
+// (measured; Chromium ~4 ms, Firefox under 1 ms). Mermaid's own render adds
+// and removes its <style> at every call; the copies of its result — polished,
+// shown, zoomed — go in and out of the page without it: it is appended last
+// in <body>, once, and stays while the diagram is shown (its rules are scoped
+// to the diagram's id, so they style every copy).
+const diagramStyles = new Map<string, HTMLStyleElement>();
+
+function keepStyle(id: string, css: string): void {
+  let style = diagramStyles.get(id);
+  if (!style) {
+    style = document.createElement('style');
+    diagramStyles.set(id, style);
+  }
+  if (style.textContent !== css) style.textContent = css;
+  if (!style.isConnected) document.body.appendChild(style);
 }
 
-// mermaid.initialize() is global: renders are chained so the settings of one
-// diagram can never leak into another rendered at the same moment.
-let renderQueue: Promise<unknown> = Promise.resolve();
+function dropStyle(id: string): void {
+  diagramStyles.get(id)?.remove();
+  diagramStyles.delete(id);
+}
 
 /** Applies polishSvg (title gaps under crossing arrows, frames centred, the
  *  stem centred, arrows redrawn square to their blocks) on an off-screen
- *  copy — measuring needs a laid-out SVG — and returns its markup. */
-function polish(markup: string, code: string): string {
+ *  copy — measuring needs a laid-out SVG — and returns its markup, without
+ *  its <style> (kept by keepStyle). */
+function polish(id: string, markup: string, code: string): string {
   const host = document.createElement('div');
   host.style.cssText =
     'position:absolute;left:-100000px;top:0;visibility:hidden;';
   host.innerHTML = markup;
+  // taken out before the copy enters the page
+  const style = host.querySelector('svg > style');
+  if (style) {
+    keepStyle(id, style.textContent ?? '');
+    style.remove();
+  }
+  const bare = host.innerHTML;
   document.body.appendChild(host);
   try {
     const el = host.querySelector('svg');
     if (el) polishSvg(el, flowDirection(code));
     return host.innerHTML;
   } catch {
-    return markup; // never lose a diagram to the clean-up
+    return bare; // never lose a diagram to the clean-up
   } finally {
     host.remove();
   }
@@ -93,7 +122,7 @@ async function renderPolished(
     });
     let polished: string;
     try {
-      polished = polish((await mermaid.render(id, code)).svg, code);
+      polished = polish(id, (await mermaid.render(id, code)).svg, code);
     } catch (e) {
       if (natural === null) throw e;
       document.getElementById(`d${id}`)?.remove();
@@ -112,43 +141,62 @@ interface MermaidDiagramProps {
 export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   const t = useI18n();
   const id = `mermaid-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const [svg, setSvg] = useState<string | null>(null);
+  // The drawing, as the object dangerouslySetInnerHTML takes. React 19
+  // compares that object, not the markup: kept in state, it stays the same
+  // when the page re-renders — a theme switch does — instead of a new one that
+  // rewrote the SVG and blinked the diagram out. Each finished render sets a
+  // new one, so its markup is written even when unchanged: in development, a
+  // hot reload renders again under the same id, and Mermaid first removes the
+  // element that bears it — the drawing on screen.
+  const [html, setHtml] = useState<{ __html: string } | null>(null);
   const [ratio, setRatio] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
-  // React 19 compares dangerouslySetInnerHTML by object, not by markup: a new
-  // {__html} on each render rewrote the SVG whenever the page re-rendered — a
-  // theme switch does — and the diagram blinked out while it was rebuilt.
-  const html = useMemo(() => ({ __html: svg ?? '' }), [svg]);
 
   useEffect(() => {
     let cancelled = false;
-    renderQueue = renderQueue.then(async () => {
-      const mermaid = await loadMermaid();
-      // Mermaid measures label widths while laying out: wait for the web font,
-      // or boxes are sized for the fallback font and text overflows them.
-      await document.fonts?.ready;
+    queued += 1;
+    inTurn(async () => {
+      // the load inside the try: a failed one shows the error panel instead of
+      // leaving the diagram blank
       try {
+        // gone before its turn (another page, a newer source): nothing to draw
+        if (cancelled) return;
+        const mermaid = await loadMermaid();
+        // Mermaid measures label widths while laying out: wait for the web
+        // font, or boxes are sized for the fallback font and text overflows.
+        await document.fonts?.ready;
+        if (cancelled) return;
         const polished = await renderPolished(mermaid, id, code);
-        if (!cancelled) {
+        if (cancelled) {
+          dropStyle(id);
+        } else {
           const vb = /viewBox="[\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)"/.exec(
             polished,
           );
           setRatio(vb ? Number(vb[1]) / Number(vb[2]) : 1);
-          setSvg(polished);
+          setHtml({ __html: polished });
           setError(null);
         }
       } catch (e) {
-        // Mermaid 10 leaves its own error graphic in <body> on failure.
+        // Mermaid (10.9 and 12 alike) leaves its own error graphic in <body>
+        // on failure.
         document.getElementById(`d${id}`)?.remove();
+        dropStyle(id);
         if (!cancelled) {
-          setSvg(null);
+          setHtml(null);
           setError(e instanceof Error ? e.message : String(e));
         }
+      } finally {
+        queued -= 1;
       }
+      // another diagram waits: a task in between, where React can show this
+      // one, instead of after the next one is drawn
+      if (queued > 0) await new Promise((resolve) => setTimeout(resolve, 0));
     });
     return () => {
       cancelled = true;
+      dropStyle(id);
     };
   }, [code, id]);
 
@@ -184,12 +232,12 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   return (
     <figure
       className="ovh-mermaid"
-      data-mermaid-state={svg ? 'rendered' : 'pending'}
+      data-mermaid-state={html ? 'rendered' : 'pending'}
     >
       <div
         className="ovh-mermaid__frame"
         // A click enlarges, like the guide images; Enter/Space for the keyboard.
-        {...(svg
+        {...(html
           ? {
               role: 'button',
               tabIndex: 0,
@@ -205,13 +253,16 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
           : {})}
       >
         <div
-          className="ovh-mermaid__svg"
+          // rp-not-doc: out of the doc column's prose styles, the drawing is
+          // shown as Mermaid measured it, in <body> — Mermaid 12 wraps every
+          // label in a <p>, which the column would space at 28 px, not 27.2
+          className="ovh-mermaid__svg rp-not-doc"
           // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG produced by Mermaid with securityLevel 'strict' (sanitised labels, no scripts)
-          dangerouslySetInnerHTML={html}
+          dangerouslySetInnerHTML={html ?? NO_DRAWING}
         />
       </div>
       {zoomed &&
-        svg &&
+        html &&
         createPortal(
           // biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes (window listener above)
           // biome-ignore lint/a11y/noStaticElementInteractions: a click anywhere closes, like medium-zoom

@@ -9,6 +9,7 @@ import type React from 'react';
 import { useEffect, useRef, useTransition } from 'react';
 import './SidebarItem.scss';
 import scrollIntoView from 'scroll-into-view-if-needed';
+import { SidebarIcon } from './icons';
 import { useActiveBranch } from './useActiveBranch';
 
 export function SidebarItemRaw({
@@ -49,6 +50,7 @@ export function SidebarItemRaw({
   const innerContent = (
     <>
       <div className="rp-sidebar-item__left" ref={ref}>
+        <SidebarIcon name={context} />
         <span {...renderInlineMarkdown(text)}></span>
         {left}
       </div>

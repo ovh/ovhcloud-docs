@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useHubRegion } from '../../theme/hooks/useHubRegion';
 
 export const ZONES = ['eu', 'ca', 'apac'] as const;
 export type Zone = (typeof ZONES)[number];
@@ -51,6 +52,17 @@ export function ZoneProvider({ children }: { children: React.ReactNode }) {
     }
     setHydrated(true);
   }, []);
+
+  // Arriving from a Developers hub (`?from=EU|CA`, theme/hooks/useHubRegion)
+  // sets the zone once, over any stored choice: it is the latest intent. Only
+  // on the page load that carries `?from` — afterwards the ZoneSwitcher's
+  // choice holds. `?from=US` leaves the zone alone (no US commercial zone).
+  const { arrivedWith } = useHubRegion();
+  useEffect(() => {
+    if (arrivedWith === 'eu' || arrivedWith === 'ca') {
+      setZoneState(arrivedWith);
+    }
+  }, [arrivedWith]);
 
   const setZone = useCallback((z: Zone) => {
     setZoneState(z);

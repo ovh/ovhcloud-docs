@@ -201,7 +201,10 @@ function openTitleGaps(svg: SVGSVGElement): void {
   for (const label of [
     ...svg.querySelectorAll<SVGGElement>('g.cluster-label'),
   ]) {
-    const span = label.querySelector<HTMLElement>('span.nodeLabel');
+    // the element holding the title text: Mermaid 12 wraps it in a <p>
+    const span =
+      label.querySelector<HTMLElement>('span.nodeLabel > p') ??
+      label.querySelector<HTMLElement>('span.nodeLabel');
     const fo = label.querySelector<SVGForeignObjectElement>('foreignObject');
     const cluster = label.closest('g.cluster');
     const rect = cluster?.querySelector<SVGRectElement>(':scope > rect');
@@ -264,22 +267,33 @@ function openTitleGaps(svg: SVGSVGElement): void {
         best = { k, centre };
     }
     if (!best) continue;
-    // rebuild the title: left words · exact gap · right words (normal spacing)
-    const doc = span.ownerDocument;
-    const left = doc.createElement('span');
-    left.textContent = words.slice(0, best.k).join(' ');
-    const gap = doc.createElement('span');
-    gap.style.display = 'inline-block';
-    gap.style.width = `${gapW}px`;
-    const right = doc.createElement('span');
-    right.textContent = words.slice(best.k).join(' ');
-    span.textContent = '';
-    span.append(left, gap, right);
-    // resize the title box to its new width and move it to the computed centre
-    const div = span.closest('div');
-    const newW = span.getBoundingClientRect().width;
-    fo.setAttribute('width', String(newW));
-    if (div) div.style.width = `${newW}px`;
+    // a split that leaves one short word alone ("Subnet | A") no longer reads as
+    // one title: keep the title whole and move it left of the arrow instead
+    const lone = [words.slice(0, best.k), words.slice(best.k)].some(
+      (p) => p.length === 1 && p[0].length <= 2,
+    );
+    if (lone) {
+      const lb = label.getBoundingClientRect();
+      best = { k: 0, centre: A - GAP_SIDE - (lb.right - lb.left) / 2 };
+    } else {
+      // rebuild the title: left words · exact gap · right words (normal spacing)
+      const doc = span.ownerDocument;
+      const left = doc.createElement('span');
+      left.textContent = words.slice(0, best.k).join(' ');
+      const gap = doc.createElement('span');
+      gap.style.display = 'inline-block';
+      gap.style.width = `${gapW}px`;
+      const right = doc.createElement('span');
+      right.textContent = words.slice(best.k).join(' ');
+      span.textContent = '';
+      span.append(left, gap, right);
+      // resize the title box to its new width
+      const div = span.closest('div');
+      const newW = span.getBoundingClientRect().width;
+      fo.setAttribute('width', String(newW));
+      if (div) div.style.width = `${newW}px`;
+    }
+    // move the title to the computed centre
     const m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)\s*\)/.exec(
       label.getAttribute('transform') ?? '',
     );
@@ -891,13 +905,40 @@ function markerSetback(
 
 /** A block's id in the diagram source, from Mermaid's `flowchart-<id>-<n>`. */
 function blockId(el: Element): string | undefined {
-  return /^flowchart-(.+)-\d+$/.exec(el.id)?.[1];
+  // Mermaid 12 prefixes it with the drawing's id: `<svg id>-flowchart-<id>-<n>`
+  const own = el.closest('svg')?.id;
+  const id =
+    own && el.id.startsWith(`${own}-`) ? el.id.slice(own.length + 1) : el.id;
+  return /^flowchart-(.+)-\d+$/.exec(id)?.[1];
 }
 
-/** The source ids of an arrow's two ends, from Mermaid's LS- / LE- classes. */
+/** A frame's id in the diagram source: Mermaid 12 prefixes it with the
+ *  drawing's id, as it does the blocks'. */
+function frameId(el: Element): string {
+  const own = `${el.closest('svg')?.id}-`;
+  return el.id.startsWith(own) ? el.id.slice(own.length) : el.id;
+}
+
+/** The source ids of an arrow's two ends, from Mermaid's edge id
+ *  `L_<from>_<to>_<n>` (data-id) — split where both halves name a block or a
+ *  frame of the drawing (an arrow may end on a frame: its block end is still
+ *  redrawn); an id that splits more than one way is not read. */
 function linkIds(path: Element): [string | undefined, string | undefined] {
-  const cls = path.getAttribute('class') ?? '';
-  return [/(?:^|\s)LS-(\S+)/.exec(cls)?.[1], /(?:^|\s)LE-(\S+)/.exec(cls)?.[1]];
+  const m = /^L_(.+)_\d+$/.exec(path.getAttribute('data-id') ?? '');
+  const svg = path.closest('svg');
+  if (!m || !svg) return [undefined, undefined];
+  const ids = new Set(
+    [
+      ...[...svg.querySelectorAll('g.node')].map(blockId),
+      ...[...svg.querySelectorAll('g.cluster')].map(frameId),
+    ].filter(Boolean),
+  );
+  const splits: [string, string][] = [];
+  for (let i = m[1].indexOf('_'); i > 0; i = m[1].indexOf('_', i + 1)) {
+    const [a, b] = [m[1].slice(0, i), m[1].slice(i + 1)];
+    if (ids.has(a) && ids.has(b)) splits.push([a, b]);
+  }
+  return splits.length === 1 ? splits[0] : [undefined, undefined];
 }
 
 /** Whether box o holds box i (1 px slack). */
@@ -1034,6 +1075,9 @@ function alignTail(svg: SVGSVGElement, axis: Axis): boolean {
     const [from, to] = linkIds(p);
     return { from, to, readable: !!basisPoints(p.getAttribute('d') ?? '') };
   });
+  // an arrow that does not say which blocks it joins might be one on a block
+  // moved here, and would be left behind: move nothing
+  if (links.some((l) => !l.from || !l.to)) return false;
   let moved = false;
   for (let i = last + 1; i < ranks.length; i++) {
     const block = ranks[i][0];
@@ -1106,7 +1150,7 @@ function centreStem(svg: SVGSVGElement, axis: Axis): boolean {
   }
   const ids = new Set<string>([
     ...stem.map((n) => blockId(n) ?? ''),
-    ...frames.map((c) => c.id),
+    ...frames.map(frameId),
   ]);
   const shift = (p: Pt): Pt =>
     v ? { x: p.x + dx, y: p.y } : { x: p.x, y: p.y + dx };
@@ -1121,7 +1165,10 @@ function centreStem(svg: SVGSVGElement, axis: Axis): boolean {
     ':scope > g.edgePaths > path',
   )) {
     const [from, to] = linkIds(path);
-    const inStem = [from, to].map((id) => !!id && ids.has(id));
+    // an arrow that does not say which blocks it joins (an author's own
+    // arrow id, `A e1@--> B`) might be one on a moved block: move nothing
+    if (!from || !to) return false;
+    const inStem = [from, to].map((id) => ids.has(id));
     if (!inStem[0] && !inStem[1]) continue;
     // every arrow on a moved block gets redrawn: it must be readable
     const pts = basisPoints(path.getAttribute('d') ?? '');
