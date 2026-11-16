@@ -2364,7 +2364,7 @@
                 + [Exporting an Exchange mailbox to a PST file](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-export-pst)
                 + [Creating automatic signatures](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-footers)
                 + [How to obtain an Outlook licence for Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/office-outlook-license)
-                + [Configure a send connector on your Exchange platform](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
+                + [Exchange - Configure a send connector](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
                 + [Exchange - Configure a receive connector](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-receive-connector)
                 + [Signing and encrypting Exchange emails with S/MIME](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-smime)
             + [Setting up an email application on your computer](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-computer)
