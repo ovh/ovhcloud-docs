@@ -17,6 +17,7 @@ import { accountProfile } from './keys/account-profile';
 import { accountProfileConsole } from './keys/account-profile-console';
 import { accountSecurity } from './keys/account-security';
 import { accountSecurityConsole } from './keys/account-security-console';
+import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
 import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
@@ -291,6 +292,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'account-profile-console': accountProfileConsole,
   'account-security': accountSecurity,
   'account-security-console': accountSecurityConsole,
+  'account-security-ip-console': accountSecurityIpConsole,
   'account-contacts': accountContacts,
   'account-contacts-console': accountContactsConsole,
   'account-messages': accountMessages,
