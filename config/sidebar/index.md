@@ -180,7 +180,6 @@
                 + [OVHcloud Dedicated Servers Logs Forwarding](bare-metal-cloud/dedicated-servers/dedicated-servers-logs-to-customers)
             + [Storage](bare-metal-cloud-dedicated-servers-configuration-storage)
                 + [Enable Encryption at Rest on a dedicated server](bare-metal-cloud/dedicated-servers/encryption-at-rest-enable)
-                + [Manage Encryption at Rest on a dedicated server with the API](bare-metal-cloud/dedicated-servers/encryption-at-rest-api)
                 + [Managing and rebuilding software RAID on servers using legacy boot (BIOS) mode](bare-metal-cloud/dedicated-servers/raid-soft)
                 + [Managing and rebuilding software RAID on servers using UEFI boot mode](bare-metal-cloud/dedicated-servers/raid-soft-uefi)
                 + [Understanding the EFI System Partition on dedicated servers](bare-metal-cloud/dedicated-servers/efi-system-partition)
