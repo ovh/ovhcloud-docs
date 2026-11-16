@@ -1911,6 +1911,7 @@
                     + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance){label=Maintenance actions}
                     + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
                 + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
+                    + [Workflow builder](public-cloud/data-platform/dpe-workflows-builder){label=Workflow builder}
                     + [Advanced Mode](public-cloud/data-platform/dpe-workflows-advanced-mode){label=Advanced Mode}
                 + [Notebooks](public-cloud-data-platform-notebooks){landing=public-cloud/data-platform/dpe-notebooks}
                     + [Data Platform Extension](public-cloud/data-platform/dpe-notebooks-data-platform-extension)
