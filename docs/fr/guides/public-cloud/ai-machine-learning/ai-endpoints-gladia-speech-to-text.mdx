@@ -14,7 +14,7 @@ AI Endpoints est couvert par les **[Conditions particulières OVHcloud Public Cl
 
 Sur [AI Endpoints](/links/public-cloud/ai-endpoints), utilisez `solaria-3` pour transcrire de l’audio en temps réel avec l’**API Gladia Live V2**. L’API native fournit des transcriptions partielles, des segments de parole définitifs et des étiquettes de locuteurs. **Ce guide explique comment créer une session, transmettre l’audio, terminer la session et récupérer les résultats à l’aide de HTTP, de WebSockets et des SDK officiels Gladia.**
 
-La disponibilité de `solaria-3` en temps réel décrite ici concerne AI Endpoints ; les modèles disponibles peuvent différer sur le service SaaS de Gladia.
+La disponibilité de `solaria-3` en temps réel décrite ici concerne AI Endpoints ; les modèles disponibles peuvent différer sur le service SaaS de Gladia.
 
 Pour transcrire un fichier audio local sans intégration WebSocket, consultez la [passerelle de transcription de fichiers compatible OpenAI](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models#gladia-compatibility), qui propose des exemples avec Python `requests`, le client OpenAI et cURL. Elle prend en charge un ensemble plus restreint de paramètres et ne transmet pas les réponses en flux continu.
 
@@ -32,7 +32,7 @@ Utilisez votre clé API AI Endpoints, et non une clé API du service SaaS Gladia
 
 ```bash
 export AI_ENDPOINTS_BASE_URL="https://oai.endpoints.kepler.ai.cloud.ovh.net"
-export OVH_AI_ENDPOINTS_ACCESS_TOKEN="<votre-cle-acces-ai-endpoints>"
+export OVH_AI_ENDPOINTS_ACCESS_TOKEN="<your-ai-endpoints-access-token>"
 ```
 
 Pour les requêtes natives `/gladia/*`, authentifiez-vous avec `x-gladia-key: <token>` (pris en charge pour assurer la compatibilité avec les SDK officiels Gladia) ou avec l’en-tête standard AI Endpoints `Authorization: Bearer <token>`. Pour les requêtes anonymes, omettez ces deux en-têtes. Les routes compatibles OpenAI `/v1/*` utilisent l’authentification Bearer. L’URL de base de l’API native est `$AI_ENDPOINTS_BASE_URL/gladia`, **sans `/v1`**.
@@ -88,7 +88,7 @@ Pour l’[envoi de fichiers via l’API compatible OpenAI](#envoi-de-fichiers-vi
 
     with wave.open("audio.wav", "rb") as audio:
         if (audio.getframerate(), audio.getsampwidth(), audio.getnchannels()) != (16000, 2, 1):
-            raise ValueError("Un fichier WAV PCM mono à 16 kHz sur 16 bits est requis")
+            raise ValueError("Expected 16 kHz, 16-bit mono PCM WAV")
         session = live.start_session(LiveV2InitRequest(
             model="solaria-3",
             encoding="wav/pcm", sample_rate=16000,
@@ -105,15 +105,15 @@ Pour l’[envoi de fichiers via l’API compatible OpenAI](#envoi-de-fichiers-vi
         session.on("message", on_message)
         try:
             if not session.wait_until_ready(timeout=30):
-                raise RuntimeError("La session de transcription n’est pas prête")
+                raise RuntimeError("Live session did not become ready")
             while chunk := audio.readframes(1600):
                 if session.status in ("ending", "ended"):
-                    raise RuntimeError("La session s’est terminée avant l’envoi de tout l’audio")
+                    raise RuntimeError("Live session ended before all audio was sent")
                 session.send_audio(chunk)
                 time.sleep(len(chunk) / (16000 * 2))
             session.stop_recording()
             if not session.join(timeout=180):
-                raise TimeoutError("La session ne s’est pas terminée dans le délai imparti")
+                raise TimeoutError("Live session did not finish")
 
             deadline = time.monotonic() + 180
             while time.monotonic() < deadline:
@@ -122,10 +122,10 @@ Pour l’[envoi de fichiers via l’API compatible OpenAI](#envoi-de-fichiers-vi
                     print(result.result.transcription.full_transcript)
                     break
                 if result.status == "error":
-                    raise RuntimeError("La transcription en temps réel a échoué")
+                    raise RuntimeError("Live transcription failed")
                 time.sleep(2)
             else:
-                raise TimeoutError("Le résultat n’est pas disponible dans le délai imparti")
+                raise TimeoutError("Result is not ready")
         finally:
             if session.status != "ended":
                 session.end_session()
@@ -147,7 +147,7 @@ Pour l’[envoi de fichiers via l’API compatible OpenAI](#envoi-de-fichiers-vi
 
     const audio = await readFile("audio.s16le");
     if (!audio.length || audio.length % 2 !== 0) {
-      throw new Error("Des données PCM brutes non vides sur 16 bits sont requises");
+      throw new Error("Expected non-empty 16-bit raw PCM");
     }
     const client = new GladiaClient({
       apiKey: process.env.OVH_AI_ENDPOINTS_ACCESS_TOKEN,
@@ -168,19 +168,19 @@ Pour l’[envoi de fichiers via l’API compatible OpenAI](#envoi-de-fichiers-vi
     let timer;
     let sending = Promise.resolve();
     const finished = new Promise((resolve, reject) => {
-      timer = setTimeout(() => reject(new Error("Le délai de la session est dépassé")),
+      timer = setTimeout(() => reject(new Error("Live session timed out")),
         30_000 + audio.length / 32 + 180_000);
       // N’affichez pas les erreurs du SDK : elles peuvent contenir l’URL WebSocket signée.
-      session.on("error", () => reject(new Error("La transcription en temps réel a échoué")));
+      session.on("error", () => reject(new Error("Live transcription failed")));
       session.once("ended", ({ code }) => {
         if (code === 1000) resolve();
-        else reject(new Error("La session s’est fermée de manière inattendue"));
+        else reject(new Error("Live session closed unexpectedly"));
       });
       session.once("connected", () => {
         sending = (async () => {
           for (let offset = 0; offset < audio.length; offset += 3200) {
             if (session.status !== "connected") {
-              throw new Error("La session s’est déconnectée pendant l’envoi de l’audio");
+              throw new Error("Live session disconnected while sending audio");
             }
             const chunk = audio.subarray(offset, offset + 3200);
             session.sendAudio(chunk);
@@ -201,14 +201,14 @@ Pour l’[envoi de fichiers via l’API compatible OpenAI](#envoi-de-fichiers-vi
       await sending;
       const deadline = Date.now() + 180_000;
       while (true) {
-        if (Date.now() >= deadline) throw new Error("Le résultat n’est pas disponible dans le délai imparti");
+        if (Date.now() >= deadline) throw new Error("Result is not ready");
         const result = await live.get(await session.getSessionId());
         if (result.status === "done") {
           console.log(result.result.transcription.full_transcript);
           break;
         }
         if (result.status === "error") {
-          throw new Error("La transcription en temps réel a échoué");
+          throw new Error("Live transcription failed");
         }
         await delay(2000);
       }
@@ -331,7 +331,7 @@ session = live.start_session({
 def on_message(message):
   if message.type == "transcript" and message.data.is_final:
     utterance = message.data.utterance
-    print(f"Locuteur {utterance.speaker} : {utterance.text}")
+    print(f"Speaker {utterance.speaker}: {utterance.text}")
 ```
 
 L’exemple du SDK ci-dessus gère le rythme d’envoi de l’audio et attend les résultats finaux après `stop_recording()`. Ne transmettez pas `diarization` comme mot-clé au constructeur typé.
@@ -344,7 +344,7 @@ La diarisation distingue les voix, mais n’identifie pas les personnes, et **au
 
 La route compatible OpenAI `POST /v1/audio/transcriptions` sert de **passerelle entre un fichier et une session en temps réel** pour `solaria-3` : envoyez un fichier audio local au format multipart, puis le service le décode en PCM mono à 16 kHz, le transmet à une session Gladia à un rythme proche du temps réel et renvoie une transcription complète. Votre application n’a pas à gérer de connexion WebSocket. Il ne s’agit pas de l’API native Gladia pour les enregistrements, et la réponse HTTP n’est pas transmise en flux continu.
 
-Consultez le guide « [Transcription audio avec l’API compatible OpenAI](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models) » pour les exemples avec cURL, Python `requests` et le client OpenAI, les paramètres pris en charge et les formats de réponse. Pour Gladia, précisez `model: "solaria-3"` ; ne réutilisez pas les options spécifiques à Whisper telles quelles. Pour une transcription interactive et les résultats d’intelligence audio, utilisez l’API native présentée ci-dessus. La passerelle n’expose pas ces résultats natifs et ne conserve pas la séparation des canaux.
+Consultez le guide « [AI Endpoints - Transcription via l’API compatible OpenAI](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models) » pour les exemples avec cURL, Python `requests` et le client OpenAI, les paramètres pris en charge et les formats de réponse. Pour Gladia, précisez `model: "solaria-3"` ; ne réutilisez pas les options spécifiques à Whisper telles quelles. Pour une transcription interactive et les résultats d’intelligence audio, utilisez l’API native présentée ci-dessus. La passerelle n’expose pas ces résultats natifs et ne conserve pas la séparation des canaux.
 
 Les fichiers compressés pris en charge peuvent être envoyés directement, sans conversion locale. Prévoyez un délai d’expiration côté client couvrant la durée de l’enregistrement ainsi que les temps d’envoi et de traitement. Consultez [Quotas et erreurs](#quotas-et-erreurs) pour les limites des fichiers et des requêtes.
 
@@ -397,7 +397,7 @@ Commencez par de courts échantillons audio. Si une requête d’envoi de fichie
 
 ## Aller plus loin
 
-- [AI Endpoints - Transcription Audio](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models)
+- [AI Endpoints - Transcription via l’API compatible OpenAI](/guides/public-cloud/ai-machine-learning/ai-endpoints-audio-models)
 - [AI Endpoints - Premiers pas](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started)
 - [Guide de démarrage Gladia Live](https://docs.gladia.io/chapters/live-stt/quickstart) — référence du protocole, sous réserve des limitations ci-dessus.
 
