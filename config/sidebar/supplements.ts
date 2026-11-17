@@ -7,6 +7,12 @@
  */
 
 import type { SidebarGroup, SidebarItem } from '@rspress/core';
+import {
+  contactSalesLinks,
+  resourcesLinks,
+  supportLinks,
+  webmailLinks,
+} from '../nav';
 import { regionConfig } from '../regions';
 
 export type Locale = 'fr' | 'en' | 'de' | 'es' | 'it' | 'pl' | 'pt';
@@ -35,21 +41,50 @@ const localizedUrls: Record<string, Record<Locale, string>> = {
 // Header items (before product categories)
 // -------------------------------------------------------------------
 
+// `context` carries the untranslated key of the entry: Rspress translates
+// `text` at build time but passes `context` through untouched (rendered as
+// `data-context`). The theme maps it to the entry's icon
+// (theme/components/Sidebar/icons.tsx); this file stays data-only.
 export function getHeaderItems(locale: Locale): SidebarItem[] {
   return [
     { sectionHeaderText: 'sidebar.documentation' } as SidebarItem,
-    { text: 'sidebar.apiReference', link: regionConfig.apiConsoleUrl },
+    { text: 'sidebar.welcome', link: '/', context: 'sidebar.welcome' },
     ...(regionConfig.productChangelog
       ? [
           {
             text: 'sidebar.productChangelog',
             link: localizedUrls.changelog[locale],
+            context: 'sidebar.productChangelog',
           },
         ]
       : []),
-    { text: 'sidebar.eLearning', link: '/guides/e-learning' },
-    { text: 'sidebar.migration', link: '/guides/migration' },
+    {
+      text: 'sidebar.eLearning',
+      link: '/guides/e-learning',
+      context: 'sidebar.eLearning',
+    },
+    {
+      text: 'sidebar.migration',
+      link: '/guides/migration',
+      context: 'sidebar.migration',
+    },
+    // Moved from the navbar, which now carries the shared Docs / Developers /
+    // Labs tabs (config/nav/index.ts).
+    ...linkFor('sidebar.support', supportLinks, locale),
+    ...linkFor('sidebar.webmail', webmailLinks, locale),
+    ...linkFor('sidebar.resources', resourcesLinks, locale),
+    ...linkFor('sidebar.contactSales', contactSalesLinks, locale),
   ];
+}
+
+/** A header entry for a localized external link, or none if it has no URL. */
+function linkFor(
+  key: string,
+  links: Partial<Record<Locale, string>> | null,
+  locale: Locale,
+): SidebarItem[] {
+  const link = links?.[locale] ?? links?.en;
+  return link ? [{ text: key, link, context: key }] : [];
 }
 
 // -------------------------------------------------------------------
@@ -60,6 +95,7 @@ const BASE_PATH = '/guides/account-and-service-management';
 
 export const securitySidebar: SidebarGroup = {
   text: 'sidebar.security',
+  context: 'sidebar.security',
   collapsed: true,
   items: [
     // IAM

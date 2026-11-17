@@ -7,7 +7,10 @@
  *   - zendesk-snapshot.json  live help-centre listing (articles, sections,
  *                            categories). Refreshed with --fetch.
  *   - merged-articles.csv    articles whose guide was removed: merged during
- *                            de-duplication, or retired after an EU fold.
+ *                            de-duplication, or retired after an EU fold or a
+ *                            deletion on Zendesk; `retired-section` rows do the
+ *                            same for deleted sections. A retired row may give
+ *                            an https:// URL off the docs site as destination.
  *   - overrides.csv          hand decisions, each with its reason.
  * plus the repo itself: the `zendesk_id` in every docs-us guide, and the
  * sidebar tree (config/sidebar/index-us.md) for landing pages.
@@ -233,14 +236,30 @@ for (const a of snapshot.articles) {
 // Retired articles are off the live help centre, but old links to them may
 // still be around: keep their rule.
 for (const [id, r] of removed) {
-  if (r.kind !== 'retired') continue;
-  if (snapshot.articles.some((a) => String(a.id) === id)) continue;
-  rules.push({
-    source: `/hc/en-us/articles/${id}`,
-    dest: r.destination,
-    kind: 'article',
-    rule: 'retired',
-  });
+  if (r.kind === 'retired') {
+    if (snapshot.articles.some((a) => String(a.id) === id)) continue;
+    rules.push({
+      source: `/hc/en-us/articles/${id}`,
+      dest: r.destination,
+      kind: 'article',
+      rule: 'retired',
+    });
+  } else if (r.kind === 'retired-section') {
+    // A deleted section: the snapshot no longer lists it, so the section rules
+    // below never see it.
+    if (snapshot.sections.some((s) => String(s.id) === id)) {
+      errors.push(
+        `section ${id} is live again: remove its retired-section row`,
+      );
+      continue;
+    }
+    rules.push({
+      source: `/hc/en-us/sections/${id}`,
+      dest: r.destination,
+      kind: 'section',
+      rule: 'retired',
+    });
+  }
 }
 
 /**
@@ -374,6 +393,13 @@ const seen = new Set();
 for (const r of rules) {
   if (seen.has(r.source)) errors.push(`duplicate source ${r.source}`);
   seen.add(r.source);
+  // Only a retired row may leave the docs site (a product page Zendesk itself
+  // redirects to); every other destination is a docs-us page.
+  if (/^https:\/\//.test(r.dest)) {
+    if (r.rule !== 'retired')
+      errors.push(`${r.source} → ${r.dest}: off-site destination`);
+    continue;
+  }
   if (
     r.dest !== '/' &&
     !fs.existsSync(path.join(DOCS, `${r.dest.slice(1)}.mdx`))
@@ -392,7 +418,12 @@ rules.sort(
     order[a.kind] - order[b.kind] ||
     a.source.localeCompare(b.source, 'en', { numeric: true }),
 );
-const url = (dest) => (dest === '/' ? `${SITE}/` : `${SITE}${dest}`);
+const url = (dest) =>
+  /^https:\/\//.test(dest)
+    ? dest
+    : dest === '/'
+      ? `${SITE}/`
+      : `${SITE}${dest}`;
 fs.writeFileSync(
   OUTPUT,
   `${rules.map((r) => `SOURCE="${r.source}"\nDEST="${url(r.dest)}"\n`).join('\n')}`,
