@@ -1,9 +1,9 @@
 import type { CpNavKey } from '../types';
 
 // Console (v8) twin of billing-services, for the guides rewritten for the Console; the v6 key
-// stays until it is repointed at GA, when the two merge. Route from data/v8/route-map.yaml /
-// data/v8/console-menus.json; the Console reaches it from the account menu (navbar.account_menu) ›
-// Quick access › My offers and services (navbar.account_link_services).
+// stays until it is repointed at GA, when the two merge. Route from data/v8/route-map.yaml; the
+// Console reaches it from the account menu (navbar.account_menu) › My services
+// (navbar.account_link_services, customer-sidebar.items.services, manage-services.header.title).
 export const billingServicesConsole: CpNavKey = {
   universe: 'console-account-menu',
   console: true,
@@ -12,32 +12,32 @@ export const billingServicesConsole: CpNavKey = {
       route: '/beta/#/customer/manage-services',
       text: {
         en: {
-          product: 'My offers and services',
-          crumbs: ['My offers and services'],
+          product: 'My services',
+          crumbs: ['My services'],
         },
         fr: {
-          product: 'Mes offres & services',
-          crumbs: ['Mes offres & services'],
+          product: 'Mes services',
+          crumbs: ['Mes services'],
         },
         de: {
-          product: 'Meine Angebote und Dienste',
-          crumbs: ['Meine Angebote und Dienste'],
+          product: 'Meine Dienste',
+          crumbs: ['Meine Dienste'],
         },
         es: {
-          product: 'Mis soluciones y servicios',
-          crumbs: ['Mis soluciones y servicios'],
+          product: 'Mis servicios',
+          crumbs: ['Mis servicios'],
         },
         it: {
-          product: 'Le mie offerte e servizi',
-          crumbs: ['Le mie offerte e servizi'],
+          product: 'I miei servizi',
+          crumbs: ['I miei servizi'],
         },
         pl: {
-          product: 'Moje rozwiązania i usługi',
-          crumbs: ['Moje rozwiązania i usługi'],
+          product: 'Moje usługi',
+          crumbs: ['Moje usługi'],
         },
         pt: {
-          product: 'As minhas ofertas e serviços',
-          crumbs: ['As minhas ofertas e serviços'],
+          product: 'Os meus serviços',
+          crumbs: ['Os meus serviços'],
         },
       },
     },
