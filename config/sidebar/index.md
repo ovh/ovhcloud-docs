@@ -1732,6 +1732,7 @@
                 + [AI Endpoints - Virtual Models](public-cloud/ai-machine-learning/ai-endpoints-virtual-models)
                 + [AI Endpoints - Speech to Text with the OpenAI-compatible API](public-cloud/ai-machine-learning/ai-endpoints-audio-models)
                 + [AI Endpoints - Speech to Text with the Gladia API](public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text)
+                + [AI Endpoints - Decision Models](public-cloud/ai-machine-learning/ai-endpoints-decision-models)
                 + [AI Endpoints - Create a sentiment analyzer](public-cloud/ai-machine-learning/ai-endpoints-sentiment-analyzer)
                 + [Integrations](public-cloud-ai-and-machine-learning-ai-endpoints-tutorials-integrations)
                     + [AI Endpoints - Create a code assistant with Continue](public-cloud/ai-machine-learning/ai-endpoints-code-assistant)
