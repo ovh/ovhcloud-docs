@@ -170,7 +170,8 @@ function generateLlmsFamily(builtLocales: readonly string[]): void {
     'config/sidebar',
     regionConfig.sidebarIndex,
   );
-  const { i18nEntries: sidebarDefaults } = parseIndexMd(sidebarIndex);
+  const { i18nEntries: sidebarDefaults, productKeys } =
+    parseIndexMd(sidebarIndex);
 
   const llmsStats = generateLlms({
     distDir: DIST_DIR,
@@ -183,6 +184,7 @@ function generateLlmsFamily(builtLocales: readonly string[]): void {
     treeFor: (locale) =>
       parseIndexMd(sidebarIndex, DOCS_DIR, locale)
         .universes as unknown as SidebarNode[],
+    productKeys,
     label: (key, locale) => {
       const entry = llmsI18n[key] ?? sidebarDefaults[key];
       return entry?.[locale] || entry?.en || key;
