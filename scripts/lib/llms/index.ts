@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import {
   allProducts,
   buildLocaleModel,
+  fullPages,
   type LlmsLocaleModel,
   type LlmsPage,
   productPages,
@@ -30,6 +31,8 @@ export interface GenerateLlmsOptions {
   builtLocales: readonly string[];
   /** Parsed sidebar tree for a locale (`parseIndexMd(...).universes`). */
   treeFor: (locale: string) => SidebarNode[];
+  /** `parseIndexMd(...).productKeys`: lets nested products get their own index. */
+  productKeys?: ReadonlySet<string>;
   /** Resolve a `sidebar.gen.*` key for a locale. */
   label: (key: string, locale: string) => string;
   locales: readonly { lang: string; label: string; title: string }[];
@@ -94,6 +97,7 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
       urlBaseFor,
       builtLocales,
       othersTitle: OTHERS_TITLE[locale] ?? OTHERS_TITLE.en,
+      productKeys: opts.productKeys,
     });
     const shared = opts.locales.find((l) => l.lang === locale);
     const ctx: RenderContext = {
@@ -127,22 +131,19 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
         path.join(dir, 'llms.txt'),
         renderProductIndex(product, ctx),
       );
-      const unique = [
-        ...new Map(
-          productPages(product)
-            .filter((p) => !p.navigational)
-            .map((p) => [p.route, p]),
-        ).values(),
-      ];
-      fs.writeFileSync(
-        path.join(dir, 'llms-full.txt'),
-        fullFile(
-          product.title,
-          `Full Markdown text of the guides listed in ${urlBase}/llms/${product.slug}/llms.txt.`,
-          unique,
-          bodyOf,
-        ),
-      );
+      const unique = fullPages(product);
+      // A product with only navigational pages has no full text.
+      if (unique.length > 0) {
+        fs.writeFileSync(
+          path.join(dir, 'llms-full.txt'),
+          fullFile(
+            product.title,
+            `Full Markdown text of the guides listed in ${urlBase}/llms/${product.slug}/llms.txt.`,
+            unique,
+            bodyOf,
+          ),
+        );
+      }
       for (const p of unique) {
         if (p.fallback || inLocaleFull.has(p.route)) continue;
         inLocaleFull.add(p.route);
@@ -168,9 +169,8 @@ export function generateLlms(opts: GenerateLlmsOptions): LocaleLlmsStats[] {
         products.flatMap((p) => productPages(p).map((q) => q.route)),
       ).size,
       fullBytes: Buffer.byteLength(full),
-      missingDescriptions: model.universes
-        .flatMap((u) => u.products)
-        .filter((p) => !p.description)
+      missingDescriptions: products
+        .filter((p) => p !== model.others && !p.description)
         .map((p) => p.title),
     });
   }
