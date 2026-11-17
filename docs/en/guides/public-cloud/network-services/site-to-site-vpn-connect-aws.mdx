@@ -1,7 +1,7 @@
 ---
 title: Site-to-Site VPN - Connect to AWS
 description: Connect an OVHcloud VPN gateway to an AWS virtual private gateway over two IPsec tunnels, with static routing or with one BGP session per tunnel
-lastUpdated: 2026-11-16
+lastUpdated: 2026-11-17
 ---
 
 ## Objective
@@ -29,7 +29,7 @@ For the objects you create and the limits that apply to them, see [Key concepts]
 
 ## Instructions
 
-This section gives the order of the steps, then one scenario per routing mode. Follow the overview, then the scenario you need.
+This section gives the order of the steps, then one scenario per routing mode. Follow the overview, then the scenario you need: the two scenarios are alternatives for one VPC, not steps to chain.
 
 **Contents:**
 
@@ -42,6 +42,11 @@ This section gives the order of the steps, then one scenario per routing mode. F
 ### Overview <a name="overview"></a>
 
 Both scenarios follow the same order, because each side needs a value from the other: AWS needs the public address of the VPN gateway, and the VPN gateway needs the addresses of the two AWS tunnels.
+
+The two scenarios are alternatives: each connects the VPC on its own.
+
+- On the AWS side, each scenario creates a virtual private gateway and attaches it to the VPC, and AWS attaches one virtual private gateway to a VPC at a time. If the VPC already has one, for example after the other scenario, skip `create-vpn-gateway` and `attach-vpn-gateway` and use its ID as `<vgw-id>`. In scenario B, also use its Amazon-side ASN as the ASN of AWS (`aws ec2 describe-vpn-gateways --vpn-gateway-ids <vgw-id> --query 'VpnGateways[0].AmazonSideAsn'`), and tunnel inside networks that no other VPN connection of that virtual private gateway uses.
+- On the OVHcloud side, each scenario creates its own VPN gateway. A VPN gateway holds several IPsec connections, but their remote networks must not overlap: a gateway whose connection already reaches the VPC, for example the other scenario's, refuses a second one to it. And a subnet that already routes the VPC through one VPN gateway keeps that route: <code className="action">Add the routes</code> leaves it as it is.
 
 ```mermaid
 flowchart LR
@@ -56,7 +61,7 @@ flowchart LR
 ```
 
 1. Create the VPN gateway and read its public address.
-2. Create the AWS customer gateway, virtual private gateway and VPN connection, and read the outside addresses of its two tunnels.
+2. Choose a pre-shared key for each tunnel, create the AWS customer gateway, virtual private gateway and VPN connection with them, and read the outside addresses of its two tunnels.
 3. Create the IPsec connection with its endpoint groups, security proposal and two tunnels, on the VPN gateway.
 4. Route your OVHcloud instances to the VPC through the VPN gateway, from the connection's recap.
 
@@ -70,7 +75,7 @@ The example uses these values:
 |---|---|
 | Local network (OVHcloud side) | `10.1.0.0/24` |
 | VPC | `10.52.0.0/16` |
-| Pre-shared keys (your own choice) | `<psk-1>`, `<psk-2>` |
+| Pre-shared keys (your own choice, see Step 2) | `<psk-1>`, `<psk-2>` |
 
 #### Step 1 — Create the VPN gateway and read its public address
 
@@ -78,7 +83,7 @@ Create a VPN gateway as described in [Get started in the Console](/guides/public
 
 #### Step 2 — Create the AWS side
 
-Create the customer gateway, the virtual private gateway and a static VPN connection, with a route to the local network of the VPN gateway. Choose your own pre-shared keys now (`<psk-1>`, `<psk-2>`): you will set the same ones on the VPN gateway in Step 3.
+Create the customer gateway, the virtual private gateway and a static VPN connection, with a route to the local network of the VPN gateway. Choose your own pre-shared keys now (`<psk-1>`, `<psk-2>`): you will set the same ones on the VPN gateway in Step 3. Each key must suit both sides: AWS takes 8 to 64 letters, digits, periods (`.`) and underscores (`_`), not starting with `0`, and the Console 16 to 255 printable ASCII characters. Use 16 to 64 letters, digits, periods or underscores, not starting with `0`.
 
 ```bash
 aws ec2 create-customer-gateway --type ipsec.1 \
@@ -106,7 +111,7 @@ Wait until the VPN connection is `available` (a few minutes) before the next ste
 
 #### Step 3 — Create the IPsec connection
 
-Create the IPsec connection as described in [Get started in the Console](/guides/public-cloud/network-services/site-to-site-vpn-getting-started#connection), on the gateway you just created, with these values:
+Create the IPsec connection as described in [Get started in the Console](/guides/public-cloud/network-services/site-to-site-vpn-getting-started#connection), on the gateway you just created, with these values. For each tunnel's **Pre-shared key**, select <code className="action">Use my own key</code>, then enter the key you gave AWS: the default, <code className="action">Generate a key</code>, would create another key than AWS's.
 
 | Field | Value |
 |---|---|
@@ -114,13 +119,13 @@ Create the IPsec connection as described in [Get started in the Console](/guides
 | Local endpoint group | New, CIDR `10.1.0.0/24` (pre-filled from the gateway's subnet) |
 | Remote endpoint group | New, CIDR `10.52.0.0/16` |
 | Security proposal | **Recommended** (IKEv2 · AES-256 · SHA-256 · Group 14) |
-| IPsec tunnels | **Two** |
+| IPsec tunnels | **Two (recommended)** |
 | Tunnel 1 — Peer address | `<aws-outside-ip-1>` |
-| Tunnel 1 — Pre-shared key | `<psk-1>`, the same key given to AWS in Step 2 |
+| Tunnel 1 — Pre-shared key | **Use my own key**, `<psk-1>`: the same key given to AWS in Step 2 |
 | Tunnel 2 — Peer address | `<aws-outside-ip-2>` |
-| Tunnel 2 — Pre-shared key | `<psk-2>`, the same key given to AWS in Step 2 |
+| Tunnel 2 — Pre-shared key | **Use my own key**, `<psk-2>`: the same key given to AWS in Step 2 |
 
-AWS's IKE SA lifetime is fixed at 28800 seconds against the Recommended proposal's 10800 seconds; this does not need to match, each side rekeys independently on its own timer.
+AWS's phase 1 lifetime is 28800 seconds by default, against the Recommended proposal's 10800 seconds; this does not need to match, each side rekeys independently on its own timer.
 
 #### Step 4 — Route your instances to the VPC <a name="routes-a"></a>
 
@@ -138,8 +143,8 @@ To add or check the route later, see how to route your instances to the VPN gate
 - AWS picks the tunnel it sends on by itself and may use the other one; the VPN gateway accepts traffic on either tunnel.
 - When both tunnels are down, traffic to the VPC is dropped, never sent unencrypted.
 - Detection relies on dead peer detection (DPD, `restart` by default): a dead peer is declared about 15 s after the first unanswered DPD check, which runs after 30 s of silence by default.
-- Compared with [Scenario B](#scenario-b), any new network on either side means updating the routes by hand: `create-vpn-connection-route` on AWS, and a new endpoint group (so a new connection) on the VPN gateway.
-- `StartupAction: start` (IKEv2 only) makes AWS initiate the tunnels and keep retrying, and `DPDTimeoutAction: restart` makes it restart them after a dead peer. Without them AWS only responds, and a tunnel whose negotiation fails (for example `AUTH_FAILED`, as while the VPN connection is still `pending`) is retried by neither side: it stays down while the connection still shows `ACTIVE`. To set them on an existing VPN connection (this restarts the tunnel), run this once per tunnel:
+- Compared with [Scenario B](#scenario-b), any new network on either side means updating the routes by hand: `create-vpn-connection-route` on AWS and, on the VPN gateway, another connection with new endpoint groups, since a connection's endpoint groups are fixed. Its remote networks must not overlap those of the gateway's other connections.
+- `StartupAction: start` (IKEv2 only) makes AWS initiate the tunnels and keep retrying, and `DPDTimeoutAction: restart` makes it restart them after a dead peer. Without them AWS only responds, and a tunnel whose negotiation fails (for example `AUTH_FAILED`, as while the VPN connection is still `pending`) is retried by neither side: it stays down. To set them on an existing VPN connection (this restarts the tunnel), run this once per tunnel:
 
     ```bash
     aws ec2 modify-vpn-tunnel-options --vpn-connection-id <vpn-id> \
@@ -160,7 +165,7 @@ To add or check the route later, see how to route your instances to the VPN gate
 | Traffic goes through the tunnel | On the OVHcloud instance, `ping <AWS instance private IP>`, and the reverse from the AWS instance | Replies in both directions |
 
 :::info
-A tunnel shows **Down** until both ends agree on every value, pre-shared key included. The Console refreshes the status every 30 seconds until it comes up.
+A tunnel shows **Down** until both ends agree on every value, pre-shared key included, and the connection shows **Degraded** while only one of its two tunnels is up. The Console refreshes the status every 30 seconds, for at most 10 minutes, while a tunnel is **Down** or **Unknown** and the browser tab is visible.
 :::
 
 ### Scenario B: BGP <a name="scenario-b"></a>
@@ -177,7 +182,7 @@ The example uses these values:
 | ASN of AWS | `64512` |
 | Tunnel inside networks (your own choice) | `169.254.10.0/30` and `169.254.11.0/30` |
 | Inside addresses | AWS on `.1`, the VPN gateway on `.2` |
-| Pre-shared keys (your own choice) | `<psk-1>`, `<psk-2>` |
+| Pre-shared keys (your own choice, see Step 2) | `<psk-1>`, `<psk-2>` |
 
 #### Step 1 — Create the VPN gateway and read its public address
 
@@ -185,7 +190,7 @@ Create a VPN gateway as described in [Get started in the Console](/guides/public
 
 #### Step 2 — Create the AWS side
 
-Create the customer gateway, the virtual private gateway and the VPN connection, choosing the tunnel inside networks and pre-shared keys you will reuse on the VPN gateway:
+Create the customer gateway, the virtual private gateway and the VPN connection, choosing the tunnel inside networks and pre-shared keys you will reuse on the VPN gateway. Each key must suit both sides: AWS takes 8 to 64 letters, digits, periods (`.`) and underscores (`_`), not starting with `0`, and the Console 16 to 255 printable ASCII characters. Use 16 to 64 letters, digits, periods or underscores, not starting with `0`.
 
 ```bash
 aws ec2 create-customer-gateway --type ipsec.1 \
@@ -214,7 +219,7 @@ aws ec2 describe-vpn-connections --vpn-connection-ids <vpn-id> \
 
 #### Step 3 — Create the IPsec connection
 
-Create the IPsec connection as described in [Get started in the Console](/guides/public-cloud/network-services/site-to-site-vpn-getting-started#connection), on the gateway you just created, with these values:
+Create the IPsec connection as described in [Get started in the Console](/guides/public-cloud/network-services/site-to-site-vpn-getting-started#connection), on the gateway you just created, with these values. For each tunnel's **Pre-shared key**, select <code className="action">Use my own key</code>, then enter the key you gave AWS: the default, <code className="action">Generate a key</code>, would create another key than AWS's.
 
 | Field | Value |
 |---|---|
@@ -224,17 +229,17 @@ Create the IPsec connection as described in [Get started in the Console](/guides
 | Local endpoint group | New, CIDR `10.1.0.0/24` (pre-filled from the gateway's subnet) |
 | Remote endpoint group | New, CIDR `10.52.0.0/16` |
 | Security proposal | **Recommended** (IKEv2 · AES-256 · SHA-256 · Group 14) |
-| IPsec tunnels | **Two** |
+| IPsec tunnels | **Two (recommended)** |
 | Tunnel 1 — Peer address | `<aws-outside-ip-1>` |
-| Tunnel 1 — Pre-shared key | `<psk-1>`, the same key given to AWS in Step 2 |
+| Tunnel 1 — Pre-shared key | **Use my own key**, `<psk-1>`: the same key given to AWS in Step 2 |
 | Tunnel 1 — BGP tunnel address | `169.254.10.2/30` (enter it: do not use the pre-filled suggestion, it must match AWS) |
 | Tunnel 1 — BGP peer address | `169.254.10.1` |
 | Tunnel 2 — Peer address | `<aws-outside-ip-2>` |
-| Tunnel 2 — Pre-shared key | `<psk-2>`, the same key given to AWS in Step 2 |
+| Tunnel 2 — Pre-shared key | **Use my own key**, `<psk-2>`: the same key given to AWS in Step 2 |
 | Tunnel 2 — BGP tunnel address | `169.254.11.2/30` |
 | Tunnel 2 — BGP peer address | `169.254.11.1` |
 
-AWS's IKE SA lifetime is fixed at 28800 seconds against the Recommended proposal's 10800 seconds; this does not need to match, each side rekeys independently on its own timer. With a transit gateway and VPN ECMP enabled, also turn on the **Inbound ECMP** switch so that AWS uses both tunnels; with a virtual private gateway, leave it off.
+AWS's phase 1 lifetime is 28800 seconds by default, against the Recommended proposal's 10800 seconds; this does not need to match, each side rekeys independently on its own timer. With a transit gateway and VPN ECMP enabled, also turn on the **Inbound ECMP** switch so that AWS uses both tunnels; with a virtual private gateway, leave it off.
 
 #### Step 4 — Route your instances to the VPC <a name="routes-b"></a>
 
@@ -250,7 +255,7 @@ To add or check the route later, see how to route your instances to the VPN gate
 
 - The remote endpoint group is an envelope: routes learned outside it are ignored, so it must cover every VPC CIDR AWS advertises.
 - All the networks and tunnels of a connection must be of one address family.
-- `StartupAction: start` (IKEv2 only) makes AWS initiate the tunnels and keep retrying, and `DPDTimeoutAction: restart` makes it restart them after a dead peer. Without them AWS only responds, and a tunnel whose negotiation fails (for example `AUTH_FAILED`, as while the VPN connection is still `pending`) is retried by neither side: it stays down while the connection still shows `ACTIVE`. To set them on an existing VPN connection (this restarts the tunnel), run this once per tunnel:
+- `StartupAction: start` (IKEv2 only) makes AWS initiate the tunnels and keep retrying, and `DPDTimeoutAction: restart` makes it restart them after a dead peer. Without them AWS only responds, and a tunnel whose negotiation fails (for example `AUTH_FAILED`, as while the VPN connection is still `pending`) is retried by neither side: it stays down. To set them on an existing VPN connection (this restarts the tunnel), run this once per tunnel:
 
     ```bash
     aws ec2 modify-vpn-tunnel-options --vpn-connection-id <vpn-id> \
@@ -271,7 +276,7 @@ To add or check the route later, see how to route your instances to the VPN gate
 | Traffic goes through the tunnel | On the OVHcloud instance, `ping <AWS instance private IP>`, and the reverse from the AWS instance | Replies in both directions |
 
 :::info
-A tunnel shows **Down** until both ends agree on every value, pre-shared key included. The Console refreshes the status every 30 seconds until it comes up.
+A tunnel shows **Down** until both ends agree on every value, pre-shared key included, and the connection shows **Degraded** while only one of its two tunnels is up. The Console refreshes the status every 30 seconds, for at most 10 minutes, while a tunnel is **Down** or **Unknown** and the browser tab is visible.
 :::
 
 ### Limitations <a name="limitations"></a>
@@ -282,7 +287,8 @@ The following rules apply to both scenarios.
 |---|---|
 | Tunnels per connection | A connection holds at most two tunnels. |
 | Peer networks | They may not be a default route, nor contain the address of a peer. |
-| Changes while busy | While the VPN gateway is being created, updated or deleted, creating, updating or deleting its connection or tunnels is refused: retry once it is ready. |
+| Connections per VPN gateway | A VPN gateway holds several connections. Their remote networks must not overlap, and its BGP connections share one local ASN. |
+| Changes while busy | While the VPN gateway is being created, updated or deleted, it cannot be selected for a new connection, and creating, updating or deleting its tunnels is refused: retry once it is ready. |
 
 ### Troubleshooting <a name="troubleshooting"></a>
 
@@ -290,10 +296,10 @@ This table lists the most common cases.
 
 | Issue | Possible cause | Solution |
 |---|---|---|
-| A tunnel stays down while its connection shows active | AWS only responds, and the first negotiation failed (for example `AUTH_FAILED` while the AWS VPN connection was still `pending`) | Set `StartupAction=start,DPDTimeoutAction=restart` on the tunnel with `aws ec2 modify-vpn-tunnel-options` |
+| A tunnel stays down | AWS only responds, and the first negotiation failed (for example `AUTH_FAILED` while the AWS VPN connection was still `pending`) | Set `StartupAction=start,DPDTimeoutAction=restart` on the tunnel with `aws ec2 modify-vpn-tunnel-options` |
 | The tunnels are up but instances cannot reach the VPC | The subnet has no host route to the VPC, or the instances have not picked it up yet | Click <code className="action">Add the routes</code> on the connection's recap, or add the route from the subnet's page. Then restart the instances or renew their DHCP lease |
 | AWS instances cannot reach the OVHcloud instances | The VPC route tables do not propagate the virtual private gateway's routes, or the security group refuses the traffic | Run `enable-vgw-route-propagation` for each route table of the VPC's subnets, and allow the local network in the security group |
-| The Console refuses to create the connection | The VPN gateway has no active public address of the peer's family yet | Wait until the gateway's **Public network** card shows the address, then retry |
+| The VPN gateway cannot be selected when you create the IPsec connection | The gateway is still being created, or has no public IP yet: the list shows **Creating — no public IP yet** or **No public IP yet** | Wait until the gateway's **Public network** card shows the address, then retry |
 | (BGP) Routes of the VPC are missing on the OVHcloud side | The routes are outside the remote endpoint group, which ignores them | Make the remote endpoint group cover every VPC CIDR AWS advertises |
 
 ## Go further
