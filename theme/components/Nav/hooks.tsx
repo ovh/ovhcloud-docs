@@ -10,7 +10,22 @@ import {
   useVersion,
 } from '@rspress/core/runtime';
 import { useMemo } from 'react';
+import { useHubRegion } from 'theme/hooks/useHubRegion';
 import type { Locale, NavItemConfig } from '../../../config/nav';
+
+/** A navbar entry, resolved for the current locale and translated. */
+export interface NavLink {
+  text: string;
+  link: string;
+  /** Follows `?from` (hub tabs, Tools entries, Console): hidden until resolved. */
+  hub?: boolean;
+}
+
+export interface NavTab extends NavLink {
+  external: boolean;
+  current: boolean;
+  menu: (NavLink & { description: string })[];
+}
 
 function replaceLang(
   rawUrl: string,
@@ -192,31 +207,80 @@ export function useVersionsMenu() {
 }
 
 /**
- * Custom hook that returns nav items with localized links and translated text.
- * Reads nav config from themeConfig.nav (set in rspress.config.ts).
- * Text is translated using i18n keys defined in i18n.json.
+ * The navbar, resolved for the current locale: the centre tabs and the
+ * Console button. Reads `themeConfig.nav` (config/nav/index.ts, a flat array
+ * where each entry has a `role`) — the root option, which Rspress leaves
+ * untranslated when locales are configured, so labels go through `t()` here.
  */
-export function useLocalizedNav() {
+export function useLocalizedNav(): { tabs: NavTab[]; console: NavLink | null } {
   const { site } = useSite();
   const lang = useLang();
   const t = useI18n<Record<string, string>>();
+  // The visitor's Developers hub (`?from`, remembered): null until mounted,
+  // so the server render and hydration use the config's default links.
+  const { hubRegion } = useHubRegion();
 
   return useMemo(() => {
     // Fallback locale comes from the runtime site data, never from a build-time
     // constant: importing one as a VALUE would pull config/nav — and through it
     // config/regions, which reads process.env — into the browser bundle.
-    // `site.lang` is this build's own default locale, which is exactly what the
-    // fallback should be.
     const fallback = (site.lang as Locale) || 'en';
     const locale = (lang as Locale) || fallback;
-    const navItems = (site.themeConfig.nav || []) as unknown as NavItemConfig[];
+    const items = (site.themeConfig.nav || []) as unknown as NavItemConfig[];
+    const pick = (links: NavItemConfig['links']) =>
+      links[locale] ?? links[fallback];
 
-    // `links` is partial: a single-locale region (US) only fills in its own
-    // locale. Drop an item that resolves to nothing rather than render a dead
-    // entry — and it keeps `link` a plain string for NavItem.
-    return navItems.flatMap((item) => {
-      const link = item.links[locale] ?? item.links[fallback];
-      return link ? [{ text: t(item.text), link }] : [];
+    // The hub origins travel with the Console entry (data, not an import).
+    const consoleItem = items.find((item) => item.role === 'console');
+    const hubOrigin = hubRegion && consoleItem?.hubOrigins?.[hubRegion];
+    const resolve = (entry: {
+      links: NavItemConfig['links'];
+      hubPath?: string;
+    }) =>
+      hubOrigin && entry.hubPath
+        ? `${hubOrigin}${entry.hubPath}`
+        : pick(entry.links);
+
+    // `links` is partial: a single-locale region only fills in its own
+    // locale. An entry that resolves to nothing is dropped, not rendered dead.
+    const tabs = items.flatMap((item): NavTab[] => {
+      if (item.role !== 'tab') return [];
+      const link = resolve(item);
+      if (!link) return [];
+      return [
+        {
+          text: t(item.text),
+          link,
+          hub: Boolean(item.hubPath),
+          external: Boolean(item.external),
+          current: Boolean(item.current),
+          menu: (item.menu ?? []).flatMap((entry) => {
+            const href = resolve(entry);
+            return href
+              ? [
+                  {
+                    text: t(entry.text),
+                    description: t(entry.description),
+                    link: href,
+                    hub: Boolean(entry.hubPath),
+                  },
+                ]
+              : [];
+          }),
+        },
+      ];
     });
-  }, [site.themeConfig.nav, site.lang, lang, t]);
+
+    const consoleLinks =
+      (hubRegion && consoleItem?.byHub?.[hubRegion]) || consoleItem?.links;
+    const consoleLink = consoleLinks && pick(consoleLinks);
+
+    return {
+      tabs,
+      console:
+        consoleItem && consoleLink
+          ? { text: t(consoleItem.text), link: consoleLink, hub: true }
+          : null,
+    };
+  }, [site.themeConfig.nav, site.lang, lang, t, hubRegion]);
 }
