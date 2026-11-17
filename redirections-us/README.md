@@ -14,8 +14,8 @@ applied by the docs build: the rules run on the host that serves `support.us.ovh
 
 | File | What it is |
 |---|---|
-| `zendesk-snapshot.json` | The live help-centre listing: 790 articles, 198 sections, 8 categories (IDs, titles, tree). Refreshed with `--fetch`. |
-| `merged-articles.csv` | The 64 articles that no longer have a guide of their own, with the guide that absorbed them: 60 merged during de-duplication, 4 retired after an EU fold. |
+| `zendesk-snapshot.json` | The live help-centre listing: 799 articles, 199 sections, 8 categories (IDs, titles, tree). Refreshed with `--fetch`. |
+| `merged-articles.csv` | The 135 articles and 1 section that no longer have a page of their own, with their destination: 60 articles merged during de-duplication, 75 retired (4 after an EU fold, 71 deleted on Zendesk), 1 section deleted on Zendesk. |
 | `overrides.csv` | Hand decisions, each with its reason (6 rules). |
 
 The rest comes from the repo itself: the `zendesk_id` in every guide's frontmatter, and
@@ -25,7 +25,7 @@ the sidebar tree in `config/sidebar/index-us.md` for landing pages.
 
 | File | Applied on host | Rules |
 |---|---|---|
-| `redirections-us.txt` | `support.us.ovhcloud.com` | 1,002 |
+| `redirections-us.txt` | `support.us.ovhcloud.com` | 1,084 |
 
 ```
 SOURCE="/hc/en-us/articles/1500007893502"
@@ -40,14 +40,15 @@ chain into another.
 
 | Zendesk page | Rules | Destination |
 |---|---:|---|
-| Articles with their own guide | 729 | that guide |
+| Articles with their own guide | 738 | that guide |
 | Articles merged during de-duplication | 60 | the guide that absorbed them |
 | Articles retired after an EU fold | 4 | the guide that absorbed them |
+| Articles deleted on Zendesk | 71 | a guide; 1 docs home, 2 us.ovhcloud.com (see below) |
 | Article not migrated yet | 1 | interim landing page (see "Left open") |
-| Sections | 198 | 161 landing page, 30 single guide, 4 parent section, 3 override |
+| Sections | 200 | 161 landing page, 31 single guide, 4 parent section, 3 override, 1 deleted |
 | Categories | 8 | 6 landing page, 2 override |
 | Help-centre home (`/hc/en-us`, `/`) | 2 | docs home |
-| **Total** | **1,002** | **3** on the docs home |
+| **Total** | **1,084** | **4** on the docs home |
 
 ## How the rules are built
 
@@ -60,11 +61,11 @@ zendesk_id: 39499067423379
 ```
 
 That ID survived every slug change, folder move and de-duplication, so an article's rule
-is a join on it, not a title match. On the snapshot of 2026-10-15: 730 articles matched,
+is a join on it, not a title match. On the snapshot of 2026-11-05: 739 articles matched,
 no guide with an unknown ID, no ID on two guides.
 
-The 64 articles without a guide of their own are listed in `merged-articles.csv`. Both
-lists are proven by ID against the commits that removed the guides:
+The 135 articles and the section without a page of their own are listed in
+`merged-articles.csv`. The first two lists are proven by ID against the commits that removed the guides:
 
 - **60 merged:** exactly the 60 guides deleted by the de-duplication commit (`7de4a2878`).
   On Zendesk a guide had to be copied to appear in two places; the new site lists one
@@ -72,9 +73,24 @@ lists are proven by ID against the commits that removed the guides:
 - **4 retired:** exactly the 4 guides retired in `837bf5430`, each folded into another
   guide by the EU docs. They are no longer live on Zendesk, but old links to them may
   still exist, so they keep their rule.
+- **71 deleted on Zendesk, and 1 deleted section:** gone from the help centre but still
+  getting traffic in Search Console (SEO list of 2026-11-06). The script cannot find them:
+  they are no longer in the API.
+  - 36 that Zendesk itself redirects to another article go to that article's guide. 4
+    Tanzu articles go to the Hosted Private Cloud page, as on Zendesk: no Tanzu guide
+    exists.
+  - 33 articles and the section, which Zendesk sends to its home, a login page or a 404,
+    go to a guide chosen by title, each reviewed by the Docs team. One goes to the docs
+    home (a LEMP stack on CentOS 7: no guide covers it).
+  - 2 go to the us.ovhcloud.com product page Zendesk redirects them to. A `retired` row is
+    the only one allowed a destination off the docs site.
+
+  A deleted section is a `retired-section` row: the section rules only see live sections.
 
 An article rule always points at a guide, never at a landing page: a reader following a
-link to an article wants that article. The one exception is the article not migrated yet.
+link to an article wants that article. The exceptions are the article not migrated yet,
+and deleted articles with no guide on their topic: they go where Zendesk sends them, or
+to the closest landing page.
 
 ### Sections and categories
 
@@ -131,6 +147,22 @@ exists as a page in `docs-us/en`. Regenerate after any US guide is moved, rename
 or deleted, and before handing the file over: rules are rebuilt from the repo each time,
 not carried forward.
 
+## Checks run (2026-11-06)
+
+- 1,084 rules, no duplicate source; every destination exists as a page in `docs-us/en`,
+  apart from 2 deliberate us.ovhcloud.com product pages.
+- Against the 2026-11-05 version: 1,012 rules unchanged, 72 new, all from the SEO list
+  of 2026-11-06, group A: 36 following Zendesk's own redirect, 36 reviewed one by one
+  by the Docs team.
+
+## Checks run (2026-11-05)
+
+- 1,012 rules, no duplicate source; all 777 distinct destinations exist as pages in `docs-us/en`.
+- Against the 2026-10-15 version: 1,002 rules unchanged, 10 new.
+  - 9 articles published after the 2026-10-15 snapshot, each to its new guide (KMS,
+    Secret Manager, IAM and Managed Kubernetes).
+  - The new Managed Kubernetes section Security goes to its only guide, the RBAC one.
+
 ## Checks run (2026-10-15)
 
 - 1,002 rules, no duplicate source; all 768 distinct destinations exist as pages in `docs-us/en`.
@@ -160,5 +192,8 @@ not carried forward.
 - **The rules are not applied yet.** `support.us.ovhcloud.com` is served by Zendesk;
   applying them needs that host behind our own servers or the redirects configured on
   the Zendesk side. A `301` → `200` test belongs on staging once they are in place.
+- **Datastore via SFTP** (articles 360017547740 and 360000794910) goes to the VMware
+  landing page for now. Repoint both to the US version of "Uploading an ISO in a
+  datastore" once it is published: the method replaces SFTP.
 - **Snapshot of a live help centre.** An article published after the snapshot has no
   rule. Refresh with `--fetch` before the switch.

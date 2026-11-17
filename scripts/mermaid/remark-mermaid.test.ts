@@ -7,7 +7,7 @@
 
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { remarkMermaid } from '../../plugins/remarkMermaid';
+import { preloadFor, remarkMermaid } from '../../plugins/remarkMermaid';
 
 type Node = {
   type: string;
@@ -78,6 +78,39 @@ test('every mermaid block of a page is converted, in place', () => {
   );
   assert.deepEqual(
     out.children?.map((n) => n.name ?? n.type),
-    ['MermaidDiagram', 'paragraph', 'MermaidDiagram', 'paragraph'],
+    ['MermaidDiagram', 'paragraph', 'MermaidDiagram', 'paragraph', 'mdxjsEsm'],
+  );
+});
+
+test('a page imports one preload per diagram type, a page without none', () => {
+  const imports = (t: Node) =>
+    (t.children ?? []).filter((n) => n.type === 'mdxjsEsm').map((n) => n.value);
+  const page = run(
+    tree(
+      { type: 'code', lang: 'mermaid', value: 'flowchart TB\n A --> B' },
+      { type: 'code', lang: 'mermaid', value: 'graph LR\n C --> D' },
+      { type: 'code', lang: 'mermaid', value: 'stateDiagram-v2\n [*] --> A' },
+      { type: 'code', lang: 'mermaid', value: 'sequenceDiagram\n A->>B: hi' },
+    ),
+  );
+  assert.deepEqual(imports(page), [
+    "import '@components/MermaidDiagram/preload-flowchart';",
+    "import '@components/MermaidDiagram/preload-state';",
+    "import '@components/MermaidDiagram/preload';",
+  ]);
+  assert.deepEqual(
+    imports(run(tree({ type: 'code', lang: 'bash', value: 'ls' }))),
+    [],
+  );
+});
+
+test('the diagram type is read past front matter and %% lines', () => {
+  assert.equal(
+    preloadFor('---\ntitle: T\n---\n%% note\nflowchart LR\n A --> B'),
+    '@components/MermaidDiagram/preload-flowchart',
+  );
+  assert.equal(
+    preloadFor('%%{init: {}}%%\nstateDiagram\n [*] --> A'),
+    '@components/MermaidDiagram/preload-state',
   );
 });
