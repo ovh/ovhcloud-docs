@@ -134,7 +134,6 @@ import { webMxPlan } from './keys/web-mx-plan';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
-import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
@@ -149,7 +148,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-dns-zone-order': webDnsZoneOrder,
   'web-ongoing-operations': webOngoingOperations,
   'web-hosting': webHosting,
-  'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
