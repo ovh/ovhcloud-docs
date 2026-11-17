@@ -1338,6 +1338,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/network/cdn/',
     pt: 'https://www.ovhcloud.com/pt/network/cdn/',
   },
+  'network/global-load-balancer-console': {
+    fr: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+    en: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+    de: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+    es: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+    it: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+    pl: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+    pt: 'https://console.eu.ovhcloud.com/#/bare-metal/network/dns/glb/zones',
+  },
   'network/load-balancer': {
     fr: 'https://www.ovhcloud.com/fr/network/load-balancer/',
     en: 'https://www.ovhcloud.com/en-gb/network/load-balancer/',
