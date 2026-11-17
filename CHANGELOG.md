@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.17.2
+
+### Maintenance
+
+#### All regions
+- **sidebar:** shorten the DNS product label to "DNS
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.17.1
 
 ### Features
