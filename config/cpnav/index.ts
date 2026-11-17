@@ -14,6 +14,7 @@ import { accountProfile } from './keys/account-profile';
 import { accountSecurity } from './keys/account-security';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
+import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
 import { baremetalVps } from './keys/baremetal-vps';
 import { billingInvoices } from './keys/billing-invoices';
 import { billingOrders } from './keys/billing-orders';
@@ -173,6 +174,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
+  'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
