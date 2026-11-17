@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026.11.17.1
+
+### Documentation
+- EU: 14 guides across de, en, es, fr, it, pl, pt
+- US: 27 guides across en
+
+## 2026.11.17
+
+### Documentation
+- EU: 11 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.16
+
+### Features
+
+#### EU
+- **managed-rancher-service:** Remove version 2.12
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.13.2
 
 ### Features
