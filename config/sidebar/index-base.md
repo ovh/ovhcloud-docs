@@ -1752,7 +1752,6 @@
             + [Getting started with an Individual or Business Web Hosting plan](web-cloud/web-hosting/hosting-first-steps-with-web-hosting)
             + [Getting started with a Cloud Web hosting plan](web-cloud/web-hosting/getting-started-cloud-web)
             + [Premiers pas avec la solution Visibilité Pro](web-cloud/web-hosting/premiers-pas-avec-visibilite-pro)
-            + [View and manage all your websites from the OVHcloud Control Panel](web-cloud/web-hosting/access-websites-view)
             + [Web Hosting - How to get started in a few steps](web-cloud/web-hosting/website-project)
             + [Web Hosting FAQ](web-cloud/web-hosting/faq-web-hosting)
             + [Publishing a website on your Web Hosting plan](web-cloud/web-hosting/hosting-how-to-get-my-website-online)
