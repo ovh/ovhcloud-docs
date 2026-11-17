@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.11.17.1
+
+### Features
+
+#### EU
+- **fragments:** add the console-update-pending banner with a v6 link (#1254)
+
+### Documentation
+- EU: 15 guides across de, en, es, fr, it, pl, pt
+- US: 27 guides across en
+
 ## 2026.11.17
 
 ### Documentation
