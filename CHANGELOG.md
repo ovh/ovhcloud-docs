@@ -1,5 +1,73 @@
 # Changelog
 
+## 2026.11.17.1
+
+### Documentation
+- EU: 14 guides across de, en, es, fr, it, pl, pt
+- US: 27 guides across en
+
+## 2026.11.17
+
+### Documentation
+- EU: 11 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.16
+
+### Features
+
+#### EU
+- **managed-rancher-service:** Remove version 2.12
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.13.2
+
+### Features
+
+#### EU
+- **managed veeam vcd v8:** gold repository activation from the console (#1249)
+
+### Fixes
+
+#### EU
+- **public-cloud:** update MKS Free to Standard migration for the Console and drop legacy cpnav tokens from 5 guides with no Console action (#1257)
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the access block from guides with no Console procedure
+
+### Documentation
+- EU: 96 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.11.13.1
+
+### Features
+
+#### All regions
+- **nav:** system / light / dark appearance switch
+
+## 2026.11.13
+
+### Features
+
+#### All regions
+- **theme:** drop the API Reference button from the home closing block
+- **theme:** restyle the AI assistant button for the new theme
+- **nav:** drop the Labs tab from the US navbar
+
+### Fixes
+
+#### All regions
+- **nav:** set the DOCS tag to the brand kit's >DOCS_
+- **nav:** stop the navbar's first row stretching on mobile
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
 ## 2026.11.12
 
 ### Features

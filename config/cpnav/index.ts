@@ -24,6 +24,7 @@ import { iamPolicies } from './keys/iam-policies';
 import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
 import { logsDataPlatform } from './keys/logs-data-platform';
+import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
@@ -41,6 +42,7 @@ import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
+import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
@@ -163,6 +165,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
+  'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
@@ -260,6 +263,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-public-ip-console': networkPublicIpConsole,
   'network-load-balancer': networkLoadBalancer,
   'network-load-balancer-console': networkLoadBalancerConsole,
+  'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
