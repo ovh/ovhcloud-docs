@@ -1,7 +1,7 @@
 ---
 title: Network integration and connectivity for OPCP
 description: Understand how OPCP integrates into your network — data plane, out-of-band (OOB) administration network, and which flows to allow per service model
-lastUpdated: 2026-06-11
+lastUpdated: 2026-10-29
 ---
 
 ## Objective
@@ -145,20 +145,44 @@ This is your production network. OPCP connects to it through the fibre uplinks o
 - in **NANOPOD**, the configuration is applied directly on the **ToRs**;
 - in **STANDARD POD** and **FABRIC**, it is applied on the **edges**.
 
-Beyond this attachment, the content and segmentation of the data plane remain **fully driven by OPCP** through OpenStack Neutron: each Neutron network is exposed on the uplinks using one of the three modes below.
+Beyond this attachment, the content and segmentation of the data plane remain **fully driven by OPCP** through OpenStack Neutron: each Neutron network is exposed on the uplinks using one of the two modes below.
 
 ##### Access mode
+
 The uplink port is attached to **a single Neutron network** and presents traffic as classic **802.1Q** to your upstream equipment. This is the simplest mode and is suitable when an upstream port is dedicated to a single OPCP network.
 
 If your instances push their own VLAN tags inside the Neutron network (hypervisor-level tagging, specific guest needs, etc.), those inner tags are transparently handled by OPCP and your upstream still only sees standard 802.1Q frames — there is nothing extra to configure on your side.
 
 ##### Trunk mode
+
 The uplink port carries **several Neutron networks** over a single physical interface, each distinguished by its own VLAN ID. Because the VLAN tag set by OPCP is preserved end-to-end and never decapsulated, the framing your upstream sees depends on what happens **inside** each Neutron network:
 
 - **802.1Q** — if your instances do not use VLANs inside the Neutron network. Your upstream equipment must be configured to recognise the VLAN IDs assigned by OPCP.
 - **802.1ad (QinQ)** — if your instances push their own VLAN tags inside the Neutron network. The OPCP-assigned VLAN becomes the outer tag and the instance VLANs become inner tags. **Your upstream equipment must be able to handle double encapsulation.**
 
 Both can coexist on the same trunk: each Neutron network is independent, so some can be plain 802.1Q while others are 802.1ad, depending on how each one is used.
+
+##### MTU and jumbo frames
+
+The MTU shown by Neutron on an OPCP network (`mtu | 1500` in the output of `openstack network show`) is **informational only**: it is a default value that does not reflect, and does not enforce, the configuration of the physical switches.
+
+On the physical side, the ports facing your equipment, that is the **server-facing ports** of the ToRs and the **uplinks toward your upstream network** (on the ToRs in NANOPOD, on the edges otherwise), are configured with an **MTU of 9000**. The links between OPCP switches (ToRs, edges, spines and megaspines) use an **MTU of 9100**, which leaves room for the fabric overhead on top of a 9000-byte payload. The platform therefore supports jumbo frames end to end, up to 9000 bytes, regardless of the value displayed by Neutron.
+
+To use jumbo frames on a bare-metal node, set an **MTU of 9000 directly on the node's operating system interfaces** (physical interfaces, bonds and VLAN sub-interfaces alike), not through OpenStack or Neutron. This value is the IP payload size: the Ethernet header and the 802.1Q tags (two of them with QinQ) are added on top and are already accounted for by the switches, so there is nothing to subtract. Leaving the Neutron value at 1500 has no impact on the physical layer. On your side, configure the upstream ports facing the OPCP uplinks for an MTU of 9000 as well.
+
+:::warning
+The 1500 value is pushed to the node at deployment: OPCP provides a config drive, so `network_data.json` carries the Neutron MTU and cloud-init renders it, with DHCP enabled, into `/etc/netplan/50-cloud-init.yaml` at first boot. The Neutron DHCP server advertises it as well (option 26). To keep jumbo frames across reboots:
+
+1. set `mtu: 9000` on the interfaces in the netplan configuration (or the equivalent for your network stack);
+2. stop cloud-init from regenerating the network configuration on a later boot, with `network: {config: disabled}` in `/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`;
+3. if you keep DHCP, make sure the client does not apply the advertised MTU: netplan, systemd-networkd and NetworkManager ignore it once an MTU is set explicitly, while dhclient needs `interface-mtu` removed from its `request` list.
+
+:::
+
+:::info
+Work is in progress to make Neutron display the value actually configured on the switches instead of the 1500 default. Once it lands, the network configuration pushed to the nodes carries the switch value and the override above is no longer needed.
+
+:::
 
 #### Out-of-band side (*Customer Upstream OOB Network*)
 

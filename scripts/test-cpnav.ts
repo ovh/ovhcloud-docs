@@ -149,6 +149,23 @@ for (const [locale, heading] of LOCALE_HEADINGS) {
     renderBlock(SINGLE, locale).includes(`### ${heading}`),
   );
 }
+const CONSOLE = ['privatecloud-managed-backup-vmware'];
+const CONSOLE_HEADINGS: Array<[Locale, string]> = [
+  ['en', 'OVHcloud Console Access'],
+  ['fr', 'Accès à la console OVHcloud'],
+];
+for (const [locale, heading] of CONSOLE_HEADINGS) {
+  check(
+    `[${locale}] a Console key renders the Console heading`,
+    renderBlock(CONSOLE, locale).includes(`### ${heading}`),
+  );
+}
+check(
+  'a set mixing Console and Control Panel keys keeps the Control Panel heading',
+  renderBlock(canonicalise([...CONSOLE, ...SINGLE]), 'en').includes(
+    '### OVHcloud Control Panel Access',
+  ),
+);
 check(
   'de uses the Manager i18n product spelling (E-Mail Pro)',
   renderBlock(SINGLE, 'de').includes('>E-Mail Pro</ManagerLink>'),

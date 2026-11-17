@@ -38,6 +38,7 @@ import { locales } from '../config/shared';
 import { parseIndexMd } from '../config/sidebar/parser';
 import { generateLlms } from './lib/llms';
 import type { SidebarNode } from './lib/llms/model';
+import { checkMermaidBundle } from './mermaid/check-bundle';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -169,7 +170,8 @@ function generateLlmsFamily(builtLocales: readonly string[]): void {
     'config/sidebar',
     regionConfig.sidebarIndex,
   );
-  const { i18nEntries: sidebarDefaults } = parseIndexMd(sidebarIndex);
+  const { i18nEntries: sidebarDefaults, productKeys } =
+    parseIndexMd(sidebarIndex);
 
   const llmsStats = generateLlms({
     distDir: DIST_DIR,
@@ -182,6 +184,7 @@ function generateLlmsFamily(builtLocales: readonly string[]): void {
     treeFor: (locale) =>
       parseIndexMd(sidebarIndex, DOCS_DIR, locale)
         .universes as unknown as SidebarNode[],
+    productKeys,
     label: (key, locale) => {
       const entry = llmsI18n[key] ?? sidebarDefaults[key];
       return entry?.[locale] || entry?.en || key;
@@ -670,3 +673,9 @@ if (regionConfig.localePrefix) {
 } else {
   await combineSingleRoot();
 }
+
+// The js-yaml shipped with Mermaid must be the package's (scripts/mermaid/check-bundle.ts)
+const bundleProblems = checkMermaidBundle(DIST_DIR);
+for (const p of bundleProblems) console.error(`❌ ${p}`);
+if (bundleProblems.length) process.exit(1);
+console.log('✓ Mermaid ships with the js-yaml package');
