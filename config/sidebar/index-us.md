@@ -782,7 +782,7 @@
             + [Configuration](public-cloud-storage-and-backup-block-storage-configuration)
                 + [Increasing the size of an additional disk](storage-and-backup/block-storage/increase-the-size-of-an-additional-disk)
                 + [Test disk speed](storage-and-backup/block-storage/test-disk-speed)
-                + [Creating a volume from a backup](storage-and-backup/block-storage/create-volume-from-backup)
+                + [Creating a volume from a volume snapshot](storage-and-backup/block-storage/create-volume-from-backup)
             + [Migration](public-cloud-storage-and-backup-block-storage-migration)
                 + [Migrating a Block Storage volume to an encrypted LUKS volume](storage-and-backup/block-storage/migrating-non-encrypted-to-encrypted-volume)
                 + [Change your Block Storage volume type](storage-and-backup/block-storage/switch-volume-type)
