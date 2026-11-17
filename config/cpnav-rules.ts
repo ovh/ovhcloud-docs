@@ -155,10 +155,18 @@ export function renderEntries(
   return rendered.join('\n\n');
 }
 
+/** The Console heading only when every key is in the Console, else the Control Panel one. */
+function headingFor(keys: readonly string[], locale: Locale): string {
+  const frame = CPNAV_FRAME[locale];
+  return keys.every((key) => CPNAV_KEYS[key].console)
+    ? frame.consoleHeading
+    : frame.heading;
+}
+
 /** Heading plus bullets, no fence. */
 export function renderBody(keys: readonly string[], locale: Locale): string {
   return [
-    `### ${CPNAV_FRAME[locale].heading}`,
+    `### ${headingFor(keys, locale)}`,
     '',
     renderEntries(keys, locale),
   ].join('\n');
@@ -190,12 +198,11 @@ export function renderBlock(keys: readonly string[], locale: Locale): string {
     return `\n${open}\n---\n\n${renderBody(keys, locale)}\n\n---\n${close}\n`;
   }
 
-  const frame = CPNAV_FRAME[locale];
   const perKey = keys.map((key) => {
     const { open, close } = renderMarkers([key]);
     return `${open}\n${renderEntries([key], locale, true)}\n${close}`;
   });
-  return `\n---\n\n### ${frame.heading}\n\n${perKey.join('\n\n')}\n\n---\n`;
+  return `\n---\n\n### ${headingFor(keys, locale)}\n\n${perKey.join('\n\n')}\n\n---\n`;
 }
 
 function escapeRegExp(literal: string): string {
