@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026.11.17.2
+
+### Maintenance
+
+#### All regions
+- **sidebar:** shorten the DNS product label to "DNS
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.17.1
+
+### Features
+
+#### EU
+- **fragments:** add the console-update-pending banner with a v6 link (#1254)
+
+### Documentation
+- EU: 15 guides across de, en, es, fr, it, pl, pt
+- US: 27 guides across en
+
+## 2026.11.17
+
+### Documentation
+- EU: 11 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.16
+
+### Features
+
+#### EU
+- **managed-rancher-service:** Remove version 2.12
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.13.2
 
 ### Features
