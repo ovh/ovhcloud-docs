@@ -346,6 +346,7 @@ export default defineConfig({
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
       path.join(__dirname, 'components/Banner/Banner.tsx'),
       path.join(__dirname, 'components/MermaidDiagram/MermaidDiagram.tsx'),
+      path.join(__dirname, 'components/QRCodeViewer/QRCodeViewer.tsx'),
     ],
     link: {
       checkDeadLinks: true,
