@@ -7,6 +7,11 @@
  *   <base>/llms.txt                     directory: universe → product links
  *   <base>/llms/<product>/llms.txt      product index, sidebar order
  *   <base>/llms/<product>/llms-full.txt product full text
+ *
+ * A product nested in another one (Databases > PostgreSQL) gets its own
+ * <product>/ pair when it has a landing page or overview. Its parent's index
+ * links to it in place, its parent's full text includes its pages, and the
+ * directory lists it indented under the parent.
  *   <base>/llms-full.txt                every guide of the locale
  *
  * Instructions to agents are in English for every locale (they address the
@@ -15,6 +20,7 @@
 import * as fs from 'node:fs';
 import { htmlLinks } from './clean-md';
 import {
+  fullPages,
   type LlmsGroup,
   type LlmsLocaleModel,
   type LlmsPage,
@@ -66,12 +72,18 @@ export function renderDirectory(
   if (ctx.languages.length > 1) {
     lines.push('>', `> Other languages: ${languagesLine(ctx)}`);
   }
+  const productLines = (products: LlmsProduct[], indent: string) => {
+    for (const p of products) {
+      const desc = p.description ? `: ${p.description}` : '';
+      lines.push(
+        `${indent}- [${p.title}](${productIndexUrl(urlBase, p)})${desc}`,
+      );
+      productLines(p.children, `${indent}  `);
+    }
+  };
   for (const universe of model.universes) {
     lines.push('', `## ${universe.title}`, '');
-    for (const p of universe.products) {
-      const desc = p.description ? `: ${p.description}` : '';
-      lines.push(`- [${p.title}](${productIndexUrl(urlBase, p)})${desc}`);
-    }
+    productLines(universe.products, '');
   }
   if (model.others) {
     const o = model.others;
@@ -86,13 +98,27 @@ export function renderDirectory(
   return `${lines.join('\n')}\n`;
 }
 
-function renderGroup(group: LlmsGroup, depth: number, lines: string[]): void {
+function renderGroup(
+  group: LlmsGroup,
+  depth: number,
+  lines: string[],
+  urlBase: string,
+): void {
   if (group.pages.length > 0) {
     lines.push('', ...group.pages.map(pageLine));
   }
   for (const sub of group.groups) {
     lines.push('', `${'#'.repeat(Math.min(depth, 6))} ${sub.title}`);
-    renderGroup(sub, depth + 1, lines);
+    if (sub.product) {
+      const p = sub.product;
+      const desc = p.description ? `: ${p.description}` : '';
+      lines.push(
+        '',
+        `- [${p.title} — product index](${productIndexUrl(urlBase, p)})${desc}`,
+      );
+      continue;
+    }
+    renderGroup(sub, depth + 1, lines, urlBase);
   }
 }
 
@@ -105,10 +131,19 @@ export function renderProductIndex(
   if (product.description) lines.push(`> ${product.description}`, '>');
   lines.push(
     '> Links below point to the Markdown version of each page. Pages tagged with a language code are not translated yet and link to that language.',
-    `> Full text of this product: ${productFullUrl(urlBase, product)}`,
-    `> Other OVHcloud products: ${urlBase}/llms.txt`,
   );
-  renderGroup(product.root, 2, lines);
+  if (fullPages(product).length > 0) {
+    lines.push(
+      `> Full text of this product: ${productFullUrl(urlBase, product)}`,
+    );
+  }
+  if (product.children.length > 0) {
+    lines.push(
+      '> Products nested in this one have their own index and full text, linked below; their pages are not listed here but are included in the full text of this product.',
+    );
+  }
+  lines.push(`> Other OVHcloud products: ${urlBase}/llms.txt`);
+  renderGroup(product.root, 2, lines, urlBase);
   return `${lines.join('\n')}\n`;
 }
 
