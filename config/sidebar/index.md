@@ -2979,7 +2979,7 @@
                     + [Configuring a public IP block in a vRack on a Public Cloud instance](public-cloud/network-services/configure-ip-block-vrack-instance)
     + [vRack Services](products/network-vrack-services)
         + [vRack Services - Exposing a Managed Service on your vRack](network/vrack-services/global)
-        + [Manage Server/IP Associations in vRack Services](network/vrack-services/server-ip-associations)
+        + [Manage Server-IP associations in vRack Services](network/vrack-services/server-ip-associations)
         + [Enterprise File Storage - Private network configuration](storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
         + [Enterprise File Storage - Connect a Public Cloud instance to an EFS volume via vRack](storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack)
     + [Troubleshooting](network-troubleshooting)

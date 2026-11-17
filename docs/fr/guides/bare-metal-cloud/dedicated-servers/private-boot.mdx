@@ -1,289 +1,261 @@
 ---
-title: Activer le boot privé sur un serveur dédié OVHcloud
+title: Activer le démarrage privé sur un serveur dédié OVHcloud
 description: Démarrez un serveur dédié en mode OLA Full private entièrement sur votre vRack, sans IP publique ni PXE public, depuis la console OVHcloud ou l'API
-lastUpdated: 2026-11-03
+lastUpdated: 2026-11-17
 ---
 
 import Api from '@components/Api';
 
-{/* BROUILLON SK-2837 — traduit de l'EN (/translate) le 2026-11-03. Sources : cache SOT (manager-v8 2026-10-28, api 2026-10-20),
-    Product Note « BM Full Private Experience » + spécification du prototype backoffice (données simulées). La carte de boot privé
-    n'est PAS encore dans le cache de la console : les libellés marqués « À vérifier » sont des propositions FR issues de la spécification.
-    La route API privateBoot n'est PAS dans api.json. Ne pas publier avant vérification des deux. */}
-
 ## Objectif
 
-Par défaut, un serveur dédié OVHcloud a besoin d'une adresse IPv4 publique et des serveurs PXE (Preboot Execution Environment) publics d'OVHcloud à chaque démarrage. Le boot privé permet à un serveur en mode OVHcloud Link Aggregation (OLA) **Full private** d'effectuer toute sa séquence de démarrage, de la mise sous tension jusqu'au script iPXE, sur votre [vRack](/links/network/vrack). Le serveur conserve la même adresse IP privée d'un redémarrage à l'autre, sans configuration d'IP statique dans son système d'exploitation.
+Par défaut, un serveur dédié OVHcloud a besoin d'une adresse IPv4 publique et des serveurs PXE (Preboot Execution Environment) publics d'OVHcloud à chaque démarrage. Le démarrage privé permet à un serveur en mode OVHcloud Link Aggregation (OLA) **Full private** d'effectuer toute sa séquence de démarrage, de la mise sous tension jusqu'au script iPXE, sur votre [vRack](/links/network/vrack). Le serveur conserve la même adresse IP privée d'un redémarrage à l'autre, sans configuration d'IP statique dans son système d'exploitation.
 
 **Ce guide vous explique comment :**
 
-- activer le boot privé depuis la console OVHcloud, que votre vRack dispose déjà ou non d'un vRack Services ;
-- suivre la configuration et la reprendre si une étape échoue ;
-- modifier ou désactiver le boot privé ;
-- activer le boot privé avec l'API OVHcloud ;
-- utiliser le mode rescue ou réinstaller le serveur pendant cette première version du boot privé.
+- vérifier que le démarrage privé est disponible pour votre serveur ;
+- activer le démarrage privé depuis la console OVHcloud, y compris si votre serveur n'a encore ni vRack, ni vRack Services, ni sous-réseau ;
+- suivre la configuration et la relancer en cas d'échec ;
+- modifier ou désactiver le démarrage privé ;
+- activer le démarrage privé avec l'API OVHcloud ;
+- utiliser le mode rescue ou réinstaller le serveur pendant cette première version du démarrage privé.
 
 :::warning
-Dans cette première version, le mode rescue et l'installation d'un OS ne sont pas disponibles via le réseau privé. Pour les utiliser, vous devez repasser temporairement le serveur en boot public. Consultez la  « []() ».
+Dans cette première version, le mode rescue et l'installation d'un OS ne sont pas disponibles via le réseau privé. Pour les utiliser, vous devez repasser temporairement le serveur en démarrage public. Consultez la section « [Utiliser le mode rescue ou réinstaller le serveur](#rescue-reinstall) ».
 
-:: :
+:::
 
 ## Prérequis
 
-- Disposer d'un [serveur dédié](/links/bare-metal/bare-metal) compatible dans votre compte OVHcloud : High Grade Gen 2 ou plus récent, Scale Gen 2 ou plus récent, ou Advance Gen 3 ou plus récent. {/* [UNVERIFIED : api] Product Note PBM11 ; capability d'éligibilité (LVL2-29061) absente d'api.json */}
+- Disposer d'un [serveur dédié](/links/bare-metal/bare-metal) compatible avec le démarrage privé dans votre compte OVHcloud : High Grade Gen 2 ou plus récent, Scale Gen 2 ou plus récent, ou Advance Gen 3 ou plus récent (consultez la section « [Vérifier la disponibilité du démarrage privé](#availability) »).
 - Avoir activé l'[OVHcloud Link Aggregation (OLA)](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager) sur le serveur, en mode **Full private**.
-- Avoir rattaché le serveur à un [vRack](/guides/bare-metal-cloud/dedicated-servers/vrack-configuring-on-dedicated-server).
-- Avoir accès à la <ManagerLink to="/beta/#/bare-metal/dedicated-server">console OVHcloud</ManagerLink> ou, pour le scénario API, disposer d'identifiants API OVHcloud (consultez le guide « [Premiers pas avec les API OVHcloud](/guides/manage-and-operate/api/first-steps) »).
+- Avoir accès à la <ManagerLink to="/beta/#/bare-metal/dedicated-server">console OVHcloud</ManagerLink> ou, pour la procédure API, disposer d'identifiants API OVHcloud (consultez le guide « [Premiers pas avec les API OVHcloud](/guides/manage-and-operate/api/first-steps) »).
+
+Vous n'avez besoin ni de vRack, ni de vRack Services, ni de sous-réseau pour commencer : la console vous permet de commander ou de créer chaque ressource manquante depuis le formulaire du démarrage privé.
 
 ## Introduction
 
-Le boot privé s'appuie sur [vRack Services](/guides/network/vrack-services/global), la couche réseau managée de votre vRack. Son service DHCP répond aux requêtes de démarrage que le serveur envoie sur son interface privée et lui attribue l'adresse IP privée liée à son adresse MAC. Le boot privé fonctionne uniquement sur le VLAN natif (trafic non tagué). {/* [UNVERIFIED : manager-v8] spécification §4 « Eligible subnet » ; aucun libellé console pour l'instant */}
+Le démarrage privé s'appuie sur [vRack Services](/guides/network/vrack-services/global), la couche réseau managée de votre <Tooltip term="vrack">vRack</Tooltip>. Son service DHCP répond aux requêtes de démarrage que le serveur envoie sur son interface privée et lui attribue l'adresse IP privée liée à cette interface. Le démarrage privé fonctionne uniquement sur un sous-réseau IPv4 sans VLAN (trafic non tagué).
 
 ## En pratique
 
-Cette section présente le fonctionnement du boot privé, puis chaque façon de l'activer.
+Cette section présente le fonctionnement du démarrage privé, puis chaque façon de l'activer.
 
 **Sommaire :**
 
-- [Fonctionnement du boot privé](#overview)
-- [Ouvrir la carte du boot privé](#common-setup)
-- [Scénario A : premier boot privé, vRack Services créé pour vous](#scenario-a)
-- [Scénario B : utiliser un vRack Services existant](#scenario-b)
-- [Scénario C : activer le boot privé avec l'API OVHcloud](#scenario-api)
-- [Statuts de l'adresse IP](#ip-statuses)
+- [Fonctionnement du démarrage privé](#overview)
+- [Vérifier la disponibilité du démarrage privé](#availability)
+- [Activer le démarrage privé depuis la console OVHcloud](#console)
 - [Suivre la configuration et gérer un échec](#workflow)
-- [Modifier ou désactiver le boot privé](#modify-disable)
+- [Modifier ou désactiver le démarrage privé](#modify-disable)
+- [Activer le démarrage privé avec l'API OVHcloud](#api)
 - [Utiliser le mode rescue ou réinstaller le serveur](#rescue-reinstall)
-- [Limites du boot privé](#limitations)
-- [Résoudre les problèmes de boot privé](#troubleshooting)
+- [Limites du démarrage privé](#limitations)
+- [Résoudre les problèmes de démarrage privé](#troubleshooting)
 
-### Fonctionnement du boot privé <a name="overview"></a>
+### Fonctionnement du démarrage privé <a name="overview"></a>
 
-Lorsque le boot privé est activé, le serveur envoie ses requêtes de démarrage (DHCP, puis PXE et iPXE) sur son interface privée. Le service DHCP de vRack Services y répond et le serveur démarre depuis le réseau privé.
+Lorsque le démarrage privé est activé, le serveur envoie ses requêtes de démarrage (DHCP, puis PXE et iPXE) sur son interface privée. Le service DHCP de vRack Services y répond et le serveur démarre depuis le réseau privé.
 
 ```mermaid
 flowchart LR
     S["Serveur dédié<br/>OLA Full private"] --> V["vRack"]
-    V --> VS["vRack Services<br/>DHCP"]
-    VS --> SN["Sous-réseau<br/>VLAN natif"]
-    SN --> IP["Association serveur/IP<br/>MAC → IP privée"]
+    V --> VS["vRack Services<br/>DHCP et netboot"]
+    VS --> SN["Sous-réseau<br/>IPv4, sans VLAN"]
+    SN --> IP["Association Serveur-IP<br/>interface → IP privée"]
 ```
 
 | Terme | Description |
 |---|---|
 | Sous-réseau | La plage IPv4 privée dans laquelle le serveur démarre. Elle ne doit pas avoir de VLAN. |
-| Plage de services | Un bloc du sous-réseau, de /27 à /29, réservé aux services gérés par OVHcloud, comme le DHCP. N'attribuez pas ces adresses à vos machines. |
-| Association serveur/IP | Le lien entre l'adresse MAC du serveur et son adresse IP privée. Consultez le guide « [Gérer les associations serveur/IP dans vRack Services](/guides/network/vrack-services/server-ip-associations) ». |
+| Plage de service | Un bloc du sous-réseau, de /27 à /29, réservé aux services gérés par OVHcloud, comme le serveur DHCP. N'attribuez pas ces adresses à vos machines. |
+| Association Serveur-IP | Le lien entre l'interface privée du serveur et son adresse IP dans le sous-réseau. L'activation du démarrage privé la crée, et sa suppression désactive le démarrage privé. Consultez le guide « [Gérer les associations Serveur-IP dans vRack Services](/guides/network/vrack-services/server-ip-associations) ». |
 
-Ce que vous avez à saisir dépend de ce que votre <Tooltip term="vrack">vRack</Tooltip> contient déjà dans la région du serveur :
+### Vérifier la disponibilité du démarrage privé <a name="availability"></a>
 
-| Votre vRack contient… | Ce que fait la console à l'activation du boot privé | Scénario |
-|---|---|---|
-| Aucun vRack Services dans la région du serveur | En commande un gratuitement, le rattache au vRack, crée le sous-réseau, puis active le boot privé | [A](#scenario-a) |
-| Un vRack Services sans sous-réseau | Crée le sous-réseau, puis active le boot privé | [B](#scenario-b) |
-| Un vRack Services avec un sous-réseau éligible | Ajoute l'association (et la plage de services si le sous-réseau n'en a pas), puis active le boot privé | [B](#scenario-b) |
-| Boot privé déjà activé | Affiche un récapitulatif en lecture seule | [Modifier](#modify-disable) |
+La carte **Démarrage sur le réseau privé** n'apparaît dans l'onglet <code className="action">Connectivité</code> du serveur que si le démarrage privé est disponible pour votre compte OVHcloud et si le modèle du serveur le prend en charge. Si la carte n'apparaît pas, le démarrage privé n'est pas disponible pour ce serveur.
 
-### Ouvrir la carte du boot privé <a name="common-setup"></a>
+Si la carte est affichée mais que le serveur n'est pas en mode OLA **Full private**, elle indique **Configurez d'abord l'OLA en mode Full private** et son interrupteur est indisponible. Cliquez sur <code className="action">Configurer l'OLA</code> pour agréger les interfaces du serveur, comme décrit dans le guide « [Configurer l'agrégation de liens OLA dans votre espace client](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager) ». Pendant la modification de l'OLA, la carte indique **Passage en OLA Full private en cours**, puis le démarrage privé devient disponible.
 
-Tous les scénarios console partent de l'onglet **Connectivité** du serveur.
+:::warning
+Le mode OLA **Full private** agrège toutes les interfaces du serveur sur le vRack et coupe sa connectivité Internet publique.
 
-Pendant la bêta, ouvrez la <ManagerLink to="/beta/#/bare-metal/dedicated-server">console OVHcloud</ManagerLink> à l'aide du bouton <code className="action">Découvrir la console &gt;BETA_</code> en haut à droite.
+:::
 
-1. Sélectionnez votre serveur.
-2. Ouvrez l'onglet <code className="action">Connectivité</code>.
-3. Repérez la carte **Démarrer depuis le réseau privé**.
+Avec l'API, listez les régions et les zones de disponibilité où le démarrage privé est disponible. La fonctionnalité `netboot` de chaque région vaut `AVAILABLE`, `PARTIALLY_AVAILABLE` (dans certaines zones de disponibilité) ou `UNAVAILABLE` :
 
-{/* DRAFT: To verify — titre de carte « Boot from private network » (spécification §3), absent du cache console ; libellé FR proposé. */}
-{/* DRAFT: To screenshot — onglet Connectivité avec la carte de boot privé, interrupteur désactivé. */}
+<Api version="v2" section="/vrackServices" method="GET" route={"/vrackServices/reference/featureAvailability"} />
 
-La carte n'apparaît que si la gamme du serveur prend en charge le boot privé et si le serveur est rattaché à un vRack. S'il n'est rattaché à aucun vRack, cliquez sur <code className="action">Attacher un vRack</code> dans la carte **Interface privée (vRack)**, sélectionnez le vRack, puis cliquez sur <code className="action">Attacher</code>.
+### Activer le démarrage privé depuis la console OVHcloud <a name="console"></a>
 
-### Scénario A : premier boot privé, vRack Services créé pour vous <a name="scenario-a"></a>
+Pendant la bêta, ouvrez la <ManagerLink to="/beta/#/bare-metal/dedicated-server">console OVHcloud</ManagerLink> à l'aide du bouton <code className="action">Découvrir la console &gt;BETA_</code> en haut à droite, puis sélectionnez votre serveur.
 
-Suivez ce scénario si votre vRack n'a aucun vRack Services dans la région du serveur. La console en commande un pour vous, gratuitement, pendant l'activation du boot privé. {/* [UNVERIFIED : api] « gratuitement » issu de la spécification §7 ; vérifier le prix catalogue de vRack Services */}
+1. Ouvrez l'onglet <code className="action">Connectivité</code>.
+2. Dans la carte **Démarrage sur le réseau privé**, activez l'interrupteur. Le formulaire s'ouvre. Chaque champ devient disponible une fois le précédent renseigné.
+3. Dans le champ **vRack**, sélectionnez le vRack depuis lequel le serveur démarre. Si le serveur est déjà rattaché à un vRack, celui-ci est affiché et ne peut pas être changé. Si votre compte n'a aucun vRack, cliquez sur <code className="action">Commander un vRack</code>.
+4. Dans le champ **vRack Service**, sélectionnez le vRack Services de ce vRack dans la région du serveur. S'il n'y en a aucun, cliquez sur <code className="action">Commander un vRack Service</code>.
+5. Dans le champ **Sous-réseau**, sélectionnez un sous-réseau IPv4 sans VLAN. Pour utiliser une nouvelle plage, cliquez sur <code className="action">Créer un nouveau sous-réseau</code>, ou sur <code className="action">Créer un sous-réseau</code> si le vRack Services n'en a aucun. Si le sous-réseau n'a pas encore de plage de service, cliquez sur <code className="action">Configurer la plage de service</code> : la page du sous-réseau s'ouvre dans un nouvel onglet.
+6. Vérifiez la **Plage de service**, affichée une fois le sous-réseau sélectionné.
+7. Dans le champ **Adresse IP**, complétez l'adresse avec laquelle le serveur démarrera. Le préfixe du sous-réseau est prérempli : saisissez le dernier nombre.
+8. Vérifiez le panneau **Chemin obtenu**, qui affiche le serveur, le vRack, le vRack Service, le sous-réseau et l'adresse IP.
+9. Cliquez sur <code className="action">Enregistrer et appliquer</code>.
 
-1. Activez l'interrupteur **Démarrer depuis le réseau privé**. Le formulaire affiche :
-    - **vRack** : le vRack du serveur, verrouillé. Pour utiliser un autre vRack, modifiez-le dans la carte **Interface privée (vRack)**.
-    - **Sous-réseau** : un nouveau sous-réseau, prérempli avec une plage suggérée. Remplacez-la si besoin par une plage de votre propre plan d'adressage privé.
-    - **Plage de services** : préremplie avec le premier bloc /29 du sous-réseau.
-    - **Adresse IP** : préremplie avec la première adresse libre après la plage de services. Le serveur reçoit cette adresse.
+Si le serveur n'est pas encore rattaché au vRack sélectionné, la fenêtre **Attacher un réseau privé vRack** s'ouvre. Elle indique que l'interface réseau du serveur sera rattachée au vRack, puis qu'il démarrera depuis le sous-réseau avec l'adresse IP choisie. Confirmez pour rattacher le serveur et appliquer la configuration.
 
-    Le schéma **Chemin résultant** affiché à côté du formulaire indique le vRack Services comme **Sera créé**.
-2. Vérifiez le statut sous le champ **Adresse IP**. Il doit être **Disponible** (consultez la  « []() »).
-3. Cliquez sur <code className="action">Activer le boot privé</code>.
-4. Une fenêtre présente le vRack Services à commander et les conditions générales. Cochez la case, puis cliquez sur <code className="action">Accepter et activer</code>.
+Lorsque vous commandez un vRack ou un vRack Services, ou que vous créez un sous-réseau depuis le formulaire, sa progression s'affiche sous le champ. La nouvelle ressource est sélectionnée dès qu'elle est prête.
 
-{/* DRAFT: To verify — libellés des champs, « Will be created », « Enable private boot » et « Accept and enable » (spécification §5-§7) ; libellés FR proposés. */}
-{/* DRAFT: To screenshot — formulaire prérempli avec le vRack Services en pointillés dans le Chemin résultant. */}
-{/* DRAFT: To screenshot — fenêtre des conditions générales. */}
+L'adresse IP doit :
 
-La carte passe à l'état **En attente** et exécute 4 étapes : commander le vRack Services, le rattacher au vRack, configurer le sous-réseau, la plage de services et l'adresse IP, puis activer le boot privé sur le serveur. Consultez la  « []() ».
+- être une adresse valide du sous-réseau ;
+- se trouver hors de la plage de service ;
+- ne pas être la première ni la dernière adresse du sous-réseau, qui sont réservées ;
+- ne pas être déjà attribuée à un autre serveur.
 
-#### Vérifier le scénario A
-
-| Vérification | Méthode | Résultat attendu |
-|---|---|---|
-| Le boot privé est activé | Carte **Démarrer depuis le réseau privé** | Statut **Actif**, avec le récapitulatif de la configuration |
-| Le vRack Services existe | Console > vRack Services | Un nouveau vRack Services, rattaché au vRack du serveur, dans la région du serveur |
-| Le serveur démarre en privé | Redémarrez le serveur, puis ouvrez sa console <Tooltip term="kvmConsole">KVM/IPMI</Tooltip> | Le serveur reçoit l'adresse IP indiquée dans le récapitulatif |
-
-### Scénario B : utiliser un vRack Services existant <a name="scenario-b"></a>
-
-Suivez ce scénario si votre vRack dispose déjà d'un vRack Services dans la région du serveur. Rien n'est commandé : aucune fenêtre de conditions générales ne s'ouvre.
-
-1. Activez l'interrupteur **Démarrer depuis le réseau privé**. Le **vRack** est verrouillé et le **vRack Services** renvoie vers sa page.
-2. Sélectionnez ou saisissez le sous-réseau :
-    - si le vRack Services a un sous-réseau éligible, le premier est présélectionné dans la liste **Sous-réseau**. Sa plage de services est en lecture seule, ou préremplie si le sous-réseau n'en a pas. Pour utiliser une autre plage, sélectionnez <code className="action">Créer un nouveau sous-réseau</code> en bas de la liste ;
-    - si le vRack Services n'a aucun sous-réseau, un nouveau sous-réseau, sa plage de services et une adresse IP sont préremplis, comme dans le [scénario A](#scenario-a).
-3. Vérifiez que le statut de l'**Adresse IP** est **Disponible**. L'adresse préremplie ignore les adresses déjà attribuées à d'autres serveurs.
-4. Cliquez sur <code className="action">Activer le boot privé</code>.
-
-{/* DRAFT: To verify — « Create a new subnet » et le comportement de la plage de services en lecture seule (spécification §5.3-§5.4) ; libellé FR proposé. */}
-{/* DRAFT: To screenshot — liste des sous-réseaux avec le premier sous-réseau éligible présélectionné. */}
-
-La carte passe à l'état **En attente** et exécute 2 étapes : configurer le sous-réseau, la plage de services et l'adresse IP sur le vRack Services, puis activer le boot privé sur le serveur.
-
-#### Vérifier le scénario B
-
-| Vérification | Méthode | Résultat attendu |
-|---|---|---|
-| Le boot privé est activé | Carte **Démarrer depuis le réseau privé** | Statut **Actif** |
-| L'association existe | Console > vRack Services > votre vRack Services | L'adresse MAC du serveur est liée à l'adresse IP indiquée dans le récapitulatif |
-| Le serveur démarre en privé | Redémarrez le serveur, puis ouvrez sa console KVM/IPMI | Le serveur reçoit cette adresse IP |
-
-### Scénario C : activer le boot privé avec l'API OVHcloud <a name="scenario-api"></a>
-
-Suivez ce scénario pour automatiser le boot privé, par exemple sur un parc de serveurs. Le vRack Services, son sous-réseau et sa plage de services doivent déjà exister.
-
-{/* DRAFT: To verify — la route du boot privé est absente du cache du schéma API (api.json, 2026-10-20). Route, version et corps issus de la Product Note (PBM5). */}
-
-1. Récupérez l'adresse MAC des interfaces réseau du serveur :
-
-<Api version="v1" section="/dedicated/server" method="GET" route={"/dedicated/server/{serviceName}/networkInterfaceController"} />
-
-2. Créez l'association serveur/IP pour cette adresse MAC, comme décrit dans le guide « [Gérer les associations serveur/IP dans vRack Services](/guides/network/vrack-services/server-ip-associations) ».
-
-3. Activez le boot privé sur le serveur :
-
-<Api version="v1" section="/dedicated/server" method="PUT" route={"/dedicated/server/{serviceName}/privateBoot"} />
-
-| Paramètre | Obligatoire | Description | Exemple |
-|---|---|---|---|
-| `serviceName` | Oui | Nom de votre serveur dédié. | `ns1234567.ip-203-0-113.eu` |
-| `enabled` (corps) | Oui | `true` pour activer le boot privé, `false` pour le désactiver. | `true` |
-| `vrackId` (corps) | Oui | Identifiant du vRack depuis lequel le serveur démarre. | `pn-123456` |
-
-```json
-{
-  "enabled": true,
-  "vrackId": "pn-123456"
-}
-```
-
-La réponse renvoie l'état du boot privé mis à jour et l'heure à laquelle il a pris effet. [TODO : nom et champs du modèle de réponse]
-
-#### Vérifier le scénario C
-
-| Vérification | Méthode | Résultat attendu |
-|---|---|---|
-| Le boot privé est activé | `GET` sur la même route [TODO : confirmer qu'un GET existe] | `enabled` vaut `true` |
-| Le serveur démarre en privé | Redémarrez le serveur | Le serveur reçoit l'adresse IP de son association |
-
-### Statuts de l'adresse IP <a name="ip-statuses"></a>
-
-La console vérifie l'adresse IP au fil de la saisie. Le bouton <code className="action">Activer le boot privé</code> n'est disponible que lorsque le statut est **Disponible**.
-
-{/* DRAFT: To verify — libellés des statuts (spécification §5.5) ; libellés FR proposés. */}
-
-| Statut | Signification |
-|---|---|
-| **Disponible** | L'adresse peut être utilisée. |
-| **Adresse IPv4 non valide** | La valeur n'est pas une adresse IPv4 valide. |
-| **Hors du sous-réseau** | L'adresse n'appartient pas au sous-réseau sélectionné. |
-| **Adresse réseau ou de broadcast** | L'adresse est la première ou la dernière du sous-réseau. |
-| **Réservée à OVHcloud** | L'adresse se trouve dans la plage de services. |
-| **Réservée : dans la plage BGP** | L'adresse se trouve dans la plage BGP du sous-réseau. |
-| **Déjà attribuée** | L'adresse est déjà liée à un autre serveur. |
-
-:::tip
-OVHcloud ne peut vérifier que les adresses qu'elle gère. Avant d'activer le boot privé, assurez-vous que l'adresse n'est pas déjà utilisée par une autre machine de votre vRack.
-
-:: :
+OVHcloud ne peut vérifier que les adresses qu'elle gère. Assurez-vous qu'aucune autre machine de votre vRack n'utilise déjà l'adresse, par exemple une machine configurée avec une adresse IP statique.
 
 ### Suivre la configuration et gérer un échec <a name="workflow"></a>
 
-La configuration peut prendre plusieurs minutes. Vous pouvez quitter la page : les étapes se poursuivent en arrière-plan, chacune avec son propre statut dans la carte.
+Pendant l'application de la configuration, la carte affiche **Application de la configuration du démarrage sur le réseau privé…** et son statut est **En cours**. Les champs sont verrouillés jusqu'à la fin de l'application.
 
-Une fois toutes les étapes réussies :
+En cas de succès, le statut passe à **Actif** et une notification confirme l'activation du démarrage privé. Le serveur démarre depuis le réseau privé **à son prochain redémarrage**.
 
-- la carte passe à l'état **Actif** et affiche le vRack, le vRack Services, le sous-réseau, la plage de services et l'adresse IP ;
-- une notification récapitule la configuration et l'adresse IP attribuée ;
-- le serveur démarre depuis le réseau privé **à son prochain redémarrage**.
+En cas d'échec, le statut passe à **En erreur** et la carte en indique la raison :
 
-Si une étape échoue :
+| Message | Action |
+|---|---|
+| La configuration du réseau privé n'a pas pu être appliquée. | Cliquez sur <code className="action">Réessayer</code>. |
+| Ce vRack Service a été modifié entre-temps. | Vérifiez la configuration, puis cliquez sur <code className="action">Réessayer</code>. |
+| Ce vRack Service est en cours de mise à jour. | Attendez que le vRack Services soit prêt, puis appliquez de nouveau la configuration. |
+| Ce vRack Service est en erreur, ou est passé en erreur pendant l'application. | Sa configuration précédente reste active, mais elle ne peut plus être modifiée sans une intervention du support OVHcloud. Contactez le support. |
 
-1. La carte passe à l'état **Erreur** et l'étape en échec est mise en évidence avec son message d'erreur. Les ressources déjà créées sont conservées et listées.
-2. Cliquez sur <code className="action">Réessayer</code> pour reprendre à partir de l'étape en échec.
-3. Si l'erreur persiste, cliquez sur <code className="action">Contacter le support</code>.
+Si le serveur a été rattaché au vRack avant l'échec, il le reste, et la carte l'indique. Si le rattachement est toujours en cours, la carte vous invite à cliquer de nouveau sur <code className="action">Enregistrer et appliquer</code> une fois qu'il est terminé.
 
-{/* DRAFT: To verify — libellés « Retry » et « Contact support », et texte de la notification (spécification §8). */}
-{/* DRAFT: To screenshot — carte à l'état Erreur avec l'étape en échec mise en évidence. */}
+### Modifier ou désactiver le démarrage privé <a name="modify-disable"></a>
 
-### Modifier ou désactiver le boot privé <a name="modify-disable"></a>
+Une fois le démarrage privé actif, la carte affiche sa configuration, et son interrupteur n'est plus utilisable directement : passez par <code className="action">Modifier</code> pour changer ou désactiver le démarrage privé.
 
-Vous pouvez changer le sous-réseau ou l'adresse IP d'un boot privé actif, ou le désactiver en conservant sa configuration.
+- **Modifier** : cliquez sur <code className="action">Modifier</code>, changez le vRack Services, le sous-réseau ou l'adresse IP, puis cliquez sur <code className="action">Enregistrer et appliquer</code>. Le serveur utilise la nouvelle configuration à son prochain redémarrage.
+- **Désactiver** : cliquez sur <code className="action">Modifier</code>, désactivez l'interrupteur, puis cliquez sur <code className="action">Enregistrer et appliquer</code>. Un avertissement indique que le serveur démarrera depuis le réseau public à son prochain redémarrage. L'association Serveur-IP du serveur est supprimée.
 
-- **Modifier** : cliquez sur <code className="action">Modifier</code> dans la carte, changez le sous-réseau ou l'adresse IP, puis cliquez sur <code className="action">Enregistrer et appliquer</code>. Le serveur utilise la nouvelle adresse à son prochain redémarrage.
-- **Désactiver** : désactivez l'interrupteur **Démarrer depuis le réseau privé**. La dernière configuration est conservée pour une prochaine réactivation. Avec l'API, envoyez l'[appel du boot privé](#scenario-api) avec `"enabled": false`.
+Pour annuler vos modifications, cliquez sur <code className="action">Annuler</code>.
 
-{/* DRAFT: To verify — libellés « Modify » et « Save and apply », et confirmation éventuelle à la désactivation (la spécification §9 conserve le comportement du prototype précédent). */}
+La tuile **Connectivité** de l'onglet <code className="action">Vue d'ensemble</code> affiche aussi une ligne **Démarrage privé**, avec un lien <code className="action">Activer</code> ou <code className="action">Désactiver</code> qui ouvre la carte.
+
+### Activer le démarrage privé avec l'API OVHcloud <a name="api"></a>
+
+Avec l'API, le démarrage privé est une configuration du vRack Services : vous ajoutez une association Serveur-IP pour l'interface du serveur à la configuration DHCP d'une plage de service. Le vRack Services, son sous-réseau IPv4 sans VLAN et sa plage de service doivent déjà exister.
+
+1. Si le serveur n'est pas encore rattaché au vRack, rattachez son interface :
+
+<Api version="v1" section="/vrack" method="POST" route={"/vrack/\{serviceName\}/dedicatedServerInterface"} />
+
+2. Listez les interfaces de serveur qui peuvent être associées au vRack Services. Notez l'`uuid` de l'interface de votre serveur :
+
+<Api version="v2" section="/vrackServices" method="GET" route={"/vrackServices/resource/\{vrackServicesId\}/eligibleDedicatedServerInterfaces"} />
+
+3. Récupérez le `checksum` et le `targetSpec` du vRack Services :
+
+<Api version="v2" section="/vrackServices" method="GET" route={"/vrackServices/resource/\{vrackServicesId\}"} />
+
+4. Renvoyez le `targetSpec` avec l'association ajoutée à la configuration DHCP de la plage de service, accompagné du `checksum` récupéré :
+
+<Api version="v2" section="/vrackServices" method="PUT" route={"/vrackServices/resource/\{vrackServicesId\}"} />
+
+```json
+{
+  "checksum": "609cf69014e57abfb3d892133692ac6f",
+  "targetSpec": {
+    "subnets": [
+      {
+        "az": "eu-west-gra-a",
+        "cidr": "10.0.0.0/24",
+        "displayName": null,
+        "vlan": null
+      }
+    ],
+    "services": {
+      "serviceRange": [
+        {
+          "cidr": "10.0.0.0/29",
+          "subnetCidr": "10.0.0.0/24",
+          "serviceEndpoints": [],
+          "dhcp": {
+            "dedicatedServerInterfaceAssociations": [
+              {
+                "uuid": "f3a6c9e2-0b7d-4c1e-9a58-2d4e6b8c0f13",
+                "ip": "10.0.0.10"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+| Paramètre | Obligatoire | Description |
+|---|---|---|
+| `checksum` | Oui | Checksum renvoyé par le `GET` précédent. La requête est refusée si le vRack Services a changé entre-temps. |
+| `services.serviceRange[].dhcp.dedicatedServerInterfaceAssociations[].uuid` | Oui | Identifiant de l'interface du serveur, issu de l'étape précédente. |
+| `services.serviceRange[].dhcp.dedicatedServerInterfaceAssociations[].ip` | Oui | Adresse IP privée du serveur. Elle doit appartenir au sous-réseau, se trouver hors de la plage de service et de toute plage BGP, ne pas être la première ni la dernière adresse du sous-réseau, et être unique dans le sous-réseau. |
+
+Conservez toutes les autres valeurs du `targetSpec` telles que renvoyées par le `GET`. Pour le fonctionnement du `checksum` et du `targetSpec`, consultez le guide « [vRack Services - Exposer un service managé sur votre vRack](/guides/network/vrack-services/global) ».
+
+5. Suivez la mise à jour jusqu'à ce que le vRack Services soit `READY` :
+
+<Api version="v2" section="/vrackServices" method="GET" route={"/vrackServices/resource/\{vrackServicesId\}/task"} />
+
+Dans le `currentState` du vRack Services, l'association indique `"netboot": true` une fois le démarrage privé actif. Pour désactiver le démarrage privé, renvoyez le `targetSpec` sans l'association.
 
 ### Utiliser le mode rescue ou réinstaller le serveur <a name="rescue-reinstall"></a>
 
-Dans cette première version, l'environnement rescue et l'installation de l'OS passent encore par le réseau public. Tant que le serveur est en mode Full private, le changement de mode de démarrage échoue avec le message *« Impossible de changer le mode de démarrage : aucune interface réseau publique n'est activée sur ce serveur. »*
+Dans cette première version, l'environnement rescue et l'installation de l'OS passent encore par le réseau public. Tant que le serveur est en mode OLA **Full private**, son mode de démarrage ne peut pas être changé : la console affiche *« Impossible de changer le mode de démarrage : aucune interface réseau publique n'est activée sur ce serveur. »*
 
-Pour démarrer le serveur en [mode rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode) ou le réinstaller :
+Pour démarrer le serveur en [mode rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode) ou le réinstaller, repassez-le temporairement en démarrage public :
 
-1. Désactivez le boot privé (consultez la  « []() »).
-2. Rétablissez l'interface publique : dans la carte **OVHcloud Link Aggregation (OLA)**, cliquez sur <code className="action">Réinitialiser</code>, puis sur <code className="action">Confirmer</code>.
+1. Notez le sous-réseau et l'adresse IP affichés dans la carte **Démarrage sur le réseau privé**, puis désactivez le démarrage privé, comme décrit dans la section « [Modifier ou désactiver le démarrage privé](#modify-disable) ». Sa désactivation supprime l'association Serveur-IP du serveur.
+2. Dans l'onglet <code className="action">Connectivité</code>, dans la carte **OVHcloud Link Aggregation (OLA)**, cliquez sur <code className="action">Réinitialiser</code>, puis sur <code className="action">Confirmer</code>. Pendant la réinitialisation, la carte **Démarrage sur le réseau privé** indique **Retour de l'OLA en mode par défaut en cours**.
 3. Lancez l'opération : <code className="action">Mode rescue</code> puis <code className="action">Redémarrer</code>, ou <code className="action">Réinstaller</code>.
-4. Une fois l'opération terminée, réactivez l'OLA en mode **Full private**, puis le boot privé. Sa configuration précédente et l'association serveur/IP du serveur sont conservées.
+4. Une fois l'opération terminée, configurez de nouveau l'OLA en mode **Full private**.
+5. Réactivez le démarrage privé, comme décrit dans la section « [Activer le démarrage privé depuis la console OVHcloud](#console) ». Vous pouvez sélectionner le même sous-réseau et la même adresse IP.
 
-{/* DRAFT: To verify — l'étape 2 (réinitialisation OLA) est-elle requise en M1, ou la désactivation du boot privé suffit-elle à rétablir le boot public ? À confirmer par l'équipe produit (procédure de contournement PBM13). */}
+Après un démarrage en mode rescue, la configuration réseau du système d'exploitation est inchangée. Après une réinstallation, configurez de nouveau l'agrégation de liens dans le nouveau système d'exploitation, comme décrit dans le guide « [Configurer l'agrégation de liens OLA dans votre espace client](/guides/bare-metal-cloud/dedicated-servers/ola-enable-manager) ».
 
 :::warning
 Pendant la réinitialisation de l'OLA, le serveur redevient joignable sur son interface publique. Planifiez cette opération pendant une fenêtre de maintenance.
 
-:: :
+:::
 
-### Limites du boot privé <a name="limitations"></a>
+### Limites du démarrage privé <a name="limitations"></a>
 
-La première version du boot privé présente les limites suivantes.
+La première version du démarrage privé présente les limites suivantes.
 
 | Limite | Détails |
 |---|---|
-| Mode rescue et installation d'un OS | Non disponibles via le réseau privé. Repassez temporairement le serveur en boot public, comme décrit dans la  « []() ». |
-| VLAN natif uniquement | Un sous-réseau configuré avec un VLAN ne peut pas servir au boot privé. |
-| Gammes compatibles uniquement | High Grade Gen 2 ou plus récent, Scale Gen 2 ou plus récent, Advance Gen 3 ou plus récent. La carte n'apparaît pas sur les autres serveurs. |
-| Un sous-réseau par vRack Services | Pendant la bêta, un vRack Services ne peut héberger qu'un seul sous-réseau. [TODO : taille du sous-réseau — la console exige actuellement un /24, la spécification autorise /23 à /28] |
+| Mode rescue et installation d'un OS | Non disponibles via le réseau privé. Repassez temporairement le serveur en démarrage public, comme décrit dans la section « [Utiliser le mode rescue ou réinstaller le serveur](#rescue-reinstall) ». |
+| OLA Full private uniquement | Le démarrage privé nécessite que toutes les interfaces du serveur soient agrégées sur le vRack. |
+| Sous-réseau IPv4 sans VLAN | Un sous-réseau configuré avec un VLAN ne peut pas servir au démarrage privé. |
+| Sous-réseau partagé | Un sous-réseau déjà utilisé par un autre service, comme un Service Endpoint, ne peut être partagé qu'entre serveurs dédiés pour le démarrage privé. |
+| Serveurs et régions compatibles | High Grade Gen 2 ou plus récent, Scale Gen 2 ou plus récent, Advance Gen 3 ou plus récent, dans une région où le démarrage privé est disponible. La carte n'apparaît pas sur les autres serveurs. |
+| Taille du sous-réseau | Un sous-réseau vRack Services est une plage IPv4 /23 ou /24. Un vRack Services peut héberger jusqu'à 3 sous-réseaux. |
 | Vérification des adresses | OVHcloud ne vérifie que les adresses qu'elle gère, pas les machines configurées avec une adresse IP statique dans votre vRack. |
 
-### Résoudre les problèmes de boot privé <a name="troubleshooting"></a>
+### Résoudre les problèmes de démarrage privé <a name="troubleshooting"></a>
 
-Le tableau ci-dessous liste les problèmes les plus courants lors de l'activation du boot privé.
+Le tableau ci-dessous liste les problèmes les plus courants lors de l'activation du démarrage privé.
 
 | Problème | Cause possible | Solution |
 |---|---|---|
-| La carte **Démarrer depuis le réseau privé** n'apparaît pas | La gamme du serveur n'est pas compatible, ou le serveur n'est rattaché à aucun vRack | Vérifiez la gamme du serveur dans les prérequis, puis cliquez sur <code className="action">Attacher un vRack</code> dans la carte **Interface privée (vRack)**. |
-| Le bouton <code className="action">Activer le boot privé</code> reste indisponible | Le statut de l'adresse IP n'est pas **Disponible** | Changez l'adresse en fonction de son [statut](#ip-statuses). |
-| Une étape échoue | Erreur temporaire, ou conflit sur le vRack Services | Cliquez sur <code className="action">Réessayer</code>. Si l'erreur persiste, cliquez sur <code className="action">Contacter le support</code>. |
-| Le serveur démarre toujours sur le réseau public | Le serveur n'a pas redémarré depuis l'activation du boot privé | Redémarrez le serveur. |
-| Le serveur ne reçoit pas son adresse IP privée | Son association serveur/IP a été supprimée ou modifiée | Vérifiez l'association dans [vRack Services](/guides/network/vrack-services/server-ip-associations). |
+| La carte **Démarrage sur le réseau privé** n'apparaît pas | Le modèle du serveur ne prend pas en charge le démarrage privé, ou celui-ci n'est pas disponible pour votre compte | Vérifiez la [disponibilité](#availability) du démarrage privé. |
+| L'interrupteur est indisponible | Le serveur n'est pas en mode OLA **Full private**, ou le démarrage privé est déjà actif | Cliquez sur <code className="action">Configurer l'OLA</code>, ou utilisez <code className="action">Modifier</code> sur un démarrage privé actif. |
+| Aucun sous-réseau ne peut être sélectionné | Le vRack Services n'a aucun sous-réseau IPv4 sans VLAN, ou son sous-réseau n'a pas de plage de service | Cliquez sur <code className="action">Créer un nouveau sous-réseau</code> ou sur <code className="action">Configurer la plage de service</code>. |
+| La configuration échoue | Erreur temporaire, ou vRack Services modifié entre-temps ou en erreur | Consultez la section « [Suivre la configuration et gérer un échec](#workflow) ». |
+| Le serveur démarre toujours sur le réseau public | Le serveur n'a pas redémarré depuis l'activation du démarrage privé | Redémarrez le serveur. |
+| Le serveur ne démarre plus depuis le réseau privé | Son association Serveur-IP a été supprimée ou modifiée dans vRack Services | Vérifiez l'association dans [vRack Services](/guides/network/vrack-services/server-ip-associations). |
 
 ## Aller plus loin
 
-[Gérer les associations serveur/IP dans vRack Services](/guides/network/vrack-services/server-ip-associations)
+[Gérer les associations Serveur-IP dans vRack Services](/guides/network/vrack-services/server-ip-associations)
 
 [Comprendre l'agrégation de liens sur les serveurs dédiés](/guides/bare-metal-cloud/dedicated-servers/link-aggregation-overview)
 
