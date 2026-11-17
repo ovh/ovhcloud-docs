@@ -78,6 +78,12 @@ for (const key of keys) {
   }
   for (const locale of LOCALES.filter((l) => bodies[l])) {
     const body = bodies[locale] as string;
+    if ((bodies.en ?? '').includes('{{v6}}') !== body.includes('{{v6}}')) {
+      errors.push(
+        `${key}/${locale}.md: {{v6}} placeholder present in some locales and not others — ` +
+          'every locale must link to the former Control Panel, or none',
+      );
+    }
     if (/\[\[fragment:/.test(body)) {
       errors.push(
         `${key}/${locale}.md: contains a [[fragment:…]] token — fragments do not nest`,
@@ -168,10 +174,45 @@ function walk(dir: string): void {
 function scan(file: string): void {
   const raw = fs.readFileSync(file, 'utf-8');
   if (!raw.includes('[[fragment:')) return;
+  const rel = path.relative(DOCS_DIR, file).replace(/\\/g, '/');
+
+  // replaceRules see raw text, so a token for a REAL key expands even inside
+  // backticks or a fence: the page then shows the whole body, and a body that
+  // opens a callout (`:::`) breaks the inline code around it. Document the
+  // syntax with a placeholder key (`[[fragment:<key>]]`), which no rule matches.
+  // Fences per CommonMark: a fence closes only on the same character, at least
+  // as long as its opener — a `~~~~` line inside a ``` block is content.
+  let fence: string | null = null;
+  for (const line of raw.split('\n')) {
+    const marker = line.match(/^\s*(`{3,}|~{3,})/)?.[1];
+    if (fence) {
+      if (
+        marker &&
+        marker[0] === fence[0] &&
+        marker.length >= fence.length &&
+        !line.trim().slice(marker.length).trim()
+      ) {
+        fence = null;
+      }
+    } else if (marker) {
+      fence = marker;
+      continue;
+    }
+    const code = fence ? [line] : (line.match(/`[^`]*`/g) ?? []);
+    for (const span of code) {
+      for (const m of span.matchAll(TOKEN)) {
+        if (!(m[1].split('|')[0] in textFragments)) continue;
+        unknown.push(
+          `${rel}: [[fragment:${m[1]}]] inside code still expands at build time — ` +
+            'write the key as a placeholder, e.g. [[fragment:<key>]]',
+        );
+      }
+    }
+  }
+
   const text = stripCode(raw);
   if (!text.includes('[[fragment:')) return;
 
-  const rel = path.relative(DOCS_DIR, file).replace(/\\/g, '/');
   const universe = rel.split('/')[2] ?? '(root)'; // <locale>/guides/<universe>/…
   const modifiers = new Set<string>();
   for (const m of text.matchAll(TOKEN)) {
@@ -179,7 +220,9 @@ function scan(file: string): void {
     // The one-language-decision check below cares about the PIN only: |n=3 and a
     // bare token agree on language, so only the |en presence is tracked.
     modifiers.add(mods.includes('en') ? 'en' : '');
-    const bad = mods.filter((mod) => mod !== 'en' && !/^n=\d+$/.test(mod));
+    const bad = mods.filter(
+      (mod) => mod !== 'en' && !/^n=\d+$/.test(mod) && !/^v6=\S+$/.test(mod),
+    );
     if (bad.length) {
       unknown.push(
         `${rel}: unsupported modifier(s) ${bad.join(', ')} in [[fragment:${m[1]}]]`,
@@ -202,6 +245,25 @@ function scan(file: string): void {
             'no rule is generated for it, so the token ships to readers as literal text',
         );
       }
+    }
+    // |v6= is required by, and only allowed on, a key whose body carries {{v6}}:
+    // either mismatch matches no rule, so the token would reach the build raw.
+    const takesV6 = (textFragments[key]?.en ?? '').includes('{{v6}}');
+    const v6 = mods.find((mod) => mod.startsWith('v6='));
+    if (takesV6 && !v6) {
+      unknown.push(
+        `${rel}: "${key}" needs the guide's former Control Panel route — ` +
+          `[[fragment:${key}|v6=/#/…]]`,
+      );
+    } else if (!takesV6 && v6) {
+      unknown.push(
+        `${rel}: |v6= on "${key}", whose body carries no {{v6}} placeholder — ` +
+          'no rule is generated for it, so the token ships to readers as literal text',
+      );
+    } else if (v6 && !/^v6=\/#\/[^|\]\s]*$/.test(v6)) {
+      unknown.push(
+        `${rel}: ${v6} — the route must be a Manager v6 hash route starting with /#/`,
+      );
     }
     u.total += 1;
     u.universes[universe] = (u.universes[universe] ?? 0) + 1;
