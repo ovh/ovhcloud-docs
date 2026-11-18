@@ -1,1 +1,1 @@
-export { OvhaiAssistantScope, default } from './OvhaiAssistantScope';
+export { default, OvhaiAssistantScope } from './OvhaiAssistantScope';

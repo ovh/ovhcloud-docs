@@ -1,1 +1,1 @@
-export { OvhaiSearchBar, default } from './OvhaiSearchBar';
+export { default, OvhaiSearchBar } from './OvhaiSearchBar';

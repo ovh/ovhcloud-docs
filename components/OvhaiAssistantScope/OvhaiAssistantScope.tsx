@@ -41,7 +41,11 @@ const ContentIcon = () => (
   </svg>
 );
 
-const ICONS = [<MailIcon />, <MeetingIcon />, <ContentIcon />];
+const ICONS = [
+  <MailIcon key="mail" />,
+  <MeetingIcon key="meeting" />,
+  <ContentIcon key="content" />,
+];
 
 interface Strings {
   ariaLabel: string;

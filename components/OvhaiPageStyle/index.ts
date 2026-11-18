@@ -1,1 +1,1 @@
-export { OvhaiPageStyle, default } from './OvhaiPageStyle';
+export { default, OvhaiPageStyle } from './OvhaiPageStyle';

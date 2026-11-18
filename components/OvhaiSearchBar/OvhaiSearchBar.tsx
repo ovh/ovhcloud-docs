@@ -7,7 +7,6 @@ const glyph = {
   stroke: 'currentColor',
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
-  'aria-hidden': true,
   focusable: 'false' as const,
 };
 
@@ -33,7 +32,14 @@ export function OvhaiSearchBar() {
   const lang = useLang();
   return (
     <div className="ovhai-search">
-      <svg {...glyph} className="ovhai-search__icon" width={20} height={20} strokeWidth={1.8}>
+      <svg
+        aria-hidden="true"
+        {...glyph}
+        className="ovhai-search__icon"
+        width={20}
+        height={20}
+        strokeWidth={1.8}
+      >
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="M15.4 15.4 20.5 20.5" />
       </svg>
@@ -45,12 +51,26 @@ export function OvhaiSearchBar() {
       <span className="ovhai-search__esc">Esc</span>
 
       {/* Filter sliders and close, as in the product's own bar. */}
-      <svg {...glyph} className="ovhai-search__action" width={20} height={20} strokeWidth={1.7}>
+      <svg
+        aria-hidden="true"
+        {...glyph}
+        className="ovhai-search__action"
+        width={20}
+        height={20}
+        strokeWidth={1.7}
+      >
         <path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h8M16 17h4" />
         <path d="M15.5 5.4v3.2M8.5 10.4v3.2M13.5 15.4v3.2" />
       </svg>
 
-      <svg {...glyph} className="ovhai-search__action" width={20} height={20} strokeWidth={1.8}>
+      <svg
+        aria-hidden="true"
+        {...glyph}
+        className="ovhai-search__action"
+        width={20}
+        height={20}
+        strokeWidth={1.8}
+      >
         <path d="M6 6l12 12M18 6L6 18" />
       </svg>
     </div>

@@ -31,7 +31,6 @@ export function OvhaiAppIcon({ name, size = 28, style }: OvhaiAppIconProps) {
     strokeWidth: 1.7,
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
-    'aria-hidden': true,
     focusable: 'false' as const,
     style,
   };
@@ -39,7 +38,7 @@ export function OvhaiAppIcon({ name, size = 28, style }: OvhaiAppIconProps) {
   if (name === 'email') {
     // Envelope, flap open towards the reader.
     return (
-      <svg {...common}>
+      <svg aria-hidden="true" {...common}>
         <rect x="3" y="5.5" width="18" height="13" rx="2" />
         <path d="M3.6 6.8 12 13l8.4-6.2" />
       </svg>
@@ -49,7 +48,7 @@ export function OvhaiAppIcon({ name, size = 28, style }: OvhaiAppIconProps) {
   if (name === 'calendar') {
     // Month grid with its two hanging rings and a marked day.
     return (
-      <svg {...common}>
+      <svg aria-hidden="true" {...common}>
         <rect x="3.5" y="5" width="17" height="15" rx="2" />
         <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
         <rect x="7" y="12.5" width="3.4" height="3.2" rx="0.7" />
@@ -60,7 +59,7 @@ export function OvhaiAppIcon({ name, size = 28, style }: OvhaiAppIconProps) {
   if (name === 'drive') {
     // Folder with its tab.
     return (
-      <svg {...common}>
+      <svg aria-hidden="true" {...common}>
         <path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h3.8a1.5 1.5 0 0 1 1.2.6l1 1.4h7a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />
       </svg>
     );
@@ -69,7 +68,7 @@ export function OvhaiAppIcon({ name, size = 28, style }: OvhaiAppIconProps) {
   if (name === 'contacts') {
     // Contact card with a head and shoulders.
     return (
-      <svg {...common}>
+      <svg aria-hidden="true" {...common}>
         <rect x="5" y="3" width="14" height="18" rx="2" />
         <circle cx="12" cy="10" r="2.6" />
         <path d="M8 17.5c.6-2.2 2.1-3.3 4-3.3s3.4 1.1 4 3.3" />
@@ -79,7 +78,7 @@ export function OvhaiAppIcon({ name, size = 28, style }: OvhaiAppIconProps) {
 
   // visio — camera body with its lens barrel.
   return (
-    <svg {...common}>
+    <svg aria-hidden="true" {...common}>
       <rect x="3" y="6.5" width="12.5" height="11" rx="2" />
       <path d="M15.5 10.8 21 8v8l-5.5-2.8z" />
     </svg>

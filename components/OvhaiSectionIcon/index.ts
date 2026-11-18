@@ -1,1 +1,1 @@
-export { OvhaiSectionIcon, default } from './OvhaiSectionIcon';
+export { default, OvhaiSectionIcon } from './OvhaiSectionIcon';
