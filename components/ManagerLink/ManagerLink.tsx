@@ -28,18 +28,49 @@ const REGIONS = {
   eu: {
     flag: '🇪🇺',
     label: 'EU',
+    consoleHost: 'https://console.eu.ovhcloud.com',
     managerHost: 'https://manager.eu.ovhcloud.com',
     authHost: 'https://auth.eu.ovhcloud.com/signin/',
   },
   ca: {
     flag: '🇨🇦',
     label: 'CA',
+    consoleHost: 'https://console.ca.ovhcloud.com',
     managerHost: 'https://manager.ca.ovhcloud.com',
     authHost: 'https://auth.ca.ovhcloud.com/signin/',
   },
 } as const;
 
 type Region = keyof typeof REGIONS;
+
+/**
+ * Prefix the Console carried while it was a beta served under the manager host
+ * (`manager.<zone>.ovhcloud.com/beta/#/…`). Since the Console's general
+ * availability (2026-11-19) it is served at the root of its own host, and the
+ * old address redirects there; a route still written with the prefix is sent to
+ * the Console host with the prefix dropped.
+ */
+const BETA_PREFIX = /^\/beta(?=\/|$)/;
+
+/**
+ * Which interface a link opens, and the path on that interface's host.
+ *
+ * - `legacy-v6` → the former Control Panel (Manager v6) on `manager.<zone>`, for
+ *   a step the Console does not offer yet.
+ * - a `/beta/…` route → the Console, prefix dropped.
+ * - anything else → the Control Panel, until the guides' v6 routes have been
+ *   rewritten to Console routes; the default then becomes the Console.
+ */
+function resolveTarget(
+  to: string,
+  legacyV6: boolean,
+): { host: 'consoleHost' | 'managerHost'; path: string } {
+  if (legacyV6) return { host: 'managerHost', path: to };
+  if (BETA_PREFIX.test(to)) {
+    return { host: 'consoleHost', path: to.replace(BETA_PREFIX, '') || '/' };
+  }
+  return { host: 'managerHost', path: to };
+}
 
 // A region key isn't limited to "eu"/"ca" — callers with more than one
 // non-zone axis (e.g. <ApiLink>'s `sys-ks` brand, which combines a provider
@@ -96,6 +127,12 @@ interface ManagerLinkProps {
    * Ignored when `urls` is provided.
    */
   to?: string;
+  /**
+   * Open the former Control Panel (Manager v6) instead of the OVHcloud Console.
+   * Only for a step the Console does not offer yet; remove it once the Console
+   * has the feature. Written as a bare attribute: `<ManagerLink legacy-v6 to="/#/…">`.
+   */
+  'legacy-v6'?: boolean;
   /** Link text */
   children: React.ReactNode;
   /**
@@ -151,9 +188,11 @@ function buildManagerUrl(
   to: string,
   authFlow: boolean,
   lang: string,
+  legacyV6 = false,
 ): string {
   const r = REGIONS[region];
-  const target = `${r.managerHost}${to}`;
+  const { host, path } = resolveTarget(to, legacyV6);
+  const target = `${r[host]}${path}`;
   if (!authFlow) return target;
 
   const subsidiary =
@@ -178,6 +217,7 @@ function buildManagerUrl(
  */
 export function ManagerLink({
   to,
+  'legacy-v6': legacyV6 = false,
   children,
   authFlow = true,
   regions: regionsProp,
@@ -215,7 +255,7 @@ export function ManagerLink({
       const ovhRegions =
         (regionsProp as Region[] | undefined) ?? (['eu', 'ca'] as Region[]);
       for (const r of ovhRegions) {
-        builtUrls[r] = buildManagerUrl(r, to ?? '', authFlow, lang);
+        builtUrls[r] = buildManagerUrl(r, to ?? '', authFlow, lang, legacyV6);
       }
       regions = [...ovhRegions, ...sysKeys];
     } else {
@@ -332,12 +372,12 @@ export function ManagerLink({
       // `urls`).
       const url = urls
         ? (urls[r] ?? urls[regions[0]] ?? '')
-        : buildManagerUrl(r as Region, to ?? '', authFlow, lang);
+        : buildManagerUrl(r as Region, to ?? '', authFlow, lang, legacyV6);
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
     },
-    [setRegion, to, authFlow, lang, urls, regions],
+    [setRegion, to, authFlow, lang, legacyV6, urls, regions],
   );
 
   const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
@@ -429,14 +469,17 @@ export function ManagerLink({
               <span className="ovh-api-dropdown__option-desc">{desc}</span>
             )}
             <span className="ovh-api-dropdown__option-url">
-              {/* In `urls` mode show the actual target's host, not the
-                  manager host (e.g. api.eu.ovhcloud.com for API links). */}
+              {/* Show the host the link actually opens: the `urls` target
+                  (e.g. api.eu.ovhcloud.com for API links), else the Console
+                  or the Control Panel host, as resolveTarget decides. */}
               {
                 (
                   urls?.[r] ??
-                  (REGIONS as Record<string, { managerHost: string }>)[r]
-                    ?.managerHost ??
-                  ''
+                  (r in REGIONS
+                    ? REGIONS[r as Region][
+                        resolveTarget(to ?? '', legacyV6).host
+                      ]
+                    : '')
                 )
                   .replace(/^https:\/\//, '')
                   .split(/[/?#]/)[0]
@@ -458,7 +501,7 @@ export function ManagerLink({
   if (regions.length === 1 || (zoneChosen && !skipZoneShortcut)) {
     const href = urls
       ? (urls[region] ?? urls[regions[0]] ?? '')
-      : buildManagerUrl(region as Region, to ?? '', authFlow, lang);
+      : buildManagerUrl(region as Region, to ?? '', authFlow, lang, legacyV6);
     return (
       <a
         className="ovh-manager-link__trigger"
