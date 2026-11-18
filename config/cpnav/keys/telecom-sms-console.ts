@@ -10,7 +10,7 @@ export const telecomSmsConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/sms',
+      route: '/#/web-cloud/sms',
       text: {
         en: {
           product: 'SMS',

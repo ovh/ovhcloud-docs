@@ -9,7 +9,7 @@ export const billingOrdersConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/orders',
+      route: '/#/customer/orders',
       text: {
         en: { product: 'My orders', crumbs: ['My orders'] },
         fr: { product: 'Mes commandes', crumbs: ['Mes commandes'] },

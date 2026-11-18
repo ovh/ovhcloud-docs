@@ -11,8 +11,13 @@
 - **tabs:** keep the clicked tab row anchored while revealed images load (#1292)
 - **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
 
+### Maintenance
+
+#### EU
+- **console:** mark Console links with the console attribute, drop /beta (#1295)
+
 ### Documentation
-- EU: 372 guides across de, en, es, fr, it, pl, pt
+- EU: 1499 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.18.1
 

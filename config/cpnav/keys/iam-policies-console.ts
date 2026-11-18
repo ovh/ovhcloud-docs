@@ -11,7 +11,7 @@ export const iamPoliciesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/iam/policies',
+      route: '/#/customer/iam/policies',
       text: {
         en: { product: 'My policies', crumbs: ['Policies', 'My policies'] },
         fr: { product: 'Mes politiques', crumbs: ['Politiques', 'Mes politiques'] },

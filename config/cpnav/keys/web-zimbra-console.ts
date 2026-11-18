@@ -8,7 +8,7 @@ export const webZimbraConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/email/zimbra',
+      route: '/#/web-cloud/email/zimbra',
       text: {
         en: { product: 'Zimbra', crumbs: ['Emails', 'Zimbra'] },
         fr: { product: 'Zimbra', crumbs: ['Emails', 'Zimbra'] },

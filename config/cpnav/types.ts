@@ -118,7 +118,8 @@ export interface CpNavKey {
   universe: UniverseId;
   /**
    * The destination is in the Console (v8), not the Control Panel, so the block is
-   * headed with `consoleHeading`. Only for products that exist only in the Console,
+   * headed with `consoleHeading` and its direct links open the Console host
+   * (`<ManagerLink console>`). Only for products that exist only in the Console,
    * until the keys are repointed at its GA.
    */
   console?: true;

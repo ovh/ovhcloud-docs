@@ -9,7 +9,7 @@ export const billingPaymentMethodsConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/payment-methods',
+      route: '/#/customer/payment-methods',
       text: {
         en: { product: 'My payment methods', crumbs: ['My payment methods'] },
         fr: {

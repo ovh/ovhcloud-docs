@@ -8,7 +8,7 @@ export const webHostingConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/hosting',
+      route: '/#/web-cloud/hosting',
       text: {
         en: {
           product: 'Web hosting',

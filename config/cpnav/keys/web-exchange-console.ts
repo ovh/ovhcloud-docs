@@ -8,7 +8,7 @@ export const webExchangeConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/email/exchange',
+      route: '/#/web-cloud/email/exchange',
       text: {
         en: { product: 'Exchange', crumbs: ['Emails', 'Exchange'], step: 'Select your platform' },
         fr: { product: 'Exchange', crumbs: ['Emails', 'Exchange'], step: 'Sélectionnez votre plateforme' },

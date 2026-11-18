@@ -9,7 +9,7 @@ export const accountSecurityConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/account/security-and-login/login',
+      route: '/#/customer/account/security-and-login/login',
       text: {
         en: {
           product: 'Sign-in and 2FA',
