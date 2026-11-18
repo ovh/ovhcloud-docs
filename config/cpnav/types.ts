@@ -21,6 +21,7 @@ import type { Locale } from '../shared';
  * `identity-access-management` is the Console's (v8) side-menu group for IAM, shown under every
  * universe: the Console has no IAM entry in its top bar.
  * `observability` is the Console's (v8) side-menu group for Logs Data Platform, shown the same way.
+ * `security` is the Console's (v8) side-menu group for Key & Secret Manager, shown the same way.
  */
 export type UniverseId =
   | 'web-cloud'
@@ -33,6 +34,7 @@ export type UniverseId =
   | 'identity-security-operations'
   | 'identity-access-management'
   | 'observability'
+  | 'security'
   | 'account-menu'
   | 'console-account-menu'
   | 'console-left-menu'
