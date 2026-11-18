@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026.11.18.2
+
+### Fixes
+
+#### EU
+- **telecom:** align the Console guides with the Console code (#1294)
+
+#### All regions
+- **tabs:** keep the clicked tab row anchored while revealed images load (#1292)
+- **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
+
+### Documentation
+- EU: 372 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18.1
 
 ### Features
