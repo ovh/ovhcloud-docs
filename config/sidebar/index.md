@@ -2282,6 +2282,13 @@
             + [Web Cloud Databases EOS and EOL announcements](web-cloud/databases/db-eos-eol)
             + [Managed databases EOL policy](web-cloud/databases/db-managed-db-lifecycle-policy)
             + [Reversibility Policy for the Managed Database System for Web Hosting product](account-and-service-management/reversibility/db-web-hosting-reversibility)
+    + [OVHai Workspace](products/web-cloud-ovhai-workspace){landing=web-cloud/ovhai-workspace/landing-page-ovhai-workspace}
+        + [Account management](web-cloud/ovhai-workspace/account){label=Account management}
+        + [Email](web-cloud/ovhai-workspace/email){label=Email}
+        + [Calendar](web-cloud/ovhai-workspace/calendar){label=Calendar}
+        + [Drive](web-cloud/ovhai-workspace/drive){label=Drive}
+        + [Visio](web-cloud/ovhai-workspace/visio){label=Visio}
+        + [Contacts](web-cloud/ovhai-workspace/contacts){label=Contacts}
     + [Email and Collaborative Solutions](products/web-cloud-email-collaborative-solutions)
         + [Common email features](web-cloud-email-collaborative-solutions-common-email-features)
             + [Managing the security policy of an email service](web-cloud/email-and-collaborative-solutions/common-email-features/security-policy)
