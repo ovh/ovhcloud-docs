@@ -8,16 +8,26 @@
 // a move changes the canonical spelling of every multi-key token containing the key.
 
 import { accountContacts } from './keys/account-contacts';
+import { accountContactsConsole } from './keys/account-contacts-console';
 import { accountDashboard } from './keys/account-dashboard';
+import { accountCarbonConsole } from './keys/account-carbon-console';
 import { accountMessages } from './keys/account-messages';
+import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
+import { accountProfileConsole } from './keys/account-profile-console';
 import { accountSecurity } from './keys/account-security';
+import { accountSecurityConsole } from './keys/account-security-console';
+import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
+import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
 import { baremetalVps } from './keys/baremetal-vps';
 import { billingInvoices } from './keys/billing-invoices';
+import { billingInvoicesConsole } from './keys/billing-invoices-console';
 import { billingOrders } from './keys/billing-orders';
+import { billingOrdersConsole } from './keys/billing-orders-console';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
+import { billingPaymentMethodsConsole } from './keys/billing-payment-methods-console';
 import { billingServices } from './keys/billing-services';
 import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
@@ -45,6 +55,7 @@ import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterpris
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
+import { privatecloudVmwareVsphereConsole } from './keys/privatecloud-vmware-vsphere-console';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
@@ -182,6 +193,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-microsoft-365': webMicrosoft365,
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
+  'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
@@ -193,6 +205,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
+  'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
@@ -306,13 +319,22 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.
   'account-dashboard': accountDashboard,
+  'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
+  'account-profile-console': accountProfileConsole,
   'account-security': accountSecurity,
+  'account-security-console': accountSecurityConsole,
+  'account-security-ip-console': accountSecurityIpConsole,
   'account-contacts': accountContacts,
+  'account-contacts-console': accountContactsConsole,
   'account-messages': accountMessages,
+  'account-messages-console': accountMessagesConsole,
   'billing-orders': billingOrders,
+  'billing-orders-console': billingOrdersConsole,
   'billing-invoices': billingInvoices,
+  'billing-invoices-console': billingInvoicesConsole,
   'billing-payment-methods': billingPaymentMethods,
+  'billing-payment-methods-console': billingPaymentMethodsConsole,
   'billing-services': billingServices,
   'billing-services-console': billingServicesConsole,
 };
