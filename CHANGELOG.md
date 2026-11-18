@@ -5,6 +5,7 @@
 ### Fixes
 
 #### EU
+- **iam:** link all IAM pages with Console menu route (#1298)
 - **cpnav:** point the migrated VPS, LDP, KMS and Secret Manager guides at the Console
 - **telecom:** align the Console guides with the Console code (#1294)
 
@@ -16,6 +17,9 @@
 
 #### EU
 - **console:** mark Console links with the console attribute, drop /beta (#1295)
+
+#### All regions
+- **sidebar:** move Dedicated Servers Backup under Configuration
 
 ### Documentation
 - EU: 1644 guides across de, en, es, fr, it, pl, pt
