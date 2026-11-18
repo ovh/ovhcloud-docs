@@ -120,6 +120,7 @@ import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-f
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
+import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
 import { telecomSmsConsole } from './keys/telecom-sms-console';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
@@ -288,6 +289,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'telecom-sms-console': telecomSmsConsole,
   'telecom-xdsl-fttx': telecomXdslFttx,
   'telecom-otb': telecomOtb,
+  'telecom-otb-console': telecomOtbConsole,
   // --- Identity, Security & Operations ------------------------------------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
