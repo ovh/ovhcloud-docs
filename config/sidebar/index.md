@@ -2891,9 +2891,9 @@
             + [Tutorial - Using Zonemaster](web-cloud/domains/dns-zonemaster)
     + [Global Load Balancer](products/network-global-load-balancer)
         + [Getting started](network-global-load-balancer-getting-started)
-            + [Get started in the Console](network/global-load-balancer/global-load-balancer-getting-started)
+            + [Getting started with Global Load Balancer in the Console](network/global-load-balancer/global-load-balancer-getting-started){label=Get started in the Console}
         + [Key concepts](network-global-load-balancer-key-concepts)
-            + [Routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies)
+            + [Global Load Balancer routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies){label=Routing policies and health checks}
     + [IP Addresses](products/network-ip-addresses)
         + [Additional IP](network-additional-ip)
             + [Overview](network/ip-addresses/additional-ip/overview)
