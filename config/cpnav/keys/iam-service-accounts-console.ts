@@ -10,7 +10,7 @@ export const iamServiceAccountsConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/iam/identities/service-accounts',
+      route: '/#/iam/identities/service-accounts',
       text: {
         en: {
           product: 'Service account',

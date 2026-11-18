@@ -9,7 +9,7 @@ export const accountMessagesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/communications',
+      route: '/#/customer/communications',
       text: {
         en: { product: 'My messages', crumbs: ['My messages'] },
         fr: { product: 'Mes communications', crumbs: ['Mes communications'] },

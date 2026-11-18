@@ -9,7 +9,7 @@ export const accountProfileConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/account/profile',
+      route: '/#/customer/account/profile',
       text: {
         en: { product: 'Profile', crumbs: ['Profile'] },
         fr: { product: 'Profil', crumbs: ['Profil'] },

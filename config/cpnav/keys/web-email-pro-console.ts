@@ -10,7 +10,7 @@ export const webEmailProConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/email/exchange',
+      route: '/#/web-cloud/email/exchange',
       text: {
         en: { product: 'Email Pro', crumbs: ['Emails', 'Exchange'], step: 'Select your platform' },
         fr: { product: 'Email Pro', crumbs: ['Emails', 'Exchange'], step: 'Sélectionnez votre plateforme' },
