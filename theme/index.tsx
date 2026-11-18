@@ -6,7 +6,7 @@ import {
   ZoneProvider,
   ZoneSwitcher,
 } from '@components/Zone';
-import { useDark, useFrontmatter } from '@rspress/core/runtime';
+import { useFrontmatter } from '@rspress/core/runtime';
 import {
   Layout as BasicLayout,
   DocLayout as OriginalDocLayout,
@@ -24,6 +24,7 @@ import { PageFeedback } from 'theme/components/PageFeedback';
 import { SEOHead } from 'theme/components/SEOHead';
 import { Sidebar } from 'theme/components/Sidebar';
 import { SiteFooter } from 'theme/components/SiteFooter';
+import { HubRegionProvider } from 'theme/hooks/useHubRegion';
 import { initSentry } from 'theme/sentry';
 
 // Lazy-loaded non-critical components (separate chunks, loaded after hydration)
@@ -113,58 +114,52 @@ const HomeLayout = (props: React.ComponentProps<typeof CustomHomeLayout>) =>
   );
 
 const Layout = (props: React.ComponentProps<typeof BasicLayout>) => {
-  const isDark = useDark();
-
   useEffect(() => {
     initSentry();
   }, []);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (!root) {
-      return;
-    }
-    if (isDark) {
-      root.classList.add('tw-dark');
-    } else {
-      root.classList.remove('tw-dark');
-    }
-  }, [isDark]);
+  // Dark mode: style against `html.dark`, which Rspress sets from an inline
+  // script before first paint (see styles/tokens.css). No class mirroring here.
 
   // Pass DocLayout explicitly to BasicLayout so it uses our custom one
   return (
-    <ZoneProvider>
-      <RegionProvider>
-        <AIChatbotDrawerProvider>
-          {__CONSENT_MANAGER__ && <AnalyticsBootstrap />}
-          <SEOHead />
-          <BasicLayout
-            {...props}
-            beforeDocContent={
-              <>
-                {/* ZoneBanner sits at the top of the document column so it
+    // HubRegionProvider first: the zone reads `?from` from it.
+    <HubRegionProvider>
+      <ZoneProvider>
+        <RegionProvider>
+          <AIChatbotDrawerProvider>
+            {__CONSENT_MANAGER__ && <AnalyticsBootstrap />}
+            <SEOHead />
+            <BasicLayout
+              {...props}
+              beforeDocContent={
+                <>
+                  {/* Target of the navbar's "Skip to content" link. */}
+                  <span id="ovh-content" tabIndex={-1} />
+                  {/* ZoneBanner sits at the top of the document column so it
                     falls naturally below whatever topbar the OVHcloud chrome
                     renders above the docs theme. Mounting it here (rather
                     than as a sticky top-level node) avoids the banner
                     visually covering the topbar at page load. */}
-                <ZoneBanner />
-                <ZoneNotice />
-                <Breadcrumbs />
-              </>
-            }
-            beforeDocFooter={__PAGE_FEEDBACK__ ? <PageFeedback /> : null}
-            afterDoc={<SiteFooter />}
-          />
-          <Suspense fallback={null}>
-            <LazyAIChatbotDrawer />
-          </Suspense>
-          <Suspense fallback={null}>
-            <LazySurveyWidget />
-          </Suspense>
-          <ZoneSwitcher />
-        </AIChatbotDrawerProvider>
-      </RegionProvider>
-    </ZoneProvider>
+                  <ZoneBanner />
+                  <ZoneNotice />
+                  <Breadcrumbs />
+                </>
+              }
+              beforeDocFooter={__PAGE_FEEDBACK__ ? <PageFeedback /> : null}
+              afterDoc={<SiteFooter />}
+            />
+            <Suspense fallback={null}>
+              <LazyAIChatbotDrawer />
+            </Suspense>
+            <Suspense fallback={null}>
+              <LazySurveyWidget />
+            </Suspense>
+            <ZoneSwitcher />
+          </AIChatbotDrawerProvider>
+        </RegionProvider>
+      </ZoneProvider>
+    </HubRegionProvider>
   );
 };
 
@@ -175,10 +170,13 @@ export * from '@rspress/core/theme-original';
 const LlmsCopyButton = () => null;
 
 export { LastUpdated } from 'theme/components/LastUpdated';
-export { NavHamburger } from 'theme/components/NavHamburger';
 // Restore v1-style Tabs sync: derive a groupId from tab labels so selection
 // persists across blocks and navigation (Rspress v2 only syncs with a groupId).
 export { Tab, Tabs } from 'theme/components/SyncedTabs';
+// The light / dark state behind ThemeContext: Rspress's ClientApp imports it
+// from `@rspress/core/theme` (this file). Ours keeps an explicit choice —
+// system, light or dark — as picked (theme/hooks/useAppearance.ts).
+export { useThemeState } from 'theme/hooks/useAppearance';
 export {
   DocLayout,
   EditLink,

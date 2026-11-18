@@ -19,6 +19,7 @@ import { billingInvoices } from './keys/billing-invoices';
 import { billingOrders } from './keys/billing-orders';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
 import { billingServices } from './keys/billing-services';
+import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
 import { iamIdentitiesConsole } from './keys/iam-identities-console';
 import { iamPolicies } from './keys/iam-policies';
@@ -31,6 +32,7 @@ import { iamTagManagement } from './keys/iam-tag-management';
 import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
+import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
@@ -48,6 +50,7 @@ import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
+import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
 import { privatecloudVmwareVsphereConsole } from './keys/privatecloud-vmware-vsphere-console';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
@@ -85,6 +88,7 @@ import { publiccloudInstanceBackupConsole } from './keys/publiccloud-instance-ba
 import { publiccloudInstances } from './keys/publiccloud-instances';
 import { publiccloudInstancesConsole } from './keys/publiccloud-instances-console';
 import { publiccloudKubernetes } from './keys/publiccloud-kubernetes';
+import { publiccloudKubernetesConsole } from './keys/publiccloud-kubernetes-console';
 import { publiccloudLoadBalancer } from './keys/publiccloud-load-balancer';
 import { publiccloudLoadBalancerConsole } from './keys/publiccloud-load-balancer-console';
 import { publiccloudLogs } from './keys/publiccloud-logs';
@@ -92,6 +96,7 @@ import { publiccloudLogsConsole } from './keys/publiccloud-logs-console';
 import { publiccloudObjectStorage } from './keys/publiccloud-object-storage';
 import { publiccloudObjectStorageConsole } from './keys/publiccloud-object-storage-console';
 import { publiccloudPrivateRegistry } from './keys/publiccloud-private-registry';
+import { publiccloudPrivateRegistryConsole } from './keys/publiccloud-private-registry-console';
 import { publiccloudProjectSettings } from './keys/publiccloud-project-settings';
 import { publiccloudProjectSettingsConsole } from './keys/publiccloud-project-settings-console';
 import { publiccloudProjects } from './keys/publiccloud-projects';
@@ -105,6 +110,7 @@ import { publiccloudQuantumQpusConsole } from './keys/publiccloud-quantum-qpus-c
 import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudQuotaRegionsConsole } from './keys/publiccloud-quota-regions-console';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
+import { publiccloudRancherConsole } from './keys/publiccloud-rancher-console';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
 import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
@@ -122,20 +128,31 @@ import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-f
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
+import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
+import { telecomSmsConsole } from './keys/telecom-sms-console';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
+import { telecomVoipFaxConsole } from './keys/telecom-voip-fax-console';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
+import { telecomXdslFttxConsole } from './keys/telecom-xdsl-fttx-console';
 import { webCloudDatabases } from './keys/web-cloud-databases';
+import { webCloudDatabasesConsole } from './keys/web-cloud-databases-console';
 import { webDnsZoneOrder } from './keys/web-dns-zone-order';
+import { webDnsZoneOrderConsole } from './keys/web-dns-zone-order-console';
 import { webDnsZones } from './keys/web-dns-zones';
+import { webDnsZonesConsole } from './keys/web-dns-zones-console';
 import { webDomainDnsZone } from './keys/web-domain-dns-zone';
+import { webDomainDnsZoneConsole } from './keys/web-domain-dns-zone-console';
 import { webDomains } from './keys/web-domains';
+import { webDomainsConsole } from './keys/web-domains-console';
 import { webEmailPro } from './keys/web-email-pro';
 import { webExchange } from './keys/web-exchange';
 import { webHosting } from './keys/web-hosting';
+import { webHostingConsole } from './keys/web-hosting-console';
 import { webMicrosoft365 } from './keys/web-microsoft-365';
 import { webMxPlan } from './keys/web-mx-plan';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
+import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
 import { webWebsiteView } from './keys/web-website-view';
@@ -148,17 +165,24 @@ import type { CpNavKey } from './types';
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Web Cloud ---------------------------------------------------------------------
   'web-domains': webDomains,
+  'web-domains-console': webDomainsConsole,
   'web-domain-dns-zone': webDomainDnsZone,
+  'web-domain-dns-zone-console': webDomainDnsZoneConsole,
   'web-dns-zones': webDnsZones,
+  'web-dns-zones-console': webDnsZonesConsole,
   'web-dns-zone-order': webDnsZoneOrder,
+  'web-dns-zone-order-console': webDnsZoneOrderConsole,
   'web-ongoing-operations': webOngoingOperations,
+  'web-ongoing-operations-console': webOngoingOperationsConsole,
   'web-hosting': webHosting,
+  'web-hosting-console': webHostingConsole,
   'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
   'web-video-center-console': webVideoCenterConsole,
   'web-cloud-databases': webCloudDatabases,
+  'web-cloud-databases-console': webCloudDatabasesConsole,
   'web-zimbra': webZimbra,
   'web-email-pro': webEmailPro,
   'web-mx-plan': webMxPlan,
@@ -168,6 +192,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
   'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
+  'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
@@ -238,8 +263,11 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-gateway-console': publiccloudGatewayConsole,
   'publiccloud-subnet-console': publiccloudSubnetConsole,
   'publiccloud-rancher': publiccloudRancher,
+  'publiccloud-rancher-console': publiccloudRancherConsole,
   'publiccloud-kubernetes': publiccloudKubernetes,
+  'publiccloud-kubernetes-console': publiccloudKubernetesConsole,
   'publiccloud-private-registry': publiccloudPrivateRegistry,
+  'publiccloud-private-registry-console': publiccloudPrivateRegistryConsole,
   'publiccloud-billing': publiccloudBilling,
   'publiccloud-billing-console': publiccloudBillingConsole,
   'publiccloud-contacts-rights': publiccloudContactsRights,
@@ -262,12 +290,17 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-public-ip-console': networkPublicIpConsole,
   'network-load-balancer': networkLoadBalancer,
   'network-load-balancer-console': networkLoadBalancerConsole,
+  'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
+  'telecom-voip-fax-console': telecomVoipFaxConsole,
   'telecom-sms': telecomSms,
+  'telecom-sms-console': telecomSmsConsole,
   'telecom-xdsl-fttx': telecomXdslFttx,
+  'telecom-xdsl-fttx-console': telecomXdslFttxConsole,
   'telecom-otb': telecomOtb,
+  'telecom-otb-console': telecomOtbConsole,
   // --- Identity, Security & Operations ------------------------------------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
@@ -297,6 +330,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'billing-invoices': billingInvoices,
   'billing-payment-methods': billingPaymentMethods,
   'billing-services': billingServices,
+  'billing-services-console': billingServicesConsole,
 };
 
 /**

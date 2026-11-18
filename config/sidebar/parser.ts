@@ -358,6 +358,9 @@ export function parseIndexMd(
       if (parsed.kind === 'universe') {
         node = {
           text: i18nKey,
+          // Untranslated key, passed through by Rspress as `data-context`:
+          // the theme maps it to the universe's icon (Sidebar/icons.tsx).
+          context: i18nKey,
           collapsed: true,
           items: items as SidebarItem[],
         };
