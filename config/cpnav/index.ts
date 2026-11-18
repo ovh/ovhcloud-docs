@@ -31,10 +31,17 @@ import { billingPaymentMethodsConsole } from './keys/billing-payment-methods-con
 import { billingServices } from './keys/billing-services';
 import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
+import { iamIdentitiesConsole } from './keys/iam-identities-console';
 import { iamPolicies } from './keys/iam-policies';
+import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
+import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
+import { iamTagManagement } from './keys/iam-tag-management';
+import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
+import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
 import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -307,12 +314,19 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
   'iam-identities': iamIdentities,
+  'iam-identities-console': iamIdentitiesConsole,
   'iam-saml-sso': iamSamlSso,
+  'iam-saml-sso-console': iamSamlSsoConsole,
   'iam-service-accounts': iamServiceAccounts,
+  'iam-service-accounts-console': iamServiceAccountsConsole,
   'iam-policies': iamPolicies,
+  'iam-policies-console': iamPoliciesConsole,
+  'iam-tag-management': iamTagManagement,
+  'iam-tag-management-console': iamTagManagementConsole,
   'security-kms': securityKms,
   'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
+  'logs-data-platform-console': logsDataPlatformConsole,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.
