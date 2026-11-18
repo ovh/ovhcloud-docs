@@ -126,6 +126,7 @@ import { telecomSmsConsole } from './keys/telecom-sms-console';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
 import { telecomVoipFaxConsole } from './keys/telecom-voip-fax-console';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
+import { telecomXdslFttxConsole } from './keys/telecom-xdsl-fttx-console';
 import { webCloudDatabases } from './keys/web-cloud-databases';
 import { webCloudDatabasesConsole } from './keys/web-cloud-databases-console';
 import { webDnsZoneOrder } from './keys/web-dns-zone-order';
@@ -288,6 +289,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'telecom-sms': telecomSms,
   'telecom-sms-console': telecomSmsConsole,
   'telecom-xdsl-fttx': telecomXdslFttx,
+  'telecom-xdsl-fttx-console': telecomXdslFttxConsole,
   'telecom-otb': telecomOtb,
   'telecom-otb-console': telecomOtbConsole,
   // --- Identity, Security & Operations ------------------------------------------------
