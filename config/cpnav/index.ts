@@ -19,6 +19,7 @@ import { billingInvoices } from './keys/billing-invoices';
 import { billingOrders } from './keys/billing-orders';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
 import { billingServices } from './keys/billing-services';
+import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
 import { iamPolicies } from './keys/iam-policies';
 import { iamSamlSso } from './keys/iam-saml-sso';
@@ -119,20 +120,31 @@ import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-f
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
 import { telecomOtb } from './keys/telecom-otb';
+import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
+import { telecomSmsConsole } from './keys/telecom-sms-console';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
+import { telecomVoipFaxConsole } from './keys/telecom-voip-fax-console';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
+import { telecomXdslFttxConsole } from './keys/telecom-xdsl-fttx-console';
 import { webCloudDatabases } from './keys/web-cloud-databases';
+import { webCloudDatabasesConsole } from './keys/web-cloud-databases-console';
 import { webDnsZoneOrder } from './keys/web-dns-zone-order';
+import { webDnsZoneOrderConsole } from './keys/web-dns-zone-order-console';
 import { webDnsZones } from './keys/web-dns-zones';
+import { webDnsZonesConsole } from './keys/web-dns-zones-console';
 import { webDomainDnsZone } from './keys/web-domain-dns-zone';
+import { webDomainDnsZoneConsole } from './keys/web-domain-dns-zone-console';
 import { webDomains } from './keys/web-domains';
+import { webDomainsConsole } from './keys/web-domains-console';
 import { webEmailPro } from './keys/web-email-pro';
 import { webExchange } from './keys/web-exchange';
 import { webHosting } from './keys/web-hosting';
+import { webHostingConsole } from './keys/web-hosting-console';
 import { webMicrosoft365 } from './keys/web-microsoft-365';
 import { webMxPlan } from './keys/web-mx-plan';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
+import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
 import { webWebsiteView } from './keys/web-website-view';
@@ -145,17 +157,24 @@ import type { CpNavKey } from './types';
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Web Cloud ---------------------------------------------------------------------
   'web-domains': webDomains,
+  'web-domains-console': webDomainsConsole,
   'web-domain-dns-zone': webDomainDnsZone,
+  'web-domain-dns-zone-console': webDomainDnsZoneConsole,
   'web-dns-zones': webDnsZones,
+  'web-dns-zones-console': webDnsZonesConsole,
   'web-dns-zone-order': webDnsZoneOrder,
+  'web-dns-zone-order-console': webDnsZoneOrderConsole,
   'web-ongoing-operations': webOngoingOperations,
+  'web-ongoing-operations-console': webOngoingOperationsConsole,
   'web-hosting': webHosting,
+  'web-hosting-console': webHostingConsole,
   'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
   'web-video-center-console': webVideoCenterConsole,
   'web-cloud-databases': webCloudDatabases,
+  'web-cloud-databases-console': webCloudDatabasesConsole,
   'web-zimbra': webZimbra,
   'web-email-pro': webEmailPro,
   'web-mx-plan': webMxPlan,
@@ -266,9 +285,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-security-dashboard': networkSecurityDashboard,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
+  'telecom-voip-fax-console': telecomVoipFaxConsole,
   'telecom-sms': telecomSms,
+  'telecom-sms-console': telecomSmsConsole,
   'telecom-xdsl-fttx': telecomXdslFttx,
+  'telecom-xdsl-fttx-console': telecomXdslFttxConsole,
   'telecom-otb': telecomOtb,
+  'telecom-otb-console': telecomOtbConsole,
   // --- Identity, Security & Operations ------------------------------------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
@@ -291,6 +314,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'billing-invoices': billingInvoices,
   'billing-payment-methods': billingPaymentMethods,
   'billing-services': billingServices,
+  'billing-services-console': billingServicesConsole,
 };
 
 /**

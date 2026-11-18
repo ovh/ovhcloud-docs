@@ -2574,7 +2574,7 @@
             + [Time2Chat, la messagerie conversationnelle par SMS pour les entreprises](web-cloud/messaging/sms/time-2-chat)
         + [Configuration](web-cloud-messaging-sms-configuration)
             + [Sending SMS messages](web-cloud-messaging-sms-configuration-sending-sms-messages)
-                + [Sending SMS messages via the OVHcloud Control Panel](web-cloud/messaging/sms/send-sms-control-panel)
+                + [Sending SMS messages via the OVHcloud Console](web-cloud/messaging/sms/send-sms-control-panel)
                 + [Sending SMS messages via an email address](web-cloud/messaging/sms/send-sms-email)
                 + [Sending SMS messages with the OVHcloud API in PHP](web-cloud/messaging/sms/send-sms-api-php)
                 + [Sending SMS messages with the OVHcloud API in Node.js](web-cloud/messaging/sms/send-sms-api-nodejs)
@@ -2891,9 +2891,9 @@
             + [Tutorial - Using Zonemaster](web-cloud/domains/dns-zonemaster)
     + [Global Load Balancer](products/network-global-load-balancer)
         + [Getting started](network-global-load-balancer-getting-started)
-            + [Global Load Balancer - Get started in the Console](network/global-load-balancer/global-load-balancer-getting-started)
+            + [Getting started with Global Load Balancer in the Console](network/global-load-balancer/global-load-balancer-getting-started){label=Get started in the Console}
         + [Key concepts](network-global-load-balancer-key-concepts)
-            + [Global Load Balancer - Routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies)
+            + [Global Load Balancer routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies){label=Routing policies and health checks}
     + [IP Addresses](products/network-ip-addresses)
         + [Additional IP](network-additional-ip)
             + [Overview](network/ip-addresses/additional-ip/overview)
