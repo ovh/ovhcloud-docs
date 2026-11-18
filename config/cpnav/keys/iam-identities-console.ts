@@ -10,7 +10,7 @@ export const iamIdentitiesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/iam/identities',
+      route: '/beta/#/customer/iam/identities',
       text: {
         en: { product: 'Local users', crumbs: ['Identities', 'Local users'] },
         fr: {

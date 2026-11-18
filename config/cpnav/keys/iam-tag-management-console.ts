@@ -9,7 +9,7 @@ export const iamTagManagementConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/iam/tag-manager',
+      route: '/beta/#/customer/iam/tag-manager',
       text: {
         en: { product: 'Tag manager', crumbs: ['Tag manager'] },
         fr: { product: 'Gestionnaire de tags', crumbs: ['Gestionnaire de tags'] },
