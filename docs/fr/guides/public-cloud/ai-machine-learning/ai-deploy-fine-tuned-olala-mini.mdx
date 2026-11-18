@@ -1,0 +1,328 @@
+---
+title: AI Deploy - Tutoriel - Déployer un modèle Olala Mini 7A1B fine-tuné
+description: Découvrez comment déployer un modèle Olala Mini 7A1B fine-tuné avec AI Deploy et traduire des textes via son API de traduction, à l'aide d'une image Docker prête à l'emploi
+lastUpdated: 2026-11-19
+---
+
+:::info
+AI Deploy est couvert par les **[Conditions particulières OVHcloud Public Cloud](https://storage.gra.cloud.ovh.net/v1/AUTH_325716a587c64897acbef9a4a4726e38/contracts/d2a208c-Conditions_particulieres_OVH_Stack-WE-9.0.pdf)**.
+
+:::
+
+## Introduction
+
+**Olala Mini 7A1B** est un modèle de langage compact que vous pouvez fine-tuner sur vos propres données avec AI Training. Une fois votre modèle fine-tuné, **AI Deploy** vous permet de le servir sous forme d'endpoint HTTPS, afin que vos applications puissent lui envoyer des requêtes.
+
+Ce tutoriel vous montre comment déployer le modèle fine-tuné produit par le guide « [AI Training - Tutoriel - Fine-tuner Olala Mini 7A1B avec LoRA](/guides/public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini) », à l'aide d'une image Docker prête à l'emploi. Vous n'avez besoin d'écrire aucun code ni de construire aucune image : le modèle reste dans votre bucket Object Storage et l'app le charge au démarrage.
+
+L'app expose une **API de traduction** : vous envoyez le texte et les langues à la route `/v1/translate`, et l'app renvoie la traduction. L'app construit elle-même le prompt, dans le format exact utilisé pour le fine-tuning, de sorte que le modèle ne fait que traduire : une question ou une instruction présente dans votre texte est traduite, pas traitée.
+
+Pour d'autres usages, par exemple pour tester le modèle comme assistant conversationnel, vous pouvez aussi ouvrir les routes de chat **compatibles OpenAI** (consultez la section « [Utiliser les routes de chat](#utiliser-les-routes-de-chat) »).
+
+:::warning
+Cette app est destinée à **tester et évaluer votre modèle fine-tuné**, et non à le servir en production. Consultez la section « [Limites](#limites) » ci-dessous.
+
+:::
+
+### Limites
+
+L'app utilise le serveur d'inférence de la bibliothèque Hugging Face Transformers (`transformers serve`), adapté à Olala Mini 7A1B. Il est simple à déployer et prend en charge le modèle tel quel, mais il n'est pas conçu pour un trafic de production :
+
+- **Une requête à la fois** : chaque réplica traite les requêtes une par une. Lorsque plusieurs requêtes arrivent en même temps, elles attendent dans une file, et le temps de réponse augmente avec le nombre de requêtes en attente. Ajouter des réplicas permet de servir davantage de requêtes en parallèle, mais chaque réplica utilise un GPU.
+- **Vitesse de génération limitée** : le modèle génère les tokens plus lentement qu'avec un moteur d'inférence dédié comme vLLM ou SGLang, et un GPU plus puissant ne l'améliore que légèrement.
+- **Pas de limite de file ni de délai d'expiration des requêtes** : le serveur ne rejette pas les requêtes lorsqu'il est surchargé.
+- **Traduction uniquement, mais sans garantie** : la route `/v1/translate` utilise toujours le format du fine-tuning, et le modèle traduit les questions et les instructions au lieu d'y répondre. Comme avec tout modèle de langage, un texte inhabituel peut tout de même produire un résultat inattendu, par exemple un texte qui ressemble lui-même à une demande de traduction. Vérifiez les traductions de vos propres textes avant de vous y fier.
+- **Terminologie** : le champ `terminology_mapping` est transmis au modèle, mais les jeux de données du tutoriel de fine-tuning ne contiennent aucun exemple de terminologie : le modèle n'applique donc pas toujours vos termes.
+
+Utilisez-la pour vérifier la qualité de votre modèle, le comparer avec le modèle de base ou construire une démo. Pour un usage en production, un moteur d'inférence dédié est nécessaire.
+
+L'ensemble du workflow : le modèle fine-tuné écrit par AI Training dans votre bucket est servi par l'app AI Deploy :
+
+<img className="thumbnail" alt="Architecture : le modèle de base sur Hugging Face, les images dans un registre public, les buckets compatibles S3, le job AI Training et l'app AI Deploy" src="/images/guides/public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini/olala-mini-finetuning-aitraining-aideploy.jpg" loading="lazy" />
+
+## Prérequis
+
+Avant de commencer, vérifiez que vous disposez des éléments suivants :
+
+- Un projet Public Cloud créé.
+- La CLI ovhai installée sur votre système ([ce guide](/guides/public-cloud/ai-machine-learning/ai-cli-install-client) explique comment l'installer).
+- Un modèle Olala Mini 7A1B fine-tuné. Suivez d'abord le guide « [AI Training - Tutoriel - Fine-tuner Olala Mini 7A1B avec LoRA](/guides/public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini) » : à la fin du job, le modèle se trouve dans le dossier `finetuned-mt-en-fr-ecb/merged/` de votre bucket Object Storage `mt-sft-out` compatible S3<sup>1</sup> (à côté du modèle de base, dans `base/`), dans la région **GRA**. Dans les commandes de ce tutoriel, remplacez `<ALIAS>` par l'alias de votre datastore S3, comme dans le tutoriel AI Training.
+- L'accès aux GPU **L4** (ou à des GPU NVIDIA plus puissants) dans votre projet. Le modèle ne fonctionne pas sur CPU.
+
+## En pratique
+
+Suivez ces étapes pour déployer et utiliser votre modèle :
+
+- [Vérifier votre modèle dans Object Storage](#vérifier-votre-modèle-dans-object-storage)
+- [Déployer votre app](#déployer-votre-app)
+- [Suivre le déploiement](#suivre-le-déploiement)
+- [Créer un token](#créer-un-token)
+- [Interroger votre modèle](#interroger-votre-modèle)
+- [Gérer votre app](#gérer-votre-app)
+
+### Vérifier votre modèle dans Object Storage
+
+L'app lit le modèle depuis votre bucket, monté comme volume en lecture seule. Le dossier du modèle doit contenir les fichiers écrits par le job de fine-tuning : `model.safetensors`, `config.json`, `configuration_olala.py`, `modeling_olala.py`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` et `chat_template.jinja`.
+
+Listez-les avec la CLI ovhai :
+
+```bash
+ovhai bucket object list mt-sft-out@<ALIAS> --prefix finetuned-mt-en-fr-ecb/merged/
+```
+
+:::info
+Si votre modèle se trouve dans un autre dossier ou bucket, par exemple `mt-sft-out@<ALIAS>/finetuned-mt-en-fr-opus100/merged` après un entraînement OPUS-100, remplacez `mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb/merged` par son emplacement dans les commandes suivantes.
+
+:::
+
+### Déployer votre app
+
+L'image contient le serveur d'inférence et toutes ses dépendances. Elle charge le modèle depuis `/workspace/model` et le sert sur le port `8080`. Le modèle nécessite un GPU disposant d'au moins 24 Go de mémoire : un GPU **L4** suffit.
+
+#### Déployer votre app via la CLI ovhai
+
+Pour suivre cette partie, assurez-vous d'avoir installé la [CLI ovhai](/guides/public-cloud/ai-machine-learning/ai-cli-install-client) sur votre ordinateur ou sur une instance.
+
+Exécutez la commande suivante pour déployer votre application :
+
+```bash
+ovhai app run \
+	--name olala-mini-7a1b-mt-en-fr \
+	--flavor l4-1-gpu --gpu 1 \
+	--replicas 1 \
+	--default-http-port 8080 \
+	--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb/merged:/workspace/model:RO \
+	--label app=olala-mini-7a1b-mt-en-fr \
+	--env MODEL_DIR=/workspace/model \
+	--env SERVED_MODEL_NAME=olala-mini-7a1b-mt-en-fr \
+	--env TRANSLATE_ONLY=1 \
+	--env TRANSLATE_LANGUAGES=English,French \
+	--env REASONING_EFFORT=disabled \
+	--probe-path /v1/models --initial-delay-seconds 30 --period-seconds 10 \
+	--liveness-probe-path /health --liveness-initial-delay-seconds 180 \
+	--liveness-period-seconds 30 --liveness-timeout-seconds 5 --liveness-failure-threshold 3 \
+	ovhaillm/olala-ai-deploy:20261117
+```
+
+Les options `--env` définissent le comportement de l'app. `SERVED_MODEL_NAME` est obligatoire : l'app ne démarre pas sans elle. Les autres options sont ici réglées sur leurs valeurs par défaut : vous pouvez les retirer et obtenir la même app.
+
+| Variable | Valeur par défaut | Description |
+|---|---|---|
+| `MODEL_DIR` | `/workspace/model` | dossier du modèle dans l'app. Modifiez-le si vous montez votre bucket ailleurs |
+| `SERVED_MODEL_NAME` | aucune, **obligatoire** | nom que vous donnez à votre modèle, renvoyé par `/v1/models` et dans le champ `model` des réponses. Le champ `model` de vos requêtes doit contenir ce nom (ou être omis) : tout autre nom est rejeté avec une erreur HTTP 400 |
+| `TRANSLATE_ONLY` | `1` | `1` : seule la route de traduction `POST /v1/translate` peut utiliser le modèle. `0` : les routes de chat sont aussi ouvertes (consultez la section « [Utiliser les routes de chat](#utiliser-les-routes-de-chat) ») |
+| `TRANSLATE_LANGUAGES` | `English,French` | langues acceptées par `/v1/translate`, séparées par des virgules. Modifiez-la si vous avez fine-tuné le modèle sur d'autres langues |
+| `REASONING_EFFORT` | `disabled` | effort de raisonnement par défaut des routes de chat : `disabled` (réponse directe), `low`, `medium` ou `high`. La route `/v1/translate` désactive toujours le raisonnement, comme lors du fine-tuning |
+
+Par exemple, pour un modèle fine-tuné sur OPUS-100, montez `mt-sft-out@<ALIAS>/finetuned-mt-en-fr-opus100/merged` et indiquez `--env SERVED_MODEL_NAME=olala-mini-7a1b-mt-en-fr-opus100`.
+
+**Explication des paramètres**
+
+- `--flavor l4-1-gpu --gpu 1` : un GPU L4. Pour lister les GPU disponibles, exécutez `ovhai capabilities flavor list`.
+- `--replicas 1` : une instance de l'app. Consultez la section « [Gérer votre app](#gérer-votre-app) » pour en ajouter.
+- `--default-http-port 8080` : le port du serveur d'inférence. Il est fixé à `8080` dans l'image : utilisez toujours cette valeur.
+- `--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb/merged:/workspace/model:RO` : monte uniquement le dossier `finetuned-mt-en-fr-ecb/merged/` de votre bucket, qui contient le modèle, en lecture seule.
+- `--label app=olala-mini-7a1b-mt-en-fr` : un label utilisé pour créer un token d'accès limité à cette app (consultez la section « [Créer un token](#créer-un-token) »).
+- `--probe-path /v1/models ...` : la **readiness probe**. AI Deploy n'envoie du trafic à un réplica que lorsque sa route `/v1/models` répond. Au démarrage, l'app charge le modèle sur le GPU et compile les kernels du modèle avec une courte génération de test avant que ses routes ne répondent : la première requête est ainsi servie à pleine vitesse.
+- `--liveness-probe-path /health ...` : la **liveness probe**. Si `/health` cesse de répondre 3 fois de suite, AI Deploy redémarre le réplica. La probe démarre après 180 secondes, une fois le modèle chargé, et `/health` continue de répondre pendant que le modèle génère de longues réponses.
+
+:::warning
+Une app est facturée tant qu'elle est en cours d'exécution, même lorsqu'elle ne reçoit aucune requête. Arrêtez-la lorsque vous n'en avez pas besoin (consultez la section « [Gérer votre app](#gérer-votre-app) »).
+
+:::
+
+### Suivre le déploiement
+
+L'app passe par les états `QUEUED`, `INITIALIZING` et `SCALING` avant d'être `RUNNING` :
+
+- `INITIALIZING` : les fichiers du modèle sont copiés depuis votre bucket ;
+- `SCALING` : l'image est téléchargée, puis le modèle est chargé sur le GPU et ses kernels sont compilés. L'app est `RUNNING` lorsque la readiness probe réussit.
+
+Pour suivre la progression et les logs de l'app en temps réel, exécutez :
+
+```bash
+ovhai app logs -f <app_id>
+```
+
+Une fois le modèle chargé, les logs se terminent par :
+
+```console
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+```
+
+`ovhai app get <app_id>` affiche l'état de l'app et son URL, sous la forme `https://<app_id>.app.gra.ai.cloud.ovh.net`.
+
+### Créer un token
+
+L'app n'est pas publique : chaque requête doit contenir un token d'accès. Créez un token qui ne peut accéder qu'aux apps portant le label `app=olala-mini-7a1b-mt-en-fr` :
+
+```bash
+ovhai token create olala-mini-7a1b-mt-en-fr --role ai_training_read --label-selector app=olala-mini-7a1b-mt-en-fr
+```
+
+Le token n'est affiché qu'une seule fois : copiez-le et conservez-le en lieu sûr. Les exemples suivants lisent le token et l'URL de l'app depuis des variables d'environnement :
+
+```bash
+export AI_DEPLOY_ACCESS_TOKEN=<your_token>
+export APP_URL=https://<app_id>.app.gra.ai.cloud.ovh.net
+```
+
+### Interroger votre modèle
+
+L'app expose les routes suivantes :
+
+| Route | Description |
+|---|---|
+| `POST /v1/translate` | traduit un texte |
+| `GET /v1/models` | le modèle servi, nommé d'après `SERVED_MODEL_NAME` (ici `olala-mini-7a1b-mt-en-fr`) |
+| `GET /health` | contrôle de santé |
+| `GET /metrics` | métriques au format Prometheus (requêtes, durées, tokens) |
+
+Les routes de chat compatibles OpenAI (`/v1/chat/completions`, `/v1/completions`) sont désactivées par défaut et répondent par une erreur HTTP 403. Consultez la section « [Utiliser les routes de chat](#utiliser-les-routes-de-chat) » pour les activer.
+
+#### Traduire un texte
+
+Envoyez votre texte à la route `/v1/translate` avec `curl` :
+
+```bash
+curl -s $APP_URL/v1/translate \
+	-H "Authorization: Bearer $AI_DEPLOY_ACCESS_TOKEN" \
+	-H "Content-Type: application/json" \
+	-d '{
+		"source_language": "English",
+		"target_language": "French",
+		"source_text": "The ECB raised its key interest rates by 25 basis points to curb inflation."
+	}'
+```
+
+La traduction se trouve dans le champ `translation` :
+
+```json
+{
+  "id": "...",
+  "object": "translation",
+  "model": "olala-mini-7a1b-mt-en-fr",
+  "source_language": "English",
+  "target_language": "French",
+  "translation": "La BCE a relevé ses taux d'intérêt directeurs de 25 points de base pour contenir l'inflation.",
+  "finish_reason": "stop",
+  "usage": {"completion_tokens": 33, "prompt_tokens": 430, "total_tokens": 463}
+}
+```
+
+La requête utilise les mêmes champs que le [format de traduction](/guides/public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini#exemple-avec-le-format-de-traduction) du fine-tuning :
+
+| Champ | Obligatoire | Description |
+|---|---|---|
+| `source_language` | oui | langue du texte : `English` ou `French` (ou `en`, `fr`) |
+| `target_language` | oui | langue de la traduction, différente de `source_language` |
+| `source_text` | oui | le texte à traduire, jusqu'à 10 000 caractères |
+| `domain` | non | domaine du texte, `General` par défaut. Vous pouvez l'omettre : sur le modèle fine-tuné sur ECB, `Finance` et `General` donnent la même qualité de traduction |
+| `terminology_mapping` | non | termes à utiliser dans la traduction, sous forme de liste d'objets `{"source_term": "...", "target_term": "..."}` (consultez la section « [Limites](#limites) ») |
+| `max_tokens` | non | longueur maximale de la traduction, en tokens. Par défaut, elle dépend de la longueur du texte |
+| `model` | non | nom du modèle renvoyé par `GET /v1/models`. Tout autre nom est rejeté avec une erreur HTTP 400 |
+
+Si `finish_reason` vaut `length`, la traduction a été tronquée à `max_tokens` : renvoyez la requête avec une valeur plus élevée. Une requête invalide est rejetée avec une erreur HTTP 400 qui explique le problème.
+
+Le modèle traduit le texte, même lorsqu'il contient une question ou une instruction :
+
+```bash
+curl -s $APP_URL/v1/translate \
+	-H "Authorization: Bearer $AI_DEPLOY_ACCESS_TOKEN" \
+	-H "Content-Type: application/json" \
+	-d '{"source_language": "en", "target_language": "fr", "source_text": "In two sentences, what is a central bank?"}'
+```
+
+```console
+"translation": "En deux phrases, qu'est-ce qu'une banque centrale ?"
+```
+
+Avec Python et la bibliothèque `requests` (`pip install requests`) :
+
+```python
+import os
+
+import requests
+
+
+def translate(text, source="English", target="French"):
+    response = requests.post(
+        os.environ["APP_URL"] + "/v1/translate",
+        headers={"Authorization": "Bearer " + os.environ["AI_DEPLOY_ACCESS_TOKEN"]},
+        json={"source_language": source, "target_language": target, "source_text": text},
+        timeout=300,
+    )
+    response.raise_for_status()
+    return response.json()["translation"]
+
+
+print(translate("Le Conseil des gouverneurs a décidé de laisser inchangés les taux directeurs de la BCE.",
+                source="French", target="English"))
+```
+
+```console
+The Governing Council decided to leave the key ECB interest rates unchanged.
+```
+
+#### Utiliser les routes de chat
+
+Pour tester le modèle comme assistant conversationnel, ou si vous l'avez fine-tuné sur une autre tâche que la traduction, déployez l'app avec `--env TRANSLATE_ONLY=0`. Les routes compatibles OpenAI `POST /v1/chat/completions` et `POST /v1/completions` sont alors ouvertes, et le modèle reçoit vos messages tels quels : il répond à la question que `/v1/translate` a traduite dans l'exemple précédent :
+
+```bash
+curl -s $APP_URL/v1/chat/completions \
+	-H "Authorization: Bearer $AI_DEPLOY_ACCESS_TOKEN" \
+	-H "Content-Type: application/json" \
+	-d '{
+		"model": "olala-mini-7a1b-mt-en-fr",
+		"messages": [{"role": "user", "content": "In two sentences, what is a central bank?"}],
+		"temperature": 0,
+		"max_tokens": 400
+	}'
+```
+
+```console
+"content": "A central bank is a government agency that manages a country's monetary policy, issues and controls the national currency, and acts as the bank for the government and commercial banks. It also oversees the stability of the financial system and provides financial services such as payment processing and foreign exchange."
+```
+
+La réponse se trouve dans `choices[0].message.content`. Vous pouvez aussi utiliser les bibliothèques clientes OpenAI (`pip install openai`, avec `base_url=$APP_URL/v1` et votre token comme clé d'API), recevoir la réponse en streaming avec `"stream": true`, et activer le raisonnement avec `"chat_template_kwargs": {"reasoning_effort": "medium"}` : le raisonnement est alors renvoyé dans le champ `reasoning_content`. Si vous avez fine-tuné le modèle sur votre propre tâche, envoyez le prompt système et le format de demande de vos données d'entraînement.
+
+### Gérer votre app
+
+Chaque réplica de l'app exécute une copie du modèle sur un GPU et traite les requêtes une par une. Pour servir davantage de requêtes en parallèle, ajoutez des réplicas :
+
+```bash
+ovhai app scale <app_id> --replicas 2
+```
+
+Pour arrêter l'app lorsque vous ne l'utilisez pas, puis la redémarrer plus tard avec la même URL :
+
+```bash
+ovhai app stop <app_id>
+ovhai app start <app_id>
+```
+
+Une app arrêtée n'est pas facturée pour le calcul. Pour la supprimer définitivement :
+
+```bash
+ovhai app delete <app_id>
+```
+
+Le modèle reste dans votre bucket : vous pouvez le déployer à nouveau à tout moment.
+
+## Aller plus loin
+
+- [AI Training - Tutoriel - Fine-tuner Olala Mini 7A1B avec LoRA](/guides/public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini)
+- [Utiliser Object Storage compatible S3 avec les produits AI](/guides/public-cloud/ai-machine-learning/ai-s3-compliance)
+- [AI Deploy - Premiers pas](/guides/public-cloud/ai-machine-learning/ai-deploy-getting-started)
+- [AI Deploy - Stratégies de mise à l'échelle](/guides/public-cloud/ai-machine-learning/ai-deploy-apps-deployments)
+- [AI Deploy - Accéder à vos apps via tokens](/guides/public-cloud/ai-machine-learning/ai-deploy-tokens)
+
+## Votre avis nous intéresse !
+
+N'hésitez pas à nous faire part de vos questions, retours et suggestions pour améliorer le service :
+
+- Sur le [serveur Discord OVHcloud](https://discord.gg/ovhcloud)
+
+[[fragment:professional-services]]
+
+[[fragment:s3-trademark]]

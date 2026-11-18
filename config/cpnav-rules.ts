@@ -53,6 +53,7 @@ function renderLocation(
   location: Pick<CpNavLocation, 'route' | 'linkKey'>,
   locale: Locale,
   withSubLabel: boolean,
+  inConsole = false,
 ): string {
   const frame = CPNAV_FRAME[locale];
   const lines: string[] = [];
@@ -82,7 +83,7 @@ function renderLocation(
       );
     }
     const anchor = location.route
-      ? `<ManagerLink to="${location.route}">${text.product}</ManagerLink>`
+      ? `<ManagerLink${inConsole ? ' console' : ''} to="${location.route}">${text.product}</ManagerLink>`
       : `[${text.product}](/links/${location.linkKey})`;
     lines.push(`- **${frame.directLink}** ${anchor}`);
   }
@@ -137,6 +138,7 @@ export function renderEntries(
       location,
       universeCrumb,
       key,
+      inConsole: entry.console === true,
     }));
   });
 
@@ -144,13 +146,22 @@ export function renderEntries(
   // one — whether they come from several keys or from one key with several locations.
   const withSubLabel = forceSubLabel || entries.length > 1;
 
-  const rendered = entries.map(({ location, universeCrumb, key }) => {
-    const text = resolve(location.text, locale);
-    if (!text) {
-      throw new Error(`[cpnav] key "${key}" has no text for any locale.`);
-    }
-    return renderLocation(text, universeCrumb, location, locale, withSubLabel);
-  });
+  const rendered = entries.map(
+    ({ location, universeCrumb, key, inConsole }) => {
+      const text = resolve(location.text, locale);
+      if (!text) {
+        throw new Error(`[cpnav] key "${key}" has no text for any locale.`);
+      }
+      return renderLocation(
+        text,
+        universeCrumb,
+        location,
+        locale,
+        withSubLabel,
+        inConsole,
+      );
+    },
+  );
 
   return rendered.join('\n\n');
 }
