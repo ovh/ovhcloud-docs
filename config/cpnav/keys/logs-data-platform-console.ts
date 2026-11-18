@@ -10,7 +10,7 @@ export const logsDataPlatformConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/observability/logs-management',
+      route: '/#/customer/observability/logs-management',
       text: {
         en: {
           product: 'Logs Management',

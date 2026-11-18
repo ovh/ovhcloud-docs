@@ -8,7 +8,7 @@ export const webMxPlanConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/email/mxplan',
+      route: '/#/web-cloud/email/mxplan',
       text: {
         en: { product: 'MX Plan', crumbs: ['Emails', 'MX Plan'], step: 'Select your service' },
         fr: { product: 'MX Plan', crumbs: ['Emails', 'MX Plan'], step: 'Sélectionnez votre service' },

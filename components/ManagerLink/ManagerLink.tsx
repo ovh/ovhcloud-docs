@@ -46,15 +46,20 @@ type Region = keyof typeof REGIONS;
 /**
  * Prefix the Console carried while it was a beta served under the manager host
  * (`manager.<zone>.ovhcloud.com/beta/#/…`). Since the Console's general
- * availability (2026-11-19) it is served at the root of its own host, and the
- * old address redirects there; a route still written with the prefix is sent to
- * the Console host with the prefix dropped.
+ * availability (2026-11-18) it is served at the root of its own host, and the
+ * old address redirects there. Guides now mark Console links with the `console`
+ * attribute instead; a route still written with the prefix (a branch prepared
+ * before the switch) is sent to the Console host with the prefix dropped.
  */
 const BETA_PREFIX = /^\/beta(?=\/|$)/;
+
+/** Which interface a link opens: the attribute written on `<ManagerLink>`. */
+type Interface = 'console' | 'legacy-v6' | undefined;
 
 /**
  * Which interface a link opens, and the path on that interface's host.
  *
+ * - `console` → the OVHcloud Console on `console.<zone>`.
  * - `legacy-v6` → the former Control Panel (Manager v6) on `manager.<zone>`, for
  *   a step the Console does not offer yet.
  * - a `/beta/…` route → the Console, prefix dropped.
@@ -63,12 +68,13 @@ const BETA_PREFIX = /^\/beta(?=\/|$)/;
  */
 function resolveTarget(
   to: string,
-  legacyV6: boolean,
+  iface: Interface,
 ): { host: 'consoleHost' | 'managerHost'; path: string } {
-  if (legacyV6) return { host: 'managerHost', path: to };
+  if (iface === 'legacy-v6') return { host: 'managerHost', path: to };
   if (BETA_PREFIX.test(to)) {
     return { host: 'consoleHost', path: to.replace(BETA_PREFIX, '') || '/' };
   }
+  if (iface === 'console') return { host: 'consoleHost', path: to };
   return { host: 'managerHost', path: to };
 }
 
@@ -133,6 +139,11 @@ interface ManagerLinkProps {
    * has the feature. Written as a bare attribute: `<ManagerLink legacy-v6 to="/#/…">`.
    */
   'legacy-v6'?: boolean;
+  /**
+   * Open the OVHcloud Console (`console.<zone>`). Written as a bare attribute:
+   * `<ManagerLink console to="/#/…">`. Only one of `console` and `legacy-v6`.
+   */
+  console?: boolean;
   /** Link text */
   children: React.ReactNode;
   /**
@@ -188,10 +199,10 @@ function buildManagerUrl(
   to: string,
   authFlow: boolean,
   lang: string,
-  legacyV6 = false,
+  iface: Interface = undefined,
 ): string {
   const r = REGIONS[region];
-  const { host, path } = resolveTarget(to, legacyV6);
+  const { host, path } = resolveTarget(to, iface);
   const target = `${r[host]}${path}`;
   if (!authFlow) return target;
 
@@ -218,6 +229,7 @@ function buildManagerUrl(
 export function ManagerLink({
   to,
   'legacy-v6': legacyV6 = false,
+  console: toConsole = false,
   children,
   authFlow = true,
   regions: regionsProp,
@@ -226,6 +238,11 @@ export function ManagerLink({
   disableZoneShortcut,
   brands = BRANDS_DEFAULT,
 }: ManagerLinkProps) {
+  const iface: Interface = legacyV6
+    ? 'legacy-v6'
+    : toConsole
+      ? 'console'
+      : undefined;
   const { region: globalRegion, setRegion: setGlobalRegion } = useRegion();
   const { brandKey, setBrandKey } = useBrandKey();
   const { isSet: zoneChosen } = useZone();
@@ -255,7 +272,7 @@ export function ManagerLink({
       const ovhRegions =
         (regionsProp as Region[] | undefined) ?? (['eu', 'ca'] as Region[]);
       for (const r of ovhRegions) {
-        builtUrls[r] = buildManagerUrl(r, to ?? '', authFlow, lang, legacyV6);
+        builtUrls[r] = buildManagerUrl(r, to ?? '', authFlow, lang, iface);
       }
       regions = [...ovhRegions, ...sysKeys];
     } else {
@@ -372,12 +389,12 @@ export function ManagerLink({
       // `urls`).
       const url = urls
         ? (urls[r] ?? urls[regions[0]] ?? '')
-        : buildManagerUrl(r as Region, to ?? '', authFlow, lang, legacyV6);
+        : buildManagerUrl(r as Region, to ?? '', authFlow, lang, iface);
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
     },
-    [setRegion, to, authFlow, lang, legacyV6, urls, regions],
+    [setRegion, to, authFlow, lang, iface, urls, regions],
   );
 
   const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
@@ -476,9 +493,7 @@ export function ManagerLink({
                 (
                   urls?.[r] ??
                   (r in REGIONS
-                    ? REGIONS[r as Region][
-                        resolveTarget(to ?? '', legacyV6).host
-                      ]
+                    ? REGIONS[r as Region][resolveTarget(to ?? '', iface).host]
                     : '')
                 )
                   .replace(/^https:\/\//, '')
@@ -501,7 +516,7 @@ export function ManagerLink({
   if (regions.length === 1 || (zoneChosen && !skipZoneShortcut)) {
     const href = urls
       ? (urls[region] ?? urls[regions[0]] ?? '')
-      : buildManagerUrl(region as Region, to ?? '', authFlow, lang, legacyV6);
+      : buildManagerUrl(region as Region, to ?? '', authFlow, lang, iface);
     return (
       <a
         className="ovh-manager-link__trigger"

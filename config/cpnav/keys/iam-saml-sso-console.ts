@@ -10,7 +10,7 @@ export const iamSamlSsoConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/iam/identities/sso',
+      route: '/#/iam/identities/sso',
       text: {
         en: { product: 'SSO', crumbs: ['Identities', 'SSO'] },
         fr: { product: 'SSO', crumbs: ['Identités', 'SSO'] },

@@ -9,7 +9,7 @@ export const billingServicesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/manage-services',
+      route: '/#/customer/manage-services',
       text: {
         en: {
           product: 'My services',
