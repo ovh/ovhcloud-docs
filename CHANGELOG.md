@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.18.2
+
+### Fixes
+
+#### All regions
+- **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
+
+### Documentation
+- EU: 276 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18.1
 
 ### Features
