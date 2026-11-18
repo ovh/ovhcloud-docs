@@ -97,7 +97,7 @@ OPCP is delivered in one of three deployment modes, sized for different use case
 | Mode | Use case | Control plane resiliency | Number of racks | Spine / Edge |
 |---|---|---|---|---|
 | **NANOPOD** | Demonstration, remote sites, non-resilient infrastructures (offices, edge) | Non-resilient (1 controller) | 1 | None |
-| **STANDARD POD** | Compact resilient infrastructure | Resilient (3 controllers) | Up to 3 | Edges only |
+| **STANDARD POD** | Compact resilient infrastructure | Resilient (3 controllers) | 3 | Edges only |
 | **SUPER POD** | Datacenter deployment with shared infrastructure | Resilient (3 controllers) | 3 to 12 | Spine + Edges |
 
 From a network integration standpoint, the key point to keep in mind is:
@@ -112,15 +112,15 @@ The number of **OPCP Core Controllers** follows the deployment mode: **1 control
 ```mermaid
 flowchart TB
     accTitle: OPCP NANOPOD topology, 1 controller
-    accDescr: The customer servers connect to ToR A and ToR B, which uplink to the customer data network over 100G fibre; their BMCs connect to the Cisco management switch. The single OPCP Core Controller uplinks to the customer OOB network over 25G fibre, plus 1G RJ45 for its BMC. Through the OOB network, OPCP exposes HTTPS and SSH access and reaches the NTP, DNS, S3, syslog and LDAP services provided by the customer.
+    accDescr: The customer servers connect to ToR A and ToR B, which uplink to the customer data network over 100G fibre; their BMCs connect to the Cisco management switch. The single OPCP Core Controller connects to ToR A over 3x25G and uplinks to the customer OOB network over 10G fibre, plus 1G RJ45 for its BMC. Through the OOB network, OPCP exposes HTTPS and SSH access and reaches the NTP, DNS, S3, syslog and LDAP services provided by the customer.
     subgraph RACK["OPCP rack"]
-        SRV["Customer servers<br/>ens1/ens2 → ToR A/B (data)<br/>bmc → Cisco C9200 (mgmt)"]:::server
-        MGMT["Cisco C9200-48T (mgmt)<br/>BMC + mgmt of tenant servers and switches"]:::mgmt
+        SRV["Customer servers<br/>ens1/ens3 → ToR A, ens2/ens4 → ToR B<br/>bmc → Cisco C9200 (mgmt)"]:::server
+        MGMT["Cisco C9200-48T (mgmt)<br/>server BMCs, switch mgmt"]:::mgmt
         subgraph TOR["ToR pair, MLAG peer-link"]
             TORA["ToR A<br/>Arista DCS-7050CX3-32S"]:::switch
             TORB["ToR B<br/>Arista DCS-7050CX3-32S"]:::switch
         end
-        CTRL["OPCP Core Controller<br/>1× 25G OOB + 1G BMC"]:::ctrl
+        CTRL["OPCP Core Controller<br/>1× 10G OOB + 1G BMC<br/>3× 25G → ToR A"]:::ctrl
     end
     DATA["Customer Upstream Data Network"]:::data
     OOB["Customer Upstream OOB Network<br/>Out-of-band management"]:::oob
@@ -128,15 +128,16 @@ flowchart TB
     EXT["Needed external services on OOB<br/>(outbound, provided by the customer)<br/>NTP: time sync<br/>DNS: name resolution<br/>S3 endpoint: backups, metrics<br/>Syslog server: log collection<br/>LDAP: user federation<br/>(no Internet access needed)"]:::oob
     DATA ---|"100G fibre LC, data"| TORA
     DATA ---|"100G fibre LC, data"| TORB
-    TORA --- SRV
-    TORB --- SRV
+    TORA ---|"2× 25G"| SRV
+    TORB ---|"2× 25G"| SRV
+    TORA ---|"3× 25G"| CTRL
     MGMT -.-|"1G BMC"| SRV
-    OOB ---|"25G fibre LC, OOB"| CTRL
+    OOB ---|"10G fibre LC, OOB"| CTRL
     OOB -.-|"1G RJ45, BMC"| CTRL
     IN -->|"inbound"| OOB
     OOB -->|"outbound"| EXT
-    linkStyle 0,1,2,3 stroke:#1f4e9c
-    linkStyle 4,5,6,7,8 stroke:#b5651d
+    linkStyle 0,1,2,3,4 stroke:#1f4e9c
+    linkStyle 5,6,7,8,9 stroke:#b5651d
     style RACK fill:none,stroke:#666666,stroke-dasharray:6 4
     style TOR fill:none,stroke:#999999
     classDef data fill:#e8f1fb,stroke:#1f4e9c,color:#0b1f3a
@@ -152,7 +153,7 @@ The key elements are:
 - **Customer Servers**: the servers hosting the workloads. Their data interfaces are connected to both ToRs; their BMC is attached to the management switch.
 - **ToR A / ToR B** (Arista DCS-7050CX3-32S): two redundant Top-of-Rack switches. In NANOPOD mode, **they carry the data plane directly and connect to your *Customer Upstream Data Network*** through fibre uplinks at **40 GbE or 100 GbE**, depending on the optics validated by OVHcloud.
 - **Management switch (mgmt)**: dedicated switch that aggregates the server BMCs and the ToR management ports.
-- A single **OPCP Core Controller**, connected through a **25 GbE or 10 GbE** OOB uplink to your *Customer Upstream OOB Network*, plus a 1 GbE BMC port for its own lights-out access.
+- A single **OPCP Core Controller**, connected through a **10 GbE** OOB uplink to your *Customer Upstream OOB Network*, plus a 1 GbE BMC port for its own lights-out access. It also has three **25 GbE** links to ToR A, for ToR management, bare-metal provisioning and the Neutron network.
 
 :::warning
 With a single controller, **the control plane is not redundant**: a hardware failure or maintenance operation on this controller interrupts the administration of the platform (workloads already deployed continue to run on the servers). For any production environment requiring high availability of the control plane, choose the **STANDARD POD** or **SUPER POD** modes.
@@ -162,40 +163,78 @@ With a single controller, **the control plane is not redundant**: a hardware fai
 
 ```mermaid
 flowchart TB
-    accTitle: OPCP STANDARD POD and SUPER POD topology, 3 controllers
-    accDescr: The customer servers connect to ToR A and ToR B over 2x25G, and the ToRs uplink to the customer data network over 100G fibre through the spine and edge switches; the server BMCs connect to the Cisco management switch. Each of the three OPCP Core Controllers uplinks to the customer OOB network over 25G fibre, plus 1G RJ45 for its BMC. Through the OOB network, OPCP exposes HTTPS and SSH access and reaches the NTP, DNS, S3, syslog and LDAP services provided by the customer.
-    subgraph RACK["OPCP rack"]
-        SRV["Customer servers<br/>ens1/ens2 → ToR A/B (data)<br/>bmc → Cisco C9200 (mgmt)"]:::server
-        MGMT["Cisco C9200-48T (mgmt)<br/>BMC + mgmt of tenant servers, switches and controllers 2/3"]:::mgmt
-        subgraph TOR["ToR pair, MLAG peer-link"]
-            TORA["ToR A<br/>Arista DCS-7050CX3-32S"]:::switch
-            TORB["ToR B<br/>Arista DCS-7050CX3-32S"]:::switch
+    accTitle: OPCP STANDARD POD and SUPER POD topology, 3 controllers in 3 racks
+    accDescr: Three OPCP racks with one controller each. In every rack, the customer servers connect to ToR A and ToR B over 2x25G and their BMCs to the Cisco management switch; the controller connects to ToR A over 3x25G and to the customer OOB network over 10G fibre, plus 1G RJ45 for its BMC. The ToRs of every rack uplink to the edge switches (and the spines in SUPER POD), which connect to the customer data network over 100G fibre. Through the OOB network, OPCP exposes HTTPS and SSH access and reaches the NTP, DNS, S3, syslog and LDAP services provided by the customer.
+    subgraph R1["OPCP rack 1"]
+        subgraph P1["ToR pair, MLAG"]
+            TA1["ToR A"]:::switch
+            TB1["ToR B"]:::switch
         end
-        C1["Controller 1<br/>25G OOB → upstream<br/>1G BMC → upstream<br/>(customer OOB network)"]:::ctrl
-        C2["Controller 2<br/>25G OOB → upstream<br/>1G BMC → Cisco<br/>(IPMI via C9200)"]:::ctrl
-        C3["Controller 3<br/>25G OOB → upstream<br/>1G BMC → Cisco<br/>(IPMI via C9200)"]:::ctrl
+        M1["Cisco C9200-48T (mgmt)<br/>server BMCs, switch mgmt"]:::mgmt
+        S1["Customer servers"]:::server
+        C1["Controller 1<br/>10G OOB + 1G BMC → upstream<br/>3× 25G → ToR A"]:::ctrl
+    end
+    subgraph R2["OPCP rack 2"]
+        subgraph P2["ToR pair, MLAG"]
+            TA2["ToR A"]:::switch
+            TB2["ToR B"]:::switch
+        end
+        M2["Cisco C9200-48T (mgmt)<br/>server BMCs, switch mgmt"]:::mgmt
+        S2["Customer servers"]:::server
+        C2["Controller 2<br/>10G OOB + 1G BMC → upstream<br/>3× 25G → ToR A"]:::ctrl
+    end
+    subgraph R3["OPCP rack 3"]
+        subgraph P3["ToR pair, MLAG"]
+            TA3["ToR A"]:::switch
+            TB3["ToR B"]:::switch
+        end
+        M3["Cisco C9200-48T (mgmt)<br/>server BMCs, switch mgmt"]:::mgmt
+        S3["Customer servers"]:::server
+        C3["Controller 3<br/>10G OOB + 1G BMC → upstream<br/>3× 25G → ToR A"]:::ctrl
     end
     DATA["Customer Upstream Data Network"]:::data
-    OOB["Customer Upstream OOB Network<br/>Out-of-band management"]:::oob
-    IN["Accessed via OOB<br/>(inbound, exposed by OPCP)<br/>HTTPS: OpenStack API, Horizon, BMC<br/>SSH: OPCP management<br/>(via customer VPN if managed by OVHcloud)"]:::oob
-    EXT["Needed external services on OOB<br/>(outbound, provided by the customer)<br/>NTP: time sync<br/>DNS: name resolution<br/>S3 endpoint: backups, metrics<br/>Syslog server: log collection<br/>LDAP: user federation<br/>(no Internet access needed)"]:::oob
-    DATA ---|"100G fibre LC, data<br/>via spine / edge"| TORA
-    DATA ---|"100G fibre LC, data<br/>via spine / edge"| TORB
-    TORA ---|"2× 25G"| SRV
-    TORB ---|"2× 25G"| SRV
-    MGMT -.-|"1G BMC"| SRV
-    OOB ---|"25G OOB"| C1
+    subgraph ADM[" "]
+        OOB["Customer Upstream OOB Network<br/>Out-of-band management"]:::oob
+        IN["Accessed via OOB<br/>(inbound, exposed by OPCP)<br/>HTTPS: OpenStack API, Horizon, BMC<br/>SSH: OPCP management<br/>(via customer VPN if managed by OVHcloud)"]:::oob
+        EXT["Needed external services on OOB<br/>(outbound, provided by the customer)<br/>NTP: time sync<br/>DNS: name resolution<br/>S3 endpoint: backups, metrics<br/>Syslog server: log collection<br/>LDAP: user federation<br/>(no Internet access needed)"]:::oob
+    end
+    EDGE["Edge switches (STANDARD POD)<br/>spines + edges (SUPER POD)<br/>Arista DCS-7050CX3-32S"]:::switch
+    DATA ---|"100G fibre LC, data"| EDGE
+    EDGE --- TB3
+    EDGE --- TA3
+    TA1 ---|"2× 25G"| S1
+    TB1 ---|"2× 25G"| S1
+    TA1 ---|"3× 25G"| C1
+    EDGE --- TB2
+    EDGE --- TA2
+    TA2 ---|"2× 25G"| S2
+    TB2 ---|"2× 25G"| S2
+    TA2 ---|"3× 25G"| C2
+    EDGE --- TB1
+    EDGE --- TA1
+    TA3 ---|"2× 25G"| S3
+    TB3 ---|"2× 25G"| S3
+    TA3 ---|"3× 25G"| C3
+    M1 -.-|"1G BMC"| S1
+    OOB ---|"10G OOB"| C1
     OOB -.-|"1G BMC"| C1
-    OOB ---|"25G OOB"| C2
+    M2 -.-|"1G BMC"| S2
+    OOB ---|"10G OOB"| C2
     OOB -.-|"1G BMC"| C2
-    OOB ---|"25G OOB"| C3
+    M3 -.-|"1G BMC"| S3
+    OOB ---|"10G OOB"| C3
     OOB -.-|"1G BMC"| C3
     IN -->|"inbound"| OOB
     OOB -->|"outbound"| EXT
-    linkStyle 0,1,2,3 stroke:#1f4e9c
-    linkStyle 4,5,6,7,8,9,10,11,12 stroke:#b5651d
-    style RACK fill:none,stroke:#666666,stroke-dasharray:6 4
-    style TOR fill:none,stroke:#999999
+    linkStyle 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 stroke:#1f4e9c
+    linkStyle 16,17,18,19,20,21,22,23,24,25,26 stroke:#b5651d
+    style R1 fill:none,stroke:#666666,stroke-dasharray:6 4
+    style P1 fill:none,stroke:#999999
+    style R2 fill:none,stroke:#666666,stroke-dasharray:6 4
+    style P2 fill:none,stroke:#999999
+    style R3 fill:none,stroke:#666666,stroke-dasharray:6 4
+    style P3 fill:none,stroke:#999999
+    style ADM fill:none,stroke:none
     classDef data fill:#e8f1fb,stroke:#1f4e9c,color:#0b1f3a
     classDef oob fill:#fdf0e1,stroke:#b5651d,color:#3a1f05
     classDef ctrl fill:#e6f4ea,stroke:#2e7d32,color:#0f2e12
@@ -206,7 +245,7 @@ flowchart TB
 
 Compared to NANOPOD mode, the differences are:
 
-- **3 OPCP Core Controllers** instead of one, each connected to the upstream OOB network with a **25 GbE or 10 GbE** uplink and a 1 GbE BMC link. A **VIP** (*Virtual IP*) is shared between the three controllers: this VIP is used to reach the OpenStack APIs and Horizon, regardless of which controller is active.
+- **3 OPCP Core Controllers** instead of one, one per rack, each connected to the upstream OOB network with a **10 GbE** uplink and a 1 GbE BMC link, and to ToR A with three **25 GbE** links. A **VIP** (*Virtual IP*) is shared between the three controllers: this VIP is used to reach the OpenStack APIs and Horizon, regardless of which controller is active.
 - The BMCs of all three controllers, like those of the servers, are exposed on your upstream OOB network. This ensures lights-out access to every piece of equipment even if a component internal to OPCP fails.
 - **Edge switches** are inserted between the ToRs and your upstream network. **The data plane is configured on these edges**, no longer on the ToRs. In **SUPER POD** mode, **spine** switches are also present to aggregate several racks.
 
