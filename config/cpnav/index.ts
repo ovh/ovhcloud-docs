@@ -156,11 +156,15 @@ import { webDomainDnsZoneConsole } from './keys/web-domain-dns-zone-console';
 import { webDomains } from './keys/web-domains';
 import { webDomainsConsole } from './keys/web-domains-console';
 import { webEmailPro } from './keys/web-email-pro';
+import { webEmailProConsole } from './keys/web-email-pro-console';
 import { webExchange } from './keys/web-exchange';
+import { webExchangeConsole } from './keys/web-exchange-console';
 import { webHosting } from './keys/web-hosting';
 import { webHostingConsole } from './keys/web-hosting-console';
 import { webMicrosoft365 } from './keys/web-microsoft-365';
+import { webMicrosoft365Console } from './keys/web-microsoft-365-console';
 import { webMxPlan } from './keys/web-mx-plan';
+import { webMxPlanConsole } from './keys/web-mx-plan-console';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
@@ -168,6 +172,7 @@ import { webVideoCenterConsole } from './keys/web-video-center-console';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
+import { webZimbraConsole } from './keys/web-zimbra-console';
 import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
 
@@ -192,10 +197,15 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-cloud-databases': webCloudDatabases,
   'web-cloud-databases-console': webCloudDatabasesConsole,
   'web-zimbra': webZimbra,
+  'web-zimbra-console': webZimbraConsole,
   'web-email-pro': webEmailPro,
+  'web-email-pro-console': webEmailProConsole,
   'web-mx-plan': webMxPlan,
+  'web-mx-plan-console': webMxPlanConsole,
   'web-exchange': webExchange,
+  'web-exchange-console': webExchangeConsole,
   'web-microsoft-365': webMicrosoft365,
+  'web-microsoft-365-console': webMicrosoft365Console,
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
   'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
@@ -363,6 +373,9 @@ export const CPNAV_SETS: string[][] = [
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
+  ['web-email-pro-console', 'web-exchange-console'],
+  ['web-email-pro-console', 'web-mx-plan-console', 'web-exchange-console'],
+  ['web-mx-plan-console', 'web-zimbra-console', 'web-email-pro-console', 'web-exchange-console'],
 ];
 
 const ORDER = Object.keys(CPNAV_KEYS);
