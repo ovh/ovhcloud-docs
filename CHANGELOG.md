@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026.11.18.2
+
+### Fixes
+
+#### EU
+- **iam:** link all IAM pages with Console menu route (#1298)
+- **cpnav:** point the migrated VPS, LDP, KMS and Secret Manager guides at the Console
+- **telecom:** align the Console guides with the Console code (#1294)
+
+#### All regions
+- **tabs:** keep the clicked tab row anchored while revealed images load (#1292)
+- **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
+
+### Maintenance
+
+#### EU
+- **console:** mark Console links with the console attribute, drop /beta (#1295)
+
+#### All regions
+- **sidebar:** move Dedicated Servers Backup under Configuration
+
+### Documentation
+- EU: 1644 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18.1
 
 ### Features

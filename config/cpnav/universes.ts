@@ -61,6 +61,18 @@ export const CPNAV_UNIVERSES: Record<
     pl: 'Observability',
     pt: 'Observabilidade',
   },
+  // The Console's (v8) Security side-menu group (transverse.group.security), present under every
+  // universe. Only for the Console twins of the KMS and Secret Manager keys, until they are
+  // repointed at its GA.
+  security: {
+    en: 'Security',
+    fr: 'Sécurité',
+    de: 'Sicherheit',
+    es: 'Seguridad',
+    it: 'Sicurezza',
+    pl: 'Bezpieczeństwo',
+    pt: 'Segurança',
+  },
   // Not top navigation and not clickable, so every locale carries its own wording.
   'account-menu': {
     en: { text: 'Click your name in the top right' },

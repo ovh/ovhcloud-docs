@@ -9,7 +9,7 @@ export const telecomVoipFaxConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/telephony',
+      route: '/#/web-cloud/telephony',
       text: {
         en: { product: 'Telephony', crumbs: ['Telephony'] },
         fr: { product: 'Téléphonie', crumbs: ['Téléphonie'] },

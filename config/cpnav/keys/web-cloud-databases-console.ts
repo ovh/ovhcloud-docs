@@ -9,7 +9,7 @@ export const webCloudDatabasesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/databases',
+      route: '/#/web-cloud/databases',
       text: {
         en: {
           product: 'Web Cloud DB',

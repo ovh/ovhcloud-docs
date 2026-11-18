@@ -9,7 +9,7 @@ export const telecomXdslFttxConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/internet-access',
+      route: '/#/web-cloud/internet-access',
       text: {
         en: { product: 'Internet access', crumbs: ['Internet access'] },
         fr: { product: 'Accès internet', crumbs: ['Accès internet'] },

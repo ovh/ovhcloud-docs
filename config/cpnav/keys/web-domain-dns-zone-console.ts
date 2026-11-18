@@ -9,7 +9,7 @@ export const webDomainDnsZoneConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/domains/listing',
+      route: '/#/web-cloud/domains/listing',
       text: {
         en: {
           product: 'Domains & DNS',

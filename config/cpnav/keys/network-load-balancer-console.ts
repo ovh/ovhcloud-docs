@@ -10,7 +10,7 @@ export const networkLoadBalancerConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/network/load-balancer',
+      route: '/#/network/load-balancer',
       text: {
         en: { product: 'Load Balancer', crumbs: ['Network', 'Load Balancer'] },
         fr: { product: 'Load Balancer', crumbs: ['Réseau', 'Load Balancer'] },

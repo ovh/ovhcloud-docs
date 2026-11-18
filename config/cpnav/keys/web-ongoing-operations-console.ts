@@ -11,7 +11,7 @@ export const webOngoingOperationsConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/domains/operations',
+      route: '/#/web-cloud/domains/operations',
       text: {
         en: {
           product: 'Ongoing operations',

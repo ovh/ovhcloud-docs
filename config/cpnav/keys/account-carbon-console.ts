@@ -8,7 +8,7 @@ export const accountCarbonConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/carbon',
+      route: '/#/customer/carbon',
       text: {
         en: { product: 'My carbon footprint', crumbs: ['My carbon footprint'] },
         fr: {
