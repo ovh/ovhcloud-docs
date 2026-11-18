@@ -158,7 +158,6 @@ import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
-import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
@@ -179,7 +178,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-ongoing-operations-console': webOngoingOperationsConsole,
   'web-hosting': webHosting,
   'web-hosting-console': webHostingConsole,
-  'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
