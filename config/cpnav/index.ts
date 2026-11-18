@@ -8,16 +8,26 @@
 // a move changes the canonical spelling of every multi-key token containing the key.
 
 import { accountContacts } from './keys/account-contacts';
+import { accountContactsConsole } from './keys/account-contacts-console';
 import { accountDashboard } from './keys/account-dashboard';
+import { accountCarbonConsole } from './keys/account-carbon-console';
 import { accountMessages } from './keys/account-messages';
+import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
+import { accountProfileConsole } from './keys/account-profile-console';
 import { accountSecurity } from './keys/account-security';
+import { accountSecurityConsole } from './keys/account-security-console';
+import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
+import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
 import { baremetalVps } from './keys/baremetal-vps';
 import { billingInvoices } from './keys/billing-invoices';
+import { billingInvoicesConsole } from './keys/billing-invoices-console';
 import { billingOrders } from './keys/billing-orders';
+import { billingOrdersConsole } from './keys/billing-orders-console';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
+import { billingPaymentMethodsConsole } from './keys/billing-payment-methods-console';
 import { billingServices } from './keys/billing-services';
 import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
@@ -155,7 +165,6 @@ import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
-import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
@@ -176,7 +185,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-ongoing-operations-console': webOngoingOperationsConsole,
   'web-hosting': webHosting,
   'web-hosting-console': webHostingConsole,
-  'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
@@ -202,6 +210,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
+  'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
@@ -322,13 +331,22 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.
   'account-dashboard': accountDashboard,
+  'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
+  'account-profile-console': accountProfileConsole,
   'account-security': accountSecurity,
+  'account-security-console': accountSecurityConsole,
+  'account-security-ip-console': accountSecurityIpConsole,
   'account-contacts': accountContacts,
+  'account-contacts-console': accountContactsConsole,
   'account-messages': accountMessages,
+  'account-messages-console': accountMessagesConsole,
   'billing-orders': billingOrders,
+  'billing-orders-console': billingOrdersConsole,
   'billing-invoices': billingInvoices,
+  'billing-invoices-console': billingInvoicesConsole,
   'billing-payment-methods': billingPaymentMethods,
+  'billing-payment-methods-console': billingPaymentMethodsConsole,
   'billing-services': billingServices,
   'billing-services-console': billingServicesConsole,
 };

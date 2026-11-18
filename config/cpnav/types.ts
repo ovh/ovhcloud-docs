@@ -33,7 +33,10 @@ export type UniverseId =
   | 'identity-security-operations'
   | 'identity-access-management'
   | 'observability'
-  | 'account-menu';
+  | 'account-menu'
+  | 'console-account-menu'
+  | 'console-left-menu'
+  | 'console-my-account';
 
 /**
  * One step of the navigation path.
