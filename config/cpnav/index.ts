@@ -123,6 +123,7 @@ import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudRancherConsole } from './keys/publiccloud-rancher-console';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
+import { publiccloudSiteToSiteVpnConsole } from './keys/publiccloud-site-to-site-vpn-console';
 import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
@@ -280,6 +281,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-public-ips-console': publiccloudPublicIpsConsole,
   'publiccloud-gateway': publiccloudGateway,
   'publiccloud-gateway-console': publiccloudGatewayConsole,
+  'publiccloud-site-to-site-vpn-console': publiccloudSiteToSiteVpnConsole,
   'publiccloud-subnet-console': publiccloudSubnetConsole,
   'publiccloud-rancher': publiccloudRancher,
   'publiccloud-rancher-console': publiccloudRancherConsole,
