@@ -5,6 +5,7 @@
 ### Fixes
 
 #### EU
+- **cpnav:** point the migrated VPS, LDP, KMS and Secret Manager guides at the Console
 - **telecom:** align the Console guides with the Console code (#1294)
 
 #### All regions
@@ -17,7 +18,7 @@
 - **console:** mark Console links with the console attribute, drop /beta (#1295)
 
 ### Documentation
-- EU: 1499 guides across de, en, es, fr, it, pl, pt
+- EU: 1644 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.18.1
 
