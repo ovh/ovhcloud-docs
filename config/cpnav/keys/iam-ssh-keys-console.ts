@@ -1,12 +1,11 @@
 import type { CpNavKey } from '../types';
 
 // Console (v8) destination for account SSH keys. The v6 Control Panel managed them from
-// My services; the Console moved them to Transverse › Identity and Access Management
-// (a group node, omitted by the docs convention) › SSH keys. App ssh-keys
-// (manager-gcj), mounted at /customer/iam/ssh-keys; labels from enablers-sidebar
-// `iam.entry.sshKeys`.
+// My services; the Console shows them under Identity and Access Management
+// (transverse.group.iam) › SSH keys. App ssh-keys (manager-gcj), mounted at
+// /customer/iam/ssh-keys; labels from enablers-sidebar `iam.entry.sshKeys`.
 export const iamSshKeysConsole: CpNavKey = {
-  universe: 'transverse',
+  universe: 'identity-access-management',
   console: true,
   locations: [
     {

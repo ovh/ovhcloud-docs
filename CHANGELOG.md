@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026.11.18.1
+
+### Features
+
+#### EU
+- **fragments:** show the Console update banner on VMware, Nutanix and SAP
+- **manage-and-operate:** update 17 guides to the OVHcloud Console (EN + FR) (#1194)
+- **v8:** move the Internet Access guides to the Console (#1241)
+- **v8:** move the OverTheBox guides to the Console (#1221)
+- **manager-link:** open the OVHcloud Console on its own host
+
+### Documentation
+- EU: 2335 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.18
+
+### Documentation
+- EU: 4 guides across en, fr
+
+## 2026.11.17.2
+
+### Maintenance
+
+#### All regions
+- **sidebar:** shorten the DNS product label to "DNS
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.17.1
+
+### Features
+
+#### EU
+- **fragments:** add the console-update-pending banner with a v6 link (#1254)
+
+### Documentation
+- EU: 15 guides across de, en, es, fr, it, pl, pt
+- US: 27 guides across en
+
 ## 2026.11.17
 
 ### Documentation
