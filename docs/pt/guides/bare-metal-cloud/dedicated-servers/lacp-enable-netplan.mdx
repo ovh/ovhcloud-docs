@@ -1,1 +1,239 @@
-../../../../en/guides/bare-metal-cloud/dedicated-servers/lacp-enable-netplan.mdx
+---
+title: "Como configurar a agregação de ligações com LACP em Debian 12 ou mais recente / Ubuntu 24.04 ou mais recente"
+description: "Ative a agregação de ligações no seu servidor Debian 12 ou mais recente / Ubuntu 24.04 ou mais recente (Netplan) para aumentar a disponibilidade do seu servidor e a eficiência das suas ligações de rede"
+lastUpdated: 2026-11-13
+---
+
+import Api from '@components/Api';
+
+## Objetivo
+
+A tecnologia LACP (Link Aggregation Control Protocol) foi concebida para aumentar a disponibilidade do seu servidor e melhorar a eficiência das suas ligações de rede. Pode agregar as suas placas de rede e tornar as suas ligações de rede redundantes. Isto significa que, se uma ligação falhar, o tráfego é automaticamente redirecionado para outra ligação disponível. Graças à agregação, a largura de banda disponível é também duplicada.
+
+**Este guia explica como agregar as suas interfaces para as utilizar na agregação de ligações em Debian 12 ou mais recente / Ubuntu 24.04 ou mais recente (configuração Netplan).**
+
+:::warning
+Embora as imagens Debian 12 (ou mais recentes) fornecidas pela OVHcloud utilizem `Netplan` por predefinição, existem duas exceções importantes em que é utilizado `ifupdown` (/etc/network/interfaces):
+
+- **Modo de recuperação**: Embora seja baseado em Debian 12, o modo de recuperação utiliza a ferramenta `ifupdown`.
+- **Imagens personalizadas**: As instalações Debian efetuadas com a sua própria imagem podem continuar a utilizar `ifupdown` para a configuração de rede.
+
+Se pretender configurar a agregação de ligações em modo de recuperação, ou num SO personalizado que utilize `ifupdown`, consulte antes [este guia](/guides/bare-metal-cloud/dedicated-servers/lacp-enable-ifupdown).
+
+:::
+
+
+## Requisitos
+
+[[cpnav:baremetal-dedicated-servers-console]]
+
+## Instruções
+
+:::info
+Os valores (endereços MAC, endereços IP, etc.) indicados nas configurações e exemplos abaixo são apenas exemplos. Deve, naturalmente, substituí-los pelos seus próprios valores.
+
+:::
+
+
+### Obtenção dos endereços MAC
+
+Abra o separador <code className="action">Connectivity</code> do seu servidor na consola OVHcloud e anote os endereços MAC de cada interface (pública/privada). Estes aparecem em **Aggregated interface composition**, nas secções **Public interface** e **Interface privada (vRack)**, com os nomes **NIC #1** e **NIC #2**.
+
+:::info
+A interface **pública principal** gere a conectividade pública na configuração predefinida. O seu endereço MAC corresponde ao valor `aggregationFallback` da interface `public`, que pode obter com a seguinte rota de API:
+
+<Api version="v1" section="/dedicated/server" method="GET" route={"/dedicated/server/\{serviceName\}/networking"} />
+
+:::
+
+
+Agora que sabe quais os endereços MAC associados a cada tipo (público/privado) de interface, deve obter os nomes das interfaces.
+
+### Obtenção dos nomes das interfaces
+
+:::info
+Se perder a ligação de rede ao seu servidor, siga os passos "**Abrir um KVM**" [deste guia](/guides/bare-metal-cloud/dedicated-servers/ipmi).
+
+:::
+
+
+Para obter os nomes das interfaces, execute o seguinte comando:
+
+```bash
+ip a
+```
+
+:::info
+Este comando irá apresentar várias interfaces. Se tiver dificuldade em determinar quais são as suas interfaces físicas, o endereço IP público do servidor continua associado por predefinição à primeira interface.
+
+:::
+
+
+Eis um exemplo de resultado:
+
+```text
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute
+       valid_lft forever preferred_lft forever
+2: ens22f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:c6 brd ff:ff:ff:ff:ff:ff
+    inet 203.0.113.1/32 metric 100 scope global dynamic ens22f0np0
+       valid_lft 71613sec preferred_lft 71613sec
+    inet6 2001:db8:1:1b00:203:0:112:0/56 scope global
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a6b2:c3ff:fed4:e5c6/64 scope link
+       valid_lft forever preferred_lft forever
+3: ens22f1np1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:c7 brd ff:ff:ff:ff:ff:ff
+4: ens33f0np0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:d6 brd ff:ff:ff:ff:ff:ff
+5: ens33f1np1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether a1:b2:c3:d4:e5:d7 brd ff:ff:ff:ff:ff:ff
+```
+
+Depois de determinar os nomes das suas interfaces, pode configurar a agregação de interfaces no sistema operativo.
+
+### Configuração de IP fixo
+
+Substitua o conteúdo de `/etc/netplan/50-cloud-init.yaml` pelo seguinte:
+
+```yaml
+network:
+    version: 2
+    ethernets:
+        ens22f0np0:
+            match:
+                macaddress: a1:b2:c3:d4:e5:c6
+        ens22f1np1:
+            match:
+                macaddress: a1:b2:c3:d4:e5:c7
+        ens33f0np0:
+            match:
+                macaddress: a1:b2:c3:d4:e5:d6
+        ens33f1np1:
+            match:
+                macaddress: a1:b2:c3:d4:e5:d7
+    bonds:
+        bond0:
+            # Endereço MAC da interface pública principal do servidor
+            macaddress: a1:b2:c3:d4:e5:c6
+            accept-ra: false
+            addresses:
+                - 203.0.113.1/32
+                - 2001:db8:1:1b00:203:0:112:0/56
+            routes:
+                - on-link: true
+                  to: default
+                  via: 100.64.0.1
+                - on-link: true
+                  to: default
+                  via: fe80::1
+            nameservers:
+                addresses:
+                - 213.186.33.99
+                - 2001:41d0:3:163::1
+            interfaces:
+                - ens22f0np0
+                - ens22f1np1
+            parameters:
+                mode: 802.3ad
+                lacp-rate: fast
+                transmit-hash-policy: layer3+4
+        # Opcional: configuração de um agregado privado
+        bond1:
+            # Endereço MAC da primeira interface privada
+            macaddress: a1:b2:c3:d4:e5:d6
+            accept-ra: false
+            interfaces:
+                - ens33f0np0
+                - ens33f1np1
+            parameters:
+                mode: 802.3ad
+                lacp-rate: fast
+                transmit-hash-policy: layer3+4
+```
+
+<details>
+
+<summary>Configuração DHCP</summary>
+
+
+Substitua o conteúdo de `/etc/netplan/50-cloud-init.yaml` pelo seguinte:
+
+```yaml
+network:
+    version: 2
+    ethernets:
+        ens22f0np0:
+            match:
+                macaddress: a1:b2:c3:d4:e5:c6
+        ens22f1np1:
+            match:
+                macaddress: a1:b2:c3:d4:e5:c7
+        ens33f0np0:
+            match:
+                macaddress: a1:b2:c3:d4:e5:d6
+        ens33f1np1:
+            match:
+                macaddress: a1:b2:c3:d4:e5:d7
+    bonds:
+        bond0:
+            # Endereço MAC da interface pública principal do servidor
+            macaddress: a1:b2:c3:d4:e5:c6
+            accept-ra: false
+            dhcp4: true
+            addresses:
+                - 2001:db8:1:1b00:203:0:112:0/56
+            routes:
+                - on-link: true
+                  to: default
+                  via: fe80::1
+            nameservers:
+                addresses:
+                - 2001:41d0:3:163::1
+            interfaces:
+                - ens22f0np0
+                - ens22f1np1
+            parameters:
+                mode: 802.3ad
+                lacp-rate: fast
+                transmit-hash-policy: layer3+4
+        # Opcional: configuração de um agregado privado
+        bond1:
+            # Endereço MAC da primeira interface privada
+            macaddress: a1:b2:c3:d4:e5:d6
+            accept-ra: false
+            interfaces:
+                - ens33f0np0
+                - ens33f1np1
+            parameters:
+                mode: 802.3ad
+                lacp-rate: fast
+                transmit-hash-policy: layer3+4
+```
+
+</details>
+
+
+### Aplicação da configuração
+
+:::info
+O comando `netplan try` não pode ser utilizado na configuração de agregados.
+
+:::
+
+
+Aplique a configuração com o seguinte comando:
+
+```bash
+sudo netplan apply
+```
+
+Os agregados podem demorar alguns segundos a ficar operacionais.
+
+## Quer saber mais?
+
+Fale com a nossa [comunidade de utilizadores](/links/community).
