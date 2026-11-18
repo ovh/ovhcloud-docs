@@ -5,6 +5,7 @@
 ### Fixes
 
 #### All regions
+- **tabs:** keep the clicked tab row anchored while revealed images load (#1292)
 - **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
 
 ### Documentation
