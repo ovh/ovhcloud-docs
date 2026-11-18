@@ -91,14 +91,16 @@ function hubTabs(region: HubRegion): NavItemConfig[] {
     },
     tab('nav.buildWithAi', '/ai/'),
     tab('nav.playground', '/playground/'),
-    {
-      role: 'tab',
-      text: 'nav.labs',
-      links: allLocales('https://labs.ovhcloud.com/'),
-      external: true,
-    },
   ];
 }
+
+/** Labs: the only tab that leaves the family of sites (new tab, ↗). EU only. */
+const labsTab: NavItemConfig = {
+  role: 'tab',
+  text: 'nav.labs',
+  links: allLocales('https://labs.ovhcloud.com/'),
+  external: true,
+};
 
 /** Documentation: this site, the active tab; its link is the locale's home. */
 const documentationTab: NavItemConfig = {
@@ -142,11 +144,12 @@ function consoleItem(region: HubRegion): NavItemConfig {
 // --- EU: the EU hub and Console by default ---------------------------------
 const euNavItems: NavItemConfig[] = [
   ...hubTabs('eu'),
+  labsTab,
   documentationTab,
   consoleItem('eu'),
 ];
 
-// --- US: English-only, its own hub and Console ----------------------------
+// --- US: English-only, its own hub and Console; no Labs tab ---------------
 const usNavItems: NavItemConfig[] = [
   ...hubTabs('us'),
   documentationTab,

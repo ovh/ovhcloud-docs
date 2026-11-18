@@ -6,8 +6,10 @@ import type {
   NormalizedSidebarGroup,
   SidebarData,
 } from '@rspress/core';
-import { useSidebarDynamic } from '@rspress/core/runtime';
+import { useI18n, useSidebarDynamic } from '@rspress/core/runtime';
 import { useAIChatbotDrawer } from 'theme/components/AIChatbotDrawer/context';
+import { AISparkIcon } from 'theme/components/AISparkIcon';
+import './index.css';
 import { PagefindSearch } from 'theme/components/PagefindSearch';
 import { SidebarDivider } from './SidebarDivider';
 import { SidebarGroup } from './SidebarGroup';
@@ -45,6 +47,7 @@ export function SidebarList({
   setSidebarData: React.Dispatch<React.SetStateAction<SidebarData>>;
 }) {
   const { toggle } = useAIChatbotDrawer();
+  const t = useI18n<Record<string, string>>();
 
   return (
     <div className="ovh-side flex flex-col gap-[22px] h-full overflow-hidden">
@@ -57,15 +60,15 @@ export function SidebarList({
         {__AI_ASSISTANT__ && (
           <button
             type="button"
+            className="ovh-side-ai"
             onClick={(e) => {
               trackClick('cta-open-component-chatbot', e.currentTarget);
               toggle();
             }}
-            aria-label="Ask our AI"
-            style={{ background: 'linear-gradient(135deg,#fdef61,#77fbfb)' }}
-            className="w-[42px] h-[42px] shrink-0 grid place-items-center rounded-[10px] cursor-pointer"
+            aria-label={t('aiAssistantTitle')}
+            title={t('aiAssistantTitle')}
           >
-            <img src="/images/ai.svg" alt="AI assistant" className="w-6 h-6" />
+            <AISparkIcon size={20} />
           </button>
         )}
       </div>

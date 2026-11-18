@@ -173,6 +173,10 @@ export { LastUpdated } from 'theme/components/LastUpdated';
 // Restore v1-style Tabs sync: derive a groupId from tab labels so selection
 // persists across blocks and navigation (Rspress v2 only syncs with a groupId).
 export { Tab, Tabs } from 'theme/components/SyncedTabs';
+// The light / dark state behind ThemeContext: Rspress's ClientApp imports it
+// from `@rspress/core/theme` (this file). Ours keeps an explicit choice —
+// system, light or dark — as picked (theme/hooks/useAppearance.ts).
+export { useThemeState } from 'theme/hooks/useAppearance';
 export {
   DocLayout,
   EditLink,

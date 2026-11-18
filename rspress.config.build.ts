@@ -10,6 +10,7 @@
 import * as path from 'node:path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
+import { appearanceHeadScript } from './config/appearance-head-script';
 import { generateCpNavRules } from './config/cpnav-rules';
 import { buildFooterMessage } from './config/footer';
 import { generateFragmentRules } from './config/fragment-rules';
@@ -151,6 +152,15 @@ export default defineConfig({
       // not-fully-hydrated DOM and silently fails to inject. Dynamic
       // injection from useEffect guarantees React has hydrated first.
       tags: [
+        {
+          // Lights the navbar's appearance switch (system / light / dark)
+          // on the chosen segment before first paint. See
+          // config/appearance-head-script.ts.
+          tag: 'script',
+          head: true,
+          append: false,
+          children: appearanceHeadScript,
+        },
         {
           // Hides the navbar's Developers links before first paint when they
           // are about to follow `?from` / a remembered hub (no flash of the
