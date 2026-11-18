@@ -1,1 +1,914 @@
-../../../../en/guides/bare-metal-cloud/dedicated-servers/intervention-support.mdx
+---
+title: Finalizar uma intervenção de manutenção no seu servidor dedicado
+description: Descubra que ações poderá ter de realizar no seu servidor após uma intervenção de manutenção
+lastUpdated: 2026-03-20
+---
+
+## Objetivo
+
+As nossas intervenções de manutenção limitam-se exclusivamente à componente de hardware do seu servidor. Após uma intervenção de manutenção, poderão ser necessárias ações da sua parte na componente de software do seu servidor.
+
+Esta documentação, baseada em numerosos casos práticos e situações encontradas pelas nossas equipas, enumera as ações a realizar em função das suas instalações: sistemas operativos, hipervisor, etc.
+Tem como objetivo acompanhá-lo e limitar tanto quanto possível o impacto no ciclo de vida dos seus ambientes.
+
+## Requisitos
+
+- Dispor de um [servidor dedicado](/links/bare-metal/bare-metal).
+
+## Instruções
+
+:::info
+Descubra como identificar o nome das suas interfaces de rede [nesta subsecção do guia](#network-interface).
+
+:::
+
+
+Continue a leitura deste guia clicando na ligação correspondente à sua instalação:
+
+- Sistema operativo
+    - [Ubuntu / Debian 12+](#ubuntu)
+    - [CentOS / Alma Linux](#centos-almalinux)
+    - [SmartOS](#smartos)
+    - [FreeBSD](#freebsd)
+    - [Gentoo](#gentoo)
+- Virtualização
+    - [Proxmox / Debian (exceto Debian 12 e versões posteriores)](#proxmox)
+    - [XenServer](#xenserver)
+    - [ESXi](#esxi)
+    - [Windows (hyper-V)](#windows)
+
+:::info
+Se tiver um problema de arranque do sistema operativo que pareça estar relacionado com a sua partição de arranque EFI, consulte diretamente esta [secção](#partition-efi).
+
+:::
+
+
+<a name="ubuntu"></a>
+
+### Ubuntu / Debian 12+
+
+Se tiver um problema de conectividade de rede (por exemplo, ausência de resposta ao ping após a substituição da placa-mãe), efetue as seguintes ações:
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode).<br/>
+2\. Monte a partição `/`:
+
+```bash
+root@rescue:~# mount /dev/my_system_disk /mnt
+```
+Se o ficheiro `70-persistent-net.rules` não existir (consulte a secção deste guia sobre [o nome das suas interfaces de rede](#network-interface)), verifique os seguintes ficheiros na árvore `/etc/systemd/network/`:
+
+- `50-default.network`
+- `50-public-interface.link`
+
+```bash
+root@rescue:~# cat /mnt/etc/systemd/network/50-default.network
+# This file sets the IP configuration of the primary (public) network device.
+# You can also see this as "OSI Layer 3" config.
+# It was created by the OVH installer, please be careful with modifications.
+# Documentation: man systemd.network or https://www.freedesktop.org/software/systemd/man/systemd.network.html
+ 
+[Match]
+MACAddress=xx:xx:xx:xx:xx:xx
+ 
+[Network]
+Description=network interface on public network, with default route
+DHCP=no
+Address=1.2.3.4/24
+Gateway=1.2.3.254
+IPv6AcceptRA=no
+NTP=ntp.ovh.net
+DNS=127.0.0.1
+DNS=213.186.33.99
+DNS=2001:41d0:3:163::1
+Gateway=2001:41d0:0203:4bff:ff:ff:ff:ff
+ 
+[Address]
+Address=2001:41d0:0203:1234::/64
+ 
+[Route]
+Destination=2001:41d0:0203:4bff:ff:ff:ff:ff
+Scope=link
+root@rescue:~#
+root@rescue:~# cat /mnt/etc/systemd/network/50-public-interface.link
+# This file configures the relation between network device and device name.
+# You can also see this as "OSI Layer 2" config.
+# It was created by the OVH installer, please be careful with modifications.
+# Documentation: man systemd.link or https://www.freedesktop.org/software/systemd/man/systemd.link.html
+ 
+[Match]
+MACAddress=xx:xx:xx:xx:xx:xx
+ 
+[Link]
+Description=network interface on public network, with default route
+MACAddressPolicy=persistent
+NamePolicy=kernel database onboard slot path mac
+#Name=eth2    # name under which this interface is known under OVH rescue system
+#Name=eno3    # name under which this interface is probably known by systemd
+root@rescue:~#
+```
+
+3\. Faça uma cópia de segurança dos ficheiros e edite-os para introduzir o novo valor do seu endereço MAC:
+
+```bash
+root@rescue:~# cp /mnt/etc/systemd/network/50-default.network /mnt/etc/systemd/network/50-default.network.link.bak-`date +%s`
+root@rescue:~# cp /mnt/etc/systemd/network/50-public-interface.link /mnt/etc/systemd/network/50-public-interface.link.bak-`date +%s`
+root@rescue:~# nano /mnt/etc/systemd/network/50-default.network
+root@rescue:~# cat /mnt/etc/systemd/network/50-default.network | grep MACAddress
+MACAddress=xx:xx:xx:xx:xx:xx
+root@rescue:~#
+root@rescue:~# nano /mnt/etc/systemd/network/50-public-interface.link
+root@rescue:~#
+root@rescue:~# cat /mnt/etc/systemd/network/50-public-interface.link | grep MACAddress
+MACAddress=xx:xx:xx:xx:xx:xx
+root@rescue:~#
+```
+
+4\. Não se esqueça de desmontar a partição `/` antes de reiniciar o servidor.
+
+#### Casos específicos
+
+Em alguns casos, é necessário propagar o novo endereço MAC para os seguintes ficheiros:
+
+- `/mnt/etc/netplan/01-netcfg.yaml`
+- `/mnt/etc/netplan/50-cloud-init.yaml`
+- `/mnt/etc/systemd/network/10-eno1.link`
+- `/mnt/etc/systemd/network/10-eno1.network`
+
+<a name="centos-almalinux"></a>
+
+### CentOS / Alma Linux
+
+Se tiver um problema de conectividade de rede (por exemplo, ausência de resposta ao ping após a substituição da placa-mãe), efetue as seguintes ações:
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode).<br/>
+2\. Monte a partição `/`:
+
+```bash
+root@rescue:~# mount /dev/my_system_disk /mnt
+```
+
+3\. Verifique o ficheiro de configuração `/mnt/etc/sysconfig/network-scripts/ifcfg-eth0`.
+
+4\. Faça uma cópia de segurança dos ficheiros e edite-os para corrigir o endereço MAC:
+
+```bash
+root@rescue:~# cp /mnt/etc/sysconfig/network-scripts/ifcfg-eth0 /mnt/etc/sysconfig/network-scripts/ifcfg-eth0.`date +%s`
+```
+
+5\. Introduza o novo endereço MAC na linha `HWADDR=xx:xx:xx:xx:xx:xx`.
+
+6\. Não se esqueça de desmontar a partição `/` antes de reiniciar o servidor.
+
+<a name="smartos"></a>
+
+### SmartOS
+
+Se tiver um problema de conectividade de rede (por exemplo, ausência de resposta ao ping após a substituição da placa-mãe), efetue as seguintes ações:
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode).<br/>
+
+```bash 
+modprobe zfs
+root@rescue:~# zpool import -f zones (zpool import to list the pools)
+root@rescue:~# zfs set mountpoint=/mnt zones/usbkey
+root@rescue:~# zfs mount zones/usbkey
+root@rescue:~# cp /mnt/config{,.bak-$(date +"%Y-%m-%d-%H_%M")}
+```
+
+2\. Introduza o novo endereço MAC na linha `admin_nic`:
+
+```bash
+root@rescue:~#  vim /mnt/config
+```
+
+3\. Não se esqueça de desmontar as partições antes de reiniciar o servidor em modo `netboot`:
+
+```bash
+root@rescue:~# zfs umount -a
+root@rescue:~# zfs set mountpoint="/usbkey" zones/usbkey 
+```
+
+<a name="freebsd"></a>
+
+### FreeBSD
+
+Se tiver um problema de conectividade de rede (por exemplo, ausência de resposta ao ping após a substituição da placa-mãe), efetue as seguintes ações:
+
+1\. Reinicie o servidor em modo rescue-bsd.<br/>
+2\. Execute o comando `ifconfig` a partir da linha de comandos do rescue-bsd.
+
+Desta forma, poderá identificar o nome da sua interface de rede:
+
+```bash
+root@rescue-bsd:~ # ifconfig
+igb0: flags=8843<UP,BROADCAST,RUNNING,SIMPLEX,MULTICAST> metric 0 mtu 1500
+options=403bb<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,JUMBO_MTU,VLAN_HWCSUM,TSO4,TSO6,VLAN_HWTSO>
+ether xx:xx:xx:xx:xx:xx
+```
+
+3\. Execute o comando `gpart show` para identificar e associar as partições e os respetivos nomes:
+
+```bash
+root@rescue-bsd:~ # gpart show
+=> 63 3907029105 ada0 MBR (1.8T)
+ 63 3907029105 1 freebsd [active] (1.8T)
+ 
+=> 0 3907029105 ada0s1 BSD (1.8T)
+ 0 40960000 1 freebsd-ufs (20G)
+ 40960000 3865020416 2 freebsd-ufs (1.8T)
+ 3905980416 1048689 4 freebsd-swap (512M)
+ 
+=> 63 3907029105 diskid/DISK-PN1134P6K14W5W MBR (1.8T)
+ 63 3907029105 1 freebsd [active] (1.8T)
+ 
+=> 0 3907029105 diskid/DISK-PN1134P6K14W5Ws1 BSD (1.8T)
+ 0 40960000 1 freebsd-ufs (20G)
+ 40960000 3865020416 2 freebsd-ufs (1.8T)
+ 3905980416 1048689 4 freebsd-swap (512M)
+```
+
+4\. Monte a partição que lhe interessa. Poderá assim modificar a interface através do ficheiro `/etc/rc.conf`:
+
+```bash
+root@rescue-bsd:~ # zpool import
+   pool: zroot
+     id: 16525429322000118320
+  state: ONLINE
+ status: The pool was last accessed by another system.
+ action: The pool can be imported using its name or numeric identifier and
+    the '-f' flag.
+   see: http://illumos.org/msg/ZFS-8000-EY
+ config:
+ 
+    zroot       ONLINE
+      ada0p4    ONLINE
+root@rescue-bsd:~ #
+root@rescue-bsd:~ #
+root@rescue-bsd:~ # zpool import -f zroot
+cannot mount '/home': failed to create mountpoint
+cannot mount '/zroot': failed to create mountpoint
+root@rescue-bsd:~ #
+ 
+root@rescue-bsd:~ # zfs list -t all
+NAME                 USED  AVAIL  REFER  MOUNTPOINT
+zroot               1.01G   673G    88K  /zroot
+zroot/ROOT          1.00G   673G    88K  none
+zroot/ROOT/default  1.00G  18.5G  1.00G  /
+zroot/home            88K   673G    88K  /home
+root@rescue-bsd:~ # mkdir /tmp/rootClient
+root@rescue-bsd:~ # zfs set mountpoint=/tmp/roo
+mountpoint=/tmp/ not found
+ 
+root@rescue-bsd:~ # zfs set mountpoint=/tmp/rootClient zroot/ROOT/default
+root@rescue-bsd:~ # zfs list -t all
+NAME                 USED  AVAIL  REFER  MOUNTPOINT
+zroot               1.01G   673G    88K  /zroot
+zroot/ROOT          1.00G   673G    88K  none
+zroot/ROOT/default  1.00G  18.5G  1.00G  /tmp/rootClient
+zroot/home            88K   673G    88K  /home
+root@rescue-bsd:~ #
+ 
+root@rescue-bsd:~ # zfs mount zroot/ROOT/default
+root@rescue-bsd:~ # ls /tmp/rootClient/
+.cshrc          .rnd            bin             boot.config     entropy         home            libexec         mnt             opt             rescue          sbin            tmp             var
+.profile        COPYRIGHT       boot            dev             etc             lib             media           net             proc            root            sys             usr             zroot
+root@rescue-bsd:~ #
+```
+
+5\. Faça uma cópia de segurança dos ficheiros e edite-os para corrigir o endereço MAC.
+
+No caso apresentado, devemos substituir as 3 ocorrências de `em0` por `ibg0` no ficheiro de configuração associado:
+
+```bash
+root@rescue-bsd:~ # mount /dev/ada0s1 /mnt/
+root@rescue-bsd:~ #
+root@rescue-bsd:~ # cat /mnt/etc/rc.conf
+sshd_enable="YES"
+# Set dumpdev to "AUTO" to enable crash dumps, "NO" to disable
+dumpdev="AUTO"
+local_unbound_enable=yes
+ifconfig_em0="inet xx.xxx.xxx.xxx netmask 255.255.255.0 broadcast xx.xxx.xxx.255"
+defaultrouter="xx.xxx.xxx.254"
+  
+# IPv6 configuration
+ipv6_enable="YES"
+ipv6_network_interfaces="em0"
+ifconfig_em0_ipv6="inet6 2001:xxxx:xxxx:xxx::1 prefixlen 128 accept_rtadv no_radr"
+ipv6_static_routes="ovhgw"
+ipv6_route_ovhgw="2001:41d0:0001:c1ff:ff:ff:ff:ff -prefixlen 128 -interface em0"
+ipv6_defaultrouter="2001:41d0:0001:c1ff:ff:ff:ff:ff"
+mysql_enable="YES"
+root@rescue-bsd:~ #
+root@rescue-bsd:~ # cp /mnt/etc/rc.conf /mnt/etc/rc.conf.`date +%s`
+root@rescue-bsd:~ #
+root@rescue-bsd:~ # vim /mnt/etc/rc.conf
+root@rescue-bsd:~ #
+root@rescue-bsd:~ # cat /mnt/etc/rc.conf
+sshd_enable="YES"
+# Set dumpdev to "AUTO" to enable crash dumps, "NO" to disable
+dumpdev="AUTO"
+local_unbound_enable=yes
+ifconfig_ibg0="inet xx.xxx.xxx.xxx netmask 255.255.255.0 broadcast xx.xxx.xxx.255"
+defaultrouter="xx.xxx.xxx.254"
+  
+# IPv6 configuration
+ipv6_enable="YES"
+ipv6_network_interfaces="em0"
+ifconfig_ibg0_ipv6="inet6 2001:xxxx:xxxx:xxxx::1 prefixlen 128 accept_rtadv no_radr"
+ipv6_static_routes="ovhgw"
+ipv6_route_ovhgw="2001:41d0:0001:c1ff:ff:ff:ff:ff -prefixlen 128 -interface ibg0"
+ipv6_defaultrouter="2001:41d0:0001:c1ff:ff:ff:ff:ff"
+mysql_enable="YES"
+root@rescue-bsd:~ #
+```
+
+6\. Desmonte as partições ZFS:
+
+```bash
+root@rescue-bsd:~ # zfs unmount /tmp/rootClient/
+root@rescue-bsd:~ # zfs get mountpoint zroot/ROOT/default
+NAME                PROPERTY    VALUE            SOURCE
+zroot/ROOT/default  mountpoint  /tmp/rootClient  local
+root@rescue-bsd:~ # zfs setuntpoint zroot/ROOT/default
+root@rescue-bsd:~ # zfs set mountpoint=/ zroot/ROOT/default
+root@rescue-bsd:~ # zfs get mountpoint zroot/ROOT/default
+NAME                PROPERTY    VALUE       SOURCE
+zroot/ROOT/default  mountpoint  /           local
+root@rescue-bsd:~ # zfs list -t all
+NAME                 USED  AVAIL  REFER  MOUNTPOINT
+zroot               1.01G   673G    88K  /zroot
+zroot/ROOT          1.00G   673G    88K  none
+zroot/ROOT/default  1.00G  18.5G  1.00G  /
+zroot/home            88K   673G    88K  /home
+root@rescue-bsd:~ # zpool export zroot
+root@rescue-bsd:~ # zfs list -t all
+no datasets available
+root@rescue-bsd:~ #
+```
+
+<a name="gentoo"></a>
+
+### Gentoo
+
+Após a substituição da placa-mãe, não é possível modificar os novos endereços MAC através do sistema operativo em modo rescue.
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode) e identifique a partição `/`:
+
+```bash
+root@rescue:~# blkid
+/dev/sda1: UUID="15D6-5706" TYPE="vfat" PARTLABEL="grub" PARTUUID="bf514348-6259-41a4-a73f-ba0c38d45de5"
+/dev/sda2: UUID="15D6-8A6F" TYPE="vfat" PARTLABEL="boot" PARTUUID="7c0cbc80-c09a-4226-b7f2-91689a04250c"
+/dev/sda3: UUID="Q1r3UN-wfmY-QSPI-jIvA-9ybX-IWwk-YNNnUg" TYPE="LVM2_member" PARTLABEL="lvm" PARTUUID="79581bf9-3eb3-4947-9c51-856fb5d72ffa"
+/dev/mapper/vg0-swap: UUID="337409d9-cdc5-4db8-a957-336631d3e7cb" TYPE="swap"
+/dev/mapper/vg0-root: UUID="2b672f12-77be-40c2-a099-487565ffa933" TYPE="xfs"
+root@rescue:~#
+```
+
+No nosso exemplo, o sistema utiliza _LVM_:
+
+```bash
+root@rescue:~# lvdisplay
+  --- Logical volume ---
+  LV Path                /dev/vg0/swap
+  LV Name                swap
+  VG Name                vg0
+  LV UUID                X9ttby-08vi-iJVW-aJGP-qnep-PDI9-ohJF6J
+  LV Write Access        read/write
+  LV Creation host, time rescue.ovh.net, 2019-06-03 16:21:38 -0400
+  LV Status              available
+  # open                 0
+  LV Size                128.00 GiB
+  Current LE             32768
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     256
+  Block device           252:0
+ 
+  --- Logical volume ---
+  LV Path                /dev/vg0/root
+  LV Name                root
+  VG Name                vg0
+  LV UUID                822GLw-DELk-Q1ze-3NJD-1B3W-LT9H-CG8RTO
+  LV Write Access        read/write
+  LV Creation host, time rescue.ovh.net, 2019-06-03 16:21:44 -0400
+  LV Status              available
+  # open                 0
+  LV Size                17.34 TiB
+  Current LE             4545078
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     256
+  Block device           252:1
+```
+
+2\. Monte a partição `/` identificada:
+
+```bash
+root@rescue:~# mount /dev/vg0/root /mnt
+root@rescue:~# ls /mnt
+backups  bin  boot  dev  etc  home  images  images-ear  images-ueba  lib  lib32
+        media  mnt  opt  overlayimages  proc  root  run  sbin  srv  sys  tmp  uploads  usr  var
+```
+
+No Gentoo, os endereços MAC estão presentes nos 4 ficheiros seguintes:
+
+```bash
+root@rescue:~# cat /mnt/etc/systemd/network/
+10-external.link   11-internal.link   50-static.network  51-vrack.network
+root@rescue:~#
+```
+
+3\. Faça uma cópia de segurança dos ficheiros antes de os modificar:
+
+```bash
+root@rescue:~# cp /mnt/etc/systemd/network/50-static.network /mnt/etc/systemd/network/50-static.network.`date +%s`
+root@rescue:~# cp /mnt/etc/systemd/network/51-vrack.network /mnt/etc/systemd/network/51-vrack.network.`date +%s`
+root@rescue:~# cp /mnt/etc/systemd/network/10-external.link /mnt/etc/systemd/network/10-external.link.`date +%s`
+root@rescue:~# cp /mnt/etc/systemd/network/11-internal.link /mnt/etc/systemd/network/11-internal.link.`date +%s`
+```
+
+4\. Atualize os ficheiros com os novos endereços MAC:
+
+```bash
+root@rescue:~# nano /mnt/etc/systemd/network/50-static.network
+root@rescue:~# nano /mnt/etc/systemd/network/51-vrack.network
+root@rescue:~# nano /mnt/etc/systemd/network/10-external.link
+root@rescue:~# nano /mnt/etc/systemd/network/11-internal.lin
+```
+
+5\. Desmonte as partições e, em seguida, faça um *reboot*:
+
+```bash
+root@rescue:~# umount /mnt
+root@rescue:~# reboot
+```
+
+#### Casos específicos
+
+Em algumas versões, apenas é necessário modificar o ficheiro ` /mnt/etc/udev/rules.d/10-f2c-network.rules`:
+
+```bash
+root@rescue:~# cat /mnt/etc/gentoo-release
+Gentoo Base System release 2.2
+root@rescue:~#
+root@rescue:~# ls /mnt/etc/udev/rules.d/
+10-f2c-network.rules
+root@rescue:~#
+root@rescue:~# cat /mnt/etc/udev/rules.d/10-f2c-network.rules
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="xx:xx:xx:xx:xx:xx", ATTR{type}=="1", KERNEL=="*", NAME="netpublic0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="xx:xx:xx:xx:xx:xx", ATTR{type}=="1", KERNEL=="*", NAME="netprivate0"
+root@rescue:~#
+```
+
+<a name="proxmox"></a>
+
+### Proxmox / Debian (exceto Debian 12 e versões posteriores)
+
+Se tiver um problema de conectividade de rede (por exemplo, ausência de resposta ao ping após a substituição da placa-mãe), este pode estar relacionado com um erro durante o arranque do sistema, causado pelo antigo valor do endereço MAC que ainda está presente:
+
+<img className="thumbnail" alt="proxmox" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/proxmox_edited.jpg" loading="lazy" />
+
+Efetue as seguintes ações:
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode).
+
+```bash
+root@rescue:~# cat /mnt/etc/network/interfaces
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+ 
+# The loopback network interface
+auto lo
+iface lo inet loopback
+ 
+iface enp3s0f0 inet manual
+ 
+auto vmbr0
+iface vmbr0 inet dhcp
+  bridge-ports enp3s0f0
+  bridge-stp off
+  bridge-fd 0
+ 
+auto vmbr1
+iface vmbr1 inet static
+  address  192.168.22.254
+  netmask  255.255.255.0
+  bridge_ports none
+  bridge_stp off
+  bridge_fd 0
+  post-up echo 1 > /proc/sys/net/ipv4/ip_forward
+root@rescue:~#
+root@rescue:~# cat /mnt/var/log/messages | grep renamed
+Aug  8 14:27:20 s22 kernel: [    1.527563] igb 0000:04:00.0 eno1: renamed from eth0
+Aug  8 14:27:20 s22 kernel: [    1.550622] igb 0000:04:00.1 eno2: renamed from eth1
+Aug  8 14:27:34 s22 kernel: [   88.148303] eth0: renamed from vethGRELEP
+Aug  8 14:27:36 s22 kernel: [   90.444727] eth0: renamed from vethVMV0MH
+Aug  8 14:27:40 s22 kernel: [   94.116739] eth0: renamed from vethQWYCXT
+Aug  8 14:27:43 s22 kernel: [   97.469199] eth0: renamed from vethAIWWWX
+Aug  8 14:27:48 s22 kernel: [  102.101324] eth0: renamed from vethB2DGCS
+Aug  8 14:27:48 s22 kernel: [  102.139437] eth1: renamed from vethRSNNKL
+root@rescue:~#
+```
+
+2\. Volte a criar o ficheiro `70-persistent-net.rules` e adicione:
+
+- O nome da interface de rede indicado no ficheiro `/mnt/etc/network/interfaces`.
+- O novo endereço MAC (visível em **Aggregated interface composition**, no separador <code className="action">Connectivity</code> da <ManagerLink to="/">consola OVHcloud</ManagerLink>, ou no resultado do comando `ip link`).
+
+```bash
+root@rescue:~# cat /mnt/etc/udev/rules.d/70-persistent-net.rules
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="xx:xx:xx:xx:xx:xx", NAME="enp3s0f0"
+root@rescue:~#
+```
+
+<a name="xenserver"></a>
+
+### XenServer
+
+Se tiver um problema de conectividade de rede (por exemplo, ausência de resposta ao ping após a substituição da placa-mãe), o endereço MAC está configurado de forma estática e deve ser reinicializado.
+
+Efetue as seguintes ações:
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode) e utilize o comando `chroot`:
+
+```bash
+root@rescue:~# mount /dev/sda1 /mnt
+root@rescue:~# mount -t proc /proc/ /mnt/proc/
+root@rescue:~# mount -o bind /sys/ /mnt/sys/
+root@rescue:~# mount -o bind /dev/ /mnt/dev/
+root@rescue:~# mount -o bind /dev/pts/ /mnt/dev/pts/
+root@rescue:~# chroot /mnt
+```
+
+2\. Altere a configuração atual para que corresponda aos novos parâmetros:
+
+```bash
+[root@rescue /]# xe-reset-networking --device=eth0 --mode=static --ip=xx.xx.xx.xx --netmask=255.255.255.0 --gateway=xx.xx.xx.xxx
+```
+
+3\. Ser-lhe-á pedido que responda à pergunta com "yes" e, em seguida, prima "Enter":
+
+```bash
+----------------------------------------------------------------------
+!! WARNING !!
+  
+This command will reboot the host and reset its network configuration.
+Any running VMs will be forcefully shutdown.
+  
+Before completing this command:
+- Where possible, cleanly shutdown all VMs running on this host.
+- Disable HA if this host is part of a resource pool with HA enabled.
+----------------------------------------------------------------------
+  
+Your network will be re-configured as follows:
+  
+Management interface:   eth0
+IP configuration mode:  static
+IP address:             xx.xx.xx.xx
+Netmask:                255.255.255.0
+Gateway:                xx.xx.xx.xx
+Pool master's address:  xx.xx.xx.xx
+  
+If you want to change any of the above settings, type 'no' and re-run
+the command with appropriate arguments (use --help for a list of options).
+  
+Type 'yes' to continue.
+Type 'no' to cancel.
+yes
+Stopping xapi...
+Reconfiguring eth0...
+Updating inventory file...
+Running in chroot, ignoring request.
+```
+
+4\. Escreva "exit" para sair do modo `chroot` e, em seguida, desmonte todas as partições:
+
+```bash
+root@rescue:~# umount /mnt/sys
+root@rescue:~# umount /mnt/proc
+root@rescue:~# umount /mnt/dev/pts
+root@rescue:~# umount /mnt/dev
+root@rescue:~# umount /mnt
+```
+
+#### Casos específicos
+
+É necessário verificar e adaptar os seguintes ficheiros:
+
+- `/mnt/etc/sysconfig/network-scripts/interface-rename-data/static-rules.conf`  
+- `/mnt/etc/sysconfig/network-scripts/interface-rename-data/dynamic-rules.json`
+
+<a name="esxi"></a>
+
+### ESXi
+
+Após a substituição da placa-mãe, não é possível modificar os novos endereços MAC no ficheiro `esxi.conf` com as ferramentas integradas no modo rescue.
+Será, portanto, necessário intervir manualmente.
+
+#### Versão 7.0 ou superior
+
+O procedimento descrito abaixo aplica-se apenas às **versões 7.0 ou superiores**. A partir desta versão, o ficheiro state.tgz é encriptado.
+Reinicialize a rede a partir do menu Direct Console através do seu KVM ou IPMI.
+
+Consulte a captura de ecrã abaixo:
+
+<img className="thumbnail" alt="reset_network" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/restore.png" loading="lazy" />
+
+#### Versão 6.7 ou inferior
+
+O procedimento descrito abaixo aplica-se apenas às **versões 6.7 ou inferiores**.
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode) para montar a partição `/`:
+
+```bash
+root@rescue:~# mount /dev/sdaX /mnt/
+```
+
+2\. Faça uma cópia de segurança do ficheiro `state.tgz`
+
+```bash
+root@rescue:~# ls /mnt/state.tgz
+root@rescue:~# cp /mnt/state.tgz /mnt/state.tgz.`date +%s`
+```
+
+3\. Crie um ambiente de trabalho:
+
+```bash
+root@rescue:~# mkdir /home/ovh/esxi
+root@rescue:~# WORKINGDIR=/home/ovh/esxi
+root@rescue:~# cd $WORKINGDIR
+```
+
+4\. Extraia o conteúdo de `state.tgz` para `$WORKINGDIR` e, em seguida, extraia o conteúdo de `local.tgz`.<br/>
+5\. Edite o ficheiro `esx.conf` obtido:
+
+```bash
+root@rescue:/home/ovh/esxi# tar xf /mnt/state.tgz -C $WORKINGDIR
+root@rescue:/home/ovh/esxi# tar xf /home/ovh/esxi/local.tgz -C $WORKINGDIR
+root@rescue:/home/ovh/esxi# vim etc/vmware/esx.conf
+```
+6\. Identifique e modifique o endereço MAC de `vmkernelnic`:
+
+```bash
+/net/vmkernelnic/child[0000]/mac = "XX:XX:XX:XX:XX:XX"
+```
+
+7\. Identifique em que interface é utilizado o endereço IP principal:
+
+```bash
+/net/vswitch/child[0000]/uplinks/child[0000]/pnic = "vmnicX"
+```
+
+8\. Atualize o endereço MAC da interface principal:
+
+:::warning
+Não modifique o endereço MAC virtual.
+
+:::
+
+
+```bash
+/net/pnic/child[0001]/mac = "XX:XX:XX:XX:XX:XX"         <== Primary Interface Mac address
+/net/pnic/child[0001]/virtualMac = "00:50:56:XX:XX:XX"  <== Virtual Mac
+/net/pnic/child[0001]/name = "vmnic1"
+```
+
+:::warning
+Se existir uma interface vRack, não se esqueça de modificar também o respetivo endereço MAC.
+
+:::
+
+
+9\. Faça uma cópia de segurança e, em seguida, desmonte a partição `/`:
+
+```bash
+root@rescue:/home/ovh/esxi# tar -czf $WORKINGDIR/local.tgz etc/
+root@rescue:/home/ovh/esxi# tar -czf /mnt/state.tgz local.tgz
+root@rescue:/home/ovh/esxi# umount /mnt
+```
+
+#### Casos específicos
+
+Verifique a ordem das declarações dos seus vmnicX. Eis um exemplo funcional:
+
+```bash
+root@rescue:/home/ovh/esxi# cat etc/vmware/esx.conf | grep "/vmkdevmgr/pci"
+/vmkdevmgr/pci/m00008901/alias = "vmhba0"
+/vmkdevmgr/pci/m00008501/alias = "vmnic0"
+/vmkdevmgr/pci/m00008502/alias = "vmnic1"
+```
+
+<a name="windows"></a>
+
+### Windows (Hyper-V)
+
+Após a substituição da placa-mãe, o servidor não estará acessível enquanto não modificar manualmente os endereços MAC através do **Gestor de Dispositivos**.
+
+Existem 2 métodos:
+
+#### Através do IPMI/KVM
+
+1\. Ligue-se como administrador a partir da interface [IPMI/KVM](/guides/bare-metal-cloud/dedicated-servers/ipmi).<br/>
+2\. Abra o utilitário <code className="action">Executar</code> (tecla do logótipo do Windows + <code className="action">R</code>) e, através da linha de comandos `run`, execute o comando `devmgmt.msc`:
+
+<img className="thumbnail" alt="win_device_manager" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/win_device_manager_edited.png" loading="lazy" />
+
+3\. Abra <code className="action">Network adapters</code> e selecione o adaptador correspondente a `eth0`.<br/>
+4\. Clique com o botão direito em <code className="action">Properties</code> > <code className="action">Advanced</code>.<br/>
+5\. Localize `Locally Administered Address`.<br/>
+6\. Introduza o novo valor do endereço MAC (apenas algarismos, sem espaços).
+
+<img className="thumbnail" alt="win_advanced" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/win_advanced_edited.png" loading="lazy" />
+
+#### Através do WinPE
+
+1\. Reinicie o servidor em modo `WinPE`.<br/>
+2\. Execute o comando `regedit` através da linha de comandos `run`.<br/>
+3\. Carregue o registo local através do registo disponível no `WinPE` e, em seguida, clique em <code className="action">HKEY_LOCAL_MACHINE</code>:
+
+<img className="thumbnail" alt="win_regedit_1" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/win_regedit_1_edited.png" loading="lazy" />
+
+4\. Em seguida, clique em <code className="action">Load Hive...</code>.
+
+<img className="thumbnail" alt="win_regedit_2" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/win_regedit_2_edited.png" loading="lazy" />
+
+:::info
+Por predefinição, estará na árvore do WinPE.
+Não se esqueça de navegar até à unidade `C:\`.
+
+:::
+
+
+5\. Localize o registo `SYSTEM`.
+
+<img className="thumbnail" alt="win_load" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/win_load_edited.png" loading="lazy" />
+
+6\. Ser-lhe-á pedido que introduza um nome. Pode, por exemplo, escolher `OVH_TEST`.
+
+7\. Localize o valor do seguinte registo:
+
+```bash
+"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002BE10318}"
+```
+
+:::warning
+Enquanto estivermos no WinPE, o valor `CurrentControlSet` deverá ser igual a `CurrentSet001`.
+
+:::
+
+
+Deverá ver várias subchaves com nomes como estes: 0000, 0001, etc.
+
+8\. Clique em cada subchave para verificar o valor `DriverDesc`, que deve corresponder à sua interface de rede.
+Pode verificar o nome da sua interface a partir de um terminal com o seguinte comando:
+
+```bash
+ipconfig /all
+```
+
+9\. Procure as entradas de registo `NetworkAddress` no painel da direita e substitua o valor pelo do seu novo endereço MAC. Se esta entrada não existir, clique com o botão direito numa zona vazia para criar um valor do tipo `String` com o nome `NetworkAddress`.
+
+<img className="thumbnail" alt="win_regedit_3" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/win_regedit_3_edited.png" loading="lazy" />
+
+10\. Será necessário descarregar o registo para aplicar as alterações recentes. Clique em OVH_TEST (criado anteriormente), clique em <code className="action">File</code> (no canto superior esquerdo) e selecione <code className="action">Unload hive...</code>.
+
+<a name="network-interface"></a>
+
+### Identificar o nome das suas interfaces de rede
+
+Após a substituição da placa-mãe, o servidor não está acessível porque o controlador das interfaces de rede foi renomeado pelo sistema operativo.
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode), monte a partição `/` e, em seguida, utilize o comando `chroot`:
+
+```bash
+root@rescue:~# mount /dev/my_disk /mnt
+root@rescue:~# for i in /dev /dev/pts /proc /sys; do mount -B $i /mnt$i; done
+root@rescue:~# chroot /mnt
+```
+
+2\. Verifique se as interfaces foram modificadas. Consulte os logs `var/log/messages` ou `var/log/kern.log` para verificar se a interface foi renomeada:
+
+```bash
+Oct  9 22:25:49 node1 kernel: [    5.479916] ixgbe 0000:03:00.1 eno4: renamed from eth1
+Oct  9 22:25:49 node1 kernel: [    5.504285] ixgbe 0000:03:00.0 eno3: renamed from eth0
+```
+
+3\. Verifique o seu ficheiro de configuração `/mnt/etc/udev/rules.d/70-persistent.-net.rules` e substitua os novos valores (endereços MAC), se necessário:
+
+```bash
+root@rescue:~# cat /mnt/etc/udev/rules.d/70-persistent-net.rules
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="xx:xx:xx:xx:xx:xx", ATTR{dev_id}=="0x0", ATTR{type}=="1", KERNEL=="eth*", NAME="public"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="xx:xx:xx:xx:xx:xx", ATTR{dev_id}=="0x0", ATTR{type}=="1", KERNEL=="eth*", NAME="private"
+```
+
+4\. Aceda ao diretório `/boot/grub/` e crie uma cópia de segurança do ficheiro `grub.cfg`.
+5\. Edite o ficheiro `/etc/default/grub` e modifique a linha que começa por `GRUB_CMDLINE_LINUX` para obter o seguinte:
+
+```bash
+GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"
+```
+
+6\. Execute o comando:
+
+```bash
+root@rescue:~# grub-mkconfig -o /boot/grub/grub.cfg
+```
+
+7\. Saia do ambiente `chroot` com o comando `exit` e desmonte todas as partições:
+
+```bash
+root@rescue:~# umount /mnt/sys
+root@rescue:~# umount /mnt/proc
+root@rescue:~# umount /mnt/dev/pts
+root@rescue:~# umount /mnt/dev
+root@rescue:~# umount /mnt
+```
+
+<a name="partition-efi"></a>
+
+### Problemas relacionados com a sua partição EFI
+
+Os passos seguintes são indicados se tiver um problema de arranque (boot) relacionado com as partições presentes nos seus discos.<br/>
+Existem 2 métodos: através do modo rescue ou através do BIOS.
+
+#### Através do modo rescue
+
+- Caso de utilização: o sistema instalado (neste caso, Proxmox) deixou de arrancar após a substituição do disco (nenhuma entrada EFI está visível no BIOS).
+
+1\. Reinicie o servidor em [modo rescue](/guides/bare-metal-cloud/dedicated-servers/rescue-mode).<br/>
+2\. Identifique o disco que contém a partição EFI original:
+
+```bash
+Disk /dev/nvme1n1: 894.3 GiB, 960197124096 bytes, 1875385008 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk /dev/nvme0n1: 894.3 GiB, 960197124096 bytes, 1875385008 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: A28EAF07-248B-4CEB-86D4-92F75A36F1B0
+
+Device              Start        End    Sectors   Size Type
+/dev/nvme0n1p1         34    1048609    1048576   512M EFI System
+/dev/nvme0n1p2    1050624 1875368589 1874317966 893.8G Solaris /usr & Apple ZFS
+/dev/nvme0n1p9 1875368590 1875384974      16385     8M Solaris reserved 1
+```
+
+3\. Monte a partição em causa.
+
+```bash
+root@rescue:~# ls /mnt/EFI/proxmox/grubx64.efi
+/mnt/EFI/proxmox/grubx64.efi
+root@rescue:~#
+root@rescue:~# umount /mnt
+```
+
+4\. Utilize o seguinte comando para tornar esta partição novamente funcional:
+
+```bash
+root@rescue:~# efibootmgr -v --create --disk /dev/nvme0n1 --part 1 --label "proxmox2" --loader '\EFI\proxmox\grubx64.efi'
+BootCurrent: 0005
+Timeout: 1 seconds
+BootOrder: 0000,0005,0007,0006,0008,0001
+Boot0001* proxmox    Vendor(99e275e7-75a0-4b37-a2e6-c5385e6c00cb,)
+Boot0005* UEFI: PXE IP4 P0 Intel(R) Ethernet Controller X550    ACPI(a0341d0,0)PCI(1b,4)PCI(0,0)MAC(MAC(d05099d5e395,1)..BO
+Boot0006  UEFI: PXE IP4 P1 Intel(R) Ethernet Controller X550    ACPI(a0341d0,0)PCI(1b,4)PCI(0,1)MAC(MAC(d05099d5e394,1)..BO
+Boot0007  UEFI: Built-in EFI Shell    Vendor(5023b95c-db26-429b-a648-bd47664c8012,)..BO
+Boot0008* UEFI: PXE IP4 P0 American Megatrends Inc.    ACPI(a0341d0,0)PCI(14,0)USB(7,0)USB(2,1)MAC(MAC(2ab925859a66,0)..BO
+Boot0000* proxmox2    HD(1,22,100000,0df658ff-5461-470a-9d92-5d95208d5c0f)File(\EFI\proxmox\grubx64.efi)
+```
+
+#### Através do BIOS
+
+- Caso de utilização: o sistema instalado (neste caso, CentOS 6) deixou de arrancar após a substituição do disco (nenhuma entrada EFI está visível no BIOS).
+
+1\. Reinicie o servidor para aceder ao menu do BIOS.
+
+A *1.ª sequência* consiste em regenerar os ficheiros necessários para tornar a sua partição novamente operacional:
+
+- Aceda ao menu `boot` do seu BIOS:
+    - Escolha <code className="action">Add New Boot Option</code>.
+    - Escolha o caminho da sua partição <code className="action">Path for boot option</code> e selecione o sistema de ficheiros que contém a sua partição de arranque.
+    - Selecione o ficheiro `EFI\centos6\bootx64.efi` e escolha <code className="action">Create</code>.
+
+A imagem abaixo resume as ações acima referidas:
+
+<video className="thumbnail" autoPlay loop muted playsInline aria-label="generate_efi" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/generate_efi-v2.mp4" />
+
+A *2.ª sequência* consiste em ativar a partição selecionada na sequência anterior.
+
+- Ainda no menu `boot` do seu BIOS:
+    - Escolha <code className="action">UEFI Hard Disk BBS Priorities</code>.
+    - Escolha <code className="action">UEFI Boot Order #1</code> e, em seguida, selecione <code className="action">CENTOS6</code> para o posicionar como primeira opção de arranque na lista ativa.
+
+A imagem abaixo resume as ações acima referidas:
+
+<video className="thumbnail" autoPlay loop muted playsInline aria-label="select_efi" src="/images/bare-metal-cloud/dedicated-servers/intervention-support/select_efi-v2.mp4" />
+
+## Quer saber mais?
+
+Fale com a nossa [comunidade de utilizadores](/links/community).
