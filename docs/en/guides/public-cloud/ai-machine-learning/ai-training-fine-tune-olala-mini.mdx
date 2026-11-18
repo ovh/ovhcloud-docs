@@ -1,0 +1,362 @@
+---
+title: AI Training - Tutorial - Fine-tune Olala Mini 7A1B with LoRA
+description: Fine-tune Olala Mini 7A1B with LoRA on your own dataset using AI Training and a ready-to-use Docker image, with English↔French translation as an example
+lastUpdated: 2026-11-19
+---
+
+## Objective
+
+The purpose of this tutorial is to show you how to fine-tune **Olala Mini 7A1B** on your own use case with **AI Training**, using a ready-to-use Docker image. You don't need to write any code or build any image: you only create 2 Object Storage buckets and launch one job.
+
+The tutorial uses **English↔French translation** as a complete example, with open datasets that the job downloads by itself: you can launch it as is to discover the workflow and check the results. Translation is only an example: you can then fine-tune the model on your own data and task, for example answering questions about your products, classifying support tickets or writing in your company's style (see [Use your own dataset](#use-your-own-dataset)).
+
+The job uses **LoRA** (Low-Rank Adaptation): instead of retraining the whole model, it trains small adapter matrices, which is fast and fits on a single GPU. In the translation example, it adapts the model to the central banking and finance domain with the [OPUS ECB corpus](https://opus.nlpl.eu/legacy/ECB-v1.php), sentences from the European Central Bank's publications professionally translated into French. You can also use the general-domain [OPUS-100](https://huggingface.co/datasets/Helsinki-NLP/opus-100) dataset.
+
+With the translation example, the job runs the whole pipeline on its own:
+
+1. on the first run, it downloads the Olala Mini 7A1B base model from [Hugging Face](https://huggingface.co/OVHaiLLM/Olala-v1.0-mini-7A1B) into your models bucket;
+2. it downloads and prepares the dataset into your data bucket: it fetches the open corpus from OPUS or Hugging Face, filters out noisy pairs, keeps a subset of it (4,000 training and 400 evaluation pairs for ECB, 2,000 and 200 for OPUS-100) and writes it as JSON Lines files;
+3. it measures the translation quality of the base model (BLEU and chrF++ scores);
+4. it fine-tunes the model with LoRA;
+5. it merges the adapter into a complete model;
+6. it measures the quality of the fine-tuned model and compares both scores.
+
+The whole workflow, from fine-tuning with AI Training to deployment with AI Deploy:
+
+<img className="thumbnail" alt="Architecture: the base model on Hugging Face, the images in a public registry, the S3-compatible buckets, the AI Training job and the AI Deploy app" src="/images/guides/public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini/olala-mini-finetuning-aitraining-aideploy.jpg" loading="lazy" />
+
+## Requirements
+
+- A Public Cloud project created.
+- The ovhai CLI installed on your system ([this guide](/guides/public-cloud/ai-machine-learning/ai-cli-install-client) explains how to install it).
+- Access to **H100** GPUs in your project: the image uses FlashAttention-3, which needs a Hopper GPU. H100 GPUs are available in the **GRA** region.
+- If you want to use your own dataset: a training file and, optionally, an evaluation file in JSON Lines format (see [Use your own dataset](#use-your-own-dataset)).
+
+## Instructions
+
+### Create the Object Storage buckets
+
+The job reads and writes its data in 2 Object Storage buckets, mounted as volumes:
+
+- **mt-sft-data**: the dataset. On the first run, the job downloads the open dataset into it. The next jobs reuse it without downloading it again.
+- **mt-sft-out**: the models, the base model and the fine-tuned ones, each in its own folder:
+    - `base/`: the Olala Mini 7A1B base model. On the first run, the job downloads it from Hugging Face into this folder. The next jobs reuse it without downloading it again.
+    - one folder per training run, for example `finetuned-mt-en-fr-ecb/`: the results of the job, that is the LoRA adapter, the fine-tuned model, the checkpoints and the benchmark scores.
+
+Each job mounts only two folders of `mt-sft-out` (the base model and its own results), so it does not download the models of your other runs.
+
+Both buckets are **S3<sup>1</sup>-compatible** Object Storage buckets in the **GRA** region (the same region as the job). The [Compliance between AI Tools and S3 compatible Object Storage](/guides/public-cloud/ai-machine-learning/ai-s3-compliance) guide explains in detail how to create them, how to give AI Training access to them and how to mount them in a job.
+
+#### Create your buckets via ovhai CLI
+
+To follow this part, make sure you have installed the [ovhai CLI](/guides/public-cloud/ai-machine-learning/ai-cli-install-client) on your computer or on an instance.
+
+First, declare your S3 Object Storage in the GRA region as a datastore. Use the S3 credentials (access key and secret key) of a user with the **AI Operator** and **ObjectStore operator** roles, available in <code className="action">Object Storage</code> > <code className="action">Users</code>. Replace `<ALIAS>` with the name you choose for this datastore, for example `s3-gra`:
+
+```bash
+ovhai datastore add s3 <ALIAS> https://s3.gra.io.cloud.ovh.net/ gra <my-access-key> <my-secret-key> --store-credentials-locally
+```
+
+Then create the two buckets in this datastore:
+
+```bash
+ovhai bucket create <ALIAS> mt-sft-data
+ovhai bucket create <ALIAS> mt-sft-out
+```
+
+:::info
+In all the commands of this tutorial, replace `<ALIAS>` with the alias of your datastore.
+
+:::
+
+### Launch the AI Training job
+
+The image contains the training code and all its dependencies. The Olala Mini 7A1B model is not in the image: the job downloads it from Hugging Face into the `base/` folder of your `mt-sft-out` bucket on the first run. It runs on **one H100 GPU**: if more GPUs are attached to the job, only the first one is used.
+
+By default, the job fine-tunes the model on 4,000 ECB sentence pairs (half English→French, half French→English) for 2 epochs, and benchmarks the model on 400 held-out pairs before and after training.
+
+#### Create your training job via ovhai CLI
+
+To follow this part, make sure you have installed the [ovhai CLI](/guides/public-cloud/ai-machine-learning/ai-cli-install-client) on your computer or on an instance.
+
+```bash
+ovhai job run \
+	--name olala-mini-7a1b-finetune-mt-en-fr \
+	--flavor h100-1-gpu --gpu 1 \
+	--volume mt-sft-out@<ALIAS>/base:/workspace/model:RW \
+	--volume mt-sft-data@<ALIAS>/:/workspace/data:RW \
+	--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb:/workspace/out:RW \
+	--env DOWNLOAD_MODEL=1 \
+	--env HF_MODEL_ID=OVHaiLLM/Olala-v1.0-mini-7A1B \
+	--env DATASET=ecb \
+	--env DOWNLOAD_DATA=1 \
+	--env TRAIN_FILE=/workspace/data/ecb_enfr_train.jsonl \
+	--env EVAL_FILE=/workspace/data/ecb_enfr_eval.jsonl \
+	--env BENCH_N=400 \
+	--env SKIP_BENCH=0 \
+	ovhaillm/olala-ai-training:20261117
+```
+
+- `--flavor h100-1-gpu --gpu 1` requests one H100 GPU.
+- `--volume mt-sft-out@<ALIAS>/base:/workspace/model:RW` mounts the `base/` folder of the models bucket, which holds the base model. It must be writable (`RW`) so that the job can save the downloaded model.
+- `--volume mt-sft-data@<ALIAS>/:/workspace/data:RW` mounts the data bucket. It must be writable (`RW`) so that the job can save the downloaded dataset.
+- `--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb:/workspace/out:RW` mounts the `finetuned-mt-en-fr-ecb/` folder of the same bucket, where the job writes its results. Use a different folder for each run, and never `base`.
+- The `--env` options are set to their default values: you can remove them and get the same job. They are described in [Customize the training](#customize-the-training).
+
+:::info
+To check that everything works before a full run, you can launch a short job: it benchmarks 50 sentences instead of 400 and trains for 20 steps only.
+
+```bash
+ovhai job run \
+	--flavor h100-1-gpu --gpu 1 \
+	--volume mt-sft-out@<ALIAS>/base:/workspace/model:RW \
+	--volume mt-sft-data@<ALIAS>/:/workspace/data:RW \
+	--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb-quick:/workspace/out:RW \
+	--env DOWNLOAD_MODEL=1 \
+	--env HF_MODEL_ID=OVHaiLLM/Olala-v1.0-mini-7A1B \
+	--env DATASET=ecb \
+	--env DOWNLOAD_DATA=1 \
+	--env TRAIN_FILE=/workspace/data/ecb_enfr_train.jsonl \
+	--env EVAL_FILE=/workspace/data/ecb_enfr_eval.jsonl \
+	--env BENCH_N=50 \
+	--env SKIP_BENCH=0 \
+	ovhaillm/olala-ai-training:20261117 \
+	-- run_sft_bench.sh training.max_steps=20 training.save_steps=10 training.eval_steps=20
+```
+
+:::
+
+### Follow the training
+
+You can follow the job's progress in its logs:
+
+```bash
+ovhai job logs -f <job_id>
+```
+
+The logs show the model download (first run only), the dataset preparation, the base model's scores, the training loss every 10 steps, the evaluation loss every 50 steps, and finally the comparison table:
+
+```console
+                 base BLEU         base chrF++    finetuned BLEU    finetuned chrF++
+en->fr           ...               ...            ...               ...
+fr->en           ...               ...            ...               ...
+```
+
+The first steps are slower: on first use, the model's kernels are compiled for the GPU.
+
+:::info
+The job saves a checkpoint every 250 steps (125 with OPUS-100). If it is interrupted and launched again with the same `mt-sft-out` folder, it resumes from the latest checkpoint and does not benchmark the base model again.
+
+:::
+
+### Retrieve the fine-tuned model
+
+When the job is `DONE`, its results are synchronized to its folder of the `mt-sft-out` bucket, here `finetuned-mt-en-fr-ecb/`:
+
+| Path | Content |
+|---|---|
+| `adapter/` | the LoRA adapter only (about 130 MB) |
+| `merged/` | the complete fine-tuned model (about 13 GB), in the same format as the base model |
+| `checkpoints/` | the intermediate training checkpoints and the training logs |
+| `sft_config.yaml` | the exact training configuration |
+| `bench_base.json`, `bench_finetuned.json`, `bench.txt` | the BLEU and chrF++ scores of both models; `bench.txt` also shows a few translations of both models next to the reference |
+
+You can download them with the ovhai CLI:
+
+```bash
+ovhai bucket object download mt-sft-out@<ALIAS> --prefix finetuned-mt-en-fr-ecb/merged/
+ovhai bucket object download mt-sft-out@<ALIAS> finetuned-mt-en-fr-ecb/bench.txt
+```
+
+:::info
+The outputs are uploaded to the bucket at the end of the job. To retrieve them while the job is still running, use `ovhai job push-data <job_id>`.
+
+:::
+
+To query your fine-tuned model through an API, deploy it from the bucket with AI Deploy: see [AI Deploy - Tutorial - Deploy a fine-tuned Olala Mini 7A1B](/guides/public-cloud/ai-machine-learning/ai-deploy-fine-tuned-olala-mini).
+
+### Customize the training
+
+You can change the behaviour of the job with environment variables, set with `--env` in the ovhai CLI. The on/off options take `1` (yes, enabled) or `0` (no, disabled):
+
+| Variable | Default | Description |
+|---|---|---|
+| `DOWNLOAD_MODEL` | `1` | Download the base model? `1` (yes): the job downloads `HF_MODEL_ID` into `/workspace/model`, unless it is already there. `0` (no): nothing is downloaded, the job uses the model already in `/workspace/model` |
+| `MODEL_DIR` | `/workspace/model` | Folder of the base model. Change it if you mount the bucket elsewhere |
+| `OUT` | `/workspace/out` | Folder of the results. Change it if you mount the bucket elsewhere |
+| `HF_MODEL_ID` | `OVHaiLLM/Olala-v1.0-mini-7A1B` | Hugging Face repository of the base model |
+| `HF_MODEL_REVISION` | the version tested with the image | Version of the base model to download: a branch, a tag or a commit of the repository, for example `main` for the latest one |
+| `HF_TOKEN` | none | Your Hugging Face access token, only needed if the model repository is private or gated |
+| `DATASET` | `ecb` | `ecb` ([OPUS ECB](https://opus.nlpl.eu/legacy/ECB-v1.php), finance, 4,000 pairs) or `opus100` ([OPUS-100](https://huggingface.co/datasets/Helsinki-NLP/opus-100), general domain, 2,000 pairs) |
+| `DOWNLOAD_DATA` | `1` | Download the open dataset? `1` (yes): the job downloads the `DATASET` files into `/workspace/data`, unless they are already there. `0` (no): nothing is downloaded, the job uses your own files (`TRAIN_FILE`, `EVAL_FILE`) |
+| `TRAIN_FILE` | `/workspace/data/<DATASET>_enfr_train.jsonl` | Training file |
+| `EVAL_FILE` | `/workspace/data/<DATASET>_enfr_eval.jsonl` | Evaluation file, used for the evaluation loss and the benchmark. Empty: no evaluation |
+| `BENCH_N` | whole evaluation file (400 pairs for `ecb`, 200 for `opus100`) | Number of benchmark sentences, split evenly between both directions |
+| `SKIP_BENCH` | `0` | Skip the benchmarks? `0` (no): the job benchmarks the base model before training and the fine-tuned model after it. `1` (yes): it skips **both** benchmarks and only trains and merges. The benchmarks only work with translation data: set `1` for any other task |
+
+For example, to fine-tune the model on the general-domain OPUS-100 dataset instead of ECB:
+
+```bash
+ovhai job run \
+	--flavor h100-1-gpu --gpu 1 \
+	--volume mt-sft-out@<ALIAS>/base:/workspace/model:RW \
+	--volume mt-sft-data@<ALIAS>/:/workspace/data:RW \
+	--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-opus100:/workspace/out:RW \
+	--env DOWNLOAD_MODEL=1 \
+	--env HF_MODEL_ID=OVHaiLLM/Olala-v1.0-mini-7A1B \
+	--env DATASET=opus100 \
+	--env DOWNLOAD_DATA=1 \
+	--env TRAIN_FILE=/workspace/data/opus100_enfr_train.jsonl \
+	--env EVAL_FILE=/workspace/data/opus100_enfr_eval.jsonl \
+	--env BENCH_N=200 \
+	--env SKIP_BENCH=0 \
+	ovhaillm/olala-ai-training:20261117
+```
+
+`DATASET` also selects the training parameters adapted to the dataset (for OPUS-100: learning rate `1e-4`, checkpoint every 125 steps).
+
+You can also override the training parameters by adding them after the command, in `key=value` form:
+
+```bash
+ovhai job run \
+	--flavor h100-1-gpu --gpu 1 \
+	--volume mt-sft-out@<ALIAS>/base:/workspace/model:RW \
+	--volume mt-sft-data@<ALIAS>/:/workspace/data:RW \
+	--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb-r16:/workspace/out:RW \
+	--env DOWNLOAD_MODEL=1 \
+	--env HF_MODEL_ID=OVHaiLLM/Olala-v1.0-mini-7A1B \
+	--env DATASET=ecb \
+	--env DOWNLOAD_DATA=1 \
+	--env TRAIN_FILE=/workspace/data/ecb_enfr_train.jsonl \
+	--env EVAL_FILE=/workspace/data/ecb_enfr_eval.jsonl \
+	--env BENCH_N=400 \
+	--env SKIP_BENCH=0 \
+	ovhaillm/olala-ai-training:20261117 \
+	-- run_sft_bench.sh lora.r=16 training.learning_rate=1e-4 training.num_train_epochs=1
+```
+
+:::warning
+Use a different output folder (here `mt-sft-out@<ALIAS>/finetuned-mt-en-fr-ecb-r16`) for each new configuration. Otherwise, the job resumes from the checkpoints of the previous run.
+
+:::
+
+### Use your own dataset
+
+The translation example is only a starting point: the job can fine-tune the model on any task that you can write as a conversation, where the model learns to give the expected answer to a request. To use your own data, prepare a training file and, optionally, an evaluation file, upload them into a bucket and set `DOWNLOAD_DATA=0`.
+
+#### Understand the file format
+
+The files are in JSON Lines format: one JSON object per line, each one being a complete example. Each line contains a `messages` list, with one message per role:
+
+| Role | Content |
+|---|---|
+| `system` | the instructions given to the model: its role, the task, the expected answer format. Use the same system prompt for all your examples, and again when you use the fine-tuned model |
+| `user` | the request |
+| `assistant` | the expected answer: this is what the model learns to produce |
+
+The optional `chat_template_kwargs` field with `{"reasoning_effort": "disabled"}` disables the model's reasoning step: the model answers directly, which suits short and direct answers.
+
+For example, a line of a training file to classify the messages of an online shop's customers:
+
+```json
+{"messages": [{"role": "system", "content": "You are the support assistant of an online shop. Classify the customer message into one of these categories: delivery, refund, product, account. Answer with the category only."}, {"role": "user", "content": "I still haven't received the order I placed last week."}, {"role": "assistant", "content": "delivery"}], "chat_template_kwargs": {"reasoning_effort": "disabled"}}
+```
+
+The evaluation file uses the same format, with examples that are not in the training file: the job uses it to compute the evaluation loss during training. A few hundred examples are enough.
+
+#### Example: the translation format
+
+The translation example of this tutorial uses this format with a fixed system prompt and a translation request written as a JSON object in the `user` message. If your use case is English↔French translation, use the same format: the job can then also benchmark your model (BLEU and chrF++ scores).
+
+:::tip
+The files prepared by the job from the open datasets stay in your `mt-sft-data` bucket (`ecb_enfr_train.jsonl`, `ecb_enfr_eval.jsonl`, and `opus100_enfr_*.jsonl` if you used OPUS-100). Download one of them to see complete examples:
+
+```bash
+ovhai bucket object download mt-sft-data@<ALIAS> ecb_enfr_eval.jsonl
+```
+
+:::
+
+The translation request contains the following fields:
+
+| Field | Description |
+|---|---|
+| `source_language` | `English` or `French` |
+| `target_language` | `French` or `English` |
+| `source_text` | the sentence to translate |
+| `terminology_mapping` | a list of terms to translate in a specific way, as `{"source_term": ..., "target_term": ...}` objects. Can be empty: `[]` |
+| `domain` | the domain of the text, for example `General`, `Finance`, `Legal` or `Medical` |
+
+Here is a complete line, an English→French example with one term in the terminology mapping:
+
+```json
+{"messages": [{"role": "system", "content": "You are a professional translation assistant. Your task is to translate text carefully, pay attention to the following:\n1. Preserve the casing of words.\n2. Maintain the inline tags as-is in the translated text.\n3. Follow the terminology mappings provided by the user.\n4. The domain of the text.\nReturn only the translation, without any additional explanation."}, {"role": "user", "content": "{\n  \"source_language\": \"English\",\n  \"target_language\": \"French\",\n  \"source_text\": \"These debt certificates have a maturity of less than 12 months.\",\n  \"terminology_mapping\": [\n    {\n      \"source_term\": \"debt certificates\",\n      \"target_term\": \"certificats de dette\"\n    }\n  ],\n  \"domain\": \"Finance\"\n}"}, {"role": "assistant", "content": "Ces certificats de dette ont une durée inférieure à 12 mois."}], "chat_template_kwargs": {"reasoning_effort": "disabled"}}
+```
+
+To train the model in both directions, include both English→French and French→English examples, for example by alternating them. Copy the system prompt exactly as in this line, set `domain` to the domain of your texts, and fill `terminology_mapping` with the glossary terms that appear in the source sentence (or leave it empty).
+
+:::info
+The open datasets that the job prepares (ECB and OPUS-100) contain no terminology examples, so a model fine-tuned only on them does not always apply the terms that you send in `terminology_mapping`. If terminology matters for your use case, add examples to your own dataset where `terminology_mapping` is filled and the translation follows it.
+
+:::
+
+#### Prepare your files
+
+Export your examples (from a spreadsheet, a database, a ticketing tool or a translation memory) and convert each one into a line in the format above, with a few lines of code in the language of your choice. Name your files `train.jsonl` and `eval.jsonl`, and keep the evaluation examples out of the training file.
+
+#### Launch the job with your dataset
+
+Create a new bucket in your S3 datastore and upload your files into it (run the upload from the folder that contains the files, as the current path is included in the object names):
+
+```bash
+ovhai bucket create <ALIAS> my-data
+ovhai bucket object upload my-data@<ALIAS> train.jsonl eval.jsonl
+```
+
+Then launch the job with this bucket. As the job does not download any data, your data bucket can be mounted read-only (the `base/` folder of `mt-sft-out` stays `RW`, the job downloads the model into it on the first run):
+
+```bash
+ovhai job run \
+	--flavor h100-1-gpu --gpu 1 \
+	--volume mt-sft-out@<ALIAS>/base:/workspace/model:RW \
+	--volume my-data@<ALIAS>/:/workspace/data:RO \
+	--volume mt-sft-out@<ALIAS>/finetuned-mt-en-fr-mydata:/workspace/out:RW \
+	--env DOWNLOAD_MODEL=1 \
+	--env HF_MODEL_ID=OVHaiLLM/Olala-v1.0-mini-7A1B \
+	--env DATASET=ecb \
+	--env DOWNLOAD_DATA=0 \
+	--env TRAIN_FILE=/workspace/data/train.jsonl \
+	--env EVAL_FILE=/workspace/data/eval.jsonl \
+	--env SKIP_BENCH=1 \
+	ovhaillm/olala-ai-training:20261117
+```
+
+- `DOWNLOAD_DATA=0` disables the download: the job uses your files.
+- `TRAIN_FILE` and `EVAL_FILE` point to your files in the mounted bucket.
+- `DATASET` only selects the training parameters here: `ecb` (learning rate `5e-5`) or `opus100` (learning rate `1e-4`). You can also set them yourself, see [Customize the training](#customize-the-training).
+- `SKIP_BENCH=1` skips the benchmarks, which only work with translation data. The job still computes the evaluation loss on your evaluation file. If your data uses the translation format, set `SKIP_BENCH=0` to also get the BLEU and chrF++ scores, and `BENCH_N` to choose the number of benchmark sentences.
+
+:::info
+If you don't have an evaluation file, set `--env EVAL_FILE=`: the job trains without evaluation. If a file is missing, the job stops immediately with an error message in its logs.
+
+:::
+
+## Go further
+
+The open datasets used by the job:
+
+- [OPUS ECB corpus](https://opus.nlpl.eu/legacy/ECB-v1.php): about 196,000 English-French sentence pairs from the European Central Bank
+- [OPUS-100](https://huggingface.co/datasets/Helsinki-NLP/opus-100) on Hugging Face: a general-domain multilingual corpus, including English-French
+
+Check our other tutorials to learn how to:
+
+- [deploy your fine-tuned Olala Mini 7A1B model with AI Deploy](/guides/public-cloud/ai-machine-learning/ai-deploy-fine-tuned-olala-mini)
+- [use S3-compatible Object Storage with AI Tools](/guides/public-cloud/ai-machine-learning/ai-s3-compliance)
+
+## Feedback
+
+Please send us your questions, feedback and suggestions to improve the service:
+
+- On the OVHcloud [Discord server](https://discord.gg/ovhcloud)
+
+[[fragment:s3-trademark|en]]
