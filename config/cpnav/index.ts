@@ -122,6 +122,7 @@ import { publiccloudQuotaRegions } from './keys/publiccloud-quota-regions';
 import { publiccloudQuotaRegionsConsole } from './keys/publiccloud-quota-regions-console';
 import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudRancherConsole } from './keys/publiccloud-rancher-console';
+import { publiccloudReservedCapacityConsole } from './keys/publiccloud-reserved-capacity-console';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
 import { publiccloudSiteToSiteVpnConsole } from './keys/publiccloud-site-to-site-vpn-console';
@@ -305,6 +306,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-savings-plan-console': publiccloudSavingsPlanConsole,
   'publiccloud-project-settings': publiccloudProjectSettings,
   'publiccloud-project-settings-console': publiccloudProjectSettingsConsole,
+  'publiccloud-reserved-capacity-console': publiccloudReservedCapacityConsole,
   // --- Network -------------------------------------------------------------------------
   'network-vrack': networkVrack,
   'network-vrack-console': networkVrackConsole,
