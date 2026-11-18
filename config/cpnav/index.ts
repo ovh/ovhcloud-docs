@@ -44,6 +44,7 @@ import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterpris
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
+import { privatecloudVmwareVsphereConsole } from './keys/privatecloud-vmware-vsphere-console';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
@@ -163,6 +164,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-microsoft-365': webMicrosoft365,
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
+  'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
