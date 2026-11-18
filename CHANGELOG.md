@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.11.18.1
+
+### Features
+
+#### EU
+- **manage-and-operate:** update 17 guides to the OVHcloud Console (EN + FR) (#1194)
+- **v8:** move the Internet Access guides to the Console (#1241)
+- **v8:** move the OverTheBox guides to the Console (#1221)
+- **manager-link:** open the OVHcloud Console on its own host
+
+### Documentation
+- EU: 1351 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18
 
 ### Documentation

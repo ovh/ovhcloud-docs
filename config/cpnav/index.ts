@@ -8,23 +8,40 @@
 // a move changes the canonical spelling of every multi-key token containing the key.
 
 import { accountContacts } from './keys/account-contacts';
+import { accountContactsConsole } from './keys/account-contacts-console';
 import { accountDashboard } from './keys/account-dashboard';
+import { accountCarbonConsole } from './keys/account-carbon-console';
 import { accountMessages } from './keys/account-messages';
+import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
+import { accountProfileConsole } from './keys/account-profile-console';
 import { accountSecurity } from './keys/account-security';
+import { accountSecurityConsole } from './keys/account-security-console';
+import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
+import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
 import { baremetalVps } from './keys/baremetal-vps';
 import { billingInvoices } from './keys/billing-invoices';
+import { billingInvoicesConsole } from './keys/billing-invoices-console';
 import { billingOrders } from './keys/billing-orders';
+import { billingOrdersConsole } from './keys/billing-orders-console';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
+import { billingPaymentMethodsConsole } from './keys/billing-payment-methods-console';
 import { billingServices } from './keys/billing-services';
 import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
+import { iamIdentitiesConsole } from './keys/iam-identities-console';
 import { iamPolicies } from './keys/iam-policies';
+import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
+import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
+import { iamTagManagement } from './keys/iam-tag-management';
+import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
+import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
 import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -45,6 +62,7 @@ import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterpris
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
+import { privatecloudVmwareVsphereConsole } from './keys/privatecloud-vmware-vsphere-console';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
@@ -151,7 +169,6 @@ import { webOngoingOperations } from './keys/web-ongoing-operations';
 import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
-import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
@@ -173,7 +190,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-ongoing-operations-console': webOngoingOperationsConsole,
   'web-hosting': webHosting,
   'web-hosting-console': webHostingConsole,
-  'web-website-view': webWebsiteView,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
@@ -192,6 +208,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'web-microsoft-365-console': webMicrosoft365Console,
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
+  'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
@@ -203,6 +220,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
+  'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
@@ -306,23 +324,39 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
   'iam-identities': iamIdentities,
+  'iam-identities-console': iamIdentitiesConsole,
   'iam-saml-sso': iamSamlSso,
+  'iam-saml-sso-console': iamSamlSsoConsole,
   'iam-service-accounts': iamServiceAccounts,
+  'iam-service-accounts-console': iamServiceAccountsConsole,
   'iam-policies': iamPolicies,
+  'iam-policies-console': iamPoliciesConsole,
+  'iam-tag-management': iamTagManagement,
+  'iam-tag-management-console': iamTagManagementConsole,
   'security-kms': securityKms,
   'security-secret-manager': securitySecretManager,
   'logs-data-platform': logsDataPlatform,
+  'logs-data-platform-console': logsDataPlatformConsole,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.
   'account-dashboard': accountDashboard,
+  'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
+  'account-profile-console': accountProfileConsole,
   'account-security': accountSecurity,
+  'account-security-console': accountSecurityConsole,
+  'account-security-ip-console': accountSecurityIpConsole,
   'account-contacts': accountContacts,
+  'account-contacts-console': accountContactsConsole,
   'account-messages': accountMessages,
+  'account-messages-console': accountMessagesConsole,
   'billing-orders': billingOrders,
+  'billing-orders-console': billingOrdersConsole,
   'billing-invoices': billingInvoices,
+  'billing-invoices-console': billingInvoicesConsole,
   'billing-payment-methods': billingPaymentMethods,
+  'billing-payment-methods-console': billingPaymentMethodsConsole,
   'billing-services': billingServices,
   'billing-services-console': billingServicesConsole,
 };
