@@ -1732,6 +1732,7 @@
                 + [AI Endpoints - Virtual Models](public-cloud/ai-machine-learning/ai-endpoints-virtual-models)
                 + [AI Endpoints - Speech to Text with the OpenAI-compatible API](public-cloud/ai-machine-learning/ai-endpoints-audio-models)
                 + [AI Endpoints - Speech to Text with the Gladia API](public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text)
+                + [AI Endpoints - Decision Models](public-cloud/ai-machine-learning/ai-endpoints-decision-models)
                 + [AI Endpoints - Create a sentiment analyzer](public-cloud/ai-machine-learning/ai-endpoints-sentiment-analyzer)
                 + [Integrations](public-cloud-ai-and-machine-learning-ai-endpoints-tutorials-integrations)
                     + [AI Endpoints - Create a code assistant with Continue](public-cloud/ai-machine-learning/ai-endpoints-code-assistant)
@@ -2075,7 +2076,7 @@
                 + [How to connect an OVHcloud domain name to a GoDaddy hosting plan](web-cloud/domains/how-to-connect-domain-to-godaddy)
                 + [How to connect an OVHcloud domain name to a Webflow hosting plan](web-cloud/domains/how-to-connect-domain-to-webflow)
                 + [How to use an OVHcloud domain with iCloud Mail](web-cloud/domains/domain-icloud)
-        + [DNS (Domain Name System)](products/web-cloud-domains-dns){landing=web-cloud/domains/dns/landing-page-dns}
+        + [DNS](products/web-cloud-domains-dns){landing=web-cloud/domains/dns/landing-page-dns}
             + [Key concepts](web-cloud-domains-dns-key-concepts)
                 + [Everything you need to know about DNS servers](web-cloud/domains/dns-server-general-information)
                 + [Everything you need to know about DNS zone](web-cloud/domains/dns-zone-general-information)
@@ -2855,7 +2856,7 @@
         + [Understanding quota on the CDN](network/cdn/quota)
         + [Adding an SSL certificate on the CDN](network/cdn/cdn-infrastructure-ssl-certificate)
         + [List of IP addresses to authorize for your CDN Infrastructure](network/cdn/cdn-infrastructure-ip-range)
-    + [DNS (Domain Name System)](products/network-dns){landing=web-cloud/domains/dns/landing-page-dns}
+    + [DNS](products/network-dns){landing=web-cloud/domains/dns/landing-page-dns}
         + [Key concepts](network-dns-key-concepts)
             + [Everything you need to know about DNS servers](web-cloud/domains/dns-server-general-information)
             + [Everything you need to know about DNS zone](web-cloud/domains/dns-zone-general-information)
