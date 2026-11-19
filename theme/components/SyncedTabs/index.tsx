@@ -189,9 +189,22 @@ function useHashActivatesTab(rootRef: React.RefObject<HTMLDivElement | null>) {
  * synchronous `scrollTo` itself re-clamps the sticky row and reflows the synced
  * blocks, leaving a one-frame residual that this convergence pass absorbs.
  *
+ * Late shifts: the switch also reveals images — in this block and in every
+ * synced one — that are lazy and carry no intrinsic size, so they grow from 0
+ * to their real height only once loaded, well after the two corrections above.
+ * The browser's scroll anchoring does not absorb that growth when it happens
+ * inside an open `<details>` (Firefox, and Chromium in some layouts): the row
+ * jumps by the image height, ~440 px on the VoIP softphone guides. So for
+ * {@link SETTLE_MS} after the click we re-align on every size change of the
+ * article, and stop at once when the reader takes over (wheel, touch, key,
+ * mouse button) or clicks another tab.
+ *
  * Gated on {@link tabsBlockHasHeadingAnchors} like the other hooks: per-step/
  * anchor blocks drive their own hash-scroll and are left alone.
  */
+const SETTLE_MS = 4000;
+const READER_INPUT = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+
 function useKeepTabAnchored(rootRef: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const root = rootRef.current;
@@ -224,9 +237,35 @@ function useKeepTabAnchored(rootRef: React.RefObject<HTMLDivElement | null>) {
       }
     };
 
+    // Settle window: keep the row in place while the revealed images load.
+    // ResizeObserver callbacks run after layout and before paint, so each
+    // correction lands in the same frame as the growth (no visible jump).
+    let stopSettle: (() => void) | null = null;
+    const settle = (anchor: number) => {
+      stopSettle?.();
+      const article = root.closest<HTMLElement>('.rp-doc') ?? document.body;
+      const observer = new ResizeObserver(() => align(anchor));
+      const stop = () => {
+        observer.disconnect();
+        window.clearTimeout(timer);
+        for (const type of READER_INPUT) {
+          window.removeEventListener(type, stop, true);
+        }
+        if (stopSettle === stop) {
+          stopSettle = null;
+        }
+      };
+      const timer = window.setTimeout(stop, SETTLE_MS);
+      for (const type of READER_INPUT) {
+        window.addEventListener(type, stop, { capture: true, passive: true });
+      }
+      observer.observe(article);
+      stopSettle = stop;
+    };
+
     // Bubble phase at document (after React committed the swap, still pre-paint):
     // align synchronously (no flash), then once more next frame to absorb the
-    // residual the scroll/sticky re-clamp leaves behind.
+    // residual the scroll/sticky re-clamp leaves behind, then settle.
     const onBubble = () => {
       if (before == null) {
         return;
@@ -235,11 +274,13 @@ function useKeepTabAnchored(rootRef: React.RefObject<HTMLDivElement | null>) {
       before = null;
       align(anchor);
       requestAnimationFrame(() => align(anchor));
+      settle(anchor);
     };
 
     document.addEventListener('click', onCapture, true);
     document.addEventListener('click', onBubble, false);
     return () => {
+      stopSettle?.();
       document.removeEventListener('click', onCapture, true);
       document.removeEventListener('click', onBubble, false);
     };

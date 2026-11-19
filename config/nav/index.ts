@@ -91,14 +91,16 @@ function hubTabs(region: HubRegion): NavItemConfig[] {
     },
     tab('nav.buildWithAi', '/ai/'),
     tab('nav.playground', '/playground/'),
-    {
-      role: 'tab',
-      text: 'nav.labs',
-      links: allLocales('https://labs.ovhcloud.com/'),
-      external: true,
-    },
   ];
 }
+
+/** Labs: the only tab that leaves the family of sites (new tab, ↗). EU only. */
+const labsTab: NavItemConfig = {
+  role: 'tab',
+  text: 'nav.labs',
+  links: allLocales('https://labs.ovhcloud.com/'),
+  external: true,
+};
 
 /** Documentation: this site, the active tab; its link is the locale's home. */
 const documentationTab: NavItemConfig = {
@@ -110,7 +112,7 @@ const documentationTab: NavItemConfig = {
 
 /** The Console of each hub region, signed in on the right subsidiary. */
 const euConsole = (subsidiary: string) =>
-  `https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=${subsidiary}`;
+  `https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//console.eu.ovhcloud.com&ovhSubsidiary=${subsidiary}`;
 
 const CONSOLE_BY_HUB: Record<HubRegion, Partial<Record<Locale, string>>> = {
   eu: {
@@ -124,7 +126,7 @@ const CONSOLE_BY_HUB: Record<HubRegion, Partial<Record<Locale, string>>> = {
   },
   // Same flow as <ManagerLink> for the CA zone (components/ManagerLink).
   ca: allLocales(
-    'https://auth.ca.ovhcloud.com/signin/?onsuccess=https%3A//manager.ca.ovhcloud.com&ovhSubsidiary=CA',
+    'https://auth.ca.ovhcloud.com/signin/?onsuccess=https%3A//console.ca.ovhcloud.com&ovhSubsidiary=CA',
   ),
   us: allLocales('https://manager.us.ovhcloud.com/#/?ovhSubsidiary=US'),
 };
@@ -142,11 +144,12 @@ function consoleItem(region: HubRegion): NavItemConfig {
 // --- EU: the EU hub and Console by default ---------------------------------
 const euNavItems: NavItemConfig[] = [
   ...hubTabs('eu'),
+  labsTab,
   documentationTab,
   consoleItem('eu'),
 ];
 
-// --- US: English-only, its own hub and Console ----------------------------
+// --- US: English-only, its own hub and Console; no Labs tab ---------------
 const usNavItems: NavItemConfig[] = [
   ...hubTabs('us'),
   documentationTab,
