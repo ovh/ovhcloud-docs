@@ -39,6 +39,7 @@ import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamSshKeysConsole } from './keys/iam-ssh-keys-console';
 import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
 import { iamTagManagement } from './keys/iam-tag-management';
 import { iamTagManagementConsole } from './keys/iam-tag-management-console';
@@ -346,6 +347,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-service-accounts': iamServiceAccounts,
   'iam-service-accounts-console': iamServiceAccountsConsole,
   'iam-policies': iamPolicies,
+  'iam-ssh-keys-console': iamSshKeysConsole,
   'iam-policies-console': iamPoliciesConsole,
   'iam-tag-management': iamTagManagement,
   'iam-tag-management-console': iamTagManagementConsole,
