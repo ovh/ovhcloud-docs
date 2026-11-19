@@ -59,6 +59,7 @@ import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
+import { privatecloudSapHanaConsole } from './keys/privatecloud-sap-hana-console';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
@@ -217,6 +218,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
+  'privatecloud-sap-hana-console': privatecloudSapHanaConsole,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,

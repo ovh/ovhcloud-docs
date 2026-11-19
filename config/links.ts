@@ -2107,6 +2107,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/solutions/nutanix/',
     pt: 'https://www.ovhcloud.com/pt/solutions/nutanix/',
   },
+  'solutions/sap': {
+    fr: 'https://www.ovhcloud.com/fr/solutions/sap/',
+    en: 'https://www.ovhcloud.com/en-gb/solutions/sap/',
+    de: 'https://www.ovhcloud.com/de/solutions/sap/',
+    es: 'https://www.ovhcloud.com/es-es/solutions/sap/',
+    it: 'https://www.ovhcloud.com/it/solutions/sap/',
+    pl: 'https://www.ovhcloud.com/pl/solutions/sap/',
+    pt: 'https://www.ovhcloud.com/pt/solutions/sap/',
+  },
   'solutions/uc-app-modernization': {
     fr: 'https://www.ovhcloud.com/fr/solutions/uc-app-modernization/',
     en: 'https://www.ovhcloud.com/en-gb/solutions/uc-app-modernization/',
