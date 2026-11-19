@@ -10,7 +10,7 @@ export const networkVrackConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/network/vrack',
+      route: '/#/network/vrack',
       text: {
         en: { product: 'vRack', crumbs: ['Network', 'vRack'] },
         fr: { product: 'vRack', crumbs: ['Réseau', 'vRack'] },
