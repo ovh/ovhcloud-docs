@@ -9,7 +9,7 @@
             + [Setting and managing an account password](account-and-service-management/account-information/manage-ovh-password)
             + [Securing my OVHcloud account and managing my personal information](account-and-service-management/account-information/all-about-username)
             + [Managing contacts for your services](account-and-service-management/account-information/managing-contacts)
-            + [How to manage messages in your OVHcloud Control Panel](account-and-service-management/account-information/manage-messages)
+            + [How to manage messages in the OVHcloud Console](account-and-service-management/account-information/manage-messages)
             + [Presentation of the new OVHcloud Control Panel navigation](account-and-service-management/account-information/new-control-panel-navigation)
             + [Sharing files with the Plik tool](account-and-service-management/account-information/use-plik)
         + [Users creation and management](account-and-service-management-account-information-users)
@@ -26,7 +26,6 @@
             + [Enabling Google Workspace SSO connections with your OVHcloud account](account-and-service-management/account-information/ovhcloud-account-connect-saml-google-workspace)
             + [Enabling Azure AD SSO connections with your OVHcloud account](account-and-service-management/account-information/ovhcloud-account-connect-saml-azure-ad)
             + [Enabling Okta SSO connections with your OVHcloud account](account-and-service-management/account-information/ovhcloud-account-connect-saml-okta)
-            + [How to use IAM policies with vSphere](hosted-private-cloud/powered-by-vmware/use-iam-with-vsphere)
             + [Authenticate on Openstack API with service account](manage-and-operate/iam/authenticate-api-openstack-with-service-account)
             + [How to use the OVHcloud API with Oauth2](account-and-service-management/account-information/authenticate-api-with-service-account)
         + [FAQ](account-and-service-management-account-information-faq)
@@ -34,7 +33,7 @@
             + [OVHcloud account support FAQ](account-and-service-management/account-information/faq-support)
         + [Security and conformity](account-and-service-management-account-information-security-and-conformity)
             + [Securing your OVHcloud account with two-factor authentication](account-and-service-management/account-information/secure-ovhcloud-account-with-2fa)
-            + [Restrict IP access to the OVHcloud Control Panel](account-and-service-management/account-information/ovhcloud-control-panel-ip-restriction)
+            + [Restrict IP access to the OVHcloud Console](account-and-service-management/account-information/ovhcloud-control-panel-ip-restriction)
             + [Beware of scams – recognising fraudulent email and phishing](account-and-service-management/account-information/phishing-care)
             + [Information System Security Policy (ISSP)](account-and-service-management/account-information/information-system-security-policy)
             + [Dedicated Servers service Security Specifications](account-and-service-management/account-information/security-specifications-dedicated-servers)
@@ -53,7 +52,7 @@
         + [Managing services](account-and-service-management-managing-billing-payments-and-services-managing-services)
             + [Best practices for managing your OVHcloud services and account](account-and-service-management/managing-billing-payments-and-services/best-practices)
             + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
-            + [Managing commitments in the OVHcloud Control Panel](account-and-service-management/managing-billing-payments-and-services/manage-commitments)
+            + [Managing commitments in the OVHcloud Console](account-and-service-management/managing-billing-payments-and-services/manage-commitments)
         + [Invoices, billing and payments](products/account-and-service-management-managing-billing-payments-and-services-invoices-billing-and-payments)
             + [Managing OVHcloud orders](account-and-service-management/managing-billing-payments-and-services/ovh-orders)
             + [Managing payment methods](account-and-service-management/managing-billing-payments-and-services/manage-payment-methods)
@@ -234,6 +233,12 @@
                 + [Bring Your Own Image (BYOI)](bare-metal-cloud/dedicated-servers/bring-your-own-image)
                 + [Bring Your Own Linux (BYOLinux)](bare-metal-cloud/dedicated-servers/bring-your-own-linux)
                 + [Configure a custom iPXE script to boot your server from the OVHcloud API](bare-metal-cloud/dedicated-servers/ipxe-scripts)
+            + [Backup](bare-metal-cloud-dedicated-servers-configuration-backup)
+                + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation)
+                + [Backing up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux)
+                + [Backing Up a Bare Metal Windows Server Using Veeam Agent for Windows](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent)
+                + [Restoring a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore)
+                + [Using backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
         + [Migration](bare-metal-cloud-dedicated-servers-migration)
             + [Migrate data from one dedicated server to another](bare-metal-cloud/dedicated-servers/migrate-a-server-to-another)
             + [Copying data from one dedicated server to another using rsync](bare-metal-cloud/dedicated-servers/how-to-copy-data-from-one-dedicated-server-to-another-using-rsync)
@@ -264,12 +269,6 @@
                 + [Dedicated Servers service Security Specifications](account-and-service-management/account-information/security-specifications-dedicated-servers)
                 + [Manage and secure your ESXi dedicated server from the outset](bare-metal-cloud/dedicated-servers/esxi-hardening)
                 + [ESXi Dedicated Servers - FAQ](bare-metal-cloud/dedicated-servers/faq-esxi)
-            + [Backup](bare-metal-cloud-dedicated-servers-security-backup)
-                + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation)
-                + [Backing up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux)
-                + [Backing Up a Bare Metal Windows Server Using Veeam Agent for Windows](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent)
-                + [Restoring a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore)
-                + [Using backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
             + [Network](bare-metal-cloud-dedicated-servers-security-network)
                 + [OVHcloud Antispam - Best Practices and Unblocking an IP](bare-metal-cloud/dedicated-servers/antispam-best-practices)
                 + [Configuring the firewall on Linux with iptables](bare-metal-cloud/dedicated-servers/firewall-linux-iptable)
@@ -498,7 +497,6 @@
                     + [IAM for VMware on OVHcloud - How to create a vSphere IAM role](hosted-private-cloud/powered-by-vmware/vmware-iam-role)
                     + [IAM for VMware on OVHcloud - How to link an IAM policy to a vSphere role](hosted-private-cloud/powered-by-vmware/vmware-iam-role-policy)
                     + [IAM for VMware on OVHcloud - How to link an OVHcloud identity user to a global IAM policy](hosted-private-cloud/powered-by-vmware/vmware-iam-user-policy)
-                    + [How to use IAM policies with vSphere](hosted-private-cloud/powered-by-vmware/use-iam-with-vsphere)
                     + [Changing the User password](hosted-private-cloud/powered-by-vmware/change-user-password)
                     + [Associating an email with a vSphere user](hosted-private-cloud/powered-by-vmware/vsphere-edit-user)
                 + [Encryption and Key Management](hosted-private-cloud-managed-vmware-security-encryption)
@@ -599,6 +597,7 @@
             + [Using Terraform with SNC Cloud Platform](hosted-private-cloud/cloud-platform/snc-cloud-platform-terraform)
             + [Managing Glance images](hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management)
             + [Managing public IPs](hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management)
+            + [Installing an operating system from an ISO image](hosted-private-cloud/cloud-platform/snc-cloud-platform-install-os-from-iso)
     + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
@@ -630,6 +629,8 @@
             + [How to reset OPCP](hosted-private-cloud/opcp/how-to-reset-opcp)
             + [How to restore OPCP from a backup](hosted-private-cloud/opcp/how-to-restore-backup)
             + [How to diagnose the OPCP control plane with opcp-diag](hosted-private-cloud/opcp/how-to-diagnose-control-plane)
+            + [Observability on OPCP](hosted-private-cloud/opcp/observability-overview)
+            + [How to store the OPCP metrics in an external S3 bucket](hosted-private-cloud/opcp/how-to-store-metrics-in-external-s3-bucket)
         + [Security](hosted-private-cloud-hosted-private-cloud-opcp-security)
             + [IAM rights management](hosted-private-cloud/opcp/iam-rights-management)
             + [How to unlock the SED drives on a controller](hosted-private-cloud/opcp/how-to-sed-unlock-controller)
@@ -901,6 +902,11 @@
             + [Configuration](public-cloud-network-gateway-configuration)
                 + [L3 services SNAT configuration](public-cloud/network-services/l3-services-snat-configuration)
                 + [Configuring IPv6 on a Public Cloud instance](public-cloud/network-services/ipv6-configuration)
+        + [Site-to-Site VPN](products/public-cloud-network-site-to-site-vpn)
+            + [Getting started](public-cloud-network-site-to-site-vpn-getting-started)
+                + [Site-to-Site VPN - Get started in the Console](public-cloud/network-services/site-to-site-vpn-getting-started)
+            + [Configuration](public-cloud-network-site-to-site-vpn-configuration)
+                + [Site-to-Site VPN - Connect to AWS](public-cloud/network-services/site-to-site-vpn-connect-aws)
         + [Load Balancer](products/public-cloud-network-load-balancer)
             + [Key concepts](public-cloud-network-load-balancer-key-concepts)
                 + [Concepts - Load Balancer](public-cloud/network-services/load-balancer-concepts)
@@ -1660,6 +1666,8 @@
                     + [AI Training - Tutorial - Compare models with W&B for audio classification task](public-cloud/ai-machine-learning/ai-training-models-comparaison-wandb)
                 + [NLP](public-cloud-ai-and-machine-learning-ai-training-tutorials-nlp)
                     + [AI Training - Tutorial - Train a Rasa chatbot with Docker and AI Training](public-cloud/ai-machine-learning/ai-training-train-rasa-chatbot)
+                + [LLM](public-cloud-ai-and-machine-learning-ai-training-tutorials-llm)
+                    + [AI Training - Tutorial - Fine-tune Olala Mini 7A1B with LoRA](public-cloud/ai-machine-learning/ai-training-fine-tune-olala-mini)
                 + [Audio/Signal processing](public-cloud-ai-and-machine-learning-ai-training-tutorials-audio-signal-processing)
                     + [AI Training - Tutorial - Train a model to recognize marine mammal sounds](public-cloud/ai-machine-learning/ai-training-train-marine_mammal_sound)
                 + [Computer vision](public-cloud-ai-and-machine-learning-ai-training-tutorials-computer-vision)
@@ -1688,6 +1696,7 @@
             + [Security](public-cloud-ai-and-machine-learning-ai-deploy-security)
                 + [AI Deploy - Accessing your app with tokens](public-cloud/ai-machine-learning/ai-deploy-tokens)
             + [Tutorials](public-cloud-ai-and-machine-learning-ai-deploy-tutorials)
+                + [AI Deploy - Tutorial - Deploy a fine-tuned Olala Mini 7A1B](public-cloud/ai-machine-learning/ai-deploy-fine-tuned-olala-mini)
                 + [AI Deploy - Tutorial - Build & use a custom Docker image](public-cloud/ai-machine-learning/ai-deploy-build-use-custom-image)
                 + [AI Deploy - Tutorial - Build & use a Streamlit image](public-cloud/ai-machine-learning/ai-deploy-build-use-streamlit-image)
                 + [AI Deploy - Tutorial - Deploy a simple app with Flask](public-cloud/ai-machine-learning/ai-deploy-build-use-flask-image)
@@ -1727,7 +1736,9 @@
                 + [AI Endpoints - Create your own audio summarizer](public-cloud/ai-machine-learning/ai-endpoints-audio-summarizer)
                 + [AI Endpoints - Create your own voice assistant](public-cloud/ai-machine-learning/ai-endpoints-voice-virtual-assistant)
                 + [AI Endpoints - Virtual Models](public-cloud/ai-machine-learning/ai-endpoints-virtual-models)
-                + [AI Endpoints - Speech to Text](public-cloud/ai-machine-learning/ai-endpoints-audio-models)
+                + [AI Endpoints - Speech to Text with the OpenAI-compatible API](public-cloud/ai-machine-learning/ai-endpoints-audio-models)
+                + [AI Endpoints - Speech to Text with the Gladia API](public-cloud/ai-machine-learning/ai-endpoints-gladia-speech-to-text)
+                + [AI Endpoints - Decision Models](public-cloud/ai-machine-learning/ai-endpoints-decision-models)
                 + [AI Endpoints - Create a sentiment analyzer](public-cloud/ai-machine-learning/ai-endpoints-sentiment-analyzer)
                 + [Integrations](public-cloud-ai-and-machine-learning-ai-endpoints-tutorials-integrations)
                     + [AI Endpoints - Create a code assistant with Continue](public-cloud/ai-machine-learning/ai-endpoints-code-assistant)
@@ -1793,6 +1804,7 @@
                     + [Build the Vélib' dashboard in Superset](public-cloud/data-platform/tutorials-velib-availability-superset-dashboard){label=Build a Vélib' availability dashboard in Superset}
                 + [Transform data using the Python SDK](public-cloud/data-platform/tutorials-python-sdk-transform){label=Transform data using the Python SDK}
                 + [SQL Transformation](public-cloud/data-platform/tutorials-sql-transformation){label=SQL Transformation}
+                + [Check data quality after each load](public-cloud/data-platform/tutorials-data-quality-checks){label=Check data quality after each load}
                 + [Data models with external datasets](public-cloud/data-platform/tutorials-external-datasets){label=Data models with external datasets}
                 + [Apply segmentation to your jobs](public-cloud-data-platform-apply-segmentation-to-your-jobs){landing=public-cloud/data-platform/tutorials-segmentation}
                     + [Project table attribute](public-cloud/data-platform/tutorials-segmentation-table-attribute){label=Project table attribute}
@@ -1869,6 +1881,7 @@
                 + [Tables](public-cloud-data-platform-tables){landing=public-cloud/data-platform/lakehouse-manager-tables}
                     + [Manage a table](public-cloud/data-platform/lakehouse-manager-manage-tables){label=Manage a table}
                     + [Time Travel](public-cloud/data-platform/lakehouse-manager-time-travel){label=Time Travel}
+                    + [Data quality](public-cloud/data-platform/lakehouse-manager-data-quality){label=Data quality}
                 + [Views](public-cloud/data-platform/lakehouse-manager-views){label=Views}
                 + [Attributes](public-cloud/data-platform/lakehouse-manager-attributes){label=Attributes}
                 + [Buckets](public-cloud/data-platform/lakehouse-manager-buckets){label=Buckets}
@@ -1889,6 +1902,8 @@
                         + [Advanced Mode](public-cloud/data-platform/dpe-actions-aggregate-advanced-mode){label=Advanced Mode}
                     + [Aggregate PySpark](public-cloud/data-platform/dpe-actions-aggregate-pyspark){label=Aggregate PySpark}
                     + [SQL](public-cloud/data-platform/dpe-actions-sql){label=SQL}
+                    + [Data quality](public-cloud/data-platform/dpe-actions-data-quality){label=Data quality}
+                    + [Data quality (Spark)](public-cloud/data-platform/dpe-actions-data-quality-pyspark){label=Data quality (Spark)}
                     + [Custom](public-cloud-data-platform-custom){landing=public-cloud/data-platform/dpe-actions-custom}
                         + [Default Packages](public-cloud/data-platform/dpe-actions-custom-default-packages){label=Default Packages}
                     + [Custom PySpark](public-cloud/data-platform/dpe-actions-custom-pyspark){label=Custom PySpark}
@@ -1992,6 +2007,7 @@
                     + [Override a Load action](public-cloud/data-platform/developers-python-sdk-load-override)
                     + [Use custom Python modules via Git](public-cloud/data-platform/developers-python-sdk-git){label=Use custom Python modules via Git}
                     + [Track data lineage](public-cloud/data-platform/developers-python-sdk-lineage){label=Track data lineage}
+                    + [Manage rules and send quality reports](public-cloud/data-platform/developers-python-sdk-data-quality){label=Manage rules and send quality reports}
             + [Front App and API SDKs](public-cloud/data-platform/developers-front-sdks)
         + [Manage your platform](public-cloud-data-platform-manage-your-platform){landing=public-cloud/data-platform/landing-page-manage}
             + [Navigate the platform](public-cloud/data-platform/manage-navigation)
@@ -2066,7 +2082,7 @@
                 + [How to connect an OVHcloud domain name to a GoDaddy hosting plan](web-cloud/domains/how-to-connect-domain-to-godaddy)
                 + [How to connect an OVHcloud domain name to a Webflow hosting plan](web-cloud/domains/how-to-connect-domain-to-webflow)
                 + [How to use an OVHcloud domain with iCloud Mail](web-cloud/domains/domain-icloud)
-        + [DNS (Domain Name System)](products/web-cloud-domains-dns){landing=web-cloud/domains/dns/landing-page-dns}
+        + [DNS](products/web-cloud-domains-dns){landing=web-cloud/domains/dns/landing-page-dns}
             + [Key concepts](web-cloud-domains-dns-key-concepts)
                 + [Everything you need to know about DNS servers](web-cloud/domains/dns-server-general-information)
                 + [Everything you need to know about DNS zone](web-cloud/domains/dns-zone-general-information)
@@ -2105,7 +2121,6 @@
             + [Getting started with an Individual or Business Web Hosting plan](web-cloud/web-hosting/web-hosting-getting-started)
             + [Getting started with a Cloud Web hosting plan](web-cloud/web-hosting/getting-started-cloud-web)
             + [Premiers pas avec la solution Visibilité Pro](web-cloud/web-hosting/premiers-pas-avec-visibilite-pro)
-            + [View and manage all your websites from the OVHcloud Control Panel](web-cloud/web-hosting/access-websites-view)
             + [Web Hosting - How to get started in a few steps](web-cloud/web-hosting/website-project)
             + [Web Hosting FAQ](web-cloud/web-hosting/faq)
             + [Publishing a website on your Web Hosting plan](web-cloud/web-hosting/hosting-how-to-get-my-website-online)
@@ -2364,7 +2379,8 @@
                 + [Exporting an Exchange mailbox to a PST file](web-cloud/email-and-collaborative-solutions/microsoft-exchange/exchange-export-pst)
                 + [Creating automatic signatures](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-footers)
                 + [How to obtain an Outlook licence for Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/office-outlook-license)
-                + [Creating send connector for Private and Trusted Exchange](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
+                + [Exchange - Configure a send connector](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-send-connector)
+                + [Exchange - Configure a receive connector](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-receive-connector)
                 + [Signing and encrypting Exchange emails with S/MIME](web-cloud/email-and-collaborative-solutions/microsoft-exchange/feature-smime)
             + [Setting up an email application on your computer](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-computer)
                 + [Configuring your Exchange account in Outlook for Windows](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-2016)
@@ -2414,7 +2430,7 @@
                 + [Obtenir les identifiants PPPoE](web-cloud/internet/internet-access/obtenir-id-ppp)
             + [Configuration](products/web-cloud-internet-internet-access-configuration)
                 + [Setting up your access](web-cloud-internet-internet-access-configuration-setting-up-your-access)
-                    + [Configurer sa box à partir de l'espace client OVHcloud](web-cloud/internet/internet-access/configuration-du-modem-a-partir-de-votre-espace-client)
+                    + [Configurer sa box à partir de la console OVHcloud](web-cloud/internet/internet-access/configuration-du-modem-a-partir-de-votre-espace-client)
                     + [Modification du profil de synchronisation](web-cloud/internet/internet-access/modification-du-profil-de-synchronisation)
                     + [Comment configurer le reverse DNS de ma connexion](web-cloud/internet/internet-access/comment-configurer-le-reverse-dns-de-ma-connexion)
                     + [Activer l'adresse IPv6 d'une connexion internet OVHcloud](web-cloud/internet/internet-access/comment-gerer-ipv6)
@@ -2548,11 +2564,11 @@
                 + [FAQ sur la solution Fax OVHcloud](web-cloud/phone-and-fax/fax/faq)
                 + [Configuration de votre ligne Fax](web-cloud/phone-and-fax/fax/configuration-fax-espace-client)
                 + [Utiliser son fax physique avec l’offre Plug & Fax](web-cloud/phone-and-fax/fax/utiliser-son-fax-physique-avec-l-offre-plug-and-fax)
-                + [Activation du répondeur Fax EcoFax Pro / Plug & Fax](web-cloud/phone-and-fax/fax/activer-repondeur-fax)
+                + [Activation du répondeur Fax EcoFax Pro](web-cloud/phone-and-fax/fax/activer-repondeur-fax)
             + [Configuration](web-cloud-phone-and-fax-fax-configuration)
                 + [Sending and receiving faxes](web-cloud-phone-and-fax-fax-configuration-sending-and-receiving-faxes)
                     + [Envoyer des fax et créer des campagnes par e-mail](web-cloud/phone-and-fax/fax/envoyer-des-fax-et-creer-des-campagnes-par-e-mail)
-                    + [Envoyer une campagne de fax depuis l'espace client OVHcloud](web-cloud/phone-and-fax/fax/envoyer-une-campagne-de-fax-via-le-manager)
+                    + [Envoyer une campagne de fax depuis la console OVHcloud](web-cloud/phone-and-fax/fax/envoyer-une-campagne-de-fax-via-le-manager)
                     + [Envoyer des Fax via l’imprimante virtuelle EcoFax - Mac OS X](web-cloud/phone-and-fax/fax/send-fax-ecofax-macos)
                     + [Envoyer des Fax via l’imprimante virtuelle EcoFax- Windows](web-cloud/phone-and-fax/fax/send-fax-ecofax-windows)
                     + [Comment résilier un service VoIP ou une ligne Fax](web-cloud/phone-and-fax/voip/resilier-services-voip)
@@ -2563,7 +2579,7 @@
             + [Time2Chat, la messagerie conversationnelle par SMS pour les entreprises](web-cloud/messaging/sms/time-2-chat)
         + [Configuration](web-cloud-messaging-sms-configuration)
             + [Sending SMS messages](web-cloud-messaging-sms-configuration-sending-sms-messages)
-                + [Sending SMS messages via the OVHcloud Control Panel](web-cloud/messaging/sms/send-sms-control-panel)
+                + [Sending SMS messages via the OVHcloud Console](web-cloud/messaging/sms/send-sms-control-panel)
                 + [Sending SMS messages via an email address](web-cloud/messaging/sms/send-sms-email)
                 + [Sending SMS messages with the OVHcloud API in PHP](web-cloud/messaging/sms/send-sms-api-php)
                 + [Sending SMS messages with the OVHcloud API in Node.js](web-cloud/messaging/sms/send-sms-api-nodejs)
@@ -2845,7 +2861,7 @@
         + [Understanding quota on the CDN](network/cdn/quota)
         + [Adding an SSL certificate on the CDN](network/cdn/cdn-infrastructure-ssl-certificate)
         + [List of IP addresses to authorize for your CDN Infrastructure](network/cdn/cdn-infrastructure-ip-range)
-    + [DNS (Domain Name System)](products/network-dns){landing=web-cloud/domains/dns/landing-page-dns}
+    + [DNS](products/network-dns){landing=web-cloud/domains/dns/landing-page-dns}
         + [Key concepts](network-dns-key-concepts)
             + [Everything you need to know about DNS servers](web-cloud/domains/dns-server-general-information)
             + [Everything you need to know about DNS zone](web-cloud/domains/dns-zone-general-information)
@@ -2878,6 +2894,11 @@
             + [Securing your domain name with DNSSEC](web-cloud/domains/dns-dnssec)
         + [Tutorials](network-dns-tutorials)
             + [Tutorial - Using Zonemaster](web-cloud/domains/dns-zonemaster)
+    + [Global Load Balancer](products/network-global-load-balancer)
+        + [Getting started](network-global-load-balancer-getting-started)
+            + [Getting started with Global Load Balancer in the Console](network/global-load-balancer/global-load-balancer-getting-started){label=Get started in the Console}
+        + [Key concepts](network-global-load-balancer-key-concepts)
+            + [Global Load Balancer routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies){label=Routing policies and health checks}
     + [IP Addresses](products/network-ip-addresses)
         + [Additional IP](network-additional-ip)
             + [Overview](network/ip-addresses/additional-ip/overview)
@@ -3059,7 +3080,6 @@
         + [List of permission groups managed by OVHcloud](account-and-service-management/account-information/iam-permission-groups)
         + [How to manage tags on resources](manage-and-operate/iam/tag-manager)
         + [How to create an IAM policy to allow a user to log to the OVHcloud Control Panel](account-and-service-management/account-information/iam-control-panel-access)
-        + [How to use IAM policies with vSphere](hosted-private-cloud/powered-by-vmware/use-iam-with-vsphere)
         + [Authenticate on Openstack API with service account](manage-and-operate/iam/authenticate-api-openstack-with-service-account)
         + [How to troubleshoot IAM policies](manage-and-operate/iam/troubleshooting)
         + [How to enable OVHcloud account logs forwarding](manage-and-operate/iam/logs-forwarding)

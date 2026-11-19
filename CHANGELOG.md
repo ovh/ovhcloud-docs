@@ -1,5 +1,122 @@
 # Changelog
 
+## 2026.11.18.3
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the navigation block from two guides with no Console steps
+
+### Documentation
+- EU: 9 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.18.2
+
+### Fixes
+
+#### EU
+- **iam:** link all IAM pages with Console menu route (#1298)
+- **cpnav:** point the migrated VPS, LDP, KMS and Secret Manager guides at the Console
+- **telecom:** align the Console guides with the Console code (#1294)
+
+#### All regions
+- **tabs:** keep the clicked tab row anchored while revealed images load (#1292)
+- **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
+
+### Maintenance
+
+#### EU
+- **console:** mark Console links with the console attribute, drop /beta (#1295)
+
+#### All regions
+- **sidebar:** move Dedicated Servers Backup under Configuration
+
+### Documentation
+- EU: 1644 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.18.1
+
+### Features
+
+#### EU
+- **fragments:** show the Console update banner on VMware, Nutanix and SAP
+- **manage-and-operate:** update 17 guides to the OVHcloud Console (EN + FR) (#1194)
+- **v8:** move the Internet Access guides to the Console (#1241)
+- **v8:** move the OverTheBox guides to the Console (#1221)
+- **manager-link:** open the OVHcloud Console on its own host
+
+### Documentation
+- EU: 2335 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.18
+
+### Documentation
+- EU: 4 guides across en, fr
+
+## 2026.11.17.2
+
+### Maintenance
+
+#### All regions
+- **sidebar:** shorten the DNS product label to "DNS
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.17.1
+
+### Features
+
+#### EU
+- **fragments:** add the console-update-pending banner with a v6 link (#1254)
+
+### Documentation
+- EU: 15 guides across de, en, es, fr, it, pl, pt
+- US: 27 guides across en
+
+## 2026.11.17
+
+### Documentation
+- EU: 11 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.16
+
+### Features
+
+#### EU
+- **managed-rancher-service:** Remove version 2.12
+
+### Documentation
+- EU: 43 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.13.2
+
+### Features
+
+#### EU
+- **managed veeam vcd v8:** gold repository activation from the console (#1249)
+
+### Fixes
+
+#### EU
+- **public-cloud:** update MKS Free to Standard migration for the Console and drop legacy cpnav tokens from 5 guides with no Console action (#1257)
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the access block from guides with no Console procedure
+
+### Documentation
+- EU: 96 guides across de, en, es, fr, it, pl, pt
+- US: 1 guides across en
+
+## 2026.11.13.1
+
+### Features
+
+#### All regions
+- **nav:** system / light / dark appearance switch
+
 ## 2026.11.13
 
 ### Features
