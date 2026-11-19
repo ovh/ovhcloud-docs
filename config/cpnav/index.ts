@@ -56,6 +56,7 @@ import { networkVrackServices } from './keys/network-vrack-services';
 import { networkVrackServicesConsole } from './keys/network-vrack-services-console';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
@@ -141,7 +142,6 @@ import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-sto
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
-import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
@@ -220,6 +220,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
+  'privatecloud-hycu-console': privatecloudHycuConsole,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
   // --- Private Cloud (Console only) ---------------------------------------------------
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
@@ -237,7 +238,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
     storageEnterpriseFileStorageConsole,
   'storage-nas-ha': storageNasHa,
   'storage-nas-ha-console': storageNasHaConsole,
-  'privatecloud-hycu-console': privatecloudHycuConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.

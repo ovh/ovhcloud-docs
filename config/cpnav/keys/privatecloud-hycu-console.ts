@@ -9,42 +9,35 @@ export const privatecloudHycuConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/private-cloud/hycu',
+      route: '/#/private-cloud/hycu',
       text: {
         en: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Select your service',
         },
         fr: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Sélectionnez votre service',
         },
         de: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Wählen Sie Ihren Dienst aus',
         },
         es: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Seleccione su servicio',
         },
         it: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Seleziona il tuo servizio',
         },
         pl: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Wybierz usługę',
         },
         pt: {
           product: 'HYCU',
           crumbs: ['Backup', 'HYCU'],
-          step: 'Selecione o seu serviço',
         },
       },
     },
