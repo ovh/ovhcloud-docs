@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.18.3
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the navigation block from two guides with no Console steps
+
+### Documentation
+- EU: 9 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18.2
 
 ### Fixes
