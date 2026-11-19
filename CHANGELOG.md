@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026.11.19
+
+### Features
+
+#### EU
+- **hycu v8:** console licence management and cpnav twin (#1251)
+- **veeam enterprise v8:** console licence activation and cpnav twins (#1248)
+- **backup licenses v8:** console wording, order flow and cpnav twins (#1246)
+
+### Fixes
+
+#### EU
+- **accounts:** point phishing-care at the Console's messages and security pages
+- **managed-hosting:** point the WordPress MCP guide's Console links at the Console GA address
+
+#### All regions
+- **accounts:** point phishing-care at the Console's messages and security pages (#1309)
+
+### Maintenance
+
+#### EU
+- **accounts:** v8 follow-up maintenance (#1306)
+
+### Documentation
+- EU: 127 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18.3
 
 ### Maintenance
