@@ -1,17 +1,15 @@
 import type { CpNavKey } from '../types';
 
-// Console (v8) twin of baremetal-dedicated-servers, for the guides already rewritten for the
-// Console; the v6 key stays for the others until it is repointed at GA, when the two merge
-// (same pattern as storage-nas-ha-console). Route: the Console's dedicated server list, the
-// same target as the ManagerLink of the getting-started guides. Crumbs: the "Dedicated servers"
-// entry of the Console's Bare Metal sidebar (bare-metal-sidebar product.dedicatedServers), a
-// top-level entry with no group.
+// Console (v8) twin of baremetal-dedicated-servers, for the guides rewritten for the Console; the v6 key
+// stays until it is repointed at GA, when the two merge. Route from data/v8/route-map.yaml
+// (/bare-metal/dedicated-server, app dedicated); the Console side menu shows it under Bare Metal Cloud ›
+// Dedicated servers (bare-metal-sidebar product.dedicatedServers).
 export const baremetalDedicatedServersConsole: CpNavKey = {
   universe: 'bare-metal-cloud',
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/dedicated-server',
+      route: '/#/bare-metal/dedicated-server',
       text: {
         en: {
           product: 'Dedicated servers',
