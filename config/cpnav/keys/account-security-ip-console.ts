@@ -8,7 +8,7 @@ export const accountSecurityIpConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/customer/account/security-and-login/ip-restrictions',
+      route: '/#/customer/account/security-and-login/ip-restrictions',
       text: {
         en: {
           product: 'IP restrictions',

@@ -8,7 +8,7 @@ export const webMicrosoft365Console: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/microsoft-365',
+      route: '/#/web-cloud/microsoft-365',
       text: {
         en: { product: 'Microsoft 365', crumbs: ['Microsoft 365'] },
         fr: { product: 'Microsoft 365', crumbs: ['Microsoft 365'] },

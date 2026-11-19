@@ -12,7 +12,7 @@ export const publiccloudInstanceBackupConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/public-cloud/project',
+      route: '/#/public-cloud/project',
       text: {
         en: {
           product: 'Projects',

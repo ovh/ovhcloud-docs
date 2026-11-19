@@ -1,4 +1,4 @@
-import { useFrontmatter } from '@rspress/core/runtime';
+import { useFrontmatter, useLocation } from '@rspress/core/runtime';
 import { FallbackHeading as OriginalFallbackHeading } from '@rspress/core/theme-original';
 import './index.scss';
 
@@ -19,22 +19,29 @@ interface FallbackHeadingProps {
  * a sibling `.rp-llms-container` right after the heading. We want the lead to
  * sit between the title and that button row, so we wrap both in a flex column
  * and reorder them with CSS (see index.scss).
+ *
+ * Both returns are keyed on the pathname, so a client-side navigation
+ * (prev/next links, sidebar) mounts a fresh title block instead of patching
+ * the previous page's nodes in place. Firefox 160 sometimes stops painting
+ * those patched nodes (title blank, lead clipped to the old width); fresh
+ * nodes always paint. See theme/components/PrevNextPage for the same fix.
  */
 export function FallbackHeading(props: FallbackHeadingProps) {
   const { frontmatter } = useFrontmatter();
+  const { pathname } = useLocation();
   const fm = frontmatter as Record<string, unknown>;
   const lead = fm?.description as string | undefined;
-
-  const heading = <OriginalFallbackHeading {...props} />;
 
   // SSG markdown export (llms.txt etc.) expects a plain heading string.
   // Also skip the wrapper for non-title headings or when there is no summary.
   if (process.env.__SSR_MD__ || props.level !== 1 || !lead) {
-    return heading;
+    return <OriginalFallbackHeading key={pathname} {...props} />;
   }
 
+  const heading = <OriginalFallbackHeading {...props} />;
+
   return (
-    <div className="rp-guide-title-block">
+    <div className="rp-guide-title-block" key={pathname}>
       {heading}
       <p className="rp-guide-lead">{lead}</p>
     </div>

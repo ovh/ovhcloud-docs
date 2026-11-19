@@ -9,7 +9,7 @@ export const telecomOtbConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/overthebox',
+      route: '/#/web-cloud/overthebox',
       text: {
         en: { product: 'OverTheBox', crumbs: ['OverTheBox'] },
         fr: { product: 'OverTheBox', crumbs: ['OverTheBox'] },

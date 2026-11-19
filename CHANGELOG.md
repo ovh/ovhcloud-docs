@@ -1,5 +1,65 @@
 # Changelog
 
+## 2026.11.19
+
+### Features
+
+#### EU
+- **hycu v8:** console licence management and cpnav twin (#1251)
+- **veeam enterprise v8:** console licence activation and cpnav twins (#1248)
+- **backup licenses v8:** console wording, order flow and cpnav twins (#1246)
+
+### Fixes
+
+#### EU
+- **accounts:** point phishing-care at the Console's messages and security pages
+- **managed-hosting:** point the WordPress MCP guide's Console links at the Console GA address
+
+#### All regions
+- **accounts:** point phishing-care at the Console's messages and security pages (#1309)
+
+### Maintenance
+
+#### EU
+- **accounts:** v8 follow-up maintenance (#1306)
+
+### Documentation
+- EU: 127 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.18.3
+
+### Maintenance
+
+#### EU
+- **cpnav:** drop the navigation block from two guides with no Console steps
+
+### Documentation
+- EU: 9 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.18.2
+
+### Fixes
+
+#### EU
+- **iam:** link all IAM pages with Console menu route (#1298)
+- **cpnav:** point the migrated VPS, LDP, KMS and Secret Manager guides at the Console
+- **telecom:** align the Console guides with the Console code (#1294)
+
+#### All regions
+- **tabs:** keep the clicked tab row anchored while revealed images load (#1292)
+- **theme:** remount title, breadcrumb and prev/next cards on navigation (#1291)
+
+### Maintenance
+
+#### EU
+- **console:** mark Console links with the console attribute, drop /beta (#1295)
+
+#### All regions
+- **sidebar:** move Dedicated Servers Backup under Configuration
+
+### Documentation
+- EU: 1644 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.18.1
 
 ### Features

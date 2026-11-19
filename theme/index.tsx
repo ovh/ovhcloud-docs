@@ -170,6 +170,8 @@ export * from '@rspress/core/theme-original';
 const LlmsCopyButton = () => null;
 
 export { LastUpdated } from 'theme/components/LastUpdated';
+// Prev/next cards remounted on every navigation (Firefox 160 paint bug).
+export { PrevNextPage } from 'theme/components/PrevNextPage';
 // Restore v1-style Tabs sync: derive a groupId from tab labels so selection
 // persists across blocks and navigation (Rspress v2 only syncs with a groupId).
 export { Tab, Tabs } from 'theme/components/SyncedTabs';

@@ -21,7 +21,9 @@ import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
 import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
+import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
 import { baremetalVps } from './keys/baremetal-vps';
+import { baremetalVpsConsole } from './keys/baremetal-vps-console';
 import { billingInvoices } from './keys/billing-invoices';
 import { billingInvoicesConsole } from './keys/billing-invoices-console';
 import { billingOrders } from './keys/billing-orders';
@@ -54,11 +56,14 @@ import { networkVrackConsole } from './keys/network-vrack-console';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { networkVrackServicesConsole } from './keys/network-vrack-services-console';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
+import { privatecloudBackupLicensesConsole } from './keys/privatecloud-backup-licenses-console';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
+import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
@@ -130,8 +135,11 @@ import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-con
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { publiccloudVolumeSnapshotConsole } from './keys/publiccloud-volume-snapshot-console';
 import { securityKms } from './keys/security-kms';
+import { securityKmsConsole } from './keys/security-kms-console';
 import { securitySecretManager } from './keys/security-secret-manager';
+import { securitySecretManagerConsole } from './keys/security-secret-manager-console';
 import { storageBackupLicenses } from './keys/storage-backup-licenses';
+import { storageBackupLicensesConsole } from './keys/storage-backup-licenses-console';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageCloudDiskArrayConsole } from './keys/storage-cloud-disk-array-console';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
@@ -215,16 +223,22 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
+  'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
   'privatecloud-hycu': privatecloudHycu,
+  'privatecloud-hycu-console': privatecloudHycuConsole,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
+  'privatecloud-backup-licenses-console': privatecloudBackupLicensesConsole,
   // --- Private Cloud (Console only) ---------------------------------------------------
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
   'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
+  'baremetal-vps-console': baremetalVpsConsole,
+  'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
+  'storage-backup-licenses-console': storageBackupLicensesConsole,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-cloud-disk-array-console': storageCloudDiskArrayConsole,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
@@ -336,7 +350,9 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-tag-management': iamTagManagement,
   'iam-tag-management-console': iamTagManagementConsole,
   'security-kms': securityKms,
+  'security-kms-console': securityKmsConsole,
   'security-secret-manager': securitySecretManager,
+  'security-secret-manager-console': securitySecretManagerConsole,
   'logs-data-platform': logsDataPlatform,
   'logs-data-platform-console': logsDataPlatformConsole,
   // --- Account and billing ------------------------------------------------------------
@@ -372,6 +388,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
  */
 export const CPNAV_SETS: string[][] = [
   ['iam-policies', 'security-kms'],
+  ['iam-policies-console', 'security-kms-console'],
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
