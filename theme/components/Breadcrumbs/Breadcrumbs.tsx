@@ -123,8 +123,15 @@ export default function Breadcrumbs() {
     ...(trail ?? humanizeFallback(routePath)),
   ];
 
+  // Keyed on the route so each client-side navigation mounts a fresh trail
+  // rather than patching the previous one: Firefox 160 sometimes stops
+  // painting the patched last crumb (see theme/components/PrevNextPage).
   return (
-    <nav aria-label="Breadcrumb" className="rspress-breadcrumbs">
+    <nav
+      aria-label="Breadcrumb"
+      className="rspress-breadcrumbs"
+      key={routePath}
+    >
       <ol>
         {crumbs.map((crumb, index) => {
           const isLast = index === crumbs.length - 1;

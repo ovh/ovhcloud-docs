@@ -12,7 +12,7 @@ export const privatecloudVmwareVcfConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/private-cloud/public-vcf-aas',
+      route: '/#/private-cloud/public-vcf-aas',
       text: {
         en: {
           product: 'Public VCF as-a-Service',
