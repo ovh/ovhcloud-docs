@@ -58,6 +58,7 @@ import { networkVrackServicesConsole } from './keys/network-vrack-services-conso
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
 import { privatecloudBackupLicensesConsole } from './keys/privatecloud-backup-licenses-console';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
@@ -224,6 +225,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
   'privatecloud-hycu': privatecloudHycu,
+  'privatecloud-hycu-console': privatecloudHycuConsole,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
   'privatecloud-backup-licenses-console': privatecloudBackupLicensesConsole,
   // --- Private Cloud (Console only) ---------------------------------------------------
