@@ -10,7 +10,7 @@ export const privatecloudBackupLicensesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/private-cloud/backup-licenses',
+      route: '/#/private-cloud/backup-licenses',
       text: {
         en: {
           product: 'Backup Licenses',

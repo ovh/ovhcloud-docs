@@ -10,7 +10,7 @@ export const storageBackupLicensesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/backup-licenses',
+      route: '/#/bare-metal/backup-licenses',
       text: {
         en: {
           product: 'Backup Licenses',

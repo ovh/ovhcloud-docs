@@ -55,6 +55,7 @@ import { networkVrackConsole } from './keys/network-vrack-console';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { networkVrackServicesConsole } from './keys/network-vrack-services-console';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
+import { privatecloudBackupLicensesConsole } from './keys/privatecloud-backup-licenses-console';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
@@ -135,14 +136,13 @@ import { securityKmsConsole } from './keys/security-kms-console';
 import { securitySecretManager } from './keys/security-secret-manager';
 import { securitySecretManagerConsole } from './keys/security-secret-manager-console';
 import { storageBackupLicenses } from './keys/storage-backup-licenses';
+import { storageBackupLicensesConsole } from './keys/storage-backup-licenses-console';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageCloudDiskArrayConsole } from './keys/storage-cloud-disk-array-console';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
-import { privatecloudBackupLicensesConsole } from './keys/privatecloud-backup-licenses-console';
-import { storageBackupLicensesConsole } from './keys/storage-backup-licenses-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
@@ -222,6 +222,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-hycu': privatecloudHycu,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
+  'privatecloud-backup-licenses-console': privatecloudBackupLicensesConsole,
   // --- Private Cloud (Console only) ---------------------------------------------------
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
@@ -231,6 +232,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'baremetal-vps-console': baremetalVpsConsole,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
+  'storage-backup-licenses-console': storageBackupLicensesConsole,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-cloud-disk-array-console': storageCloudDiskArrayConsole,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
@@ -238,8 +240,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
     storageEnterpriseFileStorageConsole,
   'storage-nas-ha': storageNasHa,
   'storage-nas-ha-console': storageNasHaConsole,
-  'privatecloud-backup-licenses-console': privatecloudBackupLicensesConsole,
-  'storage-backup-licenses-console': storageBackupLicensesConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
