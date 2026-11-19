@@ -9,7 +9,7 @@ export const baremetalVeeamEnterpriseConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/veeam-enterprise',
+      route: '/#/bare-metal/veeam-enterprise',
       text: {
         en: {
           product: 'Veeam Enterprise',

@@ -10,7 +10,7 @@ export const privatecloudVeeamEnterpriseConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/private-cloud/veeam-enterprise',
+      route: '/#/private-cloud/veeam-enterprise',
       text: {
         en: {
           product: 'Veeam Enterprise',

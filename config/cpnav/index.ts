@@ -21,6 +21,7 @@ import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
 import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
+import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
 import { baremetalVps } from './keys/baremetal-vps';
 import { baremetalVpsConsole } from './keys/baremetal-vps-console';
 import { billingInvoices } from './keys/billing-invoices';
@@ -60,6 +61,7 @@ import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-bac
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
+import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
 import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
@@ -141,8 +143,6 @@ import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-sto
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
-import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
-import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
@@ -220,6 +220,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
+  'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
   'privatecloud-hycu': privatecloudHycu,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
   // --- Private Cloud (Console only) ---------------------------------------------------
@@ -229,6 +230,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
   'baremetal-vps-console': baremetalVpsConsole,
+  'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
   'storage-cloud-disk-array': storageCloudDiskArray,
@@ -238,8 +240,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
     storageEnterpriseFileStorageConsole,
   'storage-nas-ha': storageNasHa,
   'storage-nas-ha-console': storageNasHaConsole,
-  'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
-  'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
