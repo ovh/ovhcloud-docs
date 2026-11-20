@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026.11.20.1
+
+### Features
+
+#### US
+- **us:** move the Public Cloud Storage guides to the OVHcloud Console
+- **us:** move Public Cloud to Console cleanup stragglers
+- **us:** move the Public Cloud Cross-functional guides to the OVHcloud Console
+- **us:** move the Public Cloud Network Services guides to the OVHcloud Console
+- **us:** move the Public Cloud Managed Private Registry guides to the OVHcloud Console
+- **us:** move the Public Cloud Managed Kubernetes guides to the OVHcloud Console
+- **us:** move the Public Cloud AI & Machine Learning guides to the OVHcloud Console
+- **us:** make the Analytics Common guides Analytics-only
+- **us:** move the Data Analytics guides to the OVHcloud Console
+- **us:** move the Public Cloud Databases guides to the OVHcloud Console
+- **us:** move the Public Cloud Compute guides to the OVHcloud Console
+
+### Fixes
+
+#### US
+- **us:** import Api in the Network Services FAQ
+
+### Documentation
+- EU: 93 guides across de, en, es, fr, it, pl, pt
+- US: 271 guides across en
+
 ## 2026.11.20
 
 ### Fixes
