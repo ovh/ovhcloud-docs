@@ -131,8 +131,7 @@
         + [Responsibility sharing - Domain Name service](web-cloud/domains/domains-responsibility-sharing)
         + [Responsibility sharing for the Web Hosting service](web-cloud/web-hosting/web-hosting-responsibility-sharing)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
-    + [Startup Program](products/startup-program)
-        + [Overview](account-and-service-management/startup-program/overview)
+    + [Startup Program](products/startup-program){landing=account-and-service-management/startup-program/landing-page-startup-program}
         + [General information](startup-program-general-information)
             + [Startup Program - How to apply to our newsletter?](account-and-service-management/startup-program/apply-to-newsletter)
             + [How to optimise your application to the Startup Program](account-and-service-management/startup-program/optimise-application)
