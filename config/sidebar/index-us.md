@@ -265,6 +265,8 @@
             + [Troubleshooting](network-additional-ip-troubleshooting)
                 + [Delisting blocklisted IP addresses](network/additional-ip/blocklist-ip-delist)
                 + [Enabling IPs After Anti-Hack Flags](network/additional-ip/enabling-ips-after-anti-hack-flags)
+        + [BGP Service](network-bgp)
+            + [BGP Service configuration](network/bgp-service/bgp-service-config)
         + [Bring Your Own IP](products/network-bring-your-own-ip)
             + [How to use the Bring Your Own IP BYOIP feature](network/bring-your-own-ip/bring-your-own-ip)
         + [Load Balancer](products/network-load-balancer){landing=network/load-balancer/landing-page-load-balancer}
@@ -357,6 +359,8 @@
         + [Troubleshooting](network-troubleshooting)
             + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
             + [Using networking tools available to OVHcloud customers](network/network-tools)
+        + [vRack Services](products/network-vrack-services)
+            + [vRack Services - Exposing a Managed Service on your vRack](network/vrack-services/global)
 + Hosted Private Cloud{landing=hosted-private-cloud}
     + [Public VCF as-a-Service](products/hosted-private-cloud-public-vcf-aas){landing=hosted-private-cloud/public-vcf-aas/landing-page-public-vcf-aas}
         + [Key concepts](hosted-private-cloud-public-vcf-aas-key-concepts)
