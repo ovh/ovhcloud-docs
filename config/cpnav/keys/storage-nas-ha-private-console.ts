@@ -1,6 +1,6 @@
 import type { CpNavKey } from '../types';
 
-// Private NAS-HA (beta, vRack-connected): same Console page as storage-nas-ha-console, plus the
+// Private NAS-HA (vRack-connected): same Console page as storage-nas-ha-console, plus the
 // "Private NAS-HA" tab of that page. Kept separate so the tab does not leak into the guides of the
 // public NAS-HA. Only en and fr are written: the other locales serve the EN guide (`|en` token).
 export const storageNasHaPrivateConsole: CpNavKey = {
@@ -8,7 +8,7 @@ export const storageNasHaPrivateConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/storage/private-nasha',
+      route: '/#/bare-metal/storage/private-nasha',
       text: {
         en: {
           product: 'NAS-HA',
