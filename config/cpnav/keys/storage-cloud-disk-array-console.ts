@@ -10,7 +10,7 @@ export const storageCloudDiskArrayConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/storage/cda',
+      route: '/#/bare-metal/storage/cda',
       text: {
         en: {
           product: 'Cloud Disk Array',

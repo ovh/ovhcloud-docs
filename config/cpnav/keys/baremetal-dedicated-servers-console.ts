@@ -1,10 +1,9 @@
 import type { CpNavKey } from '../types';
 
-// Console (v8) twin of baremetal-dedicated-servers, for the guides rewritten for the Console; the
-// v6 key stays until it is repointed at GA, when the two merge. Route from the dedicated app's
-// manifest (/bare-metal/dedicated-server, singular: the sidebar slug dedicated-servers maps to it,
-// bare-metal-sidebar navigation/targets.ts); crumb is the Console's Bare Metal sidebar entry
-// (bare-metal-sidebar product.dedicatedServers), step as in the v6 key.
+// Console (v8) twin of baremetal-dedicated-servers, for the guides rewritten for the Console; the v6 key
+// stays until it is repointed at GA, when the two merge. Route from data/v8/route-map.yaml
+// (/bare-metal/dedicated-server, app dedicated); the Console side menu shows it under Bare Metal Cloud ›
+// Dedicated servers (bare-metal-sidebar product.dedicatedServers).
 export const baremetalDedicatedServersConsole: CpNavKey = {
   universe: 'bare-metal-cloud',
   console: true,
