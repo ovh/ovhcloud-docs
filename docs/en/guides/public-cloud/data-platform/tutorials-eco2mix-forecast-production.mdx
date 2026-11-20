@@ -1,0 +1,438 @@
+---
+title: Forecast the electricity consumption of each region every day with PySpark
+description: Find out how to explore regional electricity consumption in a notebook, train one forecast model per region with PySpark, then export it as a Custom PySpark job, run it every morning and follow its accuracy
+lastUpdated: 2026-11-05
+---
+
+## Objective
+
+This guide walks you through building a daily forecast of regional electricity consumption with PySpark: you explore the regional consumption and train one forecast model per region in a [notebook](/guides/public-cloud/data-platform/dpe-notebooks), then export the job to a [Custom PySpark action](/guides/public-cloud/data-platform/dpe-actions-custom-pyspark) with the [Data Platform extension](/guides/public-cloud/data-platform/dpe-notebooks-data-platform-extension) and run it every morning to forecast the consumption of each region for every hour of tomorrow. Along the way you read its logs in [Logs Explorer](/guides/public-cloud/data-platform/control-center-logs-explorer), follow its run in the [Spark History Server](/guides/public-cloud/data-platform/dpe-spark-history-server), declare its [lineage](/guides/public-cloud/data-platform/developers-python-sdk-lineage), go back in time with [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) and measure its accuracy with SQL.
+
+It is the second part of [Collect the electricity consumption of the French regions every day](/guides/public-cloud/data-platform/tutorials-eco2mix-forecast).
+
+By the end you will have the table `regional_forecasts`, filled every morning with 288 forecasts (12 regions × 24 hours) by a scheduled job that alerts you if it fails, and a view that compares each forecast with the consumption measured the next day.
+
+## Requirements
+
+To follow this guide you need:
+
+- The tables `eco2mix_regional_history` and `eco2mix_regional_realtime`, the view `regional_consumption_hourly` and the scheduled workflow `Daily realtime collection`, built in [Collect the electricity consumption of the French regions every day](/guides/public-cloud/data-platform/tutorials-eco2mix-forecast). The job needs a collection of the same day: run the workflow if it has not run yet today.
+- The catalog name of your project, `db_<id>_default_dataset`, copied in [Step 3](/guides/public-cloud/data-platform/tutorials-eco2mix-forecast#step-3-keep-one-row-per-quarter-hour) of the first part.
+- The two files below.
+
+| File | Download |
+|---|---|
+| Exploration notebook | <a className="rp-link" href="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/resources/eco2mix_regional_exploration.ipynb" download>eco2mix_regional_exploration.ipynb</a> |
+| Production notebook | <a className="rp-link" href="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/resources/eco2mix_regional_production.ipynb" download>eco2mix_regional_production.ipynb</a> |
+
+This guide assumes you are comfortable with Python and the basics of PySpark.
+
+## What you will build
+
+| Stage | Component | Result |
+|---|---|---|
+| 1. Prepare the output table | [Lakehouse Manager tables](/guides/public-cloud/data-platform/lakehouse-manager-tables) | `regional_forecasts`, empty, with five attributes |
+| 2. Explore and model in a notebook | [Notebooks](/guides/public-cloud/data-platform/dpe-notebooks) | One model per region, tested on 2024 |
+| 3. Export the job | [Data Platform extension](/guides/public-cloud/data-platform/dpe-notebooks-data-platform-extension) and [Custom PySpark action](/guides/public-cloud/data-platform/dpe-actions-custom-pyspark) | `regional_forecast`, the production notebook as an action |
+| 4. Run the job and read its logs | [Logs Explorer](/guides/public-cloud/data-platform/control-center-logs-explorer) | 288 forecasts for tomorrow |
+| 5. Follow the run | [Spark History Server](/guides/public-cloud/data-platform/dpe-spark-history-server) | The jobs, stages and executors of the run |
+| 6. Schedule the forecast | [Workflow](/guides/public-cloud/data-platform/dpe-workflows) and [alert](/guides/public-cloud/data-platform/control-center-alerting-job-execution) | One forecast every morning at 06:37 UTC, an alert if it fails |
+| 7. Check the lineage | [`lineage_run`](/guides/public-cloud/data-platform/developers-python-sdk-lineage) and [Lineage](/guides/public-cloud/data-platform/lakehouse-manager-lineage) | The job between its inputs and its output |
+| 8. Go back in time | [Time Travel](/guides/public-cloud/data-platform/lakehouse-manager-time-travel) | A past version of the real time data, next to today's |
+| 9. Follow the forecast quality | [Lakehouse Manager views](/guides/public-cloud/data-platform/lakehouse-manager-views) | Error and bias, day by day and region by region |
+
+## Instructions
+
+### Step 1: Prepare the output table
+
+The production notebook and the job write their forecasts to `regional_forecasts`. Create it in Lakehouse Manager, before the first run.
+
+1. Open **Lakehouse Manager** > **Tables** and click **New table** > **Create an empty table**.
+2. Name the table `regional_forecasts`, keep the dataset `default_dataset` and click **Create**.
+3. Open the table, then its *Schema* tab. For each attribute below, click **New attribute**, fill in its name and data type, then click **Save**:
+
+| Attribute | Data type | Content |
+|---|---|---|
+| `forecast_hour` | Datetime | The forecast hour, UTC |
+| `region_code` | Number, numeric type Integer | The INSEE code of the region |
+| `region_name` | String | The name of the region |
+| `predicted_mw` | Number, numeric type Double | The forecast, in MW |
+| `run_at` | Datetime | When the job ran, UTC |
+
+<img className="thumbnail" alt="The New attribute window for region_code on the table regional_forecasts, with the data type Number and the numeric type Integer" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-new-attribute-region-code.png" loading="lazy" />
+
+4. Click **Build**.
+
+<img className="thumbnail" alt="The Schema tab of regional_forecasts with forecast_hour, predicted_mw, region_code, region_name and run_at" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-forecasts-schema.png" loading="lazy" />
+
+:::info
+**Best practice:** create the output tables of a job in Lakehouse Manager, as here. Lakehouse Manager, Trino and Spark all see them, and the SDK method `insert_dataframe`, which the job uses, writes into them.
+:::
+
+### Step 2: Explore and model in a notebook
+
+#### Create the notebook server
+
+1. Open **Data Processing Engine** > **Notebooks** and click **New notebook**.
+2. Select the image *PySpark notebook* and click **Select**.
+3. Name the notebook server `regional-forecast`.
+4. In its *Preferences* tab, in the *Dependencies* section, click **Add**, keep the type *Python* and enter `holidays` and `scikit-learn`, pressing *Enter* after each one. Click **Add**.
+5. Click **Create**: the server starts.
+
+<img className="thumbnail" alt="The Preferences tab of the notebook server regional-forecast, with the PySpark notebook image and the Python dependencies holidays and scikit-learn" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-notebook-dependencies.png" loading="lazy" />
+
+The server installs the two packages, ready for the notebook: `holidays` provides the French public holidays, `scikit-learn` the regression trained in each region.
+
+#### Run the exploration notebook
+
+1. Once the server has started, click **Open in Jupyter**.
+2. In JupyterLab, click *Upload Files* in the file browser and select `eco2mix_regional_exploration.ipynb`.
+3. Open the notebook, with the kernel **Python 3 (ipykernel)**, and run its cells in order.
+
+| Section | What it does | What you get |
+|---|---|---|
+| 1. Set up | Connects to `default_dataset` with `connect("dwh/default_dataset/")` and uses its Spark session, `source.spark`, set to UTC | `Spark 4.1.2` and the catalog of your project |
+| 2. Load | Reads the view `regional_consumption_hourly`, adds Paris time columns and caches the result | About 1.45 million region-hours |
+| 3.1 Coverage | Counts the measured hours per region and per year | 8,759 hours a year, 8,783 in leap years |
+| 3.2 and 3.3 | Compares the size of the regions, their daily profile and January with July | The same daily shape everywhere, a different sensitivity to cold |
+| 4. Features | Adds public holidays, hour of day crossed with the type of day, month, and the consumption 48 and 168 hours before | A check on Christmas 2024 |
+| 5. One model per region | Trains one regression per region with `groupBy("region_code").applyInPandas(...)` on 2022 and 2023, tests it on 2024 | An error from 3.67 % (Provence-Alpes-Côte d'Azur) to 6.55 % (Centre-Val de Loire), about a third below "same hour one week before" |
+| 6. Add up the regions | Adds up the 12 forecasts hour by hour and draws the week of 8 January 2024 | A chart of the actual and forecast consumption |
+
+<img className="thumbnail" alt="Section 3.1 of the notebook: the measured hours of each region per year, 8,759 or 8,783 from 2013 to 2025" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/notebook-coverage.png" loading="lazy" />
+
+<img className="thumbnail" alt="Section 5 of the notebook: the error of each regional model on 2024, from 3.67 % to 6.55 %, next to the error of the forecast same hour one week before" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/notebook-scores-by-region.png" loading="lazy" />
+
+<img className="thumbnail" alt="Section 6 of the notebook: the actual consumption and the sum of the regional forecasts, hour by hour, for the week of 8 January 2024" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/notebook-week-january.png" loading="lazy" />
+
+The choices behind the model:
+
+- **A short lag of 48 hours, not 24.** The job runs on the morning of day D to forecast day D+1: day D is not over, so the latest complete day is D-1.
+- **Lags by join on region and time**, not with `lag()`: a missing hour would shift the rows.
+- **A missing hour takes the value of the hour before.** The dataset follows Paris time: on the day clocks go back in autumn, one UTC hour is missing, 00:00 UTC on 25 October 2026. Without this fallback, the forecasts of 27 October and 1 November, which need that hour as their 48 and 168 hour lags, could not be computed.
+- **Public holidays count as Sundays**, and the type of day is crossed with the hour: each type of day keeps its own shape.
+- **One model per region**, with `applyInPandas`: Spark sends the rows of each region to a Python worker, and the regions train side by side. That is what Spark brings here. The volume itself, about 1.45 million region-hours, stays modest.
+
+### Step 3: Export the job as a Custom PySpark action
+
+The exploration notebook is for exploring. The job lives in a second notebook, `eco2mix_regional_production.ipynb`, which holds only what the job needs. The [Data Platform extension](/guides/public-cloud/data-platform/dpe-notebooks-data-platform-extension#export-a-notebook-as-a-custom-action) turns it into a Custom PySpark action, without copying code around.
+
+#### Run the production notebook
+
+1. In JupyterLab, upload `eco2mix_regional_production.ipynb` with *Upload Files* and open it, with the kernel **Python 3 (ipykernel)**.
+2. Run its cells in order. The last one writes the 288 forecasts of tomorrow to `regional_forecasts`, and a second run replaces them.
+
+| Section | What it does |
+|---|---|
+| 1. Set up | Imports, `logging`, the connection to `default_dataset` and its Spark session, in UTC |
+| 2. Features | Paris time, public holidays and the consumption 48 and 168 hours before, with the hour before as a fallback |
+| 3. One model per region | `fit_and_forecast`, which `applyInPandas` runs once per region |
+| 4. Forecast tomorrow and write it | Retrains each region on its most recent 730 days, forecasts every hour of tomorrow and replaces the forecasts of that day |
+| 5. Run | Declares the lineage, names the Spark jobs and logs the result |
+
+The notebook is written to run as a job:
+
+- **Only the job**: the export keeps every code cell and drops the text cells. The notebook holds no exploration, and the query that checks the result sits in a text cell.
+- **`connect()` first, then `SparkSession.builder.getOrCreate()`**: in the notebook, `connect()` creates the Spark session with the settings of the lakehouse, without which Spark cannot read the view `regional_consumption_hourly`. In the action, the session already exists. `getOrCreate()` then returns that session in both cases.
+- **`logging` instead of `print`**: the messages show under each cell in the notebook, and in Logs Explorer with their level once the code runs as an action.
+- **`lineage_run` and `setJobDescription`**: declare the lineage (Step 7) and name the Spark jobs in the Spark History Server (Step 5).
+- **Training window cached, `spark.sql.shuffle.partitions` set to 12, latest measured hour read from the real time table**: keep the run short, see Step 5.
+
+#### Export the notebook
+
+1. Save the notebook: the export reads the file on disk.
+2. In the left sidebar of JupyterLab, open the **Data Platform** panel and click **Actions**.
+3. Fill in the form, then click **Preview**:
+    - *Notebook*: `eco2mix_regional_production.ipynb`;
+    - *Repository* and *Version*: keep **Default** and the deployed version;
+    - **Create a new custom action**, named `regional_forecast`, of type *Custom PySpark*.
+4. Check the summary, then click **Create action**. The entry function is `customfunc`: the code is wrapped in `def customfunc(event):` and the text cells are ignored. *Dependencies* lists `holidays` and `scikit-learn`: the export adds the Python dependencies of the notebook server to the action, so there is nothing to install by hand.
+
+<img className="thumbnail" alt="The export of the production notebook: the Actions entry of the Data Platform panel, the form with eco2mix_regional_production.ipynb and a new Custom PySpark action regional_forecast, then the review of the generated code with the entry function customfunc and the dependencies holidays and scikit-learn" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpx-export-regional-forecast.png" loading="lazy" />
+
+#### Configure the action
+
+1. Open **Data Processing Engine** > **Actions**, then `regional_forecast`.
+2. Check the *Configuration* tab: *Python requirements* lists `holidays` and `scikit-learn`, brought by the export, and *PySpark version* is the same as in the notebook (here **4.1.2**). The PySpark version belongs to each action: check it too when you copy an action.
+
+<img className="thumbnail" alt="The Configuration tab of the Custom PySpark action regional_forecast, with the Python requirements holidays and scikit-learn, the PySpark version 4.1.2 and the exported file eco2mix_regional_production.py, which starts with def customfunc(event):" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-custom-pyspark-configuration.png" loading="lazy" />
+
+3. In the *Preferences* tab, set the resources and options:
+
+| Setting | Value |
+|---|---|
+| Executors | 3 |
+| Executor size | 1, which makes 3 DPU, plus 1 DPU for the driver |
+| Logs Level | `info` |
+
+Depending on your capacity, you can raise the number of executors or their size. What matters is to keep several executors: Spark trains the regions on them in parallel.
+
+<img className="thumbnail" alt="The Preferences tab of regional_forecast with 3 executors of size 1 and a driver of size 1, 4 DPU in total" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-custom-pyspark-preferences.png" loading="lazy" />
+
+When you are done with the notebooks, stop the notebook server to free its DPU.
+
+### Step 4: Run the job and read its logs
+
+1. Click **Run**. The first run builds an image with the Python requirements, which takes about 5 minutes. The next runs reuse it.
+2. In **Jobs**, open the run, then click **Drill-down in Logs Explorer**.
+
+The lines written by the job:
+
+```
+[INFO] Spark 4.1.2, catalog db_<id>_default_dataset
+[INFO] Latest measured hour: 2026-10-16 08:00:00
+[INFO] Forecast 2026-10-16 22:00:00 to 2026-10-17 22:00:00 (UTC): 288 region-hours
+[INFO] Auvergne-Rhône-Alpes: trained on 17514 hours
+[INFO] Bourgogne-Franche-Comté: trained on 17514 hours
+...
+[INFO] Insert into table regional_forecasts completed
+[INFO] regional_forecasts written
+```
+
+<img className="thumbnail" alt="Logs Explorer showing the logs of regional_forecast: the training hours of each region, the insert into regional_forecasts and the end of the action after 150.7 seconds" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/logs-explorer-regional-forecast.png" loading="lazy" />
+
+In the *Serverless* execution mode, Data Platform allocates the resources for each run and releases them afterwards, so you only pay for the run. For a job that must start at once, the *Always-up* execution mode (beta) keeps reserved instances.
+
+To read the logs:
+
+- **Times are in UTC** in the logs, and in Paris time in the interface.
+- **The states of the driver and executors** are logged every 30 seconds.
+- **A line `Spark UI available at: https://<project>.eu.dataplatform.ovh.net/spark-ui-<id>`** gives the live Spark interface, while the run lasts.
+
+In the Explorer, check what the job wrote:
+
+```sql
+SELECT run_at, count(*) AS forecasts
+FROM regional_forecasts
+GROUP BY run_at
+ORDER BY run_at
+```
+
+You get one line of 288 forecasts per forecast day. The job first deletes the forecasts of the day it forecasts, then writes the new ones: the run of the job has replaced the forecasts the production notebook wrote for the same day.
+
+### Step 5: Follow the run in the Spark History Server
+
+In **Jobs**, open the run and click **Open on Spark History Server**. If the server is stopped, start it first: see [Spark History Server](/guides/public-cloud/data-platform/dpe-spark-history-server#start-and-stop-the-server).
+
+| Tab | What it shows |
+|---|---|
+| *Jobs* | The Spark jobs grouped under *Train one model per region and forecast tomorrow*, then *Write regional_forecasts*: these are the descriptions set by `setJobDescription` |
+| *Stages* | 12 tasks for the training and the write stages, one per shuffle partition |
+| *Executors* | The driver and 3 executors with one core each: an executor is an instance of the action, and its size sets its memory |
+
+<img className="thumbnail" alt="The Jobs tab of the Spark History Server for regional_forecast, with the jobs Write regional_forecasts and Train one model per region and forecast tomorrow" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/spark-history-jobs.png" loading="lazy" />
+
+<img className="thumbnail" alt="The Stages tab of the Spark History Server, with the training and write stages of 12 tasks each" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/spark-history-stages.png" loading="lazy" />
+
+<img className="thumbnail" alt="The Executors tab of the Spark History Server with the driver and three executors of one core, which ran 42, 72 and 232 of the 346 tasks" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/spark-history-executors.png" loading="lazy" />
+
+What the run teaches, and what the production notebook does about it:
+
+- **Without a cache, Spark computes the joins again for every action.** The job caches the training window.
+- **`spark.sql.shuffle.partitions` is 200 by default.** On 12 regions, a first version of the job ran 200 tasks to train and write, 188 of them empty. The job sets it to 12.
+- **Reading a view for a single maximum computes its whole aggregation.** The job reads the latest measured hour from the real time table, the smallest one.
+- **The first Spark job carries the wait for the executors.**
+- **At this volume, one executor runs most of the tasks**: 232 of the 346 in this run. 12 regions are a small workload, and the same code spreads more evenly over the executors as the data grows.
+
+The Spark History Server follows the runs of actions and workflows: this is why the parallel training is observed on the job rather than in the notebook.
+
+### Step 6: Schedule the forecast
+
+Spark actions get a workflow of their own: the forecast runs in its own workflow, 20 minutes after the collection.
+
+1. Open **Data Processing Engine** > **Workflows**, click **New workflow** and name it `Daily regional forecast`.
+2. Add `regional_forecast` to stage 1, then click **Create**.
+3. In the *Preferences* tab, in the *Triggers* section, click **Add** and fill in the trigger: name `Every morning`, type *Cron*, mode *Advanced*, expression `37 6 * * *`. Click **Confirm**.
+
+4. In the same tab, set the resources and the Spark version of the workflow. [The preferences of a workflow](/guides/public-cloud/data-platform/dpe-jobs-preferences) replace those of the actions it runs, so give it the settings of the action:
+
+| Setting | Value |
+|---|---|
+| Executors | 3 |
+| Executor size | 1 |
+| Driver size | 1 |
+| Force workflow language version, in the *Development language* section | On, with *Spark 4.1.2*, the version the job was written for |
+
+Leave the *Parallelization options* turned off: two runs at the same time would both delete and write the forecasts of the same day.
+
+<img className="thumbnail" alt="The Preferences tab of the workflow Daily regional forecast with 3 executors of size 1, a driver of size 1, the parallelization options turned off and Force workflow language version set to Spark 4.1.2" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-forecast-preferences.png" loading="lazy" />
+
+The job protects itself: if the collection of the morning is missing, the lags of tomorrow are missing too, and the job raises an error instead of writing a wrong forecast. A single missing hour, such as the one of the autumn time change, does not stop the job: it takes the value of the hour before.
+
+#### Get an alert when it fails
+
+1. In the *Alerts* tab of the workflow, click **New alert**.
+2. Select the metric *Status*: the value is set to *Failed*. Click **Next**.
+3. Check the subscribers: your account is listed. Click **Next**.
+4. Name the alert `Regional forecast failed` and click **Confirm**.
+
+<img className="thumbnail" alt="The last step of the Create an alert on workflow Daily regional forecast window, with the name Regional forecast failed" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-alert.png" loading="lazy" />
+
+See [Configure a job execution alert](/guides/public-cloud/data-platform/control-center-alerting-job-execution) for the other conditions and options.
+
+### Step 7: Check the lineage
+
+Lineage is recorded automatically for the *Load* and *Aggregate* actions. A Custom action declares its own, with the SDK helper [`lineage_run`](/guides/public-cloud/data-platform/developers-python-sdk-lineage). The last section of the production notebook already does it:
+
+```python
+from forepaas.dwh.lineage import lineage_run
+
+with lineage_run(
+    "regional_forecast",
+    inputs=[
+        "default_dataset/eco2mix_regional_history",
+        "default_dataset/eco2mix_regional_realtime",
+    ],
+    outputs=["default_dataset/regional_forecasts"],
+    connector=source,
+):
+    ...
+```
+
+`lineage_run` sends the START, then COMPLETE or FAIL events, and never makes the action fail. `connector=` adds the schemas of the tables.
+
+Open **Lakehouse Manager** > **Lineage**, select `regional_forecasts`, turn on **Full Graph** and set the *Depth* to 3:
+
+- the parquet file, through **Load data** (*LHM · load*), to `eco2mix_regional_history`: the first load done by Lakehouse Manager when it created the table;
+- `regional.json`, through the *Load* action (*DPE · load*), to `eco2mix_regional_realtime`;
+- both tables, through **regional_forecast** (*SDK · custom*), to `regional_forecasts`.
+
+<img className="thumbnail" alt="The full lineage graph of regional_forecasts at depth 3, from the parquet file and regional.json through the two loads and regional_forecast" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-lineage.png" loading="lazy" />
+
+The graph follows the data from table to table, through the loads and the job. The actions that work inside a table, such as the SQL and Deduplicate actions, are not part of it.
+
+### Step 8: Go back in time with Time Travel
+
+Open **Lakehouse Manager** > **Tables** > `eco2mix_regional_realtime`, then its *Time Travel* tab. Each collection leaves four versions: *Data inserted* by the *Load* action, *Data updated* by the SQL action, then *Data deleted* and *Data inserted* by the *Deduplicate* action. Snapshots are kept for 14 days.
+
+<img className="thumbnail" alt="The Time Travel tab of eco2mix_regional_realtime with the change history and the four versions of the last collection" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-time-travel.png" loading="lazy" />
+
+Compare the morning of a day as the collection of that day saw it with the same morning today:
+
+1. Copy the *Snapshot ID* of the last version of a past day: it is the state of the table after the collection of that morning.
+2. In the Explorer, run the query below, with that ID and that day:
+
+    ```sql
+    SELECT date_heure, consommation, collected_at
+    FROM eco2mix_regional_realtime FOR VERSION AS OF <snapshot ID>
+    WHERE code_insee_region = 11
+      AND date_heure BETWEEN TIMESTAMP '<day> 05:00:00' AND TIMESTAMP '<day> 08:00:00'
+    ORDER BY date_heure
+    ```
+
+3. Run it again without `FOR VERSION AS OF <snapshot ID>`.
+
+In Île-de-France (region 11), the quarter hours measured before the collection, up to about 06:00 UTC, have the same consumption in both versions. The later ones are empty in the past version and filled in the current one, with the `collected_at` of a later collection: the *Deduplicate* action keeps the most recent value of each quarter hour.
+
+<img className="thumbnail" alt="The Explorer with the current version of the morning of 22 October 2026 in Île-de-France, every quarter hour filled and collected on 23 October" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-time-travel-compare.png" loading="lazy" />
+
+### Step 9: Follow the forecast quality
+
+#### Compare each forecast with the measure
+
+In **Lakehouse Manager** > **Views**, click **New View** and create the view `regional_forecast_vs_actual` in `default_dataset`, with your catalog name in place of `<catalog>`:
+
+```sql
+SELECT
+    f.region_code,
+    f.region_name,
+    f.forecast_hour                                                                         AS hour_utc,
+    CAST(with_timezone(f.forecast_hour, 'UTC') AT TIME ZONE 'Europe/Paris' AS timestamp(6)) AS hour_paris,
+    f.predicted_mw,
+    a.consumption_mw                                                                        AS actual_mw,
+    abs(f.predicted_mw - a.consumption_mw) / a.consumption_mw                               AS ape,
+    f.run_at
+FROM <catalog>.default_dataset.regional_forecasts f
+LEFT JOIN <catalog>.default_dataset.regional_consumption_hourly a
+  ON a.region_code = f.region_code
+ AND a.hour_utc = f.forecast_hour
+```
+
+Only Trino reads this view, so it can use the Paris time functions of Trino. `ape` is the absolute percentage error of each forecast: its average is the MAPE.
+
+<img className="thumbnail" alt="The Create a new view window with the view name regional_forecast_vs_actual and the beginning of its SQL definition" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/lakehouse-view-forecast-vs-actual.png" loading="lazy" />
+
+A forecast day is measured the next day: run the queries below once the job has run for a few days. Your figures depend on the days you run them. Those below come from the week of 17 October 2026.
+
+#### Error day by day
+
+```sql
+SELECT CAST(hour_paris AS date)    AS day,
+       count(*)                    AS forecasts,
+       count(actual_mw)            AS measured,
+       round(100 * avg(ape), 2)    AS mape_pct
+FROM default_dataset.regional_forecast_vs_actual
+GROUP BY CAST(hour_paris AS date)
+ORDER BY day
+```
+
+<img className="thumbnail" alt="The Explorer with the error of each forecast day, from 3.66 % to 7.93 %, and tomorrow not measured yet" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-forecast-error.png" loading="lazy" />
+
+#### Bias: which way the forecast is wrong
+
+```sql
+SELECT CAST(hour_paris AS date)                                         AS day,
+       round(100 * avg((predicted_mw - actual_mw) / actual_mw), 2)      AS bias_pct,
+       count_if(predicted_mw > actual_mw)                                AS over_forecasts,
+       count_if(predicted_mw < actual_mw)                                AS under_forecasts
+FROM default_dataset.regional_forecast_vs_actual
+WHERE actual_mw IS NOT NULL
+GROUP BY CAST(hour_paris AS date)
+ORDER BY day
+```
+
+<img className="thumbnail" alt="The Explorer with the bias of each forecast day, positive on 17 October and negative every day from 18 to 23 October" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-forecast-bias.png" loading="lazy" />
+
+| Day | MAPE | Bias | Over / under forecasts |
+|---|---|---|---|
+| Saturday 17 October | 4.64 % | +2.53 % | 187 / 101 |
+| Sunday 18 October | 5.62 % | -4.13 % | 54 / 234 |
+| Monday 19 October | 7.93 % | -7.90 % | 5 / 283 |
+| Tuesday 20 October | 4.90 % | -3.91 % | 44 / 244 |
+| Wednesday 21 October | 4.01 % | -1.54 % | 95 / 193 |
+| Thursday 22 October | 4.40 % | -2.71 % | 67 / 221 |
+
+On 17 October, the errors go both ways. From 18 October, the model forecasts too low every day. In October, consumption rises from one week to the next as heating starts, and the model, which relies on the consumption 48 and 168 hours earlier, stays below it. **A bias on the same side several days in a row is the signal to watch.**
+
+#### Error by region
+
+```sql
+SELECT region_name,
+       count(actual_mw)            AS measured,
+       round(100 * avg(ape), 2)    AS mape_pct
+FROM default_dataset.regional_forecast_vs_actual
+WHERE actual_mw IS NOT NULL
+GROUP BY region_name
+ORDER BY mape_pct
+```
+
+<img className="thumbnail" alt="The Explorer with the error of each region over the measured forecasts, from 3.8 % in Bretagne" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-forecast-error-by-region.png" loading="lazy" />
+
+Read this ranking over several weeks: over a few days, it changes a lot.
+
+## Good to know
+
+- **Each run replaces the forecasts of its day.** The job deletes the forecasts of tomorrow before it writes the new ones: you can run it again the same day.
+- **The preferences of the workflow replace those of the action.** When you change the resources or the Spark version of `regional_forecast`, change them in the workflow too.
+
+### What the weather would add
+
+An error of 4 to 5 % already beats the forecast "same hour one week before" by about a third, with the calendar and the past consumption alone. What the model misses most is the weather. Heating makes consumption depend on the temperature: the first cold days of October raise it faster than the lags of 48 and 168 hours can follow, which is the bias of [Step 9](#bias-which-way-the-forecast-is-wrong). Section 3.3 of the notebook also shows that each region reacts to the cold in its own way.
+
+With a temperature forecast for each region among its features, each regional model could estimate the heating of the next day instead of inferring it from past days, and its error would drop markedly. For reference, RTE's national forecast reached 2.86 % in 2024, against 3.49 % for the sum of the regional models: the gap is mostly the weather.
+
+## What you have built
+
+You have a forecast of tomorrow's consumption for the 12 regions of mainland France, written every morning by a Custom PySpark job that runs the code of your notebook, alerts you when it fails, declares its lineage and can be followed in Logs Explorer and in the Spark History Server, plus a view that measures its accuracy day after day.
+
+From here, you can add a temperature forecast to the features, or build a dashboard on `regional_forecast_vs_actual` with [Apache Superset](/guides/public-cloud/data-platform/tutorials-install-apache-superset).
+
+## Go further
+
+[[fragment:professional-services|en]]
+
+Ask questions, give your feedback and interact directly with the team building the Data Platform on the dedicated [Discord channel](https://discord.gg/ovhcloud).
+
+If you need support with your OVHcloud services, create a request in our [Help Centre](/links/support-contact).
+
+Join our [community of users](/links/community).
