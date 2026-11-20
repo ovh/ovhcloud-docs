@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.20
+
+### Fixes
+
+#### EU
+- **v8:** bring VPS guides in line with the Console as of 2026-11-19
+
+### Documentation
+- EU: 7 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.19
 
 ### Features
