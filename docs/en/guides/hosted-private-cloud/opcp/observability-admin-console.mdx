@@ -1,0 +1,163 @@
+---
+title: Deploying the Observability service
+description: Find out how to deploy and configure the Observability service of Cloud Store from the OPCP Admin Console, and enable it for Organizations
+lastUpdated: 2026-11-20
+---
+
+[[fragment:cloudstore-alpha|en]]
+
+## Objective
+
+**This guide shows IT Admins how to deploy the Observability service from the OPCP Admin Console, configure it and enable it for Organizations.**
+
+The **Observability** service gives each Organization of your platform its own logs, metrics, traces and alerts, in its own Grafana. It is built on the open-source Grafana LGTM stack: Loki for logs, Grafana Mimir for metrics, Tempo for traces and Grafana for dashboards and alerting. Users sign in with their Organization account (Keycloak single sign-on).
+
+This service is for the Organizations. The observability of the platform itself (control plane, OpenStack, Ceph, hardware) is a separate stack that comes with OPCP and is described in the guide [Observability on OPCP](/guides/hosted-private-cloud/opcp/observability-overview).
+
+This guide covers what is specific to the Observability service. The general steps (Service Catalog, Service Deployments, Organizations) are described in the guide [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started). How Organization users work with the service is described in the guide [Using the Observability service](/guides/hosted-private-cloud/opcp/observability-cloud-console).
+
+This guide documents version `0.1.0-alpha.99`.
+
+## Requirements
+
+- Access to the OPCP Admin Console, as described in the guide [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started).
+- An S3-compatible object storage, for example the Object Storage service of Cloud Store, with:
+    - an endpoint URL, a region, an access key and a secret key;
+    - **three buckets created beforehand**: one for the logs, one for the metrics and one for the traces. The service does not create them.
+- An Organization to enable the service for. To create one, read [Creating an Organization](/guides/hosted-private-cloud/opcp/admin-console-getting-started#creating-an-organization).
+
+## Instructions
+
+### Architecture overview
+
+| Component | Deployed | Role |
+|-----------|----------|------|
+| **Control plane** | Once per Service Deployment | Runs the shared storage and query components: Loki, Mimir, Tempo, a Kafka buffer for incoming data, and a platform Grafana that shows the health of the service itself. Stores all data in your three buckets. |
+| **Data plane** | Once per Organization, when you enable the service for it | Gives the Organization its own Grafana and its own gateway. The gateway checks every request against the Organization's Keycloak realm and keeps the Organization's data in its own space (tenant). |
+
+Each Organization only sees its own data. The data of all Organizations is stored in the same three buckets, separated by Organization.
+
+### Deploying the service
+
+1. Go to <code className="action">Management</code> > <code className="action">Service Catalog</code> and open **Observability**. Click <code className="action">New deployment</code>.
+2. **Choose the version of your service**, then click <code className="action">Next</code>.
+3. **Configure your service**: fill in the object storage settings, see [Settings of the Service Deployment](#settings-of-the-service-deployment) below.
+4. Click <code className="action">Deploy</code>.
+
+The Service Deployment is `deploying`, then `deployed`.
+
+#### Settings of the Service Deployment
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `s3_endpoint` | — | URL of the object storage, with its scheme, for example `https://s3.example.net`. |
+| `s3_region` | — | Region of the object storage. |
+| `s3_access_key_id` | — | Access key of the object storage. |
+| `s3_secret_access_key` | — | Secret key of the object storage. |
+| `s3_bucket_loki` | — | Existing bucket for the logs. |
+| `s3_bucket_mimir` | — | Existing bucket for the metrics. It also holds the alert rules and the notification settings of every Organization. |
+| `s3_bucket_tempo` | — | Existing bucket for the traces. |
+| `size` | `sandbox` | Size of the service. Only `sandbox` is available in the Alpha, see [Known limitations](#known-limitations). |
+
+The connection to the platform's Kubernetes cluster and to Keycloak is provided by Cloud Store: there is nothing to fill in for them.
+
+#### Outputs of the Service Deployment
+
+Once the Service Deployment is `deployed`, its <code className="action">Outputs</code> tab shows:
+
+| Output | Content |
+|--------|---------|
+| `admin_grafana_url` | The platform Grafana of the service. IT Admins sign in with their OPCP Admin Console account. Its **Platform Health** dashboard shows the state of the service: components down, ingestion and query errors, Kafka lag, data rejected per Organization. |
+| `admin_gateway_url` | The gateway of the platform Grafana. It is used by the service itself; you do not need it. |
+
+### Enabling the service for an Organization
+
+Enable the Service Deployment for each Organization that needs it, as described in [Enabling a service for an Organization](/guides/hosted-private-cloud/opcp/admin-console-getting-started#enabling-a-service-for-an-organization).
+
+- The service runs on the platform's cluster: the Host Pool step is marked `not applicable`.
+- Enable the service **only once per Organization**, see [Known limitations](#known-limitations).
+
+The Enabled Service is `deploying`, then `deployed`. The Organization's users then find **Observability** in the OPCP Cloud Console. Send them the guide [Using the Observability service](/guides/hosted-private-cloud/opcp/observability-cloud-console).
+
+#### Settings of the Enabled Service
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `log_retention_days` | `30` | Number of days the Organization's logs are kept. |
+| `metric_retention_days` | `365` | Number of days the Organization's metrics are kept. The default allows year-over-year comparisons. |
+| `trace_retention_days` | `30` | Number of days the Organization's traces are kept. |
+| `iam_audit_enabled` | `true` | Sends the sign-ins and the IAM changes of the Organization's Keycloak realm to its logs, and adds the **IAM audit log** dashboard to its Grafana. Set it to `false` to turn it off. |
+
+:::warning
+Lowering a retention permanently deletes the older data of that Organization.
+
+:::
+
+The Keycloak connection of the Organization is provided by Cloud Store: there is nothing to fill in for it.
+
+#### Outputs of the Enabled Service
+
+Each Enabled Service has its own Outputs, shown to the Organization's users in the <code className="action">Overview</code> tab of the service in the OPCP Cloud Console:
+
+| Output | Content |
+|--------|---------|
+| `grafana_url` | The Grafana of the Organization. |
+| `gateway_url` | The gateway of the Organization, used by its Grafana. |
+
+### Limits per Organization
+
+Each Organization has the same fixed limits. They protect the service and the other Organizations:
+
+| Signal | Limit |
+|--------|-------|
+| Metrics | 150,000 active series, 15,000 samples per second |
+| Logs | 1 MiB/s (burst 4 MiB), 5,000 active log streams |
+| Traces | 2 MiB/s (burst 4 MiB) |
+
+Data above a rate limit is refused with an HTTP `429` error, and the sender retries. Metric series above 150,000 are dropped. The Organization's users see their usage on the **Usage & Limits** dashboard of their Grafana. You see the data rejected per Organization on the **Platform Health** dashboard.
+
+### Disabling the service or deleting the Service Deployment
+
+1. Disable the service for each Organization, as described in [Disabling a service or deleting a Service Deployment](/guides/hosted-private-cloud/opcp/admin-console-getting-started#disabling-a-service-or-deleting-a-service-deployment).
+2. Delete the Service Deployment.
+
+:::warning
+Disabling the service or deleting the Service Deployment does not delete the data stored in the three buckets. If an Organization's data must be erased, contact OVHcloud.
+
+:::
+
+### Known limitations
+
+The Alpha has the following known limitations:
+
+| Limitation | Detail |
+|------------|--------|
+| Only the `sandbox` size | The service runs on one node, without high availability. During upgrades or restarts, queries over the last hours may fail for a short time; no data is lost. Larger sizes come with the Beta. |
+| Load | The `sandbox` size was tested with three Organizations using half of their limits at the same time. |
+| One data plane per Organization | Enabling the service twice for the same Organization breaks the Service Deployment: every later change to it fails. |
+| No scaling | The size of a Service Deployment cannot be changed. |
+| No erasure on disable | The data stays in the buckets, see [Disabling the service or deleting the Service Deployment](#disabling-the-service-or-deleting-the-service-deployment). |
+| No access to an Organization's data | IT Admins cannot read an Organization's data. A defined access process comes with the Beta. |
+| Alert notifications to private addresses | Notifications of an Organization can only be sent to public addresses. |
+
+### Troubleshooting
+
+| What you notice | What to do |
+|-----------------|------------|
+| The **IAM audit log** dashboard of an Organization stays empty, and the logs of its data plane show `unauthorized_client`. | The Keycloak client of the Organization does not allow service accounts yet. Contact OVHcloud, who enables them. A fix is on its way in Keycloak. |
+| The **IAM audit log** dashboard shows no sign-ins. | Keycloak must log successful events. Contact OVHcloud to check the logging level of Keycloak. |
+| After the object storage was redeployed or replaced, the service shows certificate (`x509`) or connection errors. | Update the S3 settings of the Service Deployment with the new endpoint and keys. Then disable and enable the service again for each Organization, so that their data planes take the new values. |
+| Deleting the Service Deployment or an Enabled Service never finishes. | Contact OVHcloud. |
+| Every change to the Service Deployment fails after the service was enabled for an Organization. | The service was probably enabled twice for the same Organization. Contact OVHcloud. |
+
+## Go further
+
+[Using the Observability service](/guides/hosted-private-cloud/opcp/observability-cloud-console)
+
+[OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started)
+
+[Observability on OPCP](/guides/hosted-private-cloud/opcp/observability-overview)
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).
