@@ -5,12 +5,11 @@
         + [Overview](account-and-service-management/account-information/overview)
         + [Getting started](account-and-service-management-account-information-getting-started)
             + [Creating an OVHcloud account](account-and-service-management/account-information/ovhcloud-account-creation)
-            + [Logging in to the OVHcloud Control Panel](account-and-service-management/account-information/ovhcloud-account-login)
+            + [Logging in to the OVHcloud Console](account-and-service-management/account-information/ovhcloud-account-login)
             + [Setting and managing an account password](account-and-service-management/account-information/manage-ovh-password)
             + [Securing my OVHcloud account and managing my personal information](account-and-service-management/account-information/all-about-username)
             + [Managing contacts for your services](account-and-service-management/account-information/managing-contacts)
             + [How to manage messages in the OVHcloud Console](account-and-service-management/account-information/manage-messages)
-            + [Presentation of the new OVHcloud Control Panel navigation](account-and-service-management/account-information/new-control-panel-navigation)
             + [Sharing files with the Plik tool](account-and-service-management/account-information/use-plik)
         + [Users creation and management](account-and-service-management-account-information-users)
             + [Presentation of identities that can interact within an OVHcloud account](manage-and-operate/iam/identities-management)
@@ -1259,6 +1258,7 @@
                 + [Build a Strapi app connected to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-connect-strapi-to-managed-postgresql)
                 + [Install and connect Wagtail to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-connect-wagtail-to-managed-postgresql)
                 + [Migrate an on-premises database to Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-migrate-ecdb)
+                + [Build a semantic search with AI Endpoints and Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-tuto-vector-search-ai-endpoints)
             + [Security](public-cloud-databases-postgresql-security)
                 + [Security Overview for Public Cloud Databases](public-cloud/databases/concepts-security-overview)
                 + [Responsibility model for Public Cloud Databases](public-cloud/databases/responsibility-model)
@@ -2283,6 +2283,13 @@
             + [Web Cloud Databases EOS and EOL announcements](web-cloud/databases/db-eos-eol)
             + [Managed databases EOL policy](web-cloud/databases/db-managed-db-lifecycle-policy)
             + [Reversibility Policy for the Managed Database System for Web Hosting product](account-and-service-management/reversibility/db-web-hosting-reversibility)
+    + [OVHai Workspace](products/web-cloud-ovhai-workspace){landing=web-cloud/ovhai-workspace/landing-page-ovhai-workspace}
+        + [Account management](web-cloud/ovhai-workspace/account){label=Account management}
+        + [Email](web-cloud/ovhai-workspace/email){label=Email}
+        + [Calendar](web-cloud/ovhai-workspace/calendar){label=Calendar}
+        + [Drive](web-cloud/ovhai-workspace/drive){label=Drive}
+        + [Visio](web-cloud/ovhai-workspace/visio){label=Visio}
+        + [Contacts](web-cloud/ovhai-workspace/contacts){label=Contacts}
     + [Email and Collaborative Solutions](products/web-cloud-email-collaborative-solutions)
         + [Common email features](web-cloud-email-collaborative-solutions-common-email-features)
             + [Managing the security policy of an email service](web-cloud/email-and-collaborative-solutions/common-email-features/security-policy)
