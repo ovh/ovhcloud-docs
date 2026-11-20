@@ -10,7 +10,7 @@ export const networkPublicIpConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/network/ip',
+      route: '/#/network/ip',
       text: {
         en: { product: 'IP addresses', crumbs: ['Network', 'IP addresses'] },
         fr: { product: 'Adresses IP', crumbs: ['Réseau', 'Adresses IP'] },

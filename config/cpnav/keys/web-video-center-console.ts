@@ -9,7 +9,7 @@ export const webVideoCenterConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/video-center',
+      route: '/#/web-cloud/video-center',
       text: {
         en: { product: 'Video Center', crumbs: ['Video Center'] },
         fr: { product: 'Video Center', crumbs: ['Video Center'] },

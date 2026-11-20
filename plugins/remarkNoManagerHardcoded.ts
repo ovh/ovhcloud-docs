@@ -11,8 +11,12 @@ export const FORBIDDEN_PATTERNS: { regex: RegExp; label: string }[] = [
     label: 'direct manager URL',
   },
   {
+    regex: /console\.(eu|ca)\.ovhcloud\.com/i,
+    label: 'direct Console URL',
+  },
+  {
     regex:
-      /www\.ovh\.com\/auth\/\?[^"\s]*onsuccess=[^"\s]*manager\.eu\.ovhcloud\.com/i,
+      /www\.ovh\.com\/auth\/\?[^"\s]*onsuccess=[^"\s]*(manager|console)\.eu\.ovhcloud\.com/i,
     label: 'auth wrapper around a manager URL',
   },
 ];
