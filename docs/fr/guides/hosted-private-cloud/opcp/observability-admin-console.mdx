@@ -1,0 +1,171 @@
+---
+title: Déployer le service Observability
+description: Découvrez comment déployer et configurer le service Observability du Cloud Store depuis l'OPCP Admin Console, et l'activer pour des organisations
+lastUpdated: 2026-11-20
+---
+
+[[fragment:cloudstore-alpha]]
+
+## Objectif
+
+**Ce guide explique aux IT Admins comment déployer le service Observability depuis l'OPCP Admin Console, le configurer et l'activer pour des organisations.**
+
+Le service **Observability** fournit à chaque organisation de votre plateforme ses propres logs, métriques, traces et alertes, dans son propre Grafana. Il repose sur la stack open source Grafana LGTM : Loki pour les logs, Grafana Mimir pour les métriques, Tempo pour les traces et Grafana pour les tableaux de bord et les alertes. Les utilisateurs se connectent avec le compte de leur organisation (authentification unique Keycloak).
+
+Ce service est destiné aux organisations. L'observabilité de la plateforme elle-même (control plane, OpenStack, Ceph, matériel) est une stack distincte, fournie avec OPCP et décrite dans notre guide « [Observabilité sur OPCP](/guides/hosted-private-cloud/opcp/observability-overview) ».
+
+Ce guide couvre ce qui est propre au service Observability. Les étapes générales (Service Catalog, déploiements de service, organisations) sont décrites dans notre guide « [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started) ». L'utilisation du service par les utilisateurs d'une organisation est décrite dans notre guide « [Utiliser le service Observability](/guides/hosted-private-cloud/opcp/observability-cloud-console) ».
+
+Ce guide documente la version `0.1.0-alpha.99`.
+
+## Prérequis
+
+- Disposer d'un accès à l'OPCP Admin Console, comme décrit dans notre guide « [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started) ».
+- Disposer d'un stockage objet compatible S3, par exemple le service Object Storage du Cloud Store, avec :
+    - une URL de point de terminaison, une région, une clé d'accès et une clé secrète ;
+    - **trois buckets créés au préalable** : un pour les logs, un pour les métriques et un pour les traces. Le service ne les crée pas.
+- Disposer d'une organisation pour laquelle activer le service. Pour en créer une, consultez la section « [Créer une organisation](/guides/hosted-private-cloud/opcp/admin-console-getting-started#créer-une-organisation) ».
+
+## En pratique
+
+### Vue d'ensemble de l'architecture
+
+| Composant | Déployé | Rôle |
+|-----------|---------|------|
+| **Control plane** | Une fois par déploiement de service | Exécute les composants partagés de stockage et de requête : Loki, Mimir, Tempo, un tampon Kafka pour les données entrantes et un Grafana de plateforme qui montre l'état du service lui-même. Stocke toutes les données dans vos trois buckets. |
+| **Data plane** | Une fois par organisation, lorsque vous activez le service pour elle | Fournit à l'organisation son propre Grafana et sa propre passerelle. La passerelle vérifie chaque requête auprès du realm Keycloak de l'organisation et conserve les données de l'organisation dans son propre espace (tenant). |
+
+Chaque organisation ne voit que ses propres données. Les données de toutes les organisations sont stockées dans les trois mêmes buckets, séparées par organisation.
+
+### Déployer le service
+
+1. Accédez à <code className="action">Management</code> > <code className="action">Service Catalog</code> et ouvrez **Observability**. Cliquez sur <code className="action">New deployment</code>.
+2. **Choisissez la version de votre service**, puis cliquez sur <code className="action">Next</code>.
+3. **Configurez votre service** : renseignez les paramètres du stockage objet, consultez la section [Paramètres du déploiement de service](#paramètres-du-déploiement-de-service) ci-dessous. Le paramètre `size` se trouve sous <code className="action">Show advanced config</code>.
+
+    <img className="thumbnail" alt="Étape Configure your service d'un nouveau déploiement Observability : clé d'accès S3, buckets, point de terminaison, région et clé secrète" src="/images/hosted-private-cloud/opcp/observability-admin-console/configure_service.png" loading="lazy" />
+
+4. Cliquez sur <code className="action">Deploy</code>.
+
+Le déploiement de service est `deploying`, puis `deployed`.
+
+#### Paramètres du déploiement de service
+
+| Paramètre | Valeur par défaut | Description |
+|-----------|-------------------|-------------|
+| `s3_endpoint` | — | URL du stockage objet, avec son schéma, par exemple `https://s3.example.net`. |
+| `s3_region` | — | Région du stockage objet. |
+| `s3_access_key_id` | — | Clé d'accès du stockage objet. |
+| `s3_secret_access_key` | — | Clé secrète du stockage objet. |
+| `s3_bucket_loki` | — | Bucket existant pour les logs. |
+| `s3_bucket_mimir` | — | Bucket existant pour les métriques. Il contient aussi les règles d'alerte et les paramètres de notification de chaque organisation. |
+| `s3_bucket_tempo` | — | Bucket existant pour les traces. |
+| `size` | `sandbox` | Taille du service. Seule la taille `sandbox` est disponible dans l'Alpha, consultez la section [Limitations connues](#limitations-connues). |
+
+La connexion au cluster Kubernetes de la plateforme et à Keycloak est fournie par le Cloud Store : il n'y a rien à renseigner.
+
+#### Sorties du déploiement de service
+
+Une fois le déploiement de service `deployed`, son onglet <code className="action">Outputs</code> affiche :
+
+| Sortie | Contenu |
+|--------|---------|
+| `admin_grafana_url` | Le Grafana de plateforme du service. Les IT Admins s'y connectent avec leur compte de l'OPCP Admin Console. Son tableau de bord **Platform Health** montre l'état du service : composants arrêtés, erreurs d'ingestion et de requête, retard Kafka, données rejetées par organisation. |
+| `admin_gateway_url` | La passerelle du Grafana de plateforme. Elle est utilisée par le service lui-même ; vous n'en avez pas besoin. |
+
+### Activer le service pour une organisation
+
+Activez le déploiement de service pour chaque organisation qui en a besoin, comme décrit dans la section « [Activer un service pour une organisation](/guides/hosted-private-cloud/opcp/admin-console-getting-started#activer-un-service-pour-une-organisation) ».
+
+- Le service s'exécute sur le cluster de la plateforme : l'étape du pool d'hôtes est marquée `not applicable`.
+- Activez le service **une seule fois par organisation**, consultez la section [Limitations connues](#limitations-connues).
+
+Le service activé est `deploying`, puis `deployed`. Les utilisateurs de l'organisation trouvent alors **Observability** dans l'OPCP Cloud Console. Transmettez-leur notre guide « [Utiliser le service Observability](/guides/hosted-private-cloud/opcp/observability-cloud-console) ».
+
+#### Paramètres du service activé
+
+Les paramètres de conservation et `keycloak_l3_namespace` se trouvent sous <code className="action">Show advanced config</code>.
+
+<img className="thumbnail" alt="Étape Configure your enabled service : activation de l'IAM audit log, namespace Keycloak et conservation des logs, métriques et traces" src="/images/hosted-private-cloud/opcp/observability-admin-console/enable_settings.png" loading="lazy" />
+
+| Paramètre | Valeur par défaut | Description |
+|-----------|-------------------|-------------|
+| `log_retention_days` | `30` | Nombre de jours de conservation des logs de l'organisation. |
+| `metric_retention_days` | `365` | Nombre de jours de conservation des métriques de l'organisation. La valeur par défaut permet des comparaisons d'une année sur l'autre. |
+| `trace_retention_days` | `30` | Nombre de jours de conservation des traces de l'organisation. |
+| `iam_audit_enabled` | `true` | Envoie les connexions et les modifications IAM du realm Keycloak de l'organisation dans ses logs, et ajoute le tableau de bord **IAM audit log** à son Grafana. Réglez-le sur `false` pour le désactiver. |
+| `keycloak_l3_namespace` | `keycloak-layer-3` | Namespace des pods Keycloak des organisations sur le cluster de la plateforme, lu pour l'IAM audit log. Conservez la valeur par défaut, sauf demande du support OVHcloud. |
+
+:::warning
+Réduire une durée de conservation supprime définitivement les données plus anciennes de cette organisation.
+
+:::
+
+La connexion Keycloak de l'organisation est fournie par le Cloud Store : il n'y a rien à renseigner.
+
+#### Sorties du service activé
+
+Chaque service activé a ses propres sorties, affichées aux utilisateurs de l'organisation dans l'onglet <code className="action">Overview</code> du service dans l'OPCP Cloud Console :
+
+| Sortie | Contenu |
+|--------|---------|
+| `grafana_url` | Le Grafana de l'organisation. |
+| `gateway_url` | La passerelle de l'organisation, utilisée par son Grafana. |
+
+### Limites par organisation
+
+Chaque organisation a les mêmes limites fixes. Elles protègent le service et les autres organisations :
+
+| Signal | Limite |
+|--------|--------|
+| Métriques | 150 000 séries actives, 15 000 échantillons par seconde |
+| Logs | 1 Mio/s (pic de 4 Mio), 5 000 flux de logs actifs |
+| Traces | 2 Mio/s (pic de 4 Mio) |
+
+Les données au-delà d'une limite de débit sont refusées avec une erreur HTTP `429`, et l'expéditeur réessaie. Les séries de métriques au-delà de 150 000 sont ignorées. Les utilisateurs de l'organisation suivent leur consommation sur le tableau de bord **Usage & Limits** de leur Grafana. Vous voyez les données rejetées par organisation sur le tableau de bord **Platform Health**.
+
+### Désactiver le service ou supprimer le déploiement de service
+
+1. Désactivez le service pour chaque organisation, comme décrit dans la section « [Désactiver un service ou supprimer un déploiement de service](/guides/hosted-private-cloud/opcp/admin-console-getting-started#désactiver-un-service-ou-supprimer-un-déploiement-de-service) ».
+2. Supprimez le déploiement de service.
+
+:::warning
+Désactiver le service ou supprimer le déploiement de service ne supprime pas les données stockées dans les trois buckets. Si les données d'une organisation doivent être effacées, contactez OVHcloud.
+
+:::
+
+### Limitations connues
+
+L'Alpha présente les limitations connues suivantes :
+
+| Limitation | Détail |
+|------------|--------|
+| Seule la taille `sandbox` | Le service s'exécute sur un seul nœud, sans haute disponibilité. Pendant les mises à jour ou les redémarrages, les requêtes sur les dernières heures peuvent échouer brièvement ; aucune donnée n'est perdue. Des tailles plus grandes arrivent avec la Beta. |
+| Charge | La taille `sandbox` a été testée avec trois organisations utilisant la moitié de leurs limites en même temps. |
+| Un data plane par organisation | Activer le service deux fois pour la même organisation casse le déploiement de service : toute modification ultérieure échoue. |
+| Pas de mise à l'échelle | La taille d'un déploiement de service ne peut pas être modifiée. |
+| Pas d'effacement à la désactivation | Les données restent dans les buckets, consultez la section [Désactiver le service ou supprimer le déploiement de service](#désactiver-le-service-ou-supprimer-le-déploiement-de-service). |
+| Pas d'accès aux données d'une organisation | Les IT Admins ne peuvent pas lire les données d'une organisation. Un processus d'accès défini arrive avec la Beta. |
+| Notifications d'alerte vers des adresses privées | Les notifications d'une organisation ne peuvent être envoyées qu'à des adresses publiques. |
+
+### Dépannage
+
+| Ce que vous constatez | Que faire |
+|-----------------------|-----------|
+| Le tableau de bord **IAM audit log** d'une organisation reste vide, et les logs de son data plane affichent `unauthorized_client`. | Le client Keycloak de l'organisation n'autorise pas encore les comptes de service. Contactez OVHcloud, qui les active. Un correctif est en cours dans Keycloak. |
+| Le tableau de bord **IAM audit log** n'affiche aucune connexion. | Keycloak doit journaliser les événements réussis. Contactez OVHcloud pour vérifier le niveau de journalisation de Keycloak. |
+| Après le redéploiement ou le remplacement du stockage objet, le service affiche des erreurs de certificat (`x509`) ou de connexion. | Mettez à jour les paramètres S3 du déploiement de service avec le nouveau point de terminaison et les nouvelles clés. Désactivez puis réactivez ensuite le service pour chaque organisation, afin que leurs data planes prennent en compte les nouvelles valeurs. |
+| La suppression du déploiement de service ou d'un service activé ne se termine jamais. | Contactez OVHcloud. |
+| Toute modification du déploiement de service échoue après l'activation du service pour une organisation. | Le service a probablement été activé deux fois pour la même organisation. Contactez OVHcloud. |
+
+## Aller plus loin
+
+[Utiliser le service Observability](/guides/hosted-private-cloud/opcp/observability-cloud-console)
+
+[OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started)
+
+[Observabilité sur OPCP](/guides/hosted-private-cloud/opcp/observability-overview)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
