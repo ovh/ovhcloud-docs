@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.11.20
+
+### Fixes
+
+#### EU
+- **voip:** replace the dead monip.ovh link with proof.ovh.net
+- **v8:** bring VPS guides in line with the Console as of 2026-11-19
+
+### Documentation
+- EU: 8 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.19
 
 ### Features
