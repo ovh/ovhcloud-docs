@@ -10,7 +10,7 @@ export const privatecloudVmwareVsphereConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/private-cloud/managed-vmware-vsphere',
+      route: '/#/private-cloud/managed-vmware-vsphere',
       text: {
         en: {
           product: 'Managed VMware vSphere',
