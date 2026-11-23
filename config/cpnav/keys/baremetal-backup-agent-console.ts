@@ -9,7 +9,7 @@ export const baremetalBackupAgentConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/backup-agent',
+      route: '/#/bare-metal/backup-agent',
       text: {
         en: {
           product: 'Backup Agent',

@@ -19,6 +19,7 @@ import { accountSecurity } from './keys/account-security';
 import { accountSecurityConsole } from './keys/account-security-console';
 import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
+import { baremetalBackupAgentConsole } from './keys/baremetal-backup-agent-console';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
 import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
 import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
@@ -146,7 +147,6 @@ import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-sto
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
-import { baremetalBackupAgentConsole } from './keys/baremetal-backup-agent-console';
 import { storageNasHaPrivateConsole } from './keys/storage-nas-ha-private-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomOtbConsole } from './keys/telecom-otb-console';
@@ -239,6 +239,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'baremetal-vps-console': baremetalVpsConsole,
   'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   'baremetal-backup-agent': baremetalBackupAgent,
+  'baremetal-backup-agent-console': baremetalBackupAgentConsole,
   'storage-backup-licenses': storageBackupLicenses,
   'storage-backup-licenses-console': storageBackupLicensesConsole,
   'storage-cloud-disk-array': storageCloudDiskArray,
@@ -248,7 +249,6 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
     storageEnterpriseFileStorageConsole,
   'storage-nas-ha': storageNasHa,
   'storage-nas-ha-console': storageNasHaConsole,
-  'baremetal-backup-agent-console': baremetalBackupAgentConsole,
   // --- Public Cloud --------------------------------------------------------------------
   // Every product route carries {projectId}, so no product has a project-independent
   // URL: the chain names the product, the link is always the project list.
