@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { canonicalFirst, isNonCanonical } from './canonical';
 import { isSidebarGroup } from './utils';
 
 /**
@@ -28,6 +29,11 @@ import { isSidebarGroup } from './utils';
  *      family and diverge only at the sub-group).
  *   3. Else (cold deep-link / search / external entry), the first candidate
  *      in tree order — the guide's canonical (first-listed) branch.
+ *
+ * "First" skips the placements flagged `{canonical=false}` in the index
+ * (copies of guides whose home is elsewhere, see ./canonical.ts): candidates
+ * are ordered canonical first, so the SSR fallback, a step-2 tie and step 3
+ * all land on the home.
  *
  * The chosen branch is persisted in sessionStorage so it survives in-SPA
  * navigations and reloads within the session.
@@ -89,16 +95,19 @@ type SidebarNode = SidebarData[number];
 
 /**
  * Walk the sidebar tree and collect the tree-path id of every instance whose
- * link matches the active route, in depth-first (tree) order.
+ * link matches the active route, in depth-first (tree) order, then move the
+ * instances flagged as copies (`canonical: false`) after the others.
  */
 function collectCandidates(
   data: SidebarData,
   activeMatcher: (link: string) => boolean,
 ): string[] {
   const candidates: string[] = [];
+  const copies = new Set<string>();
   const visit = (node: SidebarNode, id: string): void => {
     if ('link' in node && node.link && activeMatcher(node.link)) {
       candidates.push(id);
+      if (isNonCanonical(node)) copies.add(id);
     }
     if (isSidebarGroup(node)) {
       (node as NormalizedSidebarGroup).items.forEach((child, index) => {
@@ -109,7 +118,7 @@ function collectCandidates(
   data.forEach((node, index) => {
     visit(node, String(index));
   });
-  return candidates;
+  return canonicalFirst(candidates, copies);
 }
 
 function readStoredBranch(): string | null {
@@ -258,7 +267,7 @@ export function ActiveBranchProvider({
       if (best) return best;
     }
 
-    // 3. Canonical: first candidate in tree order.
+    // 3. Canonical: first candidate in tree order, copies last.
     return candidates[0];
   }, [candidates, mounted]);
 

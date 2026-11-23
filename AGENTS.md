@@ -132,6 +132,10 @@ Classification rules used by the parser:
 - **link without `/`** → section group
 - **link with `/`** → guide leaf (converted to `/guides/...` link)
 
+#### A guide listed in several places
+
+A guide can sit in more than one group (~12% do). Its home — the breadcrumb, and the branch a search result or deep link opens — is its first placement in the file, unless that placement carries `{canonical=false}`: the first unflagged placement is then the home. On a group, the marker covers the group's landing page and every entry below it; an entry takes it back with `{canonical=true}`. Use it when a product lists another product's guides, so that coming first in the file does not make it their home. Parser: `config/sidebar/parser.ts`; theme: `theme/components/Sidebar/canonical.ts`; test: `config/sidebar/canonical.test.ts`.
+
 #### How translations work
 
 There are two kinds of sidebar items:
