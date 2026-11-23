@@ -2310,8 +2310,8 @@
             + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra){label=Webmail Zimbra}
             + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube){label=Webmail Roundcube}
         + [Migrating](web-cloud-email-collaborative-solutions-migration)
-            + [Migrate email accounts between OVHcloud platforms](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
-            + [MX Plan - Migrate to Exchange, Email Pro or Zimbra](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
+            + [Migrate your email accounts to another OVHcloud email offer](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [MX Plan - Migrate automatically to Email Pro or Exchange](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
             + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
             + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
         + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
