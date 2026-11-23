@@ -802,6 +802,7 @@
                     + [Object Storage - Hosting a static website in an Object Storage bucket](storage-and-backup/object-storage/website)
                     + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/website-https)
                     + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-resources-in-vrack-private-network)
+                    + [Object Storage - Get started with Private Endpoint](storage-and-backup/object-storage/s3-private-endpoint)
                 + [Tutorials](public-cloud-storage-and-backup-object-storage-s3-compatible-tutorials)
                     + [Object Storage - Use Object Storage with Rclone](storage-and-backup/object-storage/rclone)
                     + [Object Storage - Use Object Storage with S3cmd](storage-and-backup/object-storage/s3cmd)
