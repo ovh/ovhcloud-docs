@@ -134,7 +134,7 @@ Classification rules used by the parser:
 
 #### A guide listed in several places
 
-A guide can sit in more than one group (~12% do). Its home — the breadcrumb, and the branch a search result or deep link opens — is its first placement in the file, unless that placement carries `{canonical=false}`: the first unflagged placement is then the home. On a group, the marker covers the group's landing page and every entry below it; an entry takes it back with `{canonical=true}`. Use it when a product lists another product's guides, so that coming first in the file does not make it their home. Parser: `config/sidebar/parser.ts`; theme: `theme/components/Sidebar/canonical.ts`; test: `config/sidebar/canonical.test.ts`.
+A guide can sit in more than one group. Its home — the breadcrumb, and the branch a search result or deep link opens — is its first placement in the file, unless that placement carries `{canonical=false}`: the first unflagged placement is then the home. On a group, the marker covers the group's landing page and every entry below it; an entry takes it back with `{canonical=true}`. Use it when a product lists another product's guides, so that coming first in the file does not make it their home. A visitor already browsing the copy's product stays in the copy's branch; coming from anywhere else, including the same universe, they get the home. An unknown marker key or value fails the parse, and `pnpm sidebar:copies` ignores `{canonical=…}` when it compares the copies of a product group. Parser: `config/sidebar/parser.ts`; theme: `theme/components/Sidebar/canonical.ts`; test: `config/sidebar/canonical.test.ts`.
 
 #### How translations work
 

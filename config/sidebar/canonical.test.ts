@@ -16,6 +16,7 @@ import {
 import {
   canonicalFirst,
   isNonCanonical,
+  preservedBranch,
 } from '../../theme/components/Sidebar/canonical';
 import { parseIndexMd } from './parser';
 
@@ -95,6 +96,29 @@ test('a marker value other than true or false fails the parse', () => {
       parse('+ U\n    + [P](products/p){canonical=no}\n        + [G](u/g)\n'),
     /\{canonical=no\} must be true or false/,
   );
+});
+
+test('a misspelt marker key fails the parse instead of being dropped', () => {
+  assert.throws(
+    () =>
+      parse('+ U\n    + [P](products/p){canonicl=false}\n        + [G](u/g)\n'),
+    /unknown marker \{canonicl=…\}/,
+  );
+});
+
+test('step 2: a copy keeps the visitor only from inside its own product', () => {
+  // Copy under universe 1 › product 0 (Dedicated Servers); home under
+  // universe 5 (Storage and Backup), as in config/sidebar/index.md.
+  const ids = ['5-3-1-4-1', '1-0-3-5-0-8'];
+  const copies = new Set(['1-0-3-5-0-8']);
+  // From a VPS page (same universe, other product): the home.
+  assert.equal(preservedBranch(ids, copies, '1-1-4-2'), null);
+  // From a Dedicated Servers page: the copy.
+  assert.equal(preservedBranch(ids, copies, '1-0-7-1'), '1-0-3-5-0-8');
+  // From inside the home's product: the home.
+  assert.equal(preservedBranch(ids, copies, '5-3-0-1'), '5-3-1-4-1');
+  // Unflagged placements keep the plain longest-prefix rule.
+  assert.equal(preservedBranch(ids, new Set(), '1-1-4-2'), '1-0-3-5-0-8');
 });
 
 test('the breadcrumb skips the copy and follows the home', () => {

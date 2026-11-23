@@ -174,6 +174,13 @@ interface ParsedLine {
  */
 type CanonicalFlag = { canonical?: false };
 
+/** The `{key=value}` markers an index line may carry (see parseIndexMd). */
+const SIDEBAR_MARKER_KEYS: ReadonlySet<string> = new Set([
+  'landing',
+  'label',
+  'canonical',
+]);
+
 interface StackEntry {
   parsed: ParsedLine;
   items: (SidebarGroup | SidebarItem)[];
@@ -442,6 +449,15 @@ export function parseIndexMd(
         .slice(0, markerMatch.index ?? stripped.length)
         .trimEnd();
       markerMatch = stripped.match(markerRe);
+    }
+    const unknownKey = Object.keys(markers).find(
+      (key) => !SIDEBAR_MARKER_KEYS.has(key),
+    );
+    if (unknownKey !== undefined) {
+      // `{canonicl=false}` would otherwise be dropped without a word.
+      throw new Error(
+        `${indexMdPath}: unknown marker {${unknownKey}=…} (expected ${[...SIDEBAR_MARKER_KEYS].join(', ')}): ${line.trim()}`,
+      );
     }
     const landing: string | undefined = markers.landing;
     const labelOverride: string | undefined = markers.label;

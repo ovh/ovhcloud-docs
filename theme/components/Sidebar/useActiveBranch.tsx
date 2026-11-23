@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { canonicalFirst, isNonCanonical } from './canonical';
+import { canonicalFirst, isNonCanonical, preservedBranch } from './canonical';
 import { isSidebarGroup } from './utils';
 
 /**
@@ -69,22 +69,6 @@ const ActiveBranchContext = createContext<ActiveBranchContextValue>({
   notifyManualToggle: () => {},
 });
 
-/**
- * Number of leading id segments two instance paths share. Multi-located guides
- * often live under the SAME top-level product family (e.g. both SSH instances
- * sit under "Bare Metal Cloud", diverging only at the product sub-group
- * Dedicated Servers vs Virtual Private Servers). So a branch must be
- * identified by its FULL path, and "same branch as before" means the candidate
- * whose path shares the longest prefix with the previously-active one.
- */
-function sharedPrefixLength(a: string, b: string): number {
-  const pa = a.split('-');
-  const pb = b.split('-');
-  let n = 0;
-  while (n < pa.length && n < pb.length && pa[n] === pb[n]) n++;
-  return n;
-}
-
 /** True when `groupId` is an ancestor of (or equal to) `id`. */
 export function isAncestorId(groupId: string, id: string | null): boolean {
   if (!id) return false;
@@ -96,12 +80,13 @@ type SidebarNode = SidebarData[number];
 /**
  * Walk the sidebar tree and collect the tree-path id of every instance whose
  * link matches the active route, in depth-first (tree) order, then move the
- * instances flagged as copies (`canonical: false`) after the others.
+ * instances flagged as copies (`canonical: false`) after the others. `copies`
+ * lists those flagged instances.
  */
 function collectCandidates(
   data: SidebarData,
   activeMatcher: (link: string) => boolean,
-): string[] {
+): { ids: string[]; copies: ReadonlySet<string> } {
   const candidates: string[] = [];
   const copies = new Set<string>();
   const visit = (node: SidebarNode, id: string): void => {
@@ -118,7 +103,7 @@ function collectCandidates(
   data.forEach((node, index) => {
     visit(node, String(index));
   });
-  return canonicalFirst(candidates, copies);
+  return { ids: canonicalFirst(candidates, copies), copies };
 }
 
 function readStoredBranch(): string | null {
@@ -206,17 +191,17 @@ export function ActiveBranchProvider({
 }) {
   const activeMatcher = useActiveMatcher();
 
-  const rawCandidates = useMemo(
+  const raw = useMemo(
     () => collectCandidates(sidebarData, activeMatcher),
     [sidebarData, activeMatcher],
   );
   // Stabilise the reference so a `collapsed`-only change to sidebarData (e.g.
   // our own correction below, or a user toggle) doesn't recompute a new array
   // and re-fire route-scoped effects. The candidate ID set only truly changes
-  // when the route changes.
-  const candidatesKey = rawCandidates.join('|');
+  // when the route changes, and the copies with it.
+  const candidatesKey = raw.ids.join('|');
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by candidatesKey
-  const candidates = useMemo(() => rawCandidates, [candidatesKey]);
+  const { ids: candidates, copies } = useMemo(() => raw, [candidatesKey]);
 
   // The instance the user most recently clicked, if any. A click happens on
   // the SOURCE page and navigates to the DESTINATION route, so we can't key it
@@ -252,24 +237,17 @@ export function ActiveBranchProvider({
     //    instance. This keeps the customer in e.g. the VPS branch even though
     //    both branches sit under the same Bare Metal Cloud family. Requires a
     //    real shared prefix (> 0) so an unrelated stored branch doesn't win by
-    //    default; ties fall through to tree order (canonical).
+    //    default; ties fall through to tree order (canonical). A copy only
+    //    competes from inside its own product (see preservedBranch).
     const storedId = readStoredBranch();
     if (storedId) {
-      let best: string | null = null;
-      let bestLen = 0;
-      for (const id of candidates) {
-        const len = sharedPrefixLength(id, storedId);
-        if (len > bestLen) {
-          bestLen = len;
-          best = id;
-        }
-      }
+      const best = preservedBranch(candidates, copies, storedId);
       if (best) return best;
     }
 
     // 3. Canonical: first candidate in tree order, copies last.
     return candidates[0];
-  }, [candidates, mounted]);
+  }, [candidates, copies, mounted]);
 
   // Persist the resolved instance (full path) for subsequent navigations in
   // this session, and consume the click once it has been honoured so a later
