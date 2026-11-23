@@ -2310,10 +2310,10 @@
             + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra){label=Webmail Zimbra}
             + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube){label=Webmail Roundcube}
         + [Migrating](web-cloud-email-collaborative-solutions-migration)
-            + [MX Plan - Migrate to Exchange, Email Pro or Zimbra](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
-            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
-            + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
             + [Migrate email accounts between OVHcloud platforms](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [MX Plan - Migrate to Exchange, Email Pro or Zimbra](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
+            + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
+            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
         + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
             + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced){label=Cannot send or receive}
             + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam){label=Blocked for spam}
@@ -2419,7 +2419,6 @@
                 + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra)
                 + [FAQ Zimbra OVHcloud](web-cloud/email-and-collaborative-solutions/mx-plan/faq-zimbra)
                 + [Configure Zimbra account on email client](web-cloud/email-and-collaborative-solutions/zimbra/mail-apps)
-                + [Zimbra - Migrate an MX Plan email account](web-cloud/email-and-collaborative-solutions/zimbra/migrate-mxplan-to-zimbra)
                 + [How to configure a Zimbra email account on the Zimbra mobile application](web-cloud/email-and-collaborative-solutions/zimbra/mail-app-zimbra-for-android-ios)
                 + [Synchronize a Zimbra CalDAV calendar in an application](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-calendar-sync)
                 + [How to mount a Zimbra WebDAV folder in an OS](web-cloud/email-and-collaborative-solutions/zimbra/webdav-mount)
