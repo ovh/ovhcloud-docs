@@ -16,6 +16,11 @@
  *    to 109 px off-centre). The frame rectangle is resized symmetrically around
  *    its content and its title re-centred; blocks and arrows stay where Mermaid
  *    put them. A frame never becomes narrower than its title;
+ * 2b. gives every frame title the same space above and below (Mermaid: 3 px
+ *    above, 2 to 58 px below): the frame's top moves, the title follows; frames
+ *    side by side keep one top and their titles one line, their content first
+ *    lined up by moving the blocks of the frame that starts higher down
+ *    (alignRows, checked like the stem and tail moves; spaceTitles);
  * 3. tidies the arrows between rectangular blocks — Mermaid aims every arrow
  *    at the block's centre and cuts it at the border: an arrow bound for a
  *    block far to the side leaves from a corner (measured on
@@ -89,15 +94,16 @@ export function polishSvg(
     tidyChecked(svg, direction, base, skip);
     const plain = svg.innerHTML;
     const known = flaws(svg);
-    // both moves, then each alone: the first that spoils nothing new stays
+    // all moves, then fewer: the first set that spoils nothing new stays
     const moves = [
       { attr: 'data-ovh-stem', done: 'centred', run: centreStem },
       { attr: 'data-ovh-tail', done: 'aligned', run: alignTail },
+      { attr: 'data-ovh-rows', done: 'aligned', run: alignRows },
     ];
     const tried = new Set<number>();
     const seen = new Set<string>();
     let kept: number[] | null = null;
-    for (const set of [[0, 1], [0], [1]]) {
+    for (const set of [[0, 1, 2], [0, 1], [0, 2], [1, 2], [0], [1], [2]]) {
       svg.innerHTML = before;
       const done = set.filter((k) => moves[k].run(svg, direction));
       if (!done.length || seen.has(done.join())) continue;
@@ -126,8 +132,227 @@ export function polishSvg(
   // Never inside the checks: a label slid aside would let a redraw through
   // that was refused for the label it put on a block
   if (clearLabels(svg)) refit = true;
+  // titles spaced before their gaps: the gaps are cut where arrows cross the
+  // title at its final height
+  if (spaceTitles(svg)) refit = true;
   openTitleGaps(svg);
   if (refit) fitViewBox(svg);
+}
+
+/** Free space around a frame title: Mermaid puts the title 3 px under the top
+ *  of its frame, and 2 to 58 px above the frame's content (measured on 12
+ *  framed diagrams, 2026-11-23: 27 titles at 3 px from the top; 7 at 2 px
+ *  from the block below, most at 12 px). Every title gets TITLE_SPACE above
+ *  and below: the frame's top is set TITLE_SPACE above the title, and the
+ *  title TITLE_SPACE above the highest of the frame's content (blocks, arrow
+ *  labels, nested frames), so the frame grows or shrinks at its top only.
+ *  Frames side by side with one top (a row, same parent) keep one top, the
+ *  highest they need, and their titles one line; alignRows has already lined
+ *  up their content when it could, so their titles have TITLE_SPACE below
+ *  too. Blocks, arrows and texts stay where they are. A frame keeps its top,
+ *  its title centred between that top and its content, when an arrow ends on
+ *  its top side, or when the strip it would grow into holds a block, an
+ *  arrow label, another frame, or an arrow that does not enter the frame; a
+ *  frame the row's top would block takes its own.
+ *  Rejected: Mermaid's own `flowchart.subGraphTitleMargin`, which moves the
+ *  blocks down with the top of the frame, so the title gets closer to the
+ *  block below it; spacing each frame alone (a frame over a lone block grew
+ *  higher than its neighbours: seen on boot-process); a minimum space only
+ *  (titles 8 px from some blocks, 22 px from others in one row). */
+const TITLE_SPACE = 8;
+
+interface TitlePlan {
+  rect: SVGRectElement;
+  label: SVGGElement;
+  k: number; // user unit → screen px (vertical)
+  r: DOMRect; // the frame, on screen
+  glyphTop: number;
+  frameTop: number; // the top it needs, on screen
+  centred: number; // the title's top midway between the frame's top and content
+  fits: (top: number) => boolean;
+}
+
+function spaceTitles(svg: SVGSVGElement): boolean {
+  const clusters = [...svg.querySelectorAll<SVGGElement>('g.cluster')].filter(
+    (c) =>
+      c.querySelector(':scope > rect') &&
+      c.querySelector(':scope > g.cluster-label'),
+  );
+  const screen = (el: Element) => el.getBoundingClientRect();
+  const frameOf = (c: Element) =>
+    screen(c.querySelector(':scope > rect') as Element);
+  const holds = (o: DOMRect, i: DOMRect) =>
+    i.left >= o.left - 1 &&
+    i.right <= o.right + 1 &&
+    i.top >= o.top - 1 &&
+    i.bottom <= o.bottom + 1;
+  // nesting, read on Mermaid's geometry before any frame changes
+  const first = new Map(clusters.map((c) => [c, frameOf(c)] as const));
+  const holders = (c: SVGGElement) =>
+    clusters.filter(
+      (o) =>
+        o !== c &&
+        holds(first.get(o) as DOMRect, first.get(c) as DOMRect) &&
+        area(rectOf(o)) > area(rectOf(c)),
+    );
+  const parentOf = (c: SVGGElement) =>
+    holders(c).sort((a, b) => area(rectOf(a)) - area(rectOf(b)))[0] ?? null;
+  const depth = new Map(clusters.map((c) => [c, holders(c).length] as const));
+  // screen points of every arrow, sampled once (an arrow is never moved here)
+  const tracks = [
+    ...svg.querySelectorAll<SVGPathElement>('g.edgePaths path'),
+  ].map((p) => {
+    const L = p.getTotalLength();
+    const m = p.getScreenCTM();
+    const pts: Pt[] = [];
+    for (let k = 0; k <= 200; k++) {
+      const q = p.getPointAtLength((L * k) / 200);
+      const s = new DOMPoint(q.x, q.y).matrixTransform(m ?? undefined);
+      pts.push({ x: s.x, y: s.y });
+    }
+    return pts;
+  });
+  const meets = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right &&
+    b.left < a.right &&
+    a.top < b.bottom &&
+    b.top < a.bottom;
+  const blocks = () => [
+    ...[...svg.querySelectorAll('g.node')].map(screen),
+    ...[...svg.querySelectorAll('g.edgeLabels > g.edgeLabel')]
+      .map(screen)
+      .filter((b) => b.width > 0),
+  ];
+
+  const plan = (cluster: SVGGElement): TitlePlan | null => {
+    const rect = cluster.querySelector<SVGRectElement>(':scope > rect');
+    const label = cluster.querySelector<SVGGElement>(
+      ':scope > g.cluster-label',
+    );
+    if (!rect || !label) return null;
+    const glyphs = textBoxes(label);
+    if (!glyphs.length) return null;
+    const k = rect.getScreenCTM()?.d || 1;
+    const r = screen(rect);
+    const top = Math.min(...glyphs.map((b) => b.top));
+    const bottom = Math.max(...glyphs.map((b) => b.bottom));
+    const others = clusters.filter((c) => c !== cluster).map(frameOf);
+    // the frame's content: blocks, arrow labels, nested frames
+    const content = [...blocks(), ...others].filter(
+      (b) => holds(r, b) && !holds(b, r),
+    );
+    if (!content.length) return null;
+    const contentTop = Math.min(...content.map((b) => b.top));
+    const frameTop = contentTop - TITLE_SPACE - (bottom - top) - TITLE_SPACE;
+    // frames neither inside this one nor holding it
+    const blockers = [
+      ...blocks(),
+      ...others.filter((b) => !holds(r, b) && !holds(b, r)),
+    ];
+    // the line of an arrow drawn to a frame stops short of it by its head
+    // (understanding-mks-architecture: 4 px above the frame's top)
+    const onTop = (q: Pt) =>
+      q.x >= r.left - 1 &&
+      q.x <= r.right + 1 &&
+      q.y >= r.top - 8 &&
+      q.y <= r.top + 3;
+    // an arrow drawn to the frame itself ends on its top: moving the top
+    // would cut it or leave it short; the title is centred under it instead
+    const ending = tracks.some(
+      (pts) => onTop(pts[0]) || onTop(pts[pts.length - 1]),
+    );
+    const fits = (to: number) => {
+      if (ending) return false;
+      // a lower top stays clear of the content: frameTop is above it
+      if (to >= r.top - 0.5) return true;
+      const strip = new DOMRect(r.left, to, r.width, r.top - to);
+      if (blockers.some((b) => meets(b, strip))) return false;
+      // an arrow in the strip must enter the frame (it crosses the title,
+      // where openTitleGaps opens a gap)
+      const inStrip = (q: Pt) =>
+        q.x > strip.left &&
+        q.x < strip.right &&
+        q.y > strip.top - 1 &&
+        q.y < r.top + 1;
+      const inFrame = (q: Pt) =>
+        q.x > r.left && q.x < r.right && q.y > r.top + 1 && q.y < r.bottom;
+      return !tracks.some((pts) => pts.some(inStrip) && !pts.some(inFrame));
+    };
+    const centred = r.top + (contentTop - r.top - (bottom - top)) / 2;
+    return { rect, label, k, r, glyphTop: top, frameTop, centred, fits };
+  };
+
+  // the frame's top cannot move: the title alone goes midway
+  const centre = (p: TitlePlan): boolean => {
+    const up = p.glyphTop - p.centred;
+    if (Math.abs(up) < 0.5) return false;
+    const t = translateOf(p.label);
+    p.label.setAttribute('transform', `translate(${t.x}, ${t.y - up / p.k})`);
+    return true;
+  };
+
+  const apply = (p: TitlePlan, to: number): boolean => {
+    const grow = p.r.top - to; // < 0: the frame shrinks at its top
+    const up = p.glyphTop - (to + TITLE_SPACE); // < 0: the title moves down
+    if (Math.abs(grow) < 0.5 && Math.abs(up) < 0.5) return false;
+    const y = Number(p.rect.getAttribute('y'));
+    const h = Number(p.rect.getAttribute('height'));
+    p.rect.setAttribute('y', String(y - grow / p.k));
+    p.rect.setAttribute('height', String(h + grow / p.k));
+    const t = translateOf(p.label);
+    p.label.setAttribute('transform', `translate(${t.x}, ${t.y - up / p.k})`);
+    return true;
+  };
+
+  let changed = false;
+  const depths = [...new Set(depth.values())].sort((a, b) => b - a);
+  for (const d of depths) {
+    // innermost level first: a nested frame's final box is in its parent's
+    // content; plans read before any frame of the level changes
+    const plans = clusters
+      .filter((c) => depth.get(c) === d)
+      .map((c) => ({ p: plan(c), parent: parentOf(c) }))
+      .filter((x): x is { p: TitlePlan; parent: SVGGElement | null } => !!x.p)
+      .sort((a, b) => a.p.r.top - b.p.r.top);
+    // rows: same parent, tops within 1 px
+    const rows: (typeof plans)[] = [];
+    for (const x of plans) {
+      const row = rows.find(
+        (g) =>
+          g[0].parent === x.parent && Math.abs(g[0].p.r.top - x.p.r.top) <= 1,
+      );
+      if (row) row.push(x);
+      else rows.push([x]);
+    }
+    for (const row of rows) {
+      const ok = row.filter((x) => x.p.fits(x.p.frameTop));
+      const top = ok.length ? Math.min(...ok.map((x) => x.p.frameTop)) : null;
+      for (const { p } of row) {
+        const to =
+          top !== null && p.fits(top)
+            ? top
+            : p.fits(p.frameTop)
+              ? p.frameTop
+              : null;
+        if (to !== null ? apply(p, to) : centre(p)) changed = true;
+      }
+    }
+  }
+  if (changed) svg.setAttribute('data-ovh-titles', 'spaced');
+  return changed;
+}
+
+/** Screen boxes of the glyphs of an element's text (line height excluded). */
+function textBoxes(el: Element): DOMRect[] {
+  const out: DOMRect[] = [];
+  const walk = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+    if (!(t.textContent ?? '').trim()) continue;
+    const range = el.ownerDocument.createRange();
+    range.selectNodeContents(t);
+    for (const b of range.getClientRects()) if (b.width > 0) out.push(b);
+  }
+  return out;
 }
 
 function centreFrames(svg: SVGSVGElement): void {
@@ -1110,6 +1335,111 @@ function alignTail(svg: SVGSVGElement, axis: Axis): boolean {
         : new DOMRect(b.x, b.y + d, b.width, b.height),
     );
     moved = true;
+  }
+  return moved;
+}
+
+/** Lines up the content of frames side by side — frames of one parent whose
+ *  tops Mermaid lined up — on the lowest of them: a frame whose blocks start
+ *  higher has them all moved down, its inner layout kept, and grows at its
+ *  bottom (boot-process: the lone block of « Custom boot script » 13.6 px
+ *  above its neighbours' first blocks). spaceTitles then gives every title
+ *  of the row one line and the same space above and below. Arrows and labels
+ *  between moved blocks move with them; arrows with one moved end are
+ *  redrawn by tidyArrows, and polishSvg keeps the move only if flaws() finds
+ *  nothing new. A frame is left as it is when an arrow is drawn to the frame
+ *  itself or one it cannot read touches its blocks. */
+function alignRows(svg: SVGSVGElement, axis: Axis): boolean {
+  const layout = rankLayout(svg, axis);
+  if (!layout) return false;
+  const { root, nodes, clusters, boxes, bx } = layout;
+  const paths = [
+    ...root.querySelectorAll<SVGPathElement>(':scope > g.edgePaths > path'),
+  ];
+  const links = paths.map((p) => ({ p, ids: linkIds(p) }));
+  // an arrow that does not say which blocks it joins might be one on a block
+  // moved here, and would be left behind: move nothing
+  if (links.some((l) => !l.ids[0] || !l.ids[1])) return false;
+  const framed = clusters.filter((c) => boxes.has(c));
+  const parentOf = (c: SVGGElement) =>
+    framed
+      .filter(
+        (o) => o !== c && holdsBox(bx(o), bx(c)) && area(bx(o)) > area(bx(c)),
+      )
+      .sort((a, b) => area(bx(a)) - area(bx(b)))[0] ?? null;
+  const rows: { parent: SVGGElement | null; frames: SVGGElement[] }[] = [];
+  for (const c of framed.sort((a, b) => bx(a).y - bx(b).y)) {
+    const parent = parentOf(c);
+    const row = rows.find(
+      (r) => r.parent === parent && Math.abs(bx(r.frames[0]).y - bx(c).y) <= 1,
+    );
+    if (row) row.frames.push(c);
+    else rows.push({ parent, frames: [c] });
+  }
+  const labels = [
+    ...root.querySelectorAll<SVGGElement>(
+      ':scope > g.edgeLabels > g.edgeLabel',
+    ),
+  ];
+  const shiftY = (el: Element, d: number) => {
+    const t = translateOf(el);
+    el.setAttribute('transform', `translate(${t.x}, ${t.y + d})`);
+  };
+  let moved = false;
+  for (const { frames } of rows) {
+    if (frames.length < 2) continue;
+    const held = frames.map((c) =>
+      nodes.filter((n) => boxes.has(n) && holdsBox(bx(c), bx(n))),
+    );
+    if (held.some((h) => !h.length)) continue;
+    const firsts = held.map((h) => Math.min(...h.map((n) => bx(n).y)));
+    const target = Math.max(...firsts);
+    frames.forEach((c, i) => {
+      const d = target - firsts[i];
+      if (d < 1) return;
+      const inner = framed.filter((o) => o !== c && holdsBox(bx(c), bx(o)));
+      const ids = new Set<string>([
+        ...held[i].map((n) => blockId(n) ?? ''),
+        ...inner.map(frameId),
+      ]);
+      const own = frameId(c);
+      const carry: [SVGPathElement, string][] = [];
+      const carried = new Set<Element>();
+      for (const { p, ids: link } of links) {
+        const [from, to] = link;
+        if (from === own || to === own) return;
+        const ends = [from, to].map((id) => ids.has(id as string));
+        if (!ends[0] && !ends[1]) continue;
+        // every arrow on a moved block gets redrawn or moved: readable
+        const pts = basisPoints(p.getAttribute('d') ?? '');
+        if (!pts) return;
+        if (!ends[0] || !ends[1]) continue;
+        carry.push([p, basisPath(pts.map((q) => ({ x: q.x, y: q.y + d })))]);
+        // its label follows: the nearest one not already taken
+        const mid = polylineMiddle(pts);
+        let best: { l: Element; d: number } | null = null;
+        for (const l of labels) {
+          if (carried.has(l)) continue;
+          const t = translateOf(l);
+          const dist = Math.hypot(t.x - mid.x, t.y - mid.y);
+          if (dist < 20 && (!best || dist < best.d)) best = { l, d: dist };
+        }
+        if (best) carried.add(best.l);
+      }
+      for (const n of held[i]) shiftY(n, d);
+      for (const o of inner) {
+        const r = o.querySelector(':scope > rect');
+        if (r) r.setAttribute('y', String(Number(r.getAttribute('y')) + d));
+        const l = o.querySelector(':scope > g.cluster-label');
+        if (l) shiftY(l, d);
+      }
+      const r = c.querySelector(':scope > rect');
+      if (r)
+        r.setAttribute('height', String(Number(r.getAttribute('height')) + d));
+      for (const [p, path] of carry) p.setAttribute('d', path);
+      for (const l of carried) shiftY(l, d);
+      moved = true;
+    });
   }
   return moved;
 }
