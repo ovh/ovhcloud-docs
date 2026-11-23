@@ -171,6 +171,52 @@ check(
     guardThrows(treeWith('text', '[[fragment:support-scope|n=3]]')),
 );
 
+// ------------------------------------------------------- the |v6= modifier
+// A key whose body carries {{v6}} requires |v6=<route>: the banner of a guide not
+// yet updated for the Console links to that guide's former Control Panel product.
+const VKEY = 'console-update-pending';
+const vBodyEn = textFragments[VKEY]?.en;
+const vBodyFr = textFragments[VKEY]?.fr;
+if (vBodyEn?.includes('{{v6}}') && vBodyFr) {
+  const route = '/#/dedicated/nutanix';
+  check(
+    '|v6= fills the locale body with the route (fr)',
+    apply(`[[fragment:${VKEY}|v6=${route}]]`, 'fr') ===
+      vBodyFr.replaceAll('{{v6}}', route),
+  );
+  check(
+    '|v6= renders a legacy-v6 ManagerLink to the route',
+    apply(`[[fragment:${VKEY}|v6=${route}]]`, 'en').includes(
+      `<ManagerLink legacy-v6 to="${route}">`,
+    ),
+  );
+  check(
+    '|v6=…|en and |en|v6=… both pin the ENGLISH body',
+    apply(`[[fragment:${VKEY}|v6=${route}|en]]`, 'de') ===
+      vBodyEn.replaceAll('{{v6}}', route) &&
+      apply(`[[fragment:${VKEY}|en|v6=${route}]]`, 'de') ===
+        vBodyEn.replaceAll('{{v6}}', route),
+  );
+  check(
+    'a $ in the route is not read as a replacement pattern',
+    apply(`[[fragment:${VKEY}|v6=/#/a$1b]]`, 'en').includes('to="/#/a$1b"'),
+  );
+  check(
+    'a bare token (no |v6=) stays unresolved, so the build fails on it',
+    apply(`[[fragment:${VKEY}]]`, 'en') === `[[fragment:${VKEY}]]`,
+  );
+  check(
+    'two banners with different routes on one page keep their own route',
+    apply(
+      `[[fragment:${VKEY}|v6=/#/a]]\n\n[[fragment:${VKEY}|v6=/#/b]]`,
+      'en',
+    ) ===
+      `${vBodyEn.replaceAll('{{v6}}', '/#/a')}\n\n${vBodyEn.replaceAll('{{v6}}', '/#/b')}`,
+  );
+} else {
+  failures.push(`${VKEY}: en.md has no {{v6}} placeholder or fr.md is missing`);
+}
+
 // ------------------------------------------------------- known traps
 check(
   'TRAP: a real token expands even inside a fenced block (raw-text rules)',

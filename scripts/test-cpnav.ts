@@ -104,6 +104,12 @@ check(
   'route renders a ManagerLink',
   single.includes('<ManagerLink to="/#/web/email_pro">'),
 );
+check(
+  'a Console key renders a ManagerLink with the console attribute',
+  renderBlock(['web-email-pro-console'], 'en').includes(
+    '<ManagerLink console to="/#/web-cloud/email/exchange">',
+  ),
+);
 // Synthetic keys: these two link styles must keep working even when no shipped key uses
 // them. They were asserted on `privatecloud-nutanix` until B5 converted it from `linkKey`
 // to `route`, at which point the tests failed for a data change rather than a defect.
@@ -292,6 +298,16 @@ for (const [key, entry] of Object.entries(CPNAV_KEYS)) {
     `${key}: no location declares both route and linkKey`,
     entry.locations.every((l) => !(l.route && l.linkKey)),
   );
+  // A Console key is marked by its `console` flag, which the renderer turns into
+  // `<ManagerLink console>`: the beta prefix is gone since the Console's general
+  // availability. A key still on an open branch may carry it until rebased.
+  if (!key.startsWith('__test')) {
+    check(
+      `${key}: a v6 key has no /beta/ route (Console routes belong to a console key)`,
+      !!entry.console ||
+        entry.locations.every((l) => !l.route?.startsWith('/beta')),
+    );
+  }
 }
 
 // --- report --------------------------------------------------------------------------
