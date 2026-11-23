@@ -10,7 +10,7 @@ export const storageEnterpriseFileStorageConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/storage/efs',
+      route: '/#/bare-metal/storage/efs',
       text: {
         en: {
           product: 'Enterprise File Storage',

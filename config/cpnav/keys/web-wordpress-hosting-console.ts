@@ -9,7 +9,7 @@ export const webWordpressHostingConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/web-cloud/wordpress',
+      route: '/#/web-cloud/wordpress',
       text: {
         en: { product: 'Managed WordPress', crumbs: ['Managed WordPress'] },
         fr: { product: 'Managed WordPress', crumbs: ['Managed WordPress'] },

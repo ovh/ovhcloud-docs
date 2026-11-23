@@ -112,7 +112,7 @@ const documentationTab: NavItemConfig = {
 
 /** The Console of each hub region, signed in on the right subsidiary. */
 const euConsole = (subsidiary: string) =>
-  `https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//manager.eu.ovhcloud.com&ovhSubsidiary=${subsidiary}`;
+  `https://auth.eu.ovhcloud.com/signin/?onsuccess=https%3A//console.eu.ovhcloud.com&ovhSubsidiary=${subsidiary}`;
 
 const CONSOLE_BY_HUB: Record<HubRegion, Partial<Record<Locale, string>>> = {
   eu: {
@@ -126,7 +126,7 @@ const CONSOLE_BY_HUB: Record<HubRegion, Partial<Record<Locale, string>>> = {
   },
   // Same flow as <ManagerLink> for the CA zone (components/ManagerLink).
   ca: allLocales(
-    'https://auth.ca.ovhcloud.com/signin/?onsuccess=https%3A//manager.ca.ovhcloud.com&ovhSubsidiary=CA',
+    'https://auth.ca.ovhcloud.com/signin/?onsuccess=https%3A//console.ca.ovhcloud.com&ovhSubsidiary=CA',
   ),
   us: allLocales('https://manager.us.ovhcloud.com/#/?ovhSubsidiary=US'),
 };
