@@ -239,7 +239,7 @@
                 + [Bring Your Own Linux (BYOLinux)](bare-metal-cloud/dedicated-servers/bring-your-own-linux)
                 + [Configure a custom iPXE script to boot your server from the OVHcloud API](bare-metal-cloud/dedicated-servers/ipxe-scripts)
             + [Backup](bare-metal-cloud-dedicated-servers-configuration-backup)
-                + [Backup Agent](bare-metal-cloud-dedicated-servers-configuration-backup-backup-agent){landing=storage-and-backup/backup-agent/overview}
+                + [Backup Agent](bare-metal-cloud-dedicated-servers-configuration-backup-backup-agent){landing=storage-and-backup/backup-agent/overview}{canonical=false}
                     + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation)
                     + [Backup Agent - How Vaults work](storage-and-backup/backup-agent/backup-agent-vault)
                     + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration)
@@ -252,18 +252,18 @@
                     + [Backup Agent - Service updates](storage-and-backup/backup-agent/update)
                     + [Backup Agent - Deletion Procedure](storage-and-backup/backup-agent/deletion)
                     + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant)
-                + [Backup Licenses](bare-metal-cloud-dedicated-servers-configuration-backup-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}
+                + [Backup Licenses](bare-metal-cloud-dedicated-servers-configuration-backup-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}{canonical=false}
                     + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration)
                     + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise)
                     + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault)
                     + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting)
                     + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
-                + [Veeam Enterprise Plus](bare-metal-cloud-dedicated-servers-configuration-backup-veeam-enterprise-plus){landing=storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview}
+                + [Veeam Enterprise Plus](bare-metal-cloud-dedicated-servers-configuration-backup-veeam-enterprise-plus){landing=storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview}{canonical=false}
                     + [Setting up Veeam Backup & Replication](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/veeam-veeam-backup-replication)
-                    + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation)
-                    + [Back up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux)
-                    + [Back up a Dedicated Windows Server with Veeam Agent](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent)
-                    + [Restore a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore)
+                    + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation){canonical=true}
+                    + [Back up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux){canonical=true}
+                    + [Back up a Dedicated Windows Server with Veeam Agent](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent){canonical=true}
+                    + [Restore a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore){canonical=true}
                 + [How to use the backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
         + [Migration](bare-metal-cloud-dedicated-servers-migration)
             + [Migrate data from one dedicated server to another](bare-metal-cloud/dedicated-servers/migrate-a-server-to-another)
