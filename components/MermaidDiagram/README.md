@@ -11,7 +11,7 @@ working example, section 12c of `docs/en/internal/format-reference.mdx`.
 |---|---|
 | `plugins/remarkMermaid.ts` | At build time, turns each ```` ```mermaid ```` block into `<MermaidDiagram code="…">` and adds to the page one preload import per diagram type it holds |
 | `components/MermaidDiagram/MermaidDiagram.tsx` | Renders one diagram in the browser: Mermaid, then `polish.ts`, then the frame with click-to-zoom; an error panel with the source for an invalid diagram |
-| `components/MermaidDiagram/polish.ts` | Geometric clean-up of the drawing: gaps under frame titles crossed by arrows, centred frames, arrows redrawn square to their blocks, labels moved off other arrows |
+| `components/MermaidDiagram/polish.ts` | Geometric clean-up of the drawing: gaps under frame titles crossed by arrows, centred frames, frame titles evenly spaced and lined up across a row, arrows redrawn square to their blocks, labels moved off other arrows |
 | `components/MermaidDiagram/load.ts` | Loads Mermaid once per page; `inTurn` runs every call to Mermaid one at a time, since its settings are global |
 | `components/MermaidDiagram/preload*.ts` | Start downloading Mermaid and the code of the page's diagram types before the page is interactive |
 | `components/MermaidDiagram/MermaidDiagram.css` | Frame, zoom, and the reduced-motion rule |
