@@ -5,6 +5,7 @@
 ### Features
 
 #### All regions
+- **sidebar:** let a copy of guides leave them their home (#1338)
 - **theme:** add a pause / play button to the home hero animation
 
 ## 2026.11.24
