@@ -44,6 +44,7 @@ import { iamTagManagement } from './keys/iam-tag-management';
 import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
+import { networkCdnConsole } from './keys/network-cdn-console';
 import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -329,6 +330,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-load-balancer-console': networkLoadBalancerConsole,
   'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
+  'network-cdn-console': networkCdnConsole,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
   'telecom-voip-fax-console': telecomVoipFaxConsole,
