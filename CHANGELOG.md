@@ -15,7 +15,7 @@
 
 ### Documentation
 - EU: 716 guides across de, en, es, fr, it, pl, pt
-- US: 2 guides across en
+- US: 11 guides across en
 
 ## 2026.11.24
 
