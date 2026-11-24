@@ -1,5 +1,76 @@
 # Changelog
 
+## 2026.11.24
+
+### Features
+
+#### All regions
+- **sidebar:** let a copy of guides leave them their home (#1338)
+- **theme:** add a pause / play button to the home hero animation
+
+### Maintenance
+
+#### All regions
+- **sidebar:** group the Dedicated Servers backup guides by product (#1327)
+
+### Documentation
+- EU: 716 guides across de, en, es, fr, it, pl, pt
+- US: 11 guides across en
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
 ## 2026.11.23.1
 
 ### Fixes

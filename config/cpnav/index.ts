@@ -39,11 +39,13 @@ import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamSshKeysConsole } from './keys/iam-ssh-keys-console';
 import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
 import { iamTagManagement } from './keys/iam-tag-management';
 import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
+import { networkCdnConsole } from './keys/network-cdn-console';
 import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -329,6 +331,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-load-balancer-console': networkLoadBalancerConsole,
   'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
+  'network-cdn-console': networkCdnConsole,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
   'telecom-voip-fax-console': telecomVoipFaxConsole,
@@ -348,6 +351,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-service-accounts': iamServiceAccounts,
   'iam-service-accounts-console': iamServiceAccountsConsole,
   'iam-policies': iamPolicies,
+  'iam-ssh-keys-console': iamSshKeysConsole,
   'iam-policies-console': iamPoliciesConsole,
   'iam-tag-management': iamTagManagement,
   'iam-tag-management-console': iamTagManagementConsole,
