@@ -1,80 +1,7 @@
-import type {
-  SidebarDivider as ISidebarDivider,
-  SidebarItem as ISidebarItem,
-  SidebarSectionHeader as ISidebarSectionHeader,
-  NormalizedSidebarGroup,
-} from '@rspress/core';
 import { usePageData, useSidebarDynamic } from '@rspress/core/runtime';
 import { Link } from '@rspress/core/theme-original';
-import {
-  isSidebarDivider,
-  isSidebarGroup,
-  isSidebarSectionHeader,
-} from '../Sidebar/utils';
+import { type Crumb, findBreadcrumbTrail, type SidebarChild } from './trail';
 import './Breadcrumbs.css';
-
-type Crumb = { title: string; link: string | null };
-
-type SidebarChild =
-  | NormalizedSidebarGroup
-  | ISidebarItem
-  | ISidebarDivider
-  | ISidebarSectionHeader;
-
-/**
- * Normalise a path/link for comparison: strip `.html` suffix and trailing
- * slash. Sidebar leaf links carry `.html` (e.g. `/guides/foo/bar.html`),
- * routePath doesn't (`/guides/foo/bar`).
- */
-function normalizePath(p: string): string {
-  return p.replace(/\.html$/, '').replace(/\/$/, '');
-}
-
-/**
- * Walk the sidebar tree to find the leaf whose link matches the current
- * routePath (or the overview page directly under it). Return the chain of
- * ancestor labels + matched leaf, or `null` if not found.
- *
- * Labels come from the parsed sidebar tree (config/sidebar/index.md → parser),
- * which is the source of truth for navigation labels and is locale-translated
- * by Rspress at render time.
- */
-function findBreadcrumbTrail(
-  items: SidebarChild[],
-  routePath: string,
-  trail: Crumb[],
-): Crumb[] | null {
-  const targetNorm = normalizePath(routePath);
-
-  for (const item of items) {
-    if (isSidebarDivider(item) || isSidebarSectionHeader(item)) continue;
-
-    const link = 'link' in item ? item.link : undefined;
-    const text = 'text' in item ? item.text : undefined;
-    const linkNorm = link ? normalizePath(link) : undefined;
-
-    // Leaf match: normalised paths equal, or the leaf is an overview page
-    // under the current route (or vice-versa).
-    if (
-      linkNorm &&
-      (linkNorm === targetNorm ||
-        linkNorm === `${targetNorm}/overview` ||
-        `${linkNorm}/overview` === targetNorm)
-    ) {
-      // For overview leaves, end at the parent group — the parent label IS
-      // the overview page; appending a redundant "Overview" step is noise.
-      if (linkNorm.endsWith('/overview')) return trail;
-      return [...trail, { title: text ?? '', link: link ?? null }];
-    }
-
-    if (isSidebarGroup(item)) {
-      const nextTrail = [...trail, { title: text ?? '', link: link ?? null }];
-      const hit = findBreadcrumbTrail(item.items, routePath, nextTrail);
-      if (hit) return hit;
-    }
-  }
-  return null;
-}
 
 /**
  * Fallback breadcrumb generation for pages not found in the sidebar (orphans,
@@ -117,7 +44,7 @@ export default function Breadcrumbs() {
   // normalises both sides before comparing (see normalizePath).
   const items = (sidebarData ?? []) as unknown as SidebarChild[];
 
-  const trail = findBreadcrumbTrail(items, routePath, []);
+  const trail = findBreadcrumbTrail(items, routePath);
   const crumbs: Crumb[] = [
     { title: 'Home', link: '/' },
     ...(trail ?? humanizeFallback(routePath)),
