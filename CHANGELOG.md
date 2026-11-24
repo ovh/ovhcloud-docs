@@ -14,7 +14,8 @@
 - **sidebar:** group the Dedicated Servers backup guides by product (#1327)
 
 ### Documentation
-- EU: 108 guides across de, en, es, fr, it, pl, pt
+- EU: 164 guides across de, en, es, fr, it, pl, pt
+- US: 2 guides across en
 
 ## 2026.11.24
 
