@@ -1,4 +1,4 @@
-import { useDark } from '@rspress/core/runtime';
+import { useDark, useI18n } from '@rspress/core/runtime';
 import { useEffect, useRef } from 'react';
 import type { HeroFx as Engine } from './engine';
 import {
@@ -7,6 +7,7 @@ import {
   DOCS_PALETTE_ID,
   heroBackground,
 } from './palette';
+import { setHeroFxPaused, useHeroFxPaused } from './pause';
 
 /**
  * The generative canvas behind the home hero and closing block.
@@ -17,18 +18,27 @@ import {
  *   chunk, fetched after hydration and only on pages that render this.
  * - Theme: follows `useDark()`; destroyed on unmount (SPA navigation away
  *   from the home must not leave a requestAnimationFrame loop running).
- * - Reduced motion: one frame is drawn, then the effect is paused.
+ * - Pause: one state for the page (./pause.ts: the reader's choice, paused
+ *   by default under reduced motion). `control` renders the pause / play
+ *   button, top right of the section: the hero has it, the closing block
+ *   follows — as on the Developers hub.
  */
 export function HeroFx({
   pointerTarget,
+  control = false,
 }: {
   pointerTarget?: React.RefObject<HTMLElement | null>;
+  control?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fxRef = useRef<Engine | null>(null);
   const dark = useDark();
   const darkRef = useRef(dark);
   darkRef.current = dark;
+  const paused = useHeroFxPaused();
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const t = useI18n<Record<string, string>>();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -52,9 +62,9 @@ export function HeroFx({
       );
       fx.palettes[DOCS_PALETTE_ID] = DOCS_PALETTE;
       fx.set({ palette: DOCS_PALETTE_ID });
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        requestAnimationFrame(() => requestAnimationFrame(() => fx.pause()));
-      }
+      // Paused, the engine still draws every frame, time just stands still:
+      // the effect stays visible, frozen.
+      if (pausedRef.current) fx.pause();
       fxRef.current = fx;
     });
 
@@ -72,11 +82,42 @@ export function HeroFx({
     });
   }, [dark]);
 
+  useEffect(() => {
+    const fx = fxRef.current;
+    if (!fx) return;
+    if (paused) fx.pause();
+    else fx.resume();
+  }, [paused]);
+
   if (process.env.__SSR_MD__) return null;
 
+  const label = paused ? t('homeFxPlay') : t('homeFxPause');
+
   return (
-    <div className="ovh-hero-fx" aria-hidden="true">
-      <canvas ref={canvasRef} />
-    </div>
+    <>
+      <div className="ovh-hero-fx" aria-hidden="true">
+        <canvas ref={canvasRef} />
+      </div>
+      {control && (
+        <button
+          type="button"
+          className="ovh-hero-fx__pause"
+          aria-label={label}
+          title={label}
+          onClick={() => setHeroFxPaused(!paused)}
+        >
+          <svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true">
+            {paused ? (
+              <path d="M4.5 2.8v10.4L13 8z" fill="currentColor" />
+            ) : (
+              <path
+                d="M4 2.5h2.6v11H4zM9.4 2.5H12v11H9.4z"
+                fill="currentColor"
+              />
+            )}
+          </svg>
+        </button>
+      )}
+    </>
   );
 }

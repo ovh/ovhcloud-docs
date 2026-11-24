@@ -147,6 +147,7 @@ import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-sto
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
+import { storageNasHaPrivateConsole } from './keys/storage-nas-ha-private-console';
 import { telecomOtb } from './keys/telecom-otb';
 import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
@@ -321,6 +322,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-vrack-console': networkVrackConsole,
   'network-vrack-services': networkVrackServices,
   'network-vrack-services-console': networkVrackServicesConsole,
+  'storage-nas-ha-private-console': storageNasHaPrivateConsole,
   'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-public-ip-console': networkPublicIpConsole,

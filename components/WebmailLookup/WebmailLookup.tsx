@@ -1,9 +1,9 @@
 import { useLang } from '@rspress/core/runtime';
 import './WebmailLookup.css';
 
-// Exact Console strings (source: the collaboration app's MX Plan locales,
-// index.json `tabs.generalInfo` and dashboard.json `summary.title`). Falls back
-// to English.
+// Exact Console (v8) strings, from the collaboration app's MX Plan locales:
+// index.json `tabs.generalInfo` / `tabs.accounts` and dashboard.json
+// `summary.title` / `summary.infrastructure`. Falls back to English.
 const TAB_LABEL: Record<string, string> = {
   fr: "Vue d'ensemble",
   en: 'Overview',
@@ -12,6 +12,16 @@ const TAB_LABEL: Record<string, string> = {
   it: 'Panoramica',
   pl: 'Przegląd',
   pt: 'Visão geral',
+};
+
+const NEXT_TAB_LABEL: Record<string, string> = {
+  fr: 'Compte email',
+  en: 'Email account',
+  de: 'E-Mail-Account',
+  es: 'Cuenta de correo',
+  it: 'Account email',
+  pl: 'Konto e-mail',
+  pt: 'Conta de e-mail',
 };
 
 const SECTION_LABEL: Record<string, string> = {
@@ -24,18 +34,31 @@ const SECTION_LABEL: Record<string, string> = {
   pt: 'Informações gerais',
 };
 
+const INFRA_LABEL: Record<string, string> = {
+  fr: 'Infrastructure',
+  en: 'Infrastructure',
+  de: 'Infrastruktur',
+  es: 'Infraestructura',
+  it: 'Infrastruttura',
+  pl: 'Infrastruktura',
+  pt: 'Infraestrutura',
+};
+
 /**
- * Reproduction of the Console's "Overview" tab + "General information"
- * section, where the webmail technology is read (row "Webmail", a link whose
- * text is the technology). Uses the Console's real strings (localized) and the
- * former colours (ODS blue #0050D7, navy #000E9C). Deliberately rendered with a
- * fixed light palette so it reads as an embedded screenshot in both doc themes.
- * The Webmail value is highlighted to point at the information to look up.
+ * Reproduction of the Console's MX Plan "Overview" tab and its "General
+ * information" card, where the webmail technology is read (row "Webmail", a
+ * link whose text is the technology). Uses the Console's real strings
+ * (localized), row order and look (grey page, active tab on a grey pill, white
+ * card). Deliberately rendered with a fixed light palette so it reads as an
+ * embedded screenshot in both doc themes. The Webmail value is framed the way
+ * the guides' Console screenshots highlight an element.
  */
 export function WebmailLookup() {
   const lang = useLang();
   const tab = TAB_LABEL[lang] ?? TAB_LABEL.en;
+  const nextTab = NEXT_TAB_LABEL[lang] ?? NEXT_TAB_LABEL.en;
   const section = SECTION_LABEL[lang] ?? SECTION_LABEL.en;
+  const infra = INFRA_LABEL[lang] ?? INFRA_LABEL.en;
   // `.md` export: a picture of the interface, nothing to say in words.
   if (process.env.__SSR_MD__) return null;
   return (
@@ -44,11 +67,16 @@ export function WebmailLookup() {
       role="img"
       aria-label={`${tab} — ${section} — Webmail`}
     >
-      <div className="webmail-lookup__tabs">
-        <span className="webmail-lookup__tab">{tab}</span>
+      <div className="webmail-lookup__tabs" aria-hidden="true">
+        <span className="webmail-lookup__tab webmail-lookup__tab--active">
+          {tab}
+        </span>
+        <span className="webmail-lookup__tab">{nextTab}</span>
       </div>
-      <div className="webmail-lookup__body">
+      <div className="webmail-lookup__card">
         <p className="webmail-lookup__card-title">{section}</p>
+        <p className="webmail-lookup__label">{infra}</p>
+        <p className="webmail-lookup__text">MX Plan</p>
         <p className="webmail-lookup__label">Webmail</p>
         <span className="webmail-lookup__value">
           <span className="webmail-lookup__link">
@@ -59,7 +87,7 @@ export function WebmailLookup() {
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden="true"

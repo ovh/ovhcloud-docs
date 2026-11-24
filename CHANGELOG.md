@@ -1,5 +1,131 @@
 # Changelog
 
+## 2026.11.24
+
+### Features
+
+#### All regions
+- **sidebar:** let a copy of guides leave them their home (#1338)
+- **theme:** add a pause / play button to the home hero animation
+
+### Maintenance
+
+#### All regions
+- **sidebar:** group the Dedicated Servers backup guides by product (#1327)
+
+### Documentation
+- EU: 17 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.23.1
+
+### Fixes
+
+#### EU
+- **v8:** apply recheck updates for account guides (#1336)
+
+#### All regions
+- **components:** space mermaid frame titles evenly and line up framed rows (#1337)
+
+### Documentation
+- EU: 69 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.23
+
+### Documentation
+- EU: 203 guides across de, en, es, fr, it, pl, pt
+- US: 2 guides across en
+
+## 2026.11.20.1
+
+### Features
+
+#### US
+- **us:** move the Public Cloud Storage guides to the OVHcloud Console
+- **us:** move Public Cloud to Console cleanup stragglers
+- **us:** move the Public Cloud Cross-functional guides to the OVHcloud Console
+- **us:** move the Public Cloud Network Services guides to the OVHcloud Console
+- **us:** move the Public Cloud Managed Private Registry guides to the OVHcloud Console
+- **us:** move the Public Cloud Managed Kubernetes guides to the OVHcloud Console
+- **us:** move the Public Cloud AI & Machine Learning guides to the OVHcloud Console
+- **us:** make the Analytics Common guides Analytics-only
+- **us:** move the Data Analytics guides to the OVHcloud Console
+- **us:** move the Public Cloud Databases guides to the OVHcloud Console
+- **us:** move the Public Cloud Compute guides to the OVHcloud Console
+
+### Fixes
+
+#### US
+- **us:** import Api in the Network Services FAQ
+
+### Documentation
+- EU: 93 guides across de, en, es, fr, it, pl, pt
+- US: 271 guides across en
+
+## 2026.11.20
+
+### Fixes
+
+#### EU
+- **voip:** replace the dead monip.ovh link with proof.ovh.net
+- **v8:** bring VPS guides in line with the Console as of 2026-11-19
+
+### Documentation
+- EU: 8 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.19
 
 ### Features
