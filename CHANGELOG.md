@@ -2,6 +2,13 @@
 
 ## 2026.11.24
 
+### Features
+
+#### All regions
+- **theme:** add a pause / play button to the home hero animation
+
+## 2026.11.24
+
 ## 2026.11.24
 
 ## 2026.11.24
