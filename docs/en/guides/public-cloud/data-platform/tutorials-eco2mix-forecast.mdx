@@ -1,7 +1,7 @@
 ---
 title: Collect the electricity consumption of the French regions every day
 description: Find out how to load 13 years of regional electricity consumption from a file, add the real time data of a public API every morning and model both in an hourly SQL view ready for a forecast
-lastUpdated: 2026-11-02
+lastUpdated: 2026-11-23
 ---
 
 ## Objective
@@ -198,7 +198,7 @@ SELECT count(*) AS rows,
 FROM eco2mix_regional_realtime
 ```
 
-On 23 October 2026, the table holds **61,056 rows**: 12 regions × 96 quarter hours × 53 days, from `2026-08-31 22:00` UTC, right after the last row of the history, to the end of the current day. The real time data is published by quarter hour, and lists every quarter hour of the current day in advance: the ones not measured yet have an empty consumption. It has no row for tomorrow.
+On 23 November 2026, the table holds **96,768 rows**: 12 regions × 96 quarter hours × 84 days, from `2026-08-31 22:00` UTC, right after the last row of the history, to the end of the current day. The real time data is published by quarter hour, and lists every quarter hour of the current day in advance: the ones not measured yet have an empty consumption. It has no row for tomorrow.
 
 ### Step 3: Keep one row per quarter hour
 
@@ -224,8 +224,6 @@ Create an [SQL action](/guides/public-cloud/data-platform/dpe-actions-sql) that 
 
 <img className="thumbnail" alt="The SQL action Stamp regional collection with the UPDATE query on the full name of eco2mix_regional_realtime and a successful validation" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-sql-action-stamp.png" loading="lazy" />
 
-Write down the catalog name: the view of Step 4 and the second part of this guide need it.
-
 #### See the Load action append
 
 1. Run `Stamp regional collection`.
@@ -240,9 +238,9 @@ Write down the catalog name: the view of Step 4 and the second part of this guid
     FROM eco2mix_regional_realtime
     ```
 
-The table now holds twice as many rows: 122,112, of which 61,056 stamped by the first collection and 61,056 not stamped yet. **The Load action appends every row it reads**: each collection is kept, and the next step keeps the most recent row of each quarter hour.
+The table now holds twice as many rows: 193,536, of which 96,768 stamped by the first collection and 96,768 not stamped yet. **The Load action appends every row it reads**: each collection is kept, and the next step keeps the most recent row of each quarter hour.
 
-<img className="thumbnail" alt="The Explorer showing 122,112 rows in eco2mix_regional_realtime, 61,056 stamped, 61,056 not stamped and one collection" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-load-appends.png" loading="lazy" />
+<img className="thumbnail" alt="The Explorer showing 193,536 rows in eco2mix_regional_realtime, 96,768 stamped, 96,768 not stamped and one collection" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-load-appends.png" loading="lazy" />
 
 #### Keep the most recent row
 
@@ -259,12 +257,12 @@ The table now holds twice as many rows: 122,112, of which 61,056 stamped by the 
 
 The action notes that this key differs from the identifier fields of the table: this is expected, since the key here is the region and the quarter hour.
 
-4. Click **Scan**: it estimates, without changing anything, how many rows the key would remove. It finds 61,056 rows to remove, one per region and quarter hour.
+4. Click **Scan**: it estimates, without changing anything, how many rows the key would remove. It finds 96,768 rows to remove, one per region and quarter hour.
 5. Click **Create**. The action is named `Deduplicate - eco2mix_regional_realtime`. Run it.
 
-<img className="thumbnail" alt="The Deduplicate action on eco2mix_regional_realtime with the key date_heure and code_insee_region, the most recent row kept by collected_at, and a Scan that finds 61,056 rows to remove" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-deduplicate-action.png" loading="lazy" />
+<img className="thumbnail" alt="The Deduplicate action on eco2mix_regional_realtime with the key date_heure and code_insee_region, the most recent row kept by collected_at, and a Scan that finds 96,768 rows to remove" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-deduplicate-action.png" loading="lazy" />
 
-Run the count query again: the table is back to 61,056 rows, all stamped.
+Run the count query again: the table is back to 96,768 rows, all stamped.
 
 Why append then deduplicate, rather than empty the table and reload it: RTE removes older months from the real time dataset, and the history file stops at the end of the last consolidated month. Emptying the table before each load would lose the months that are no longer in the real time data and not yet in the history.
 
@@ -274,24 +272,24 @@ The view `regional_consumption_hourly` merges the history and the real time data
 
 1. Open **Lakehouse Manager** > **Views** and click **New View**.
 2. Name the view `regional_consumption_hourly` and select the dataset `default_dataset`.
-3. Enter the definition below, with your catalog name in place of `<catalog>`:
+3. Enter the definition below. Write table names only: the platform resolves their catalog and schema.
 
 ```sql
 WITH all_rows AS (
     SELECT code_insee_region, libelle_region, nature, date_heure, consommation
-    FROM <catalog>.default_dataset.eco2mix_regional_history
+    FROM eco2mix_regional_history
     UNION ALL
     SELECT code_insee_region, libelle_region, nature, date_heure, consommation
-    FROM <catalog>.default_dataset.eco2mix_regional_realtime
-    WHERE date_heure > (SELECT max(date_heure) FROM <catalog>.default_dataset.eco2mix_regional_history)
+    FROM eco2mix_regional_realtime
+    WHERE date_heure > (SELECT max(date_heure) FROM eco2mix_regional_history)
 )
 SELECT
     CAST(code_insee_region AS BIGINT) AS region_code,
-    max(libelle_region)               AS region_name,
-    date_trunc('hour', date_heure)    AS hour_utc,
-    avg(consommation)                 AS consumption_mw,
-    count(consommation)               AS consumption_points,
-    max(nature)                       AS nature
+    max(libelle_region) AS region_name,
+    date_trunc('hour', date_heure) AS hour_utc,
+    avg(consommation) AS consumption_mw,
+    count(consommation) AS consumption_points,
+    max(nature) AS nature
 FROM all_rows
 GROUP BY CAST(code_insee_region AS BIGINT), date_trunc('hour', date_heure)
 ```
@@ -306,7 +304,7 @@ The rules behind this view:
 - **One hour is the average of its points**, in UTC: two half hours in the history, four quarter hours in the real time data. Staying in UTC avoids the autumn trap, when two UTC hours fall on the same Paris hour.
 - **Portable SQL**: Trino reads this view in the Explorer, and Spark reads it in the notebook and in the job of the second part. The view only uses functions both engines know: functions specific to Trino, such as `with_timezone`, `AT TIME ZONE`, `timestamp(6)` or `day_of_week`, stay out of it, and Paris time is computed where the view is read.
 - **The region code is a `BIGINT`**, a type both engines share.
-- **The tables are named in full**, `<catalog>.default_dataset.<table>`.
+- **Table names only**: the platform resolves the catalog and the schema of the tables, for Trino and for Spark alike.
 
 #### Check the view
 
@@ -323,9 +321,9 @@ GROUP BY region_code, region_name
 ORDER BY region_code
 ```
 
-On 23 October 2026, each region has 121,042 hours, from `2012-12-31 23:00` to `2026-10-23 21:00` UTC. 121,028 of them are measured: the remaining 14 are the hours of the current day not measured yet.
+On 23 November 2026, each region has 121,786 hours, from `2012-12-31 23:00` to `2026-11-23 22:00` UTC. 121,776 of them are measured: the remaining 10 are the hours of the current day not measured yet.
 
-<img className="thumbnail" alt="The Explorer showing the hours per region of regional_consumption_hourly, 121,042 hours each from 2012-12-31 23:00 to 2026-10-23 21:00" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-regional-hourly-check.png" loading="lazy" />
+<img className="thumbnail" alt="The Explorer showing the hours per region of regional_consumption_hourly, 121,786 hours each from 2012-12-31 23:00 to 2026-11-23 22:00" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/explorer-regional-hourly-check.png" loading="lazy" />
 
 ### Step 5: Schedule the collection
 
@@ -342,19 +340,14 @@ If one action of the collection fails, the next ones must not run on incomplete 
 
 1. Open **Data Processing Engine** > **Workflows** and click **New workflow**.
 2. Name it `Daily realtime collection`.
-3. Add one action per stage, in this order:
+3. In the workflow builder, click **Add your first action**, then select `Load regional realtime` in the *Action* list of the side panel.
+4. Click the **+** of `Load regional realtime`, then **Add action after**, and select `Stamp regional collection`.
+5. Click the **+** of `Stamp regional collection`, then **Add action after**, and select `Deduplicate - eco2mix_regional_realtime`.
+6. Click **Create**.
 
-| Stage | Action |
-|---|---|
-| 1 | `Load regional realtime` |
-| 2 | `Stamp regional collection` |
-| 3 | `Deduplicate - eco2mix_regional_realtime` |
+<img className="thumbnail" alt="The workflow builder of Daily realtime collection, with Load regional realtime, Stamp regional collection and Deduplicate - eco2mix_regional_realtime linked one after the other" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-collection.png" loading="lazy" />
 
-4. Click **Create**.
-
-<img className="thumbnail" alt="The workflow Daily realtime collection with Load regional realtime, Stamp regional collection and Deduplicate - eco2mix_regional_realtime in three successive stages" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-collection.png" loading="lazy" />
-
-Each action must be in its own stage: actions of the same stage run at the same time, and each stage waits for the previous one.
+Each action waits for the one before it: in its side panel, the *Dependencies* tab shows *Runs after* and the previous action. Actions that wait for nothing run at the same time, which is why each one is added with **Add action after** rather than **Add parallel action**.
 
 #### Schedule it
 
@@ -371,13 +364,13 @@ Click **Confirm**.
 
 <img className="thumbnail" alt="The New trigger window with the cron expression 17 6 * * * in Advanced mode, read as at 06:17 UTC" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-trigger.png" loading="lazy" />
 
-The workflow runs every day at 06:17 UTC: schedules are in UTC, while the interface shows times in Paris time, 07:17 in winter and 08:17 in summer.
+The workflow runs every day at 06:17 UTC: schedules are in UTC, while the interface shows times in the time zone of your browser: 07:17 in winter and 08:17 in summer for a browser set to French time.
 
 #### Check a run
 
 Click **Run** to start a first collection now. It takes a little over a minute. The logs show a warning on `collected_at`, which has no mapping attribute in the *Load* action: this is expected, since the SQL action fills it.
 
-<img className="thumbnail" alt="The Preferences tab of the workflow Daily realtime collection after a run of 69 seconds, with the logs of the run" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-collection-run.png" loading="lazy" />
+<img className="thumbnail" alt="The Preferences tab of the workflow Daily realtime collection after a run of 66 seconds, with the logs of the run" src="/images/public-cloud/data-platform/getting-further/eco2mix-forecast/picts/dpe-workflow-collection-run.png" loading="lazy" />
 
 ## What you have built
 
