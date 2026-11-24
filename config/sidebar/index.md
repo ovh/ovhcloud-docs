@@ -1929,6 +1929,7 @@
                     + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance){label=Maintenance actions}
                     + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
                 + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
+                    + [Workflow builder](public-cloud/data-platform/dpe-workflows-builder){label=Workflow builder}
                     + [Advanced Mode](public-cloud/data-platform/dpe-workflows-advanced-mode){label=Advanced Mode}
                 + [Notebooks](public-cloud-data-platform-notebooks){landing=public-cloud/data-platform/dpe-notebooks}
                     + [Data Platform Extension](public-cloud/data-platform/dpe-notebooks-data-platform-extension)
@@ -2261,6 +2262,7 @@
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
             + [Retrieving and analysing your Managed Hosting for WordPress logs](web-cloud/managed-hosting/wordpress-logs)
+        + [Tutorials](web-cloud-managed-hosting-for-wordpress-tutorials)
             + [Managing your Managed Hosting for WordPress with an AI agent (MCP)](web-cloud/managed-hosting/wordpress-mcp)
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)

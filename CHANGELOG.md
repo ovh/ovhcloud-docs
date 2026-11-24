@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.23.1
+
+### Fixes
+
+#### EU
+- **v8:** apply recheck updates for account guides (#1336)
+
+#### All regions
+- **components:** space mermaid frame titles evenly and line up framed rows (#1337)
+
+### Documentation
+- EU: 69 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.23
 
 ### Documentation
