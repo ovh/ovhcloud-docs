@@ -239,11 +239,32 @@
                 + [Bring Your Own Linux (BYOLinux)](bare-metal-cloud/dedicated-servers/bring-your-own-linux)
                 + [Configure a custom iPXE script to boot your server from the OVHcloud API](bare-metal-cloud/dedicated-servers/ipxe-scripts)
             + [Backup](bare-metal-cloud-dedicated-servers-configuration-backup)
-                + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation)
-                + [Backing up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux)
-                + [Backing Up a Bare Metal Windows Server Using Veeam Agent for Windows](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent)
-                + [Restoring a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore)
-                + [Using backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
+                + [Backup Agent](bare-metal-cloud-dedicated-servers-configuration-backup-backup-agent){landing=storage-and-backup/backup-agent/overview}{canonical=false}
+                    + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation){label=Product Overview}
+                    + [Backup Agent - How Vaults work](storage-and-backup/backup-agent/backup-agent-vault){label=How Vaults work}
+                    + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration){label=How to configure your first backup}
+                    + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore){label=Managing your backups}
+                    + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore){label=Triggering restores}
+                    + [Backup Agent - Connect to VSPC](storage-and-backup/backup-agent/vspc-presentation){label=Connect to VSPC}
+                    + [Backup Agent - Troubleshooting](storage-and-backup/backup-agent/troubleshooting){label=Troubleshooting}
+                    + [Backup Agent - Known Restrictions](storage-and-backup/backup-agent/restrictions){label=Known Restrictions}
+                    + [Backup Agent - Billing](storage-and-backup/backup-agent/billing){label=Billing}
+                    + [Backup Agent - Service updates](storage-and-backup/backup-agent/update){label=Service updates}
+                    + [Backup Agent - Deletion Procedure](storage-and-backup/backup-agent/deletion){label=Deletion Procedure}
+                    + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant){label=Linux CLI Assistant}
+                + [Backup Licenses](bare-metal-cloud-dedicated-servers-configuration-backup-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}{canonical=false}
+                    + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration){label=Ordering and configuring your first licence}
+                    + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise){label=Migrating from Veeam Enterprise to Backup Licenses}
+                    + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault){label=How Vaults work}
+                    + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting){label=Troubleshooting guide}
+                    + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions){label=Known restrictions}
+                + [Veeam Enterprise Plus](bare-metal-cloud-dedicated-servers-configuration-backup-veeam-enterprise-plus){landing=storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview}{canonical=false}
+                    + [Setting up Veeam Backup & Replication](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/veeam-veeam-backup-replication)
+                    + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation){canonical=true}
+                    + [Back up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux){canonical=true}
+                    + [Back up a Dedicated Windows Server with Veeam Agent](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent){canonical=true}
+                    + [Restore a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore){canonical=true}
+                + [How to use the backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
         + [Migration](bare-metal-cloud-dedicated-servers-migration)
             + [Migrate data from one dedicated server to another](bare-metal-cloud/dedicated-servers/migrate-a-server-to-another)
             + [Copying data from one dedicated server to another using rsync](bare-metal-cloud/dedicated-servers/how-to-copy-data-from-one-dedicated-server-to-another-using-rsync)
@@ -2806,31 +2827,31 @@
         + [Backup Agent](products/storage-backup-and-disaster-recovery-solution-backup-agent)
             + [Overview](storage-and-backup/backup-agent/overview)
             + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-agent-key-concepts)
-                + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation)
-                + [Backup Agent - Understanding Vault](storage-and-backup/backup-agent/backup-agent-vault)
+                + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation){label=Product Overview}
+                + [Backup Agent - Understanding Vault](storage-and-backup/backup-agent/backup-agent-vault){label=How Vaults work}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-agent-getting-started)
-                + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration)
-                + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore)
-                + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore)
-                + [Backup Agent - First steps with VSPC](storage-and-backup/backup-agent/vspc-presentation)
+                + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration){label=How to configure your first backup}
+                + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore){label=Managing your backups}
+                + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore){label=Triggering restores}
+                + [Backup Agent - First steps with VSPC](storage-and-backup/backup-agent/vspc-presentation){label=Connect to VSPC}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-agent-troubleshooting)
-                + [Backup Agent - Troubleshooting Guide](storage-and-backup/backup-agent/troubleshooting)
+                + [Backup Agent - Troubleshooting Guide](storage-and-backup/backup-agent/troubleshooting){label=Troubleshooting}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-agent-additional-resources)
-                + [Backup Agent - Known restrictions](storage-and-backup/backup-agent/restrictions)
-                + [Backup Agent - Billing](storage-and-backup/backup-agent/billing)
-                + [Backup Agent - Service updates](storage-and-backup/backup-agent/update)
-                + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion)
-                + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant)
+                + [Backup Agent - Known restrictions](storage-and-backup/backup-agent/restrictions){label=Known Restrictions}
+                + [Backup Agent - Billing](storage-and-backup/backup-agent/billing){label=Billing}
+                + [Backup Agent - Service updates](storage-and-backup/backup-agent/update){label=Service updates}
+                + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion){label=Deletion Procedure}
+                + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant){label=Linux CLI Assistant}
         + [Backup Licenses](products/storage-backup-and-disaster-recovery-solution-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-licenses-getting-started)
-                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration)
-                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise)
+                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration){label=Ordering and configuring your first licence}
+                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise){label=Migrating from Veeam Enterprise to Backup Licenses}
             + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-licenses-key-concepts)
-                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault)
+                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault){label=How Vaults work}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-licenses-troubleshooting)
-                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting)
+                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting){label=Troubleshooting guide}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-licenses-additional-resources)
-                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
+                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions){label=Known restrictions}
         + [Managed Backup for VMware](products/storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware)
             + [Getting started](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-getting-started)
                 + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started){label=Getting started}
