@@ -31,7 +31,7 @@ export function HomeHero() {
       className="ovh-hero ovh-hero--top"
       aria-labelledby="ovh-hero-title"
     >
-      <HeroFx pointerTarget={ref} />
+      <HeroFx pointerTarget={ref} control />
       <div className="ovh-hero__c">
         <h1 id="ovh-hero-title">
           <HeroTitle text={hero.name} highlight={hero.highlight} />

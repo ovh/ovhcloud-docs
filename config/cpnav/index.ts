@@ -15,6 +15,7 @@ import { accountMessages } from './keys/account-messages';
 import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
 import { accountProfileConsole } from './keys/account-profile-console';
+import { accountContractsConsole } from './keys/account-contracts-console';
 import { accountSecurity } from './keys/account-security';
 import { accountSecurityConsole } from './keys/account-security-console';
 import { accountSecurityIpConsole } from './keys/account-security-ip-console';
@@ -39,11 +40,13 @@ import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
 import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamSshKeysConsole } from './keys/iam-ssh-keys-console';
 import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
 import { iamTagManagement } from './keys/iam-tag-management';
 import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
 import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
+import { networkCdnConsole } from './keys/network-cdn-console';
 import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
@@ -61,6 +64,7 @@ import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
+import { privatecloudNutanixConsole } from './keys/privatecloud-nutanix-console';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
@@ -222,6 +226,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
+  'privatecloud-nutanix-console': privatecloudNutanixConsole,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
@@ -329,6 +334,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-load-balancer-console': networkLoadBalancerConsole,
   'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
+  'network-cdn-console': networkCdnConsole,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
   'telecom-voip-fax-console': telecomVoipFaxConsole,
@@ -348,6 +354,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'iam-service-accounts': iamServiceAccounts,
   'iam-service-accounts-console': iamServiceAccountsConsole,
   'iam-policies': iamPolicies,
+  'iam-ssh-keys-console': iamSshKeysConsole,
   'iam-policies-console': iamPoliciesConsole,
   'iam-tag-management': iamTagManagement,
   'iam-tag-management-console': iamTagManagementConsole,
@@ -364,6 +371,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
   'account-profile-console': accountProfileConsole,
+  'account-contracts-console': accountContractsConsole,
   'account-security': accountSecurity,
   'account-security-console': accountSecurityConsole,
   'account-security-ip-console': accountSecurityIpConsole,

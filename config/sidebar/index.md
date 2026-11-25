@@ -131,8 +131,7 @@
         + [Responsibility sharing - Domain Name service](web-cloud/domains/domains-responsibility-sharing)
         + [Responsibility sharing for the Web Hosting service](web-cloud/web-hosting/web-hosting-responsibility-sharing)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
-    + [Startup Program](products/startup-program)
-        + [Overview](account-and-service-management/startup-program/overview)
+    + [Startup Program](products/startup-program){landing=account-and-service-management/startup-program/landing-page-startup-program}
         + [General information](startup-program-general-information)
             + [Startup Program - How to apply to our newsletter?](account-and-service-management/startup-program/apply-to-newsletter)
             + [How to optimise your application to the Startup Program](account-and-service-management/startup-program/optimise-application)
@@ -161,7 +160,7 @@
             + [How to get started with a Kimsufi, So you Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
             + [How to get started with SSH connections](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use authentication keys for SSH connections to OVHcloud servers](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
-            + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
+            + [How to store public authentication keys in the OVHcloud Console](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
             + [How to use the IPMI console with a dedicated server](bare-metal-cloud/dedicated-servers/ipmi)
             + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
         + [Configuration](bare-metal-cloud-dedicated-servers-configuration)
@@ -239,11 +238,32 @@
                 + [Bring Your Own Linux (BYOLinux)](bare-metal-cloud/dedicated-servers/bring-your-own-linux)
                 + [Configure a custom iPXE script to boot your server from the OVHcloud API](bare-metal-cloud/dedicated-servers/ipxe-scripts)
             + [Backup](bare-metal-cloud-dedicated-servers-configuration-backup)
-                + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation)
-                + [Backing up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux)
-                + [Backing Up a Bare Metal Windows Server Using Veeam Agent for Windows](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent)
-                + [Restoring a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore)
-                + [Using backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
+                + [Backup Agent](bare-metal-cloud-dedicated-servers-configuration-backup-backup-agent){landing=storage-and-backup/backup-agent/overview}{canonical=false}
+                    + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation){label=Product Overview}
+                    + [Backup Agent - How Vaults work](storage-and-backup/backup-agent/backup-agent-vault){label=How Vaults work}
+                    + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration){label=How to configure your first backup}
+                    + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore){label=Managing your backups}
+                    + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore){label=Triggering restores}
+                    + [Backup Agent - Connect to VSPC](storage-and-backup/backup-agent/vspc-presentation){label=Connect to VSPC}
+                    + [Backup Agent - Troubleshooting](storage-and-backup/backup-agent/troubleshooting){label=Troubleshooting}
+                    + [Backup Agent - Known Restrictions](storage-and-backup/backup-agent/restrictions){label=Known Restrictions}
+                    + [Backup Agent - Billing](storage-and-backup/backup-agent/billing){label=Billing}
+                    + [Backup Agent - Service updates](storage-and-backup/backup-agent/update){label=Service updates}
+                    + [Backup Agent - Deletion Procedure](storage-and-backup/backup-agent/deletion){label=Deletion Procedure}
+                    + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant){label=Linux CLI Assistant}
+                + [Backup Licenses](bare-metal-cloud-dedicated-servers-configuration-backup-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}{canonical=false}
+                    + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration){label=Ordering and configuring your first licence}
+                    + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise){label=Migrating from Veeam Enterprise to Backup Licenses}
+                    + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault){label=How Vaults work}
+                    + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting){label=Troubleshooting guide}
+                    + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions){label=Known restrictions}
+                + [Veeam Enterprise Plus](bare-metal-cloud-dedicated-servers-configuration-backup-veeam-enterprise-plus){landing=storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview}{canonical=false}
+                    + [Setting up Veeam Backup & Replication](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/veeam-veeam-backup-replication)
+                    + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation){canonical=true}
+                    + [Back up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux){canonical=true}
+                    + [Back up a Dedicated Windows Server with Veeam Agent](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent){canonical=true}
+                    + [Restore a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore){canonical=true}
+                + [How to use the backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
         + [Migration](bare-metal-cloud-dedicated-servers-migration)
             + [Migrate data from one dedicated server to another](bare-metal-cloud/dedicated-servers/migrate-a-server-to-another)
             + [Copying data from one dedicated server to another using rsync](bare-metal-cloud/dedicated-servers/how-to-copy-data-from-one-dedicated-server-to-another-using-rsync)
@@ -305,7 +325,7 @@
             + [How to configure user accounts and root access on a server](bare-metal-cloud/dedicated-servers/changing-root-password-linux-ds)
             + [How to get started with SSH](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use SSH keys](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
-            + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
+            + [How to store public authentication keys in the OVHcloud Console](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
             + [How to upgrade the resources of a VPS](bare-metal-cloud/virtual-private-servers/upgrade-resources)
             + [Repartitioning a VPS after an upgrade](bare-metal-cloud/virtual-private-servers/upsize-vps-partition)
             + [First steps with pre-installed applications](bare-metal-cloud/virtual-private-servers/apps-first-steps)
@@ -1520,6 +1540,18 @@
                 + [ClickHouse - Query files stored in OVHcloud Object Storage](public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
                 + [ClickHouse - Query PostgreSQL and MySQL databases](public-cloud/data-analytics/analytics/clickhouse-query-postgresql-mysql)
                 + [ClickHouse - Query Iceberg and Delta Lake tables and ingest files continuously](public-cloud/data-analytics/analytics/clickhouse-iceberg-delta-s3queue)
+        + [Lakehouse](products/public-cloud-data-analytics-lakehouse)
+            + [Overview](public-cloud/data-analytics/lakehouse/overview)
+            + [Key concepts](public-cloud-data-analytics-lakehouse-key-concepts)
+                + [Lakehouse - Key concepts](public-cloud/data-analytics/lakehouse/lakehouse-concepts)
+            + [Getting started](public-cloud-data-analytics-lakehouse-getting-started)
+                + [Lakehouse - Getting started](public-cloud/data-analytics/lakehouse/lakehouse-getting-started)
+            + [Configuration](public-cloud-data-analytics-lakehouse-configuration)
+                + [Lakehouse - Managing access to your data](public-cloud/data-analytics/lakehouse/lakehouse-manage-access)
+                + [Lakehouse - Using a dedicated Compute Pool](public-cloud/data-analytics/lakehouse/lakehouse-compute-pools)
+                + [Lakehouse - Restricting network access](public-cloud/data-analytics/lakehouse/lakehouse-network-access)
+            + [Tutorials](public-cloud-data-analytics-lakehouse-tutorials)
+                + [Lakehouse - Connecting your own tools](public-cloud/data-analytics/lakehouse/lakehouse-connect-tools)
         + [OpenSearch](products/public-cloud-data-analytics-opensearch)
             + [Key concepts](public-cloud-data-analytics-opensearch-key-concepts)
                 + [Lifecycle policy for Analytics](public-cloud/data-analytics/analytics/lifecycle-policy)
@@ -1837,6 +1869,8 @@
                 + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
                 + [Analyse online store sales with Apache Superset](public-cloud-data-platform-analyze-online-store-sales){landing=public-cloud/data-platform/tutorials-ecommerce-sales}
                     + [Build the sales dashboard in Superset](public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard){label=Build a sales dashboard for an online store in Superset}
+                + [Forecast regional electricity consumption](public-cloud-data-platform-forecast-regional-electricity-consumption){landing=public-cloud/data-platform/tutorials-eco2mix-forecast}
+                    + [Train and schedule the forecast with PySpark](public-cloud/data-platform/tutorials-eco2mix-forecast-production){label=Train and schedule the forecast with PySpark}
             + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
                 + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
                 + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
@@ -1932,6 +1966,7 @@
                     + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance){label=Maintenance actions}
                     + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
                 + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
+                    + [Workflow builder](public-cloud/data-platform/dpe-workflows-builder){label=Workflow builder}
                     + [Advanced Mode](public-cloud/data-platform/dpe-workflows-advanced-mode){label=Advanced Mode}
                 + [Notebooks](public-cloud-data-platform-notebooks){landing=public-cloud/data-platform/dpe-notebooks}
                     + [Data Platform Extension](public-cloud/data-platform/dpe-notebooks-data-platform-extension)
@@ -2264,6 +2299,7 @@
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
             + [Retrieving and analysing your Managed Hosting for WordPress logs](web-cloud/managed-hosting/wordpress-logs)
+        + [Tutorials](web-cloud-managed-hosting-for-wordpress-tutorials)
             + [Managing your Managed Hosting for WordPress with an AI agent (MCP)](web-cloud/managed-hosting/wordpress-mcp)
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)
@@ -2313,10 +2349,10 @@
             + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra){label=Webmail Zimbra}
             + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube){label=Webmail Roundcube}
         + [Migrating](web-cloud-email-collaborative-solutions-migration)
-            + [MX Plan - Migrate to Exchange, Email Pro or Zimbra](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
-            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
+            + [Migrate your email accounts to another OVHcloud email offer](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [MX Plan - Migrate automatically to Email Pro or Exchange](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
             + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
-            + [Migrate email accounts between OVHcloud platforms](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
         + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
             + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced){label=Cannot send or receive}
             + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam){label=Blocked for spam}
@@ -2408,6 +2444,7 @@
             + [Setting up an email application on your mobile device](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-mobile-device)
                 + [Configuring an Exchange account on iPhone and iPad](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-ios)
                 + [Configuring an Exchange account on Android via the Gmail app](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-android)
+                + [Configuring an Exchange account in Outlook for Android](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-android)
             + [Troubleshooting](web-cloud-email-collaborative-solutions-microsoft-exchange-troubleshooting)
                 + [Using Exchange error diagnostics](web-cloud/email-and-collaborative-solutions/microsoft-exchange/diagnostic-advanced)
                 + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365)
@@ -2422,7 +2459,6 @@
                 + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra)
                 + [FAQ Zimbra OVHcloud](web-cloud/email-and-collaborative-solutions/mx-plan/faq-zimbra)
                 + [Configure Zimbra account on email client](web-cloud/email-and-collaborative-solutions/zimbra/mail-apps)
-                + [Zimbra - Migrate an MX Plan email account](web-cloud/email-and-collaborative-solutions/zimbra/migrate-mxplan-to-zimbra)
                 + [How to configure a Zimbra email account on the Zimbra mobile application](web-cloud/email-and-collaborative-solutions/zimbra/mail-app-zimbra-for-android-ios)
                 + [Synchronize a Zimbra CalDAV calendar in an application](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-calendar-sync)
                 + [How to mount a Zimbra WebDAV folder in an OS](web-cloud/email-and-collaborative-solutions/zimbra/webdav-mount)
@@ -2808,31 +2844,31 @@
         + [Backup Agent](products/storage-backup-and-disaster-recovery-solution-backup-agent)
             + [Overview](storage-and-backup/backup-agent/overview)
             + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-agent-key-concepts)
-                + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation)
-                + [Backup Agent - Understanding Vault](storage-and-backup/backup-agent/backup-agent-vault)
+                + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation){label=Product Overview}
+                + [Backup Agent - Understanding Vault](storage-and-backup/backup-agent/backup-agent-vault){label=How Vaults work}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-agent-getting-started)
-                + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration)
-                + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore)
-                + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore)
-                + [Backup Agent - First steps with VSPC](storage-and-backup/backup-agent/vspc-presentation)
+                + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration){label=How to configure your first backup}
+                + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore){label=Managing your backups}
+                + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore){label=Triggering restores}
+                + [Backup Agent - First steps with VSPC](storage-and-backup/backup-agent/vspc-presentation){label=Connect to VSPC}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-agent-troubleshooting)
-                + [Backup Agent - Troubleshooting Guide](storage-and-backup/backup-agent/troubleshooting)
+                + [Backup Agent - Troubleshooting Guide](storage-and-backup/backup-agent/troubleshooting){label=Troubleshooting}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-agent-additional-resources)
-                + [Backup Agent - Known restrictions](storage-and-backup/backup-agent/restrictions)
-                + [Backup Agent - Billing](storage-and-backup/backup-agent/billing)
-                + [Backup Agent - Service updates](storage-and-backup/backup-agent/update)
-                + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion)
-                + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant)
+                + [Backup Agent - Known restrictions](storage-and-backup/backup-agent/restrictions){label=Known Restrictions}
+                + [Backup Agent - Billing](storage-and-backup/backup-agent/billing){label=Billing}
+                + [Backup Agent - Service updates](storage-and-backup/backup-agent/update){label=Service updates}
+                + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion){label=Deletion Procedure}
+                + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant){label=Linux CLI Assistant}
         + [Backup Licenses](products/storage-backup-and-disaster-recovery-solution-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-licenses-getting-started)
-                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration)
-                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise)
+                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration){label=Ordering and configuring your first licence}
+                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise){label=Migrating from Veeam Enterprise to Backup Licenses}
             + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-licenses-key-concepts)
-                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault)
+                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault){label=How Vaults work}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-licenses-troubleshooting)
-                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting)
+                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting){label=Troubleshooting guide}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-licenses-additional-resources)
-                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
+                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions){label=Known restrictions}
         + [Managed Backup for VMware](products/storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware)
             + [Getting started](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-getting-started)
                 + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started){label=Getting started}
@@ -2959,7 +2995,7 @@
             + [Introduction to the OVHcloud Load Balancer](network/load-balancer/use-presentation)
             + [Load Balancer FAQ](network/load-balancer/create-faq)
         + [Getting Started](network-load-balancer-getting-started)
-            + [Managing your Load Balancer service via the Control Panel](network/load-balancer/use-lb)
+            + [Managing your Load Balancer service in the OVHcloud Console](network/load-balancer/use-lb)
             + [Order a free SSL certificate](network/load-balancer/order-freecertificate)
             + [Load Balancer API Quick Reference](network/load-balancer/use-api-reference)
             + [OVHcloud Load Balancer TCP / HTTP / HTTPS Logs Forwarding](network/load-balancer/use-api-logs-customers)
