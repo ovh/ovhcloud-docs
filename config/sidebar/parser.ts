@@ -174,11 +174,20 @@ interface ParsedLine {
  */
 type CanonicalFlag = { canonical?: false };
 
+/**
+ * `directory: false` keeps an entry in the sidebar but out of the guide
+ * directory a landing page builds from it (components/ProductDirectory), set
+ * with a `{directory=false}` marker. On a group, the whole group is left out.
+ * Absent everywhere else; Rspress passes it through untouched.
+ */
+type DirectoryFlag = { directory?: false };
+
 /** The `{key=value}` markers an index line may carry (see parseIndexMd). */
 const SIDEBAR_MARKER_KEYS: ReadonlySet<string> = new Set([
   'landing',
   'label',
   'canonical',
+  'directory',
 ]);
 
 interface StackEntry {
@@ -186,6 +195,9 @@ interface StackEntry {
   items: (SidebarGroup | SidebarItem)[];
   // Effective flag: the line's own `{canonical=…}` marker, else its parent's.
   nonCanonical: boolean;
+  // The line's own `{directory=false}` marker (not inherited: skipping the
+  // group already skips everything below it).
+  hiddenFromDirectory: boolean;
 }
 
 // -------------------------------------------------------------------
@@ -340,7 +352,7 @@ export function parseIndexMd(
     ) {
       const entry = stack.pop();
       if (!entry) break;
-      const { parsed, items, nonCanonical } = entry;
+      const { parsed, items, nonCanonical, hiddenFromDirectory } = entry;
 
       // Build the sidebar node for this entry
       const i18nKey = generateI18nKey(parsed);
@@ -373,7 +385,7 @@ export function parseIndexMd(
         continue;
       }
 
-      let node: SidebarGroup & CanonicalFlag;
+      let node: SidebarGroup & CanonicalFlag & DirectoryFlag;
       if (parsed.kind === 'universe') {
         node = {
           text: i18nKey,
@@ -403,6 +415,7 @@ export function parseIndexMd(
         }
       }
       if (nonCanonical) node.canonical = false;
+      if (hiddenFromDirectory) node.directory = false;
 
       // Add to parent or to root
       if (stack.length > 0) {
@@ -440,6 +453,11 @@ export function parseIndexMd(
     //                          deep link) opens then come from another
     //                          placement of the same page. Without the marker,
     //                          the first placement in the index wins.
+    //   - `{directory=false}`: keep this entry in the sidebar but out of the
+    //                          guide list of the landing page above it
+    //                          (<ProductDirectory />); on a group, the whole
+    //                          group. For guides still published but not to be
+    //                          put forward (discontinued hardware…).
     const markers: Record<string, string> = {};
     const markerRe = /\s*\{([a-zA-Z]+)=([^}]+)\}\s*$/;
     let markerMatch = stripped.match(markerRe);
@@ -471,6 +489,13 @@ export function parseIndexMd(
         `${indexMdPath}: {canonical=${markers.canonical}} must be true or false: ${line.trim()}`,
       );
     }
+    if (markers.directory !== undefined && markers.directory !== 'false') {
+      // Listing is the default: only `false` means something.
+      throw new Error(
+        `${indexMdPath}: {directory=${markers.directory}} must be false: ${line.trim()}`,
+      );
+    }
+    const hiddenFromDirectory = markers.directory === 'false';
 
     const linkMatch = stripped.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     const label = linkMatch ? linkMatch[1] : stripped.trim();
@@ -533,17 +558,18 @@ export function parseIndexMd(
         }
       }
 
-      const guideItem: SidebarItem & CanonicalFlag = {
+      const guideItem: SidebarItem & CanonicalFlag & DirectoryFlag = {
         text: guideText,
         link,
       };
       if (nonCanonical) guideItem.canonical = false;
+      if (hiddenFromDirectory) guideItem.directory = false;
       if (stack.length > 0) {
         stack[stack.length - 1].items.push(guideItem);
       }
     } else {
       // Group node — push onto stack
-      stack.push({ parsed, items: [], nonCanonical });
+      stack.push({ parsed, items: [], nonCanonical, hiddenFromDirectory });
     }
   }
 

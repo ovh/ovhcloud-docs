@@ -15,6 +15,7 @@ import { accountMessages } from './keys/account-messages';
 import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
 import { accountProfileConsole } from './keys/account-profile-console';
+import { accountContractsConsole } from './keys/account-contracts-console';
 import { accountSecurity } from './keys/account-security';
 import { accountSecurityConsole } from './keys/account-security-console';
 import { accountSecurityIpConsole } from './keys/account-security-ip-console';
@@ -63,6 +64,7 @@ import { privatecloudHycu } from './keys/privatecloud-hycu';
 import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
+import { privatecloudNutanixConsole } from './keys/privatecloud-nutanix-console';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
@@ -224,6 +226,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
   'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
+  'privatecloud-nutanix-console': privatecloudNutanixConsole,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
@@ -368,6 +371,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
   'account-profile-console': accountProfileConsole,
+  'account-contracts-console': accountContractsConsole,
   'account-security': accountSecurity,
   'account-security-console': accountSecurityConsole,
   'account-security-ip-console': accountSecurityIpConsole,
