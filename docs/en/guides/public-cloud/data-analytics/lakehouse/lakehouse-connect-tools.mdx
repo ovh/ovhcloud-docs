@@ -1,0 +1,167 @@
+---
+title: Lakehouse - Connecting your own tools
+description: Find out how to query and write the tables of your Lakehouse from Python with the Trino client and PyIceberg, and read them from DuckDB
+lastUpdated: 2026-11-24
+---
+
+:::warning
+Lakehouse is in alpha. It is only available to the accounts invited to the alpha programme, and its features, interface and API may change.
+
+:::
+
+## Objective
+
+The tables of a Lakehouse are open Apache Iceberg tables. Besides the data console, you can use them from your own tools, through the SQL endpoint or the Iceberg REST catalog of the Lakehouse.
+
+**This guide explains how to connect the Python Trino client, PyIceberg and DuckDB to your Lakehouse.**
+
+## Requirements
+
+- A Lakehouse with at least one catalog and one schema. See [Lakehouse - Getting started](/guides/public-cloud/data-analytics/lakehouse/lakehouse-getting-started).
+- A user with a role that gives access to the catalog, and a credential of this user. For PyIceberg and DuckDB, the credential must include an S3<sup>1</sup> access key. See [Lakehouse - Managing access to your data](/guides/public-cloud/data-analytics/lakehouse/lakehouse-manage-access).
+- Python 3.9 or later for the Python examples.
+
+## Instructions
+
+### Step 1 - Gathering the connection values
+
+The environment file you download when you create a credential holds every value the examples need. Except for the client ID, the client secret and the S3 keys, you can also find the endpoints and the SQL catalog names in the **Connection details** section of the **Overview** tab of the Lakehouse, and the realm in the same tab.
+
+| Value | Where to find it | Example |
+|---|---|---|
+| Client ID and client secret | Credential (`LAKEHOUSE_CLIENT_ID` and `LAKEHOUSE_CLIENT_SECRET` in the environment file) | |
+| SQL host | SQL endpoint, without `jdbc:trino://` | `trino-xxxx.eu-west-par.lakehouse.cloud.ovh.net` |
+| SQL catalog name | SQL catalog of the catalog, in the connection details | `pxxxx_lhxxxx_sales` |
+| Iceberg REST URI | Iceberg endpoint | `https://polaris-xxxx.eu-west-par.lakehouse.cloud.ovh.net/api/catalog` |
+| Token URI | Iceberg REST URI followed by `/v1/oauth/tokens` | |
+| Realm | Realm of the Lakehouse | `lkh-xxxxxxxx-...` |
+| Warehouse | Name of the catalog | `sales` |
+| S3 endpoint, region, access key and secret key | S3 part of the credential | `https://s3.eu-west-par.io.cloud.ovh.net`, `eu-west-par` |
+
+:::info
+The SQL endpoint exposes each catalog under a SQL catalog name that is longer than the catalog name. A table is addressed as `<sql_catalog>.<schema>.<table>`.
+
+:::
+
+### Step 2 - Querying with the Python Trino client
+
+The SQL endpoint accepts the client ID as user name and the client secret as password.
+
+```bash
+pip install trino
+```
+
+```python
+import trino
+from trino.auth import BasicAuthentication
+
+conn = trino.dbapi.connect(
+    host="<sql_host>",
+    port=443,
+    http_scheme="https",
+    user="<client_id>",
+    auth=BasicAuthentication("<client_id>", "<client_secret>"),
+    catalog="<sql_catalog>",
+    schema="raw",
+)
+cur = conn.cursor()
+cur.execute("SELECT region, count(*) FROM orders GROUP BY region")
+print(cur.fetchall())
+```
+
+The privileges of the user apply: a user with the **Data Viewer** role can read, but any `INSERT`, `UPDATE` or `CREATE TABLE` is refused.
+
+### Step 3 - Reading and writing with PyIceberg
+
+PyIceberg connects to the Iceberg REST catalog and reads or writes the data files directly in the bucket, with the S3 access key of the credential. The example below creates a table in the `raw` schema: the user needs a role that can create tables, such as **Data Editor**.
+
+```bash
+pip install "pyiceberg[pyarrow]"
+```
+
+```python
+import os
+
+# The S3 endpoint does not accept flexible checksums: set these two variables
+# before the first read or write.
+os.environ.setdefault("AWS_REQUEST_CHECKSUM_CALCULATION", "when_required")
+os.environ.setdefault("AWS_RESPONSE_CHECKSUM_VALIDATION", "when_required")
+
+import pyarrow as pa
+from pyiceberg.catalog.rest import RestCatalog
+
+catalog = RestCatalog(
+    "lakehouse",
+    **{
+        "uri": "<iceberg_rest_uri>",
+        "warehouse": "<warehouse>",
+        "credential": "<client_id>:<client_secret>",
+        "scope": "PRINCIPAL_ROLE:ALL",
+        "header.Polaris-Realm": "<realm>",
+        "s3.endpoint": "<s3_endpoint>",
+        "s3.region": "<s3_region>",
+        "s3.access-key-id": "<s3_access_key>",
+        "s3.secret-access-key": "<s3_secret_key>",
+        "s3.force-virtual-addressing": "false",
+    },
+)
+
+data = pa.table({"order_id": pa.array([1, 2], pa.int64()), "region": ["Bretagne", "Occitanie"]})
+table = catalog.create_table("raw.orders_py", schema=data.schema)
+table.append(data)
+print(table.scan().to_arrow().num_rows)
+```
+
+A table written with PyIceberg is immediately visible through the SQL endpoint and in the data console, and the other way round.
+
+:::warning
+The Iceberg REST catalog does not hand out S3 credentials: PyIceberg and DuckDB need the S3 access key of the credential to read or write the data files.
+
+:::
+
+### Step 4 - Reading with DuckDB
+
+DuckDB reads Iceberg tables through its `iceberg` extension. Three secrets are needed: one adds the realm header to the catalog requests, one holds the credential, and one holds the S3 access key.
+
+```sql
+INSTALL iceberg; LOAD iceberg; INSTALL httpfs; LOAD httpfs;
+
+CREATE SECRET lakehouse_realm (
+    TYPE HTTP,
+    EXTRA_HTTP_HEADERS MAP {'Polaris-Realm': '<realm>'},
+    SCOPE '<iceberg_rest_uri>'
+);
+CREATE SECRET lakehouse_catalog (
+    TYPE ICEBERG,
+    CLIENT_ID '<client_id>',
+    CLIENT_SECRET '<client_secret>',
+    OAUTH2_SERVER_URI '<token_uri>',
+    OAUTH2_SCOPE 'PRINCIPAL_ROLE:ALL'
+);
+CREATE SECRET lakehouse_s3 (
+    TYPE S3,
+    KEY_ID '<s3_access_key>',
+    SECRET '<s3_secret_key>',
+    ENDPOINT 's3.eu-west-par.io.cloud.ovh.net',
+    REGION 'eu-west-par',
+    URL_STYLE 'path'
+);
+
+ATTACH '<warehouse>' AS lakehouse (TYPE ICEBERG, ENDPOINT '<iceberg_rest_uri>', SECRET lakehouse_catalog);
+
+SELECT region, count(*) FROM lakehouse.raw.orders GROUP BY 1;
+```
+
+In the S3 secret, replace `s3.eu-west-par.io.cloud.ovh.net` and `eu-west-par` with your `<s3_endpoint>` and `<s3_region>`, giving the endpoint host without `https://`.
+
+## Go further
+
+[Lakehouse - Managing access to your data](/guides/public-cloud/data-analytics/lakehouse/lakehouse-manage-access)
+
+[Lakehouse - Using a dedicated Compute Pool](/guides/public-cloud/data-analytics/lakehouse/lakehouse-compute-pools)
+
+[Apache Iceberg documentation](https://iceberg.apache.org/docs/latest/)
+
+Join our [community of users](/links/community).
+
+[[fragment:s3-trademark|en]]

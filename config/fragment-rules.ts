@@ -34,14 +34,18 @@ export function generateFragmentRules(locale: Locale): ReplaceRule[] {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Escape '$' so String.replace() cannot interpret $-patterns in prose
     const escapeDollars = (text: string) => text.replace(/\$/g, '$$$$');
-    rules.push({
-      search: new RegExp(`\\[\\[fragment:${escaped}\\]\\]`, 'g'),
-      replace: escapeDollars(body),
-    });
-    rules.push({
-      search: new RegExp(`\\[\\[fragment:${escaped}\\|en\\]\\]`, 'g'),
-      replace: escapeDollars(fallback),
-    });
+    // A {{v6}} body only exists with its route: no plain or |en rule for it (see below).
+    const needsV6 = body.includes('{{v6}}');
+    if (!needsV6)
+      rules.push({
+        search: new RegExp(`\\[\\[fragment:${escaped}\\]\\]`, 'g'),
+        replace: escapeDollars(body),
+      });
+    if (!needsV6)
+      rules.push({
+        search: new RegExp(`\\[\\[fragment:${escaped}\\|en\\]\\]`, 'g'),
+        replace: escapeDollars(fallback),
+      });
     // Numbered notes: a key whose body carries `<sup>1</sup>` also accepts
     // [[fragment:key|n=N]] (and [[fragment:key|n=N|en]] — or |en|n=N, the same pin
     // written in the other order), which renders the same
@@ -62,6 +66,32 @@ export function generateFragmentRules(locale: Locale): ReplaceRule[] {
           'g',
         ),
         replace: numbered(fallback).replace('<sup>$1</sup>', '<sup>$1$2</sup>'),
+      });
+    }
+    // Former Control Panel route: a key whose body carries `{{v6}}` REQUIRES
+    // [[fragment:key|v6=/#/route]] (and accepts |en before or after it), which
+    // fills the placeholder with the guide's own Manager v6 route — the only way
+    // a reader can still reach v6 once the Console no longer links to it. The
+    // route is a capture, inserted after escapeDollars like |n= above; it cannot
+    // contain `|`, `]` or whitespace. A bare token for such a key matches no rule
+    // and fails the build (remarkNoUnresolvedFragments), which is the intent:
+    // the banner must never render without its link.
+    if (needsV6) {
+      const routed = (text: string, group: string) =>
+        escapeDollars(text).replaceAll('{{v6}}', group);
+      rules.push({
+        search: new RegExp(
+          `\\[\\[fragment:${escaped}\\|v6=([^|\\]\\s]+)\\]\\]`,
+          'g',
+        ),
+        replace: routed(body, '$1'),
+      });
+      rules.push({
+        search: new RegExp(
+          `\\[\\[fragment:${escaped}(?:\\|v6=([^|\\]\\s]+)\\|en|\\|en\\|v6=([^|\\]\\s]+))\\]\\]`,
+          'g',
+        ),
+        replace: routed(fallback, '$1$2'),
       });
     }
   }

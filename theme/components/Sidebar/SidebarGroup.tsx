@@ -5,7 +5,6 @@ import type {
   SidebarSectionHeader as SidebarSectionHeaderType,
 } from '@rspress/core';
 import { useActiveMatcher } from '@rspress/core/runtime';
-import { IconArrowRight as ArrowRight, SvgWrapper } from '@theme-original';
 import clsx from 'clsx';
 import type React from 'react';
 import { SidebarDivider } from './SidebarDivider';
@@ -28,19 +27,22 @@ const CollapsibleIcon = ({
 }) => (
   <button
     type="button"
+    className="ovh-side-chev"
     aria-label={collapsed ? 'Expand' : 'Collapse'}
+    aria-expanded={!collapsed}
     onClick={onClick}
-    style={{
-      background: 'none',
-      border: 'none',
-      padding: 0,
-      display: 'flex',
-      cursor: 'pointer',
-      transition: 'transform 0.2s ease-out',
-      transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
-    }}
   >
-    <SvgWrapper icon={ArrowRight} />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
   </button>
 );
 
@@ -110,7 +112,11 @@ export function SidebarGroup(props: SidebarGroupProps) {
         tag={item.tag}
         text={item.text}
         context={item.context}
-        className={clsx('rp-sidebar-group', className)}
+        className={clsx(
+          'rp-sidebar-group',
+          { 'rp-sidebar-group--open': !collapsed },
+          className,
+        )}
         depth={depth}
         onClick={(e) => {
           // Linked category (has a landing page): let the underlying <Link>

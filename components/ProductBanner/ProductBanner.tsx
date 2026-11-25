@@ -30,7 +30,7 @@ export function ProductBanner({ title, tagline }: ProductBannerProps) {
   if (!heading) return null;
 
   return (
-    <header className="rp-product-banner">
+    <header className="rp-product-banner rp-not-doc">
       <div className="rp-product-banner__inner">
         <h1 className="rp-product-banner__title">{heading}</h1>
         {sub && <p className="rp-product-banner__tagline">{sub}</p>}
