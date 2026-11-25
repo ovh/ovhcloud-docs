@@ -344,6 +344,7 @@ export default defineConfig({
       path.join(__dirname, 'components/Tooltip/Tooltip.tsx'),
       path.join(__dirname, 'components/CardGrid/CardGrid.tsx'),
       path.join(__dirname, 'components/CategoryColumns/CategoryColumns.tsx'),
+      path.join(__dirname, 'components/ProductDirectory/ProductDirectory.tsx'),
       path.join(__dirname, 'components/Banner/Banner.tsx'),
       path.join(__dirname, 'components/MermaidDiagram/MermaidDiagram.tsx'),
     ],

@@ -29,10 +29,11 @@ const INDEX = path.resolve(
 
 const ITEM = /^( *)\+ /;
 const PRODUCT_REF = /\]\((products\/[^)]+)\)/;
-// `{canonical=…}` says which placement is the home: by design it differs
-// between the copies of a group, so it is left out of the comparison.
-const CANONICAL_MARKER = /\s*\{canonical=[^}]*\}/g;
-const comparable = (line: string) => line.trim().replace(CANONICAL_MARKER, '');
+// `{canonical=…}` says which placement is the home, `{directory=…}` what one
+// placement's landing page lists: by design they may differ between the copies
+// of a group, so they are left out of the comparison.
+const PLACEMENT_MARKER = /\s*\{(?:canonical|directory)=[^}]*\}/g;
+const comparable = (line: string) => line.trim().replace(PLACEMENT_MARKER, '');
 
 const lines = fs.readFileSync(INDEX, 'utf-8').split('\n');
 const copies = new Map<string, { line: number; body: string }[]>();
