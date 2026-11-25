@@ -11,7 +11,7 @@
 - **landing:** list a landing page's guides from the sidebar
 
 ### Documentation
-- EU: 120 guides across de, en, es, fr, it, pl, pt
+- EU: 176 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.24
 
