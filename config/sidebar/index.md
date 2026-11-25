@@ -595,6 +595,7 @@
             + [Configuration](hosted-private-cloud-private-vcf-configuration)
                 + [Private VCF as-a-Service - Configuring your cluster's network](hosted-private-cloud/powered-by-vmware/private-vcf/network-configuration)
                 + [Private VCF as-a-Service - Managing your cluster's vSAN storage](hosted-private-cloud/powered-by-vmware/private-vcf/vsan-storage)
+                + [Private VCF as-a-Service - Understanding your users' rights](hosted-private-cloud/powered-by-vmware/private-vcf/rights-and-permissions)
     + [SNC Cloud Platform](hosted-private-cloud-snc-cloud-platform)
         + [Getting started](hosted-private-cloud-snc-cloud-platform-getting-started)
             + [Getting started with your SNC Cloud Platform project](hosted-private-cloud/cloud-platform/getting-started)
