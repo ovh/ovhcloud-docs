@@ -15,6 +15,7 @@ import { accountMessages } from './keys/account-messages';
 import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
 import { accountProfileConsole } from './keys/account-profile-console';
+import { accountContractsConsole } from './keys/account-contracts-console';
 import { accountSecurity } from './keys/account-security';
 import { accountSecurityConsole } from './keys/account-security-console';
 import { accountSecurityIpConsole } from './keys/account-security-ip-console';
@@ -370,6 +371,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
   'account-profile-console': accountProfileConsole,
+  'account-contracts-console': accountContractsConsole,
   'account-security': accountSecurity,
   'account-security-console': accountSecurityConsole,
   'account-security-ip-console': accountSecurityIpConsole,
