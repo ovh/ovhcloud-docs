@@ -1,0 +1,134 @@
+---
+title: Private VCF as-a-Service - Gérer le stockage vSAN de votre cluster
+description: Découvrez ce qu'OVHcloud configure dans vSAN à la livraison de votre cluster Private VCF as-a-Service, ce que vous pouvez régler vous-même et ce que chaque réglage implique pour vos VM
+lastUpdated: 2026-11-24
+---
+
+## Objectif
+
+**Ce guide présente le stockage vSAN de votre cluster Private VCF as-a-Service : ce qu'OVHcloud configure à la livraison, ce que vous pouvez régler vous-même, et ce que chaque réglage implique pour vos VM.**
+
+Votre cluster est livré avec un datastore **vSAN ESA** déjà configuré : les disques de vos hôtes sont réclamés, le datastore est créé et, en 3-AZ, le cluster est étiré sur deux AZ de données avec un témoin. Vous n'avez rien à activer. Il vous reste à régler vos **politiques de stockage** pour que la protection de vos VM corresponde à ce que vous attendez.
+
+:::warning
+Sur un cluster 3-AZ, une VM n'est protégée contre la perte d'une AZ que si sa politique de stockage réplique ses données **sur les deux sites**. Vérifiez-le pour chaque VM qui doit survivre à la perte d'une AZ (voir [Les politiques de stockage](#politiques-de-stockage)).
+:::
+
+## Prérequis
+
+- Disposer d'un Workload Domain [Private VCF as-a-Service](/links/hosted-private-cloud/private-vcf-aas-3-az) livré.
+- Être connecté à votre vCenter avec votre compte administrateur.
+
+## En pratique
+
+### Ce qui est livré
+
+Chaque cluster de votre Workload Domain a son propre datastore vSAN, construit à partir des disques de ses hôtes.
+
+| Élément | Configuration livrée |
+|---|---|
+| **Architecture** | vSAN ESA (Express Storage Architecture). Les disques des hôtes sont réclamés automatiquement à la livraison. |
+| **Datastore** | Un par cluster, nommé `<cluster>-ds-vsan01`. |
+| **Politique par défaut** | Celle que vSAN ESA gère automatiquement pour le datastore (gestion automatique des politiques). Elle s'applique à toute VM à qui vous n'en attribuez pas une autre. |
+| **Taille minimale** | 3 hôtes, le minimum de vSAN. Un cluster ne descend jamais sous 3 hôtes : en dessous, il est supprimé. |
+| **Remplacement d'un hôte en panne** | OVHcloud le remplace par un hôte de secours. Le remplacement n'est terminé qu'une fois la resynchronisation vSAN finie et les objets conformes à leur politique. |
+
+En 3-AZ, le cluster est toujours un **stretched cluster vSAN** : 3 hôtes dans chacune des deux AZ de données, chacune avec une copie complète des données, et un témoin dans la troisième AZ. L'architecture et la réaction aux pannes sont décrites dans le guide [Concepts du Stretched Cluster 3-AZ](/guides/hosted-private-cloud/powered-by-vmware/private-vcf/3az-stretched-cluster-concepts). Retenez ici que :
+
+- OVHcloud attribue les AZ : vous ne choisissez pas laquelle est préférée.
+- Le témoin est une VM gérée par OVHcloud dans la troisième AZ. Il ne stocke aucune donnée de VM et n'exécute aucune VM.
+- Le trafic du témoin est séparé du trafic vSAN des hôtes.
+
+### Ce que vous pouvez faire, et ce qui reste à OVHcloud
+
+Votre rôle administrateur dans vCenter vous laisse gérer le stockage de vos VM. La configuration du cluster vSAN lui-même reste à OVHcloud.
+
+| Vous pouvez | Reste à OVHcloud |
+|---|---|
+| Créer, modifier et appliquer des politiques de stockage à vos VM et à leurs disques. | La configuration du cluster : services vSAN, disques réclamés, réseau vSAN, étirement et témoin. |
+| Parcourir le datastore, y déposer et y gérer des fichiers (ISO, modèles…). | Le remplacement d'un hôte en panne. |
+| Suivre la capacité, les performances et la santé de vSAN dans vCenter. | Les mises à jour et correctifs de VCF, vSAN compris. |
+| Mettre un hôte en mode maintenance. | Les licences vSphere et vSAN des hôtes. |
+| En 3-AZ, ajouter vos VM aux groupes de VM par AZ (voir [Placer vos VM par AZ](#placer-vos-vm-par-az)). | |
+| Ajouter et retirer des hôtes depuis l'espace client OVHcloud. | |
+
+:::warning
+Avant de retirer un hôte, mettez-le en mode maintenance : le retrait est refusé sinon.
+
+Quand vous mettez un hôte en maintenance, vCenter vous demande quoi faire de ses données vSAN. Un choix qui ne migre rien laisse certains objets avec une seule copie tant que l'hôte est absent : réservez-le aux interventions courtes.
+:::
+
+### Les politiques de stockage {#politiques-de-stockage}
+
+Une politique de stockage dit à vSAN combien de copies garder d'un disque de VM, et où. C'est elle, et non le datastore, qui décide de la protection de chaque VM.
+
+| Réglage vSAN | Ce qu'il décide | Impact |
+|---|---|---|
+| **Tolérance aux pannes** (FTT) | Combien d'hôtes peuvent tomber sans perte de données, et la méthode : miroir (RAID-1) ou code d'effacement (RAID-5/6). | Plus de tolérance = plus de capacité consommée. |
+| **Tolérance aux sinistres de site** (3-AZ) | Si les données sont copiées sur les deux AZ de données (« mise en miroir double site ») ou gardées dans une seule. | Le miroir double site double la consommation, mais survit à la perte d'une AZ. |
+| **Provisionnement** | Fin (thin) par défaut : l'espace est consommé au fil de l'écriture. | Surveillez le taux de remplissage réel. |
+
+En 3-AZ, la politique décide de ce qui arrive à la VM si l'AZ qui l'héberge tombe :
+
+| Politique de la VM | Perte de l'AZ qui l'héberge |
+|---|---|
+| Données répliquées sur les **deux sites** | vSphere HA redémarre la VM dans l'autre AZ. **Aucune donnée perdue.** |
+| Données gardées dans **un seul site** | La VM et ses données sont indisponibles tant que l'AZ est en panne. |
+
+:::info
+**À faire après la livraison**
+
+- Dans vCenter, ouvrez <code className="action">Politiques et profils</code> > <code className="action">Politiques de stockage de VM</code> et regardez la politique par défaut du datastore `<cluster>-ds-vsan01`.
+- Vérifiez qu'elle réplique sur les deux sites si vos VM doivent survivre à la perte d'une AZ. Sinon, créez une politique adaptée et appliquez-la à ces VM.
+- Pour une VM qui n'a pas besoin de cette protection (environnement de test, VM reconstructible), une politique un seul site économise la moitié de la capacité.
+:::
+
+#### Changer la politique d'une VM existante
+
+Vous pouvez changer la politique d'une VM à chaud. vSAN reconstruit alors ses objets selon la nouvelle politique : l'opération consomme temporairement de la capacité et de la bande passante. Évitez de changer la politique de nombreuses VM en même temps.
+
+### 3-AZ : placer vos VM par AZ {#placer-vos-vm-par-az}
+
+OVHcloud crée dans vCenter, pour chaque AZ de données, un groupe d'hôtes, un groupe de VM vide et une règle DRS « devrait s'exécuter sur ». Vous n'avez qu'à ranger vos VM dans les groupes.
+
+| Objet dans vCenter | Rôle |
+|---|---|
+| `<cluster>-<zone>` | Groupe des hôtes de l'AZ, tenu à jour par OVHcloud. |
+| `<cluster>-<zone>-vms` | Groupe de VM de l'AZ, **vide à la livraison** : c'est vous qui y mettez vos VM. |
+| `<cluster>-<zone>-should-run` | Règle DRS : les VM du groupe **devraient** tourner sur les hôtes de l'AZ. |
+
+Rangez vos VM dans ces groupes pour :
+
+- garder ensemble, dans la même AZ, les VM qui échangent beaucoup ;
+- séparer sur deux AZ les membres d'un cluster applicatif, pour qu'une panne d'AZ n'en arrête qu'un.
+
+Une VM hors groupe peut tourner dans l'une ou l'autre AZ, au choix de DRS.
+
+La règle est une règle « devrait », pas « doit » : si aucun hôte de son AZ ne fonctionne, la VM redémarre dans l'autre AZ. Elle ne décide que de l'endroit où la VM tourne : ses données suivent sa [politique de stockage](#politiques-de-stockage).
+
+:::warning
+Ne modifiez pas les groupes d'hôtes ni les règles : OVHcloud les maintient à jour quand des hôtes sont ajoutés ou remplacés. Rangez vos VM dans les groupes de VM et laissez le reste en place.
+:::
+
+### Capacité et croissance
+
+La capacité vSAN grandit avec les hôtes.
+
+| Point | Ce qu'il faut savoir |
+|---|---|
+| **Consommation réelle** | Une VM consomme sa taille multipliée par le nombre de copies de sa politique : une politique miroir double site en garde au moins deux, une par AZ. |
+| **Perte d'une AZ** | L'AZ restante doit avoir assez de CPU et de mémoire libres pour exécuter toutes les VM qui doivent continuer de tourner. |
+| **Marge libre** | Gardez de l'espace libre sur le datastore : vSAN en a besoin pour reconstruire les objets après une panne ou pendant une maintenance. |
+| **Ajouter de la capacité** | Ajoutez des hôtes depuis l'espace client OVHcloud : en 3-AZ, par paires, un dans chaque AZ de données, pour que les deux AZ gardent la même capacité. Leurs disques rejoignent le datastore. |
+
+## Aller plus loin
+
+[Private VCF as-a-Service - Concepts du Stretched Cluster 3-AZ](/guides/hosted-private-cloud/powered-by-vmware/private-vcf/3az-stretched-cluster-concepts)
+
+[Private VCF as-a-Service - Configurer le réseau de votre cluster](/guides/hosted-private-cloud/powered-by-vmware/private-vcf/network-configuration)
+
+[Page produit Private VCF as-a-Service 3-AZ](/links/hosted-private-cloud/private-vcf-aas-3-az)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
