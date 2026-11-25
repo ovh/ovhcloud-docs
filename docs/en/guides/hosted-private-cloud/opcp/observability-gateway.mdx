@@ -1,0 +1,316 @@
+---
+title: Sending and reading data with the Observability gateway
+description: Find out how to send logs, metrics and traces to the Observability service and read them back through the gateway of your Organization, with curl, Grafana Alloy and the OpenTelemetry SDK
+lastUpdated: 2026-11-25
+---
+
+[[fragment:cloudstore-alpha|en]]
+
+## Objective
+
+**This guide shows Organization users how to send logs, metrics and traces to the Observability service, and read them back, through the gateway of their Organization.**
+
+It starts with how the gateway works, then gives three end-to-end examples: curl, Grafana Alloy on a server, and an application with the OpenTelemetry SDK.
+
+## Requirements
+
+- The Observability service enabled for your Organization, as described in the guide [Using the Observability service](/guides/hosted-private-cloud/opcp/observability-cloud-console).
+- The address of the gateway: the `gateway_url` link in the <code className="action">Overview</code> tab of the service in the OPCP Cloud Console.
+- Three values from your IT Admin: a **client ID**, a **client secret** and the **token URL** of your Organization's realm, see [Giving an Organization push credentials](/guides/hosted-private-cloud/opcp/observability-admin-console#giving-an-organization-push-credentials).
+- A Linux machine with `curl` and `jq` for the examples.
+
+## Instructions
+
+### Which example do you need?
+
+| You want to… | Go to |
+|--------------|-------|
+| Try the gateway in five minutes, or read your data from a script | [Example 1: curl](#example-1-write-and-read-with-curl) |
+| Send the logs and metrics of a Linux server | [Example 2: Grafana Alloy on a server](#example-2-grafana-alloy-on-a-server) |
+| Send the traces, metrics and logs of your application | [Example 3: an application with the OpenTelemetry SDK](#example-3-an-application-with-the-opentelemetry-sdk) |
+
+### How the gateway works
+
+```text
+server, application, script ──HTTPS + token──▶ gateway ──▶ Loki (logs) · Mimir (metrics) · Tempo (traces)
+                                  ▲
+                    token from your Organization's realm
+```
+
+- The gateway is **one HTTPS address** for all the data of your Organization. Your Grafana uses it too.
+- Each request carries a **token** from your Organization's Keycloak realm, in an `Authorization: Bearer` header. Without a valid token, the gateway answers `401`.
+- The gateway stores and reads the data in the **space of your Organization**. You never set a tenant yourself.
+- It speaks the **standard APIs** of Loki, Mimir (Prometheus) and Tempo, and OTLP (OpenTelemetry). Most tools that support them work as they are.
+
+:::warning
+In the Alpha, a token gives full access to the data of your Organization: write, read, alert rules and deletion. Keep the client secret like a password.
+
+:::
+
+### Gateway API
+
+Add the path to the `gateway_url`.
+
+**Write:**
+
+| Data | Path | Protocol |
+|------|------|----------|
+| Logs | `/loki/api/v1/push` | Loki push, JSON or protobuf |
+| Metrics | `/api/v1/push` | Prometheus remote write |
+| Logs, metrics, traces | `/otlp/v1/logs`, `/otlp/v1/metrics`, `/otlp/v1/traces` (OTLP base endpoint: `/otlp`) | OTLP over HTTP with protobuf. Traces also accept JSON. |
+
+**Read:**
+
+| Data | Main paths | Query language |
+|------|------------|----------------|
+| Logs | `/loki/api/v1/query_range`, `/loki/api/v1/query`, `/loki/api/v1/labels` | LogQL, [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/) |
+| Metrics | `/prometheus/api/v1/query_range`, `/prometheus/api/v1/query`, `/prometheus/api/v1/labels` | PromQL, [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) |
+| Traces | `/api/traces/<trace-id>`, `/api/search` | TraceQL, [Tempo HTTP API](https://grafana.com/docs/tempo/latest/api_docs/) |
+
+**Not supported:** OTLP over gRPC, and OTLP JSON for logs and metrics.
+
+**Limits:** logs and metrics above a rate limit are refused with an HTTP `429` error, and agents send them again later. A request may be up to 16 MiB. The limits of your Organization are listed in [Data retention and limits](/guides/hosted-private-cloud/opcp/observability-cloud-console#data-retention-and-limits).
+
+### Getting a token
+
+```bash
+export GATEWAY=<gateway_url>
+export TOKEN_URL=<token-url> CLIENT_ID=<client-id> CLIENT_SECRET=<client-secret>
+
+token() { curl -s -d grant_type=client_credentials -d client_id="$CLIENT_ID" -d client_secret="$CLIENT_SECRET" "$TOKEN_URL" | jq -r .access_token; }
+TOKEN=$(token)
+```
+
+A token expires after a few minutes. When the gateway answers `401`, run `TOKEN=$(token)` again. Alloy and the OpenTelemetry Collector renew the token by themselves.
+
+### Example 1: write and read with curl
+
+Run the commands of [Getting a token](#getting-a-token) first.
+
+#### Logs
+
+1. Write a log line. The answer `204` means it was accepted:
+
+    ```bash
+    curl -s -o /dev/null -w '%{http_code}\n' -X POST "$GATEWAY/loki/api/v1/push" \
+      -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+      -d '{"streams":[{"stream":{"job":"curl-test"},"values":[["'$(date +%s%N)'","hello from curl"]]}]}'
+    ```
+
+2. Read it back:
+
+    ```bash
+    curl -s -G "$GATEWAY/loki/api/v1/query_range" -H "Authorization: Bearer $TOKEN" \
+      --data-urlencode 'query={job="curl-test"}' --data-urlencode 'since=1h' | jq '.data.result[].values'
+    ```
+
+#### Traces
+
+1. Write a span. The answer `200` means it was accepted:
+
+    ```bash
+    NOW=$(date +%s%N)
+    curl -s -o /dev/null -w '%{http_code}\n' -X POST "$GATEWAY/otlp/v1/traces" \
+      -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+      -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"curl-test"}}]},"scopeSpans":[{"spans":[{"traceId":"5b8efff798038103d269b633813fc60c","spanId":"eee19b7ec3c1b174","name":"hello","kind":1,"startTimeUnixNano":"'$NOW'","endTimeUnixNano":"'$((NOW+1000000))'"}]}]}]}'
+    ```
+
+2. Read the trace by its ID, or search for it. A new trace can take a few seconds to show up:
+
+    ```bash
+    curl -s "$GATEWAY/api/traces/5b8efff798038103d269b633813fc60c" \
+      -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' | jq '[.. | .name? // empty]'
+
+    curl -s -G "$GATEWAY/api/search" -H "Authorization: Bearer $TOKEN" \
+      --data-urlencode 'q={resource.service.name="curl-test"}' | jq '.traces'
+    ```
+
+#### Metrics
+
+Metrics are written in binary formats (remote write, OTLP protobuf), so curl is not practical for writing them: use [Example 2](#example-2-grafana-alloy-on-a-server) or [Example 3](#example-3-an-application-with-the-opentelemetry-sdk). Reading works with curl:
+
+```bash
+# number of metric series of your Organization
+curl -s -G "$GATEWAY/prometheus/api/v1/query" -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'query=count({__name__!=""})' | jq '.data.result'
+
+# load of the servers that send their metrics with Example 2
+curl -s -G "$GATEWAY/prometheus/api/v1/query" -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'query=node_load1' | jq '.data.result'
+```
+
+### Example 2: Grafana Alloy on a server
+
+This example installs Grafana Alloy on a Debian server. Alloy:
+
+- sends the **systemd journal** to Loki;
+- sends the **system metrics** (CPU, memory, disk, network) to Mimir;
+- accepts **OTLP** from the applications of the server on `127.0.0.1:4318` and forwards it, see [Example 3](#example-3-an-application-with-the-opentelemetry-sdk).
+
+Alloy gets and renews the token, and keeps the data and sends it again when the gateway refuses it for a while.
+
+1. Install Alloy:
+
+    ```bash
+    sudo mkdir -p /etc/apt/keyrings
+    wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null
+    echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
+    sudo apt-get update && sudo apt-get install -y alloy
+    sudo usermod -aG systemd-journal alloy
+    ```
+
+    On a server without Internet access, copy the Alloy `.deb` package to the server and install it with `sudo apt-get install ./alloy_<version>_amd64.deb`.
+
+2. Store the client secret in `/etc/default/alloy`, by adding the line:
+
+    ```text
+    GATEWAY_CLIENT_SECRET=<client-secret>
+    ```
+
+3. Replace the content of `/etc/alloy/config.alloy` with the following, after filling in `<gateway_url>`, `<client-id>` and `<token-url>`:
+
+    ```text
+    // system logs → Loki
+    loki.source.journal "system" {
+      forward_to = [loki.write.gateway.receiver]
+      labels     = { job = "systemd-journal", host = constants.hostname }
+    }
+
+    loki.write "gateway" {
+      endpoint {
+        url = "<gateway_url>/loki/api/v1/push"
+        oauth2 {
+          client_id     = "<client-id>"
+          client_secret = sys.env("GATEWAY_CLIENT_SECRET")
+          token_url     = "<token-url>"
+        }
+      }
+    }
+
+    // system metrics → Mimir
+    prometheus.exporter.unix "system" { }
+
+    prometheus.scrape "system" {
+      targets    = prometheus.exporter.unix.system.targets
+      forward_to = [prometheus.remote_write.gateway.receiver]
+    }
+
+    prometheus.remote_write "gateway" {
+      endpoint {
+        url = "<gateway_url>/api/v1/push"
+        oauth2 {
+          client_id     = "<client-id>"
+          client_secret = sys.env("GATEWAY_CLIENT_SECRET")
+          token_url     = "<token-url>"
+        }
+      }
+    }
+
+    // OTLP from local applications → gateway
+    otelcol.receiver.otlp "local" {
+      http { endpoint = "127.0.0.1:4318" }
+      output {
+        logs    = [otelcol.exporter.otlphttp.gateway.input]
+        metrics = [otelcol.exporter.otlphttp.gateway.input]
+        traces  = [otelcol.exporter.otlphttp.gateway.input]
+      }
+    }
+
+    otelcol.auth.oauth2 "gateway" {
+      client_id     = "<client-id>"
+      client_secret = sys.env("GATEWAY_CLIENT_SECRET")
+      token_url     = "<token-url>"
+    }
+
+    otelcol.exporter.otlphttp "gateway" {
+      client {
+        endpoint = "<gateway_url>/otlp"
+        auth     = otelcol.auth.oauth2.gateway.handler
+      }
+    }
+    ```
+
+4. Restart Alloy and check that it runs without errors:
+
+    ```bash
+    sudo systemctl restart alloy
+    sudo journalctl -u alloy -f
+    ```
+
+5. Check the data, in Grafana <code className="action">Explore</code> or with curl as in [Example 1](#example-1-write-and-read-with-curl):
+    - **Loki**: `{job="systemd-journal"}` shows the system logs;
+    - **Mimir**: `node_load1` shows the load of the server.
+
+If curl or Alloy reports a certificate error, add the CA certificate of your platform to the server: copy it to `/usr/local/share/ca-certificates/` with the extension `.crt`, then run `sudo update-ca-certificates`. Your IT Admin can give you the certificate.
+
+### Example 3: an application with the OpenTelemetry SDK
+
+The application sends its traces, metrics and logs with the OpenTelemetry SDK to the local Alloy of [Example 2](#example-2-grafana-alloy-on-a-server), which forwards them to the gateway:
+
+```text
+application (OpenTelemetry SDK) ──OTLP──▶ Alloy on 127.0.0.1:4318 ──HTTPS + token──▶ gateway
+```
+
+The application needs no credentials: Alloy adds and renews the token.
+
+This example instruments a small Python web application without changing its code.
+
+1. Install the application and the OpenTelemetry packages:
+
+    ```bash
+    python3 -m venv ~/otel-demo && . ~/otel-demo/bin/activate
+    pip install flask opentelemetry-distro opentelemetry-exporter-otlp
+    opentelemetry-bootstrap -a install
+    ```
+
+2. Create `app.py`:
+
+    ```python
+    import logging
+    from flask import Flask
+
+    app = Flask(__name__)
+
+    @app.route("/")
+    def hello():
+        logging.getLogger("demo").warning("hello from my app")
+        return "hello\n"
+    ```
+
+3. Point the SDK at Alloy and start the application:
+
+    ```bash
+    export OTEL_SERVICE_NAME=my-app
+    export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+    export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    export OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+    opentelemetry-instrument flask --app app run --port 8000
+    ```
+
+4. In another terminal, call the application a few times:
+
+    ```bash
+    for i in $(seq 10); do curl -s localhost:8000/; done
+    ```
+
+5. Check the data in Grafana <code className="action">Explore</code>:
+    - **Tempo**: `{resource.service.name="my-app"}` shows the requests as traces;
+    - **Loki**: `{service_name="my-app"}` shows the log lines;
+    - **Mimir**: open the **Metrics browser** and search for `http_server` to see the request metrics.
+
+The same `OTEL_*` variables work with the OpenTelemetry SDKs and agents of the other languages, for example Java, Go, Node.js and .NET.
+
+:::info
+For a quick test without Alloy, the SDK can send directly to the gateway with `OTEL_EXPORTER_OTLP_ENDPOINT=<gateway_url>/otlp` and `OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <token>"`. The SDK does not renew the token, so this stops working after a few minutes.
+
+:::
+
+## Go further
+
+[Using the Observability service](/guides/hosted-private-cloud/opcp/observability-cloud-console)
+
+[Deploying the Observability service](/guides/hosted-private-cloud/opcp/observability-admin-console)
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).

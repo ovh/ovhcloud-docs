@@ -640,6 +640,7 @@
             + [Observability](hosted-private-cloud-hosted-private-cloud-opcp-cloud-store-observability)
                 + [Deploying the Observability service](hosted-private-cloud/opcp/observability-admin-console)
                 + [Using the Observability service](hosted-private-cloud/opcp/observability-cloud-console)
+                + [Sending and reading data with the Observability gateway](hosted-private-cloud/opcp/observability-gateway)
         + [Additional resources](hosted-private-cloud-hosted-private-cloud-opcp-additional-resources)
             + [OPCP Core compatibility matrix](hosted-private-cloud/opcp/opcp-compatibility-matrix)
             + [Object Storage features and specifications on OPCP](hosted-private-cloud/opcp/s3-opcp-limitations)
