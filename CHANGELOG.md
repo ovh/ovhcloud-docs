@@ -7,6 +7,9 @@
 #### EU
 - **nutanix:** update Nutanix guides for the OVHcloud Console (#1312)
 
+#### All regions
+- **landing:** list a landing page's guides from the sidebar
+
 ### Documentation
 - EU: 120 guides across de, en, es, fr, it, pl, pt
 
