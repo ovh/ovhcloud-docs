@@ -1194,7 +1194,7 @@
                 + [Orchestration product reversibility policy](account-and-service-management/reversibility/reversibility-orchestration)
                 + [Recommended external resources for Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/recommended-external-resources)
                 + [Available and planned features](public-cloud/containers-orchestration/managed-kubernetes/available-upcoming-features)
-                + [Kubernetes Plugins (CNI, CRI, CSI...) & softwares versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
+                + [Kubernetes Plugins (CNI, CRI, CSI...) & software versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
         + [Managed Private Registry (MPR)](products/public-cloud-containers-orchestration-managed-private-registry)
             + [Overview](public-cloud/containers-orchestration/managed-private-registry/overview)
             + [Getting started](public-cloud-containers-orchestration-managed-private-registry-getting-started)
