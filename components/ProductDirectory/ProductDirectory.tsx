@@ -20,7 +20,12 @@ export function ProductDirectory() {
   const items = (sidebarData ?? []) as unknown as SidebarChild[];
   const group = findLandingGroup(items, page.routePath);
   if (!group) return null;
-  return <CategoryColumns categories={buildDirectory(group, page.routePath)} />;
+  return (
+    <CategoryColumns
+      categories={buildDirectory(group, page.routePath)}
+      layout="flow"
+    />
+  );
 }
 
 export default ProductDirectory;
