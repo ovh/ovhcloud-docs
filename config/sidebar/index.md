@@ -751,8 +751,7 @@
             + [SAP logs on OVHcloud Logs Data Platform - Analyze and work with your logs](hosted-private-cloud/sap-on-ovhcloud/cookbook-sap-logs-on-ovhcloud-logs-data-platform-analyze-and-work-with-your-logs)
             + [SAP logs on OVHcloud Logs Data Platform - Index of SAP logs](hosted-private-cloud/sap-on-ovhcloud/cookbook-sap-logs-on-ovhcloud-logs-data-platform-index-of-sap-logs)
 + Public Cloud
-    + [General Information](products/public-cloud-cross-functional)
-        + [Overview](public-cloud/cross-functional/overview)
+    + [General Information](products/public-cloud-cross-functional){landing=public-cloud/cross-functional/overview}
         + [Key concepts](public-cloud-cross-functional-key-concepts)
             + [Public Cloud Glossary](public-cloud/cross-functional/introduction-about-instances)
             + [Public Cloud API Rate Limits](public-cloud/cross-functional/api-rate-limits)
@@ -804,8 +803,7 @@
             + [Information regarding Public Cloud billing options](public-cloud/cross-functional/analyze-billing)
             + [Proper Usage and Limitations of Classic Multi-Attach Block Storage in 3AZ Regions](public-cloud/compute/storage-classic-multi-attach-3az)
             + [Understanding Landing Zones](public-cloud/cross-functional/whats-is-landing-zone)
-    + [Compute](products/public-cloud-compute)
-        + [Overview](public-cloud/compute/overview)
+    + [Compute](products/public-cloud-compute){landing=public-cloud/compute/overview}
         + [Instance](products/public-cloud-compute-instance)
             + [Key concepts](public-cloud-compute-instance-key-concepts)
                 + [Public Cloud Instances - Key concepts](public-cloud/compute/key-concepts)
@@ -892,9 +890,8 @@
                 + [Understanding OpenStack API logs](public-cloud/compute/openstack-api-logs)
             + [Additional resources](public-cloud-compute-common-additional-resources)
                 + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
-    + [Network](products/public-cloud-network)
-        + [Overview](public-cloud/network-services/overview)
-        + [Private Network](products/public-cloud-network-private-network)
+    + [Network](products/public-cloud-network){landing=public-cloud/network-services/overview}
+        + [Private Network](products/public-cloud-network-private-network){landing=public-cloud/network-services/landing-page-private-network}
             + [Getting started](public-cloud-network-private-network-getting-started)
                 + [Creating a private network with Gateway](public-cloud/network-services/create-private-network-gateway)
                 + [Configuring vRack for Public Cloud](public-cloud/network-services/vrack)
@@ -909,7 +906,7 @@
         + [Private Endpoint](products/public-cloud-network-private-endpoint)
             + [Getting started](public-cloud-network-private-endpoint-getting-started)
                 + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
-        + [Public IP](products/public-cloud-network-public-ips)
+        + [Public IP](products/public-cloud-network-public-ips){landing=public-cloud/network-services/landing-page-public-ip}
             + [Key concepts](public-cloud-network-public-ips-key-concepts)
                 + [Concepts - Public Cloud IP types](public-cloud/network-services/additional-ip-vs-floating-ip)
             + [Getting started](public-cloud-network-public-ips-getting-started)
@@ -920,18 +917,18 @@
                 + [Importing an Additional IP](public-cloud/network-services/import-additional-ip)
                 + [Migrating an Additional IP](public-cloud/network-services/migrate-additional-ip)
                 + [Configuring a public IP block in a vRack on a Public Cloud instance](public-cloud/network-services/configure-ip-block-vrack-instance)
-        + [Gateway](products/public-cloud-network-gateway)
+        + [Gateway](products/public-cloud-network-gateway){landing=public-cloud/network-services/landing-page-gateway}
             + [Getting started](public-cloud-network-gateway-getting-started)
                 + [Getting started with OVHcloud Public Cloud Gateway](public-cloud/network-services/getting-started-gateway)
             + [Configuration](public-cloud-network-gateway-configuration)
                 + [L3 services SNAT configuration](public-cloud/network-services/l3-services-snat-configuration)
                 + [Configuring IPv6 on a Public Cloud instance](public-cloud/network-services/ipv6-configuration)
-        + [Site-to-Site VPN](products/public-cloud-network-site-to-site-vpn)
+        + [Site-to-Site VPN](products/public-cloud-network-site-to-site-vpn){landing=public-cloud/network-services/landing-page-site-to-site-vpn}
             + [Getting started](public-cloud-network-site-to-site-vpn-getting-started)
                 + [Site-to-Site VPN - Get started in the Console](public-cloud/network-services/site-to-site-vpn-getting-started)
             + [Configuration](public-cloud-network-site-to-site-vpn-configuration)
                 + [Site-to-Site VPN - Connect to AWS](public-cloud/network-services/site-to-site-vpn-connect-aws)
-        + [Load Balancer](products/public-cloud-network-load-balancer)
+        + [Load Balancer](products/public-cloud-network-load-balancer){landing=public-cloud/network-services/landing-page-load-balancer}
             + [Key concepts](public-cloud-network-load-balancer-key-concepts)
                 + [Concepts - Load Balancer](public-cloud/network-services/load-balancer-concepts)
             + [Getting started](public-cloud-network-load-balancer-getting-started)
@@ -1078,8 +1075,7 @@
                 + [File Storage Service - Getting started](storage-and-backup/file-storage/file-storage-service/getting-started)
                 + [File Storage Service - Managing Share Snapshots](storage-and-backup/file-storage/file-storage-service/create-snapshot)
     + [Container](products/public-cloud-containers-orchestration)
-        + [Managed Kubernetes Service (MKS)](products/public-cloud-containers-orchestration-managed-kubernetes-k8s)
-            + [Overview](public-cloud/containers-orchestration/managed-kubernetes/overview)
+        + [Managed Kubernetes Service (MKS)](products/public-cloud-containers-orchestration-managed-kubernetes-k8s){landing=public-cloud/containers-orchestration/managed-kubernetes/overview}
             + [Key concepts](public-cloud-containers-orchestration-managed-kubernetes-k8s-key-concepts)
                 + [Understanding OVHcloud Managed Kubernetes architecture](public-cloud/containers-orchestration/managed-kubernetes/understanding-mks-architecture)
                 + [Known limits](public-cloud/containers-orchestration/managed-kubernetes/known-limits)
@@ -1194,8 +1190,7 @@
                 + [Recommended external resources for Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/recommended-external-resources)
                 + [Available and planned features](public-cloud/containers-orchestration/managed-kubernetes/available-upcoming-features)
                 + [Kubernetes Plugins (CNI, CRI, CSI...) & software versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
-        + [Managed Private Registry (MPR)](products/public-cloud-containers-orchestration-managed-private-registry)
-            + [Overview](public-cloud/containers-orchestration/managed-private-registry/overview)
+        + [Managed Private Registry (MPR)](products/public-cloud-containers-orchestration-managed-private-registry){landing=public-cloud/containers-orchestration/managed-private-registry/overview}
             + [Getting started](public-cloud-containers-orchestration-managed-private-registry-getting-started)
                 + [Creating a private registry](public-cloud/containers-orchestration/managed-private-registry/creation)
                 + [Creating and using a Docker image stored in an OVHcloud Managed Private Registry](public-cloud/containers-orchestration/managed-private-registry/create-private-image)
@@ -1219,8 +1214,7 @@
             + [Additional resources](public-cloud-containers-orchestration-managed-private-registry-additional-resources)
                 + [Managed Private Registry - Responsibility model](public-cloud/containers-orchestration/managed-private-registry/responsibility-model)
                 + [Managed OCI artifact Registry Product Reversibility Policy](account-and-service-management/reversibility/reversibility-oci-registry)
-        + [Managed Rancher Service (MRS)](products/public-cloud-containers-orchestration-managed-rancher-service)
-            + [Overview](public-cloud/containers-orchestration/managed-rancher-service/overview)
+        + [Managed Rancher Service (MRS)](products/public-cloud-containers-orchestration-managed-rancher-service){landing=public-cloud/containers-orchestration/managed-rancher-service/overview}
             + [Getting started](public-cloud-containers-orchestration-managed-rancher-service-getting-started)
                 + [Getting started with Managed Rancher Service](public-cloud/containers-orchestration/managed-rancher-service/getting-started)
                 + [Creating, Updating and Accessing a Managed Rancher Service](public-cloud/containers-orchestration/managed-rancher-service/creation)
@@ -1240,10 +1234,8 @@
             + [Additional resources](public-cloud-containers-orchestration-managed-rancher-service-additional-resources)
                 + [Managed Rancher Service supported versions and lifecycle policy](public-cloud/containers-orchestration/managed-rancher-service/lifecycle-policy)
                 + [Orchestration product reversibility policy](account-and-service-management/reversibility/reversibility-orchestration)
-    + [Databases](products/public-cloud-databases)
-        + [Overview](public-cloud/databases/overview)
-        + [PostgreSQL](products/public-cloud-databases-postgresql)
-            + [Overview](public-cloud/databases/postgresql/overview)
+    + [Databases](products/public-cloud-databases){landing=public-cloud/databases/overview}
+        + [PostgreSQL](products/public-cloud-databases-postgresql){landing=public-cloud/databases/postgresql/overview}
             + [Key concepts](public-cloud-databases-postgresql-key-concepts)
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud Databases](public-cloud/databases/faq)
@@ -1293,8 +1285,7 @@
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)
             + [Additional resources](public-cloud-databases-postgresql-additional-resources)
                 + [Available extensions for Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-extensions)
-        + [MongoDB](products/public-cloud-databases-mongodb)
-            + [Overview](public-cloud/databases/mongodb/overview)
+        + [MongoDB](products/public-cloud-databases-mongodb){landing=public-cloud/databases/mongodb/overview}
             + [Key concepts](public-cloud-databases-mongodb-key-concepts)
                 + [Why choose MongoDB?](public-cloud/databases/mongodb-why-mongodb)
                 + [Cluster sizing for Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-cluster-sizing)
@@ -1352,8 +1343,7 @@
                 + [Setup a Kafka integration for Public Cloud for MongoDB](public-cloud/databases/mongodb-kafka-connector)
                 + [Understand readPreference and writeConcern of Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-read-preference-and-write-concern)
                 + [Benchmark Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-benchmark)
-        + [MySQL](products/public-cloud-databases-mysql)
-            + [Overview](public-cloud/databases/mysql/overview)
+        + [MySQL](products/public-cloud-databases-mysql){landing=public-cloud/databases/mysql/overview}
             + [Key concepts](public-cloud-databases-mysql-key-concepts)
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud databases](public-cloud/databases/faq)
@@ -1394,8 +1384,7 @@
             + [Troubleshooting](public-cloud-databases-mysql-troubleshooting)
                 + [Troubleshoot your Public Cloud Databases](public-cloud/databases/troubleshooting)
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)
-        + [Valkey](products/public-cloud-databases-valkey)
-            + [Overview](public-cloud/databases/valkey/overview)
+        + [Valkey](products/public-cloud-databases-valkey){landing=public-cloud/databases/valkey/overview}
             + [Key concepts](public-cloud-databases-valkey-key-concepts)
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud databases](public-cloud/databases/faq)
@@ -1474,8 +1463,7 @@
                 + [Troubleshoot your Public Cloud Databases](public-cloud/databases/troubleshooting)
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)
     + [Analytics](products/public-cloud-data-analytics)
-        + [Kafka](products/public-cloud-data-analytics-kafka)
-            + [Overview](public-cloud/data-analytics/kafka/overview)
+        + [Kafka](products/public-cloud-data-analytics-kafka){landing=public-cloud/data-analytics/kafka/overview}
             + [Key concepts](public-cloud-data-analytics-kafka-key-concepts)
                 + [Lifecycle policy for Analytics](public-cloud/data-analytics/analytics/lifecycle-policy)
                 + [Capabilities and Limitations of Analytics](public-cloud/data-analytics/analytics/capabilities)
@@ -1519,8 +1507,7 @@
             + [Troubleshooting](public-cloud-data-analytics-kafka-troubleshooting)
                 + [Troubleshoot your Analytics](public-cloud/data-analytics/analytics/troubleshooting)
                 + [Handle 'Disk Full' situations for Analytics](public-cloud/data-analytics/analytics/handling-disk-full)
-        + [ClickHouse](products/public-cloud-data-analytics-clickhouse)
-            + [Overview](public-cloud/data-analytics/clickhouse/overview)
+        + [ClickHouse](products/public-cloud-data-analytics-clickhouse){landing=public-cloud/data-analytics/clickhouse/overview}
             + [Key concepts](public-cloud-data-analytics-clickhouse-key-concepts)
                 + [Capabilities and Limitations of Public Cloud Analytics with ClickHouse](public-cloud/data-analytics/analytics/clickhouse-capabilities-limitations)
             + [Getting started](public-cloud-data-analytics-clickhouse-getting-started)
@@ -1536,8 +1523,7 @@
                 + [ClickHouse - Query files stored in OVHcloud Object Storage](public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
                 + [ClickHouse - Query PostgreSQL and MySQL databases](public-cloud/data-analytics/analytics/clickhouse-query-postgresql-mysql)
                 + [ClickHouse - Query Iceberg and Delta Lake tables and ingest files continuously](public-cloud/data-analytics/analytics/clickhouse-iceberg-delta-s3queue)
-        + [Lakehouse](products/public-cloud-data-analytics-lakehouse)
-            + [Overview](public-cloud/data-analytics/lakehouse/overview)
+        + [Lakehouse](products/public-cloud-data-analytics-lakehouse){landing=public-cloud/data-analytics/lakehouse/overview}
             + [Key concepts](public-cloud-data-analytics-lakehouse-key-concepts)
                 + [Lakehouse - Key concepts](public-cloud/data-analytics/lakehouse/lakehouse-concepts)
             + [Getting started](public-cloud-data-analytics-lakehouse-getting-started)
@@ -1548,7 +1534,7 @@
                 + [Lakehouse - Restricting network access](public-cloud/data-analytics/lakehouse/lakehouse-network-access)
             + [Tutorials](public-cloud-data-analytics-lakehouse-tutorials)
                 + [Lakehouse - Connecting your own tools](public-cloud/data-analytics/lakehouse/lakehouse-connect-tools)
-        + [OpenSearch](products/public-cloud-data-analytics-opensearch)
+        + [OpenSearch](products/public-cloud-data-analytics-opensearch){landing=public-cloud/data-analytics/analytics/landing-page-opensearch}
             + [Key concepts](public-cloud-data-analytics-opensearch-key-concepts)
                 + [Lifecycle policy for Analytics](public-cloud/data-analytics/analytics/lifecycle-policy)
                 + [Capabilities and Limitations of Analytics](public-cloud/data-analytics/analytics/capabilities)
@@ -1580,8 +1566,7 @@
             + [Troubleshooting](public-cloud-data-analytics-opensearch-troubleshooting)
                 + [Troubleshoot your Analytics](public-cloud/data-analytics/analytics/troubleshooting)
                 + [Handle 'Disk Full' situations for Analytics](public-cloud/data-analytics/analytics/handling-disk-full)
-        + [Managed Dashboards](products/public-cloud-data-analytics-grafana)
-            + [Overview](public-cloud/data-analytics/grafana/overview)
+        + [Managed Dashboards](products/public-cloud-data-analytics-grafana){landing=public-cloud/data-analytics/grafana/overview}
             + [Guides](public-cloud-data-analytics-grafana-guides)
                 + [Dashboards - Capabilities and Limitations](public-cloud/databases/grafana-capabilities)
                 + [Dashboards - Configure your Dashboards instance to accept incoming connections](public-cloud/databases/grafana-prepare-for-incoming-connections)
@@ -1621,8 +1606,7 @@
             + [Troubleshooting](public-cloud-data-analytics-common-troubleshooting)
                 + [Troubleshoot your Analytics](public-cloud/data-analytics/analytics/troubleshooting)
                 + [Handle 'Disk Full' situations for Analytics](public-cloud/data-analytics/analytics/handling-disk-full)
-    + [AI](products/public-cloud-ai-and-machine-learning)
-        + [Overview](public-cloud/ai-machine-learning/overview)
+    + [AI](products/public-cloud-ai-and-machine-learning){landing=public-cloud/ai-machine-learning/overview}
         + [General information](public-cloud-ai-and-machine-learning-general-information)
             + [Comparative tables - AI Notebooks, AI Training, AI Deploy](public-cloud/ai-machine-learning/ai-comparative-tables)
             + [AI Tools - Lifecycle policy](public-cloud/ai-machine-learning/ai-tools-lifecycle-policy)
@@ -1646,8 +1630,7 @@
             + [CLI - Commands reference for data](public-cloud/ai-machine-learning/ai-cli-data)
             + [CLI - Use your data in a notebook](public-cloud/ai-machine-learning/ai-cli-access-data)
             + [CLI - Launch an AI Deploy app](public-cloud/ai-machine-learning/ai-cli-deploy-app)
-        + [AI Notebooks](products/public-cloud-ai-and-machine-learning-ai-notebooks)
-            + [Overview](public-cloud/ai-machine-learning/ai-notebooks/overview)
+        + [AI Notebooks](products/public-cloud-ai-and-machine-learning-ai-notebooks){landing=public-cloud/ai-machine-learning/ai-notebooks/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-notebooks-key-concepts)
                 + [AI Notebooks - Notebook concept](public-cloud/ai-machine-learning/ai-notebooks-concept)
                 + [AI Notebooks - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-notebooks-capabilities)
@@ -1685,8 +1668,7 @@
                 + [AI Notebooks - Troubleshooting](public-cloud/ai-machine-learning/ai-notebooks-debug)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-notebooks-additional-resources)
                 + [AI Notebooks - Billing and lifecycle](public-cloud/ai-machine-learning/ai-notebooks-billing)
-        + [AI Training](products/public-cloud-ai-and-machine-learning-ai-training)
-            + [Overview](public-cloud/ai-machine-learning/ai-training/overview)
+        + [AI Training](products/public-cloud-ai-and-machine-learning-ai-training){landing=public-cloud/ai-machine-learning/ai-training/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-training-key-concepts)
                 + [AI Training - Job concept](public-cloud/ai-machine-learning/ai-training-jobs)
                 + [AI Training - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-training-capabilities)
@@ -1717,8 +1699,7 @@
                 + [AI Training - Troubleshooting](public-cloud/ai-machine-learning/ai-training-debug-jobs)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-training-additional-resources)
                 + [AI Training - Billing and lifecycle](public-cloud/ai-machine-learning/ai-training-billing-lifecycle)
-        + [AI Deploy](products/public-cloud-ai-and-machine-learning-ai-deploy)
-            + [Overview](public-cloud/ai-machine-learning/ai-deploy/overview)
+        + [AI Deploy](products/public-cloud-ai-and-machine-learning-ai-deploy){landing=public-cloud/ai-machine-learning/ai-deploy/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-deploy-key-concepts)
                 + [AI Deploy - App concept](public-cloud/ai-machine-learning/ai-deploy-apps)
                 + [AI Deploy - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-deploy-capabilities)
@@ -1758,8 +1739,7 @@
                 + [AI Deploy - Troubleshooting](public-cloud/ai-machine-learning/ai-deploy-debug-apps)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-deploy-additional-resources)
                 + [AI Deploy - Billing and lifecycle](public-cloud/ai-machine-learning/ai-deploy-billing)
-        + [AI Endpoints](products/public-cloud-ai-and-machine-learning-ai-endpoints)
-            + [Overview](public-cloud/ai-machine-learning/ai-endpoints/overview)
+        + [AI Endpoints](products/public-cloud-ai-and-machine-learning-ai-endpoints){landing=public-cloud/ai-machine-learning/ai-endpoints/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-endpoints-key-concepts)
                 + [AI Endpoints - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-endpoints-capabilities)
                 + [AI Endpoints - Structured Output](public-cloud/ai-machine-learning/ai-endpoints-structured-output)
@@ -1799,7 +1779,7 @@
                 + [AI Endpoints - Troubleshooting](public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-endpoints-additional-resources)
                 + [AI Endpoints - Billing and lifecycle](public-cloud/ai-machine-learning/ai-endpoints-billing)
-    + [Quantum](products/public-cloud-quantum-computing)
+    + [Quantum](products/public-cloud-quantum-computing){landing=public-cloud/quantum-computing/landing-page-quantum-computing}
         + [General information](products/public-cloud-quantum-computing-general-information)
             + [Capabilities](public-cloud/quantum-computing/capabilities)
             + [Billing concepts](public-cloud/quantum-computing/billing)
