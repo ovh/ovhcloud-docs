@@ -2,8 +2,13 @@
 
 ## 2026.11.26
 
+### Maintenance
+
+#### All regions
+- **domains:** compress the FOA validation page screenshots
+
 ### Documentation
-- EU: 432 guides across de, en, es, fr, it, pl, pt
+- EU: 439 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.25
 
