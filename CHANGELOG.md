@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.11.26
+
+### Documentation
+- EU: 83 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.25
 
 ### Features
@@ -7,8 +12,11 @@
 #### EU
 - **nutanix:** update Nutanix guides for the OVHcloud Console (#1312)
 
+#### All regions
+- **landing:** list a landing page's guides from the sidebar
+
 ### Documentation
-- EU: 52 guides across de, en, es, fr, it, pl, pt
+- EU: 197 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.24
 

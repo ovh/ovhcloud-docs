@@ -131,8 +131,7 @@
         + [Responsibility sharing - Domain Name service](web-cloud/domains/domains-responsibility-sharing)
         + [Responsibility sharing for the Web Hosting service](web-cloud/web-hosting/web-hosting-responsibility-sharing)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
-    + [Startup Program](products/startup-program)
-        + [Overview](account-and-service-management/startup-program/overview)
+    + [Startup Program](products/startup-program){landing=account-and-service-management/startup-program/landing-page-startup-program}
         + [General information](startup-program-general-information)
             + [Startup Program - How to apply to our newsletter?](account-and-service-management/startup-program/apply-to-newsletter)
             + [How to optimise your application to the Startup Program](account-and-service-management/startup-program/optimise-application)
@@ -1195,7 +1194,7 @@
                 + [Orchestration product reversibility policy](account-and-service-management/reversibility/reversibility-orchestration)
                 + [Recommended external resources for Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/recommended-external-resources)
                 + [Available and planned features](public-cloud/containers-orchestration/managed-kubernetes/available-upcoming-features)
-                + [Kubernetes Plugins (CNI, CRI, CSI...) & softwares versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
+                + [Kubernetes Plugins (CNI, CRI, CSI...) & software versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
         + [Managed Private Registry (MPR)](products/public-cloud-containers-orchestration-managed-private-registry)
             + [Overview](public-cloud/containers-orchestration/managed-private-registry/overview)
             + [Getting started](public-cloud-containers-orchestration-managed-private-registry-getting-started)
@@ -2066,10 +2065,8 @@
                 + [Delete a Project](public-cloud/data-platform/manage-projects-delete)
         + [Release notes](public-cloud/data-platform/release-notes)
 + Web Cloud
-    + [Domains](products/web-cloud-domains)
-        + [Overview](web-cloud/domains/overview)
-        + [API](products/web-cloud-domains-api)
-            + [Overview](web-cloud/domains/api/overview)
+    + [Domains](products/web-cloud-domains){landing=web-cloud/domains/overview}
+        + [API](products/web-cloud-domains-api){landing=web-cloud/domains/api/overview}
             + [Key concepts](web-cloud-domains-api-key-concepts)
                 + [Introduction](web-cloud/domains/api-domain-intro)
             + [Getting started](web-cloud-domains-api-getting-started)
@@ -2292,7 +2289,7 @@
             + [Reversibility Policy for the Managed Web Hosting product](account-and-service-management/reversibility/web-hosting-reversibility-policy)
             + [SQL Database EOS and EOL announcements](web-cloud/web-hosting/sql-eos-eol)
             + [MySQL migration to Percona Server for MySQL](web-cloud/web-hosting/percona-server-mysql-migration-info)
-    + [Managed Hosting for WordPress](web-cloud-managed-hosting-for-wordpress)
+    + [Managed Hosting for WordPress](web-cloud-managed-hosting-for-wordpress){landing=web-cloud/managed-hosting/landing-page-managed-hosting-wordpress}
         + [Getting started](web-cloud-managed-hosting-for-wordpress-getting-started)
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
@@ -2608,8 +2605,7 @@
                 + [Dépannage SPA504G](web-cloud/phone-and-fax/voip/depannage-spa504g)
                 + [Branchements IP5000](web-cloud/phone-and-fax/voip/branchements-ip5000)
                 + [Dépannage IP5000](web-cloud/phone-and-fax/voip/depannage-ip5000)
-        + [Fax](products/web-cloud-phone-and-fax-fax)
-            + [Overview](web-cloud/phone-and-fax/fax/overview)
+        + [Fax](products/web-cloud-phone-and-fax-fax){landing=web-cloud/phone-and-fax/fax/overview}
             + [Getting started](web-cloud-phone-and-fax-fax-getting-started)
                 + [FAQ sur la solution Fax OVHcloud](web-cloud/phone-and-fax/fax/faq)
                 + [Configuration de votre ligne Fax](web-cloud/phone-and-fax/fax/configuration-fax-espace-client)
@@ -2908,7 +2904,7 @@
 + Network
     + [BGP Service](network-bgp)
         + [BGP Service configuration](network/bgp-service/bgp-service-config)
-    + [CDN](network-content-delivery-network-cdninfrastructure)
+    + [CDN](network-content-delivery-network-cdninfrastructure){landing=network/cdn/landing-page-cdn}
         + [Configuring a domain name for the first time](network/cdn/cdn-infrastructure-first-domain-configuration)
         + [Understanding quota on the CDN](network/cdn/quota)
         + [Adding an SSL certificate on the CDN](network/cdn/cdn-infrastructure-ssl-certificate)
@@ -2952,8 +2948,7 @@
         + [Key concepts](network-global-load-balancer-key-concepts)
             + [Global Load Balancer routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies){label=Routing policies and health checks}
     + [IP Addresses](products/network-ip-addresses)
-        + [Additional IP](network-additional-ip)
-            + [Overview](network/ip-addresses/additional-ip/overview)
+        + [Additional IP](network-additional-ip){landing=network/ip-addresses/additional-ip/overview}
             + [Key concepts](network-additional-ip-key-concepts)
                 + [Concepts - Primary and Additional IP](network/ip-addresses/additional-ip/primary-additional-ip-concepts)
             + [Configuration](network-additional-ip-configuration)
@@ -2970,8 +2965,8 @@
                     + [Assigning a Virtual MAC to an Additional IP](bare-metal-cloud/dedicated-servers/network-virtual-mac)
                     + [Setting up a Virtual Machine using Additional IPs and Hyper-V over a vRack](bare-metal-cloud/dedicated-servers/ipfo-vrack-hyperv)
                 + [Hosted Private Cloud](network-additional-ip-products-hosted-private-cloud)
-                    + [Adding a public IP address to a new VM](hosted-private-cloud/nutanix-on-ovhcloud/public-ip)
-                    + [Adding an IP block](hosted-private-cloud/powered-by-vmware/add-ip-block)
+                    + [Adding a public IP address to a new VM](hosted-private-cloud/nutanix-on-ovhcloud/public-ip){label=Nutanix - Adding a public IP address to a new VM}
+                    + [Adding an IP block](hosted-private-cloud/powered-by-vmware/add-ip-block){label=VMware - Adding an IP block}
                 + [Load Balancer](network-additional-ip-products-load-balancer)
                     + [Routing an Additional IP](network/load-balancer/howto-route-ipfo)
                 + [Public Cloud](network-additional-ip-products-public-cloud)
@@ -2987,8 +2982,7 @@
                 + [Cancelling an Additional IP service](network/ip-addresses/additional-ip/additional-ip-cancellation)
         + [Bring Your Own IP](network-additional-ip-byoip)
             + [How to use the Bring Your Own IP feature](network/ip-addresses/bring-your-own-ip/bring-your-own-ip)
-    + [Load Balancer](products/network-load-balancer)
-        + [Overview](network/load-balancer/overview)
+    + [Load Balancer](products/network-load-balancer){landing=network/load-balancer/overview}
         + [Key concepts](network-load-balancer-key-concepts)
             + [Introduction to the OVHcloud Load Balancer](network/load-balancer/use-presentation)
             + [Load Balancer FAQ](network/load-balancer/create-faq)
@@ -3019,13 +3013,12 @@
             + [Details of API functions](network/load-balancer/use-api-details)
         + [Troubleshooting](network-load-balancer-troubleshooting)
             + [Retrieve server health status](network/load-balancer/retrieve-servers-state)
-    + [Network Security](network-security)
+    + [Network Security](network-security){landing=network/landing-page-network-security}
         + [Enabling and configuring the Edge Network Firewall](bare-metal-cloud/dedicated-servers/firewall-network)
         + [How to protect a Game server with the application firewall](bare-metal-cloud/dedicated-servers/firewall-game-ddos)
         + [Monitor DDoS attacks with the Anti-DDoS dashboard](bare-metal-cloud/dedicated-servers/network-security-dashboard)
         + [Fine-tune Anti-DDoS protection with the new profiling feature](bare-metal-cloud/dedicated-servers/anti-ddos-vac-profiling)
-    + [OVHcloud Connect](products/network-ovhcloud-connect)
-        + [Overview](network/ovhcloud-connect/overview)
+    + [OVHcloud Connect](products/network-ovhcloud-connect){landing=network/ovhcloud-connect/overview}
         + [Key Concepts](network-ovhcloud-connect-concepts)
             + [Concepts overview](network/ovhcloud-connect/ovhcloud-connect-overview)
             + [Layer 2 mode](network/ovhcloud-connect/occ-layer2)
@@ -3043,7 +3036,7 @@
             + [Troubleshooting common errors setting up OVHcloud Connect](network/ovhcloud-connect/troubleshooting)
         + [Additional resources](network-ovhcloud-connect-technical-resources)
             + [Technical capabilities and limitations](network/ovhcloud-connect/occ-limits)
-    + [SecNumCloud](network-secnumcloud-connectivity)
+    + [SecNumCloud](network-secnumcloud-connectivity){landing=network/landing-page-secnumcloud-connectivity}
         + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
         + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
         + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
@@ -3052,8 +3045,7 @@
         + [Getting started](network-ssl-gateway-getting-started)
             + [Order an SSL Gateway](network/ssl-gateway/order)
             + [Configure and manage an SSL Gateway](network/ssl-gateway/use)
-    + [vRack](products/network-vrack)
-        + [Overview](network/vrack/overview)
+    + [vRack](products/network-vrack){landing=network/vrack/overview}
         + [Configuration](network-vrack-configuration)
             + [Configuring an Additional IP block in a vRack](bare-metal-cloud/dedicated-servers/configuring-an-ip-block-in-a-vrack)
             + [Configuring an IPv6 block in a vRack](bare-metal-cloud/dedicated-servers/configure-ipv6-in-vrack)
@@ -3089,7 +3081,7 @@
                     + [Configuring vRack for Public Cloud](public-cloud/network-services/vrack)
                     + [Configuring the vRack between the Public Cloud and a Dedicated Server](bare-metal-cloud/dedicated-servers/configuring-the-vrack-between-the-public-cloud-and-a-dedicated-server)
                     + [Configuring a public IP block in a vRack on a Public Cloud instance](public-cloud/network-services/configure-ip-block-vrack-instance)
-    + [vRack Services](products/network-vrack-services)
+    + [vRack Services](products/network-vrack-services){landing=network/vrack-services/landing-page-vrack-services}
         + [vRack Services - Exposing a Managed Service on your vRack](network/vrack-services/global)
         + [Manage Server-IP associations in vRack Services](network/vrack-services/server-ip-associations)
         + [Enterprise File Storage - Private network configuration](storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
