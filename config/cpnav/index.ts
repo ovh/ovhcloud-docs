@@ -55,6 +55,7 @@ import { networkPublicIp } from './keys/network-public-ip';
 import { networkPublicIpConsole } from './keys/network-public-ip-console';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
 import { networkSecurityDashboardConsole } from './keys/network-security-dashboard-console';
+import { networkSslGatewayConsole } from './keys/network-ssl-gateway-console';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackConsole } from './keys/network-vrack-console';
 import { networkVrackServices } from './keys/network-vrack-services';
@@ -337,6 +338,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-security-dashboard': networkSecurityDashboard,
   'network-security-dashboard-console': networkSecurityDashboardConsole,
   'network-cdn-console': networkCdnConsole,
+  'network-ssl-gateway-console': networkSslGatewayConsole,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
   'telecom-voip-fax-console': telecomVoipFaxConsole,
