@@ -3,7 +3,7 @@
 ## 2026.11.26
 
 ### Documentation
-- EU: 4 guides across en, fr
+- EU: 8 guides across en, fr
 
 ## 2026.11.25
 
