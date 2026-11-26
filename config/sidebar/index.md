@@ -2065,10 +2065,8 @@
                 + [Delete a Project](public-cloud/data-platform/manage-projects-delete)
         + [Release notes](public-cloud/data-platform/release-notes)
 + Web Cloud
-    + [Domains](products/web-cloud-domains)
-        + [Overview](web-cloud/domains/overview)
-        + [API](products/web-cloud-domains-api)
-            + [Overview](web-cloud/domains/api/overview)
+    + [Domains](products/web-cloud-domains){landing=web-cloud/domains/overview}
+        + [API](products/web-cloud-domains-api){landing=web-cloud/domains/api/overview}
             + [Key concepts](web-cloud-domains-api-key-concepts)
                 + [Introduction](web-cloud/domains/api-domain-intro)
             + [Getting started](web-cloud-domains-api-getting-started)
@@ -2291,7 +2289,7 @@
             + [Reversibility Policy for the Managed Web Hosting product](account-and-service-management/reversibility/web-hosting-reversibility-policy)
             + [SQL Database EOS and EOL announcements](web-cloud/web-hosting/sql-eos-eol)
             + [MySQL migration to Percona Server for MySQL](web-cloud/web-hosting/percona-server-mysql-migration-info)
-    + [Managed Hosting for WordPress](web-cloud-managed-hosting-for-wordpress)
+    + [Managed Hosting for WordPress](web-cloud-managed-hosting-for-wordpress){landing=web-cloud/managed-hosting/landing-page-managed-hosting-wordpress}
         + [Getting started](web-cloud-managed-hosting-for-wordpress-getting-started)
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
@@ -2607,8 +2605,7 @@
                 + [Dépannage SPA504G](web-cloud/phone-and-fax/voip/depannage-spa504g)
                 + [Branchements IP5000](web-cloud/phone-and-fax/voip/branchements-ip5000)
                 + [Dépannage IP5000](web-cloud/phone-and-fax/voip/depannage-ip5000)
-        + [Fax](products/web-cloud-phone-and-fax-fax)
-            + [Overview](web-cloud/phone-and-fax/fax/overview)
+        + [Fax](products/web-cloud-phone-and-fax-fax){landing=web-cloud/phone-and-fax/fax/overview}
             + [Getting started](web-cloud-phone-and-fax-fax-getting-started)
                 + [FAQ sur la solution Fax OVHcloud](web-cloud/phone-and-fax/fax/faq)
                 + [Configuration de votre ligne Fax](web-cloud/phone-and-fax/fax/configuration-fax-espace-client)
