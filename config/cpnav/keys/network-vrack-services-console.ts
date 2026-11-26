@@ -1,7 +1,7 @@
 import type { CpNavKey } from '../types';
 
-// BGP Service tab of vRack Services, which exists only in the Console (v8) beta: a `/beta/`
-// route and a Console heading, no `source` node (the v6 page has no such tab). Top-bar
+// BGP Service tab of vRack Services, which exists only in the Console (v8): a Console route
+// and heading, no `source` node (the v6 page has no such tab). Top-bar
 // universe and path from the product team (PR #944: « Bare Metal Cloud › vRack Services ›
 // BGP Service »); route from data/v8/route-map.yaml. Redundant once network-vrack-services
 // is repointed at the Console's GA: retire it then.
@@ -10,7 +10,7 @@ export const networkVrackServicesConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/network/vrack-services',
+      route: '/#/network/vrack-services',
       text: {
         en: { product: 'vRack Services', crumbs: ['vRack Services'] },
         fr: { product: 'vRack Services', crumbs: ['vRack Services'] },

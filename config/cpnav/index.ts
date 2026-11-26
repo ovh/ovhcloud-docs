@@ -8,22 +8,46 @@
 // a move changes the canonical spelling of every multi-key token containing the key.
 
 import { accountContacts } from './keys/account-contacts';
+import { accountContactsConsole } from './keys/account-contacts-console';
 import { accountDashboard } from './keys/account-dashboard';
+import { accountCarbonConsole } from './keys/account-carbon-console';
 import { accountMessages } from './keys/account-messages';
+import { accountMessagesConsole } from './keys/account-messages-console';
 import { accountProfile } from './keys/account-profile';
+import { accountProfileConsole } from './keys/account-profile-console';
+import { accountContractsConsole } from './keys/account-contracts-console';
 import { accountSecurity } from './keys/account-security';
+import { accountSecurityConsole } from './keys/account-security-console';
+import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
+import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
+import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
 import { baremetalVps } from './keys/baremetal-vps';
+import { baremetalVpsConsole } from './keys/baremetal-vps-console';
 import { billingInvoices } from './keys/billing-invoices';
+import { billingInvoicesConsole } from './keys/billing-invoices-console';
 import { billingOrders } from './keys/billing-orders';
+import { billingOrdersConsole } from './keys/billing-orders-console';
 import { billingPaymentMethods } from './keys/billing-payment-methods';
+import { billingPaymentMethodsConsole } from './keys/billing-payment-methods-console';
 import { billingServices } from './keys/billing-services';
+import { billingServicesConsole } from './keys/billing-services-console';
 import { iamIdentities } from './keys/iam-identities';
+import { iamIdentitiesConsole } from './keys/iam-identities-console';
 import { iamPolicies } from './keys/iam-policies';
+import { iamPoliciesConsole } from './keys/iam-policies-console';
 import { iamSamlSso } from './keys/iam-saml-sso';
+import { iamSamlSsoConsole } from './keys/iam-saml-sso-console';
 import { iamServiceAccounts } from './keys/iam-service-accounts';
+import { iamSshKeysConsole } from './keys/iam-ssh-keys-console';
+import { iamServiceAccountsConsole } from './keys/iam-service-accounts-console';
+import { iamTagManagement } from './keys/iam-tag-management';
+import { iamTagManagementConsole } from './keys/iam-tag-management-console';
 import { logsDataPlatform } from './keys/logs-data-platform';
+import { logsDataPlatformConsole } from './keys/logs-data-platform-console';
+import { networkCdnConsole } from './keys/network-cdn-console';
+import { networkGlobalLoadBalancerConsole } from './keys/network-global-load-balancer-console';
 import { networkLoadBalancer } from './keys/network-load-balancer';
 import { networkLoadBalancerConsole } from './keys/network-load-balancer-console';
 import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
@@ -35,13 +59,19 @@ import { networkVrackConsole } from './keys/network-vrack-console';
 import { networkVrackServices } from './keys/network-vrack-services';
 import { networkVrackServicesConsole } from './keys/network-vrack-services-console';
 import { privatecloudBackupLicenses } from './keys/privatecloud-backup-licenses';
+import { privatecloudBackupLicensesConsole } from './keys/privatecloud-backup-licenses-console';
 import { privatecloudHycu } from './keys/privatecloud-hycu';
+import { privatecloudHycuConsole } from './keys/privatecloud-hycu-console';
 import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-backup-vmware';
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
+import { privatecloudNutanixConsole } from './keys/privatecloud-nutanix-console';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
+import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
+import { privatecloudVmwareVcfConsole } from './keys/privatecloud-vmware-vcf-console';
 import { privatecloudVmwareVsphere } from './keys/privatecloud-vmware-vsphere';
+import { privatecloudVmwareVsphereConsole } from './keys/privatecloud-vmware-vsphere-console';
 import { publiccloudAiDeploy } from './keys/publiccloud-ai-deploy';
 import { publiccloudAiDeployConsole } from './keys/publiccloud-ai-deploy-console';
 import { publiccloudAiEndpoints } from './keys/publiccloud-ai-endpoints';
@@ -102,78 +132,119 @@ import { publiccloudRancher } from './keys/publiccloud-rancher';
 import { publiccloudRancherConsole } from './keys/publiccloud-rancher-console';
 import { publiccloudSavingsPlan } from './keys/publiccloud-savings-plan';
 import { publiccloudSavingsPlanConsole } from './keys/publiccloud-savings-plan-console';
+import { publiccloudSiteToSiteVpnConsole } from './keys/publiccloud-site-to-site-vpn-console';
 import { publiccloudSubnetConsole } from './keys/publiccloud-subnet-console';
 import { publiccloudUsersRoles } from './keys/publiccloud-users-roles';
 import { publiccloudUsersRolesConsole } from './keys/publiccloud-users-roles-console';
 import { publiccloudVolumeSnapshot } from './keys/publiccloud-volume-snapshot';
 import { publiccloudVolumeSnapshotConsole } from './keys/publiccloud-volume-snapshot-console';
 import { securityKms } from './keys/security-kms';
+import { securityKmsConsole } from './keys/security-kms-console';
 import { securitySecretManager } from './keys/security-secret-manager';
+import { securitySecretManagerConsole } from './keys/security-secret-manager-console';
 import { storageBackupLicenses } from './keys/storage-backup-licenses';
+import { storageBackupLicensesConsole } from './keys/storage-backup-licenses-console';
 import { storageCloudDiskArray } from './keys/storage-cloud-disk-array';
 import { storageCloudDiskArrayConsole } from './keys/storage-cloud-disk-array-console';
 import { storageEnterpriseFileStorage } from './keys/storage-enterprise-file-storage';
 import { storageEnterpriseFileStorageConsole } from './keys/storage-enterprise-file-storage-console';
 import { storageNasHa } from './keys/storage-nas-ha';
 import { storageNasHaConsole } from './keys/storage-nas-ha-console';
+import { storageNasHaPrivateConsole } from './keys/storage-nas-ha-private-console';
 import { telecomOtb } from './keys/telecom-otb';
+import { telecomOtbConsole } from './keys/telecom-otb-console';
 import { telecomSms } from './keys/telecom-sms';
+import { telecomSmsConsole } from './keys/telecom-sms-console';
 import { telecomVoipFax } from './keys/telecom-voip-fax';
+import { telecomVoipFaxConsole } from './keys/telecom-voip-fax-console';
 import { telecomXdslFttx } from './keys/telecom-xdsl-fttx';
+import { telecomXdslFttxConsole } from './keys/telecom-xdsl-fttx-console';
 import { webCloudDatabases } from './keys/web-cloud-databases';
+import { webCloudDatabasesConsole } from './keys/web-cloud-databases-console';
 import { webDnsZoneOrder } from './keys/web-dns-zone-order';
+import { webDnsZoneOrderConsole } from './keys/web-dns-zone-order-console';
 import { webDnsZones } from './keys/web-dns-zones';
+import { webDnsZonesConsole } from './keys/web-dns-zones-console';
 import { webDomainDnsZone } from './keys/web-domain-dns-zone';
+import { webDomainDnsZoneConsole } from './keys/web-domain-dns-zone-console';
 import { webDomains } from './keys/web-domains';
+import { webDomainsConsole } from './keys/web-domains-console';
 import { webEmailPro } from './keys/web-email-pro';
+import { webEmailProConsole } from './keys/web-email-pro-console';
 import { webExchange } from './keys/web-exchange';
+import { webExchangeConsole } from './keys/web-exchange-console';
 import { webHosting } from './keys/web-hosting';
+import { webHostingConsole } from './keys/web-hosting-console';
 import { webMicrosoft365 } from './keys/web-microsoft-365';
+import { webMicrosoft365Console } from './keys/web-microsoft-365-console';
 import { webMxPlan } from './keys/web-mx-plan';
+import { webMxPlanConsole } from './keys/web-mx-plan-console';
 import { webOngoingOperations } from './keys/web-ongoing-operations';
+import { webOngoingOperationsConsole } from './keys/web-ongoing-operations-console';
 import { webVideoCenter } from './keys/web-video-center';
 import { webVideoCenterConsole } from './keys/web-video-center-console';
-import { webWebsiteView } from './keys/web-website-view';
 import { webWordpressHosting } from './keys/web-wordpress-hosting';
 import { webWordpressHostingConsole } from './keys/web-wordpress-hosting-console';
 import { webZimbra } from './keys/web-zimbra';
+import { webZimbraConsole } from './keys/web-zimbra-console';
 import { DOCS_DIR, discoverKeySets } from './sets';
 import type { CpNavKey } from './types';
 
 export const CPNAV_KEYS: Record<string, CpNavKey> = {
   // --- Web Cloud ---------------------------------------------------------------------
   'web-domains': webDomains,
+  'web-domains-console': webDomainsConsole,
   'web-domain-dns-zone': webDomainDnsZone,
+  'web-domain-dns-zone-console': webDomainDnsZoneConsole,
   'web-dns-zones': webDnsZones,
+  'web-dns-zones-console': webDnsZonesConsole,
   'web-dns-zone-order': webDnsZoneOrder,
+  'web-dns-zone-order-console': webDnsZoneOrderConsole,
   'web-ongoing-operations': webOngoingOperations,
+  'web-ongoing-operations-console': webOngoingOperationsConsole,
   'web-hosting': webHosting,
-  'web-website-view': webWebsiteView,
+  'web-hosting-console': webHostingConsole,
   'web-wordpress-hosting': webWordpressHosting,
   'web-wordpress-hosting-console': webWordpressHostingConsole,
   'web-video-center': webVideoCenter,
   'web-video-center-console': webVideoCenterConsole,
   'web-cloud-databases': webCloudDatabases,
+  'web-cloud-databases-console': webCloudDatabasesConsole,
   'web-zimbra': webZimbra,
+  'web-zimbra-console': webZimbraConsole,
   'web-email-pro': webEmailPro,
+  'web-email-pro-console': webEmailProConsole,
   'web-mx-plan': webMxPlan,
+  'web-mx-plan-console': webMxPlanConsole,
   'web-exchange': webExchange,
+  'web-exchange-console': webExchangeConsole,
   'web-microsoft-365': webMicrosoft365,
+  'web-microsoft-365-console': webMicrosoft365Console,
   // --- Hosted Private Cloud -----------------------------------------------------------
   'privatecloud-vmware-vsphere': privatecloudVmwareVsphere,
+  'privatecloud-vmware-vsphere-console': privatecloudVmwareVsphereConsole,
   'privatecloud-vmware-vcf': privatecloudVmwareVcf,
+  'privatecloud-vmware-vcf-console': privatecloudVmwareVcfConsole,
   'privatecloud-nutanix': privatecloudNutanix,
+  'privatecloud-nutanix-console': privatecloudNutanixConsole,
   'privatecloud-sap-hana': privatecloudSapHana,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
+  'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
   'privatecloud-hycu': privatecloudHycu,
+  'privatecloud-hycu-console': privatecloudHycuConsole,
   'privatecloud-backup-licenses': privatecloudBackupLicenses,
+  'privatecloud-backup-licenses-console': privatecloudBackupLicensesConsole,
   // --- Private Cloud (Console only) ---------------------------------------------------
   'privatecloud-managed-backup-vmware': privatecloudManagedBackupVmware,
   // --- Bare Metal Cloud ---------------------------------------------------------------
   'baremetal-dedicated-servers': baremetalDedicatedServers,
+  'baremetal-dedicated-servers-console': baremetalDedicatedServersConsole,
   'baremetal-vps': baremetalVps,
+  'baremetal-vps-console': baremetalVpsConsole,
+  'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   'baremetal-backup-agent': baremetalBackupAgent,
   'storage-backup-licenses': storageBackupLicenses,
+  'storage-backup-licenses-console': storageBackupLicensesConsole,
   'storage-cloud-disk-array': storageCloudDiskArray,
   'storage-cloud-disk-array-console': storageCloudDiskArrayConsole,
   'storage-enterprise-file-storage': storageEnterpriseFileStorage,
@@ -230,6 +301,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'publiccloud-public-ips-console': publiccloudPublicIpsConsole,
   'publiccloud-gateway': publiccloudGateway,
   'publiccloud-gateway-console': publiccloudGatewayConsole,
+  'publiccloud-site-to-site-vpn-console': publiccloudSiteToSiteVpnConsole,
   'publiccloud-subnet-console': publiccloudSubnetConsole,
   'publiccloud-rancher': publiccloudRancher,
   'publiccloud-rancher-console': publiccloudRancherConsole,
@@ -254,39 +326,67 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-vrack-console': networkVrackConsole,
   'network-vrack-services': networkVrackServices,
   'network-vrack-services-console': networkVrackServicesConsole,
+  'storage-nas-ha-private-console': storageNasHaPrivateConsole,
   'network-ovhcloud-connect': networkOvhcloudConnect,
   'network-public-ip': networkPublicIp,
   'network-public-ip-console': networkPublicIpConsole,
   'network-load-balancer': networkLoadBalancer,
   'network-load-balancer-console': networkLoadBalancerConsole,
+  'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
+  'network-cdn-console': networkCdnConsole,
   // --- Telecom -------------------------------------------------------------------------
   'telecom-voip-fax': telecomVoipFax,
+  'telecom-voip-fax-console': telecomVoipFaxConsole,
   'telecom-sms': telecomSms,
+  'telecom-sms-console': telecomSmsConsole,
   'telecom-xdsl-fttx': telecomXdslFttx,
+  'telecom-xdsl-fttx-console': telecomXdslFttxConsole,
   'telecom-otb': telecomOtb,
+  'telecom-otb-console': telecomOtbConsole,
   // --- Identity, Security & Operations ------------------------------------------------
   // The tree groups these under `Identity and access management`, `Security` and
   // `Operations`; those are group nodes, which the docs convention omits.
   'iam-identities': iamIdentities,
+  'iam-identities-console': iamIdentitiesConsole,
   'iam-saml-sso': iamSamlSso,
+  'iam-saml-sso-console': iamSamlSsoConsole,
   'iam-service-accounts': iamServiceAccounts,
+  'iam-service-accounts-console': iamServiceAccountsConsole,
   'iam-policies': iamPolicies,
+  'iam-ssh-keys-console': iamSshKeysConsole,
+  'iam-policies-console': iamPoliciesConsole,
+  'iam-tag-management': iamTagManagement,
+  'iam-tag-management-console': iamTagManagementConsole,
   'security-kms': securityKms,
+  'security-kms-console': securityKmsConsole,
   'security-secret-manager': securitySecretManager,
+  'security-secret-manager-console': securitySecretManagerConsole,
   'logs-data-platform': logsDataPlatform,
+  'logs-data-platform-console': logsDataPlatformConsole,
   // --- Account and billing ------------------------------------------------------------
   // Reached from the user menu, not the sidebar, so the Manager exposes no order to
   // follow; grouped account-then-billing instead.
   'account-dashboard': accountDashboard,
+  'account-carbon-console': accountCarbonConsole,
   'account-profile': accountProfile,
+  'account-profile-console': accountProfileConsole,
+  'account-contracts-console': accountContractsConsole,
   'account-security': accountSecurity,
+  'account-security-console': accountSecurityConsole,
+  'account-security-ip-console': accountSecurityIpConsole,
   'account-contacts': accountContacts,
+  'account-contacts-console': accountContactsConsole,
   'account-messages': accountMessages,
+  'account-messages-console': accountMessagesConsole,
   'billing-orders': billingOrders,
+  'billing-orders-console': billingOrdersConsole,
   'billing-invoices': billingInvoices,
+  'billing-invoices-console': billingInvoicesConsole,
   'billing-payment-methods': billingPaymentMethods,
+  'billing-payment-methods-console': billingPaymentMethodsConsole,
   'billing-services': billingServices,
+  'billing-services-console': billingServicesConsole,
 };
 
 /**
@@ -298,9 +398,13 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
  */
 export const CPNAV_SETS: string[][] = [
   ['iam-policies', 'security-kms'],
+  ['iam-policies-console', 'security-kms-console'],
   ['web-email-pro', 'web-exchange'],
   ['web-email-pro', 'web-mx-plan', 'web-exchange'],
   ['web-mx-plan', 'web-zimbra', 'web-email-pro', 'web-exchange'],
+  ['web-email-pro-console', 'web-exchange-console'],
+  ['web-email-pro-console', 'web-mx-plan-console', 'web-exchange-console'],
+  ['web-mx-plan-console', 'web-zimbra-console', 'web-email-pro-console', 'web-exchange-console'],
 ];
 
 const ORDER = Object.keys(CPNAV_KEYS);

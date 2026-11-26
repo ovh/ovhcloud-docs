@@ -132,6 +132,14 @@ Classification rules used by the parser:
 - **link without `/`** → section group
 - **link with `/`** → guide leaf (converted to `/guides/...` link)
 
+#### A guide listed in several places
+
+A guide can sit in more than one group. Its home — the breadcrumb, and the branch a search result or deep link opens — is its first placement in the file, unless that placement carries `{canonical=false}`: the first unflagged placement is then the home. On a group, the marker covers the group's landing page and every entry below it; an entry takes it back with `{canonical=true}`. Use it when a product lists another product's guides, so that coming first in the file does not make it their home. A visitor already browsing the copy's product stays in the copy's branch; coming from anywhere else, including the same universe, they get the home. An unknown marker key or value fails the parse, and `pnpm sidebar:copies` ignores `{canonical=…}` when it compares the copies of a product group. Parser: `config/sidebar/parser.ts`; theme: `theme/components/Sidebar/canonical.ts`; test: `config/sidebar/canonical.test.ts`.
+
+#### The guide list of a landing page
+
+A landing page (`pageType: landing`, the `{landing=<slug>}` target of a group) lists its guides with `<ProductDirectory />`: the group's tree as read from the sidebar, in index order — the guides directly under the group first, a child group with its own landing page as one link to it, then one column per section. Adding, moving or removing a guide in `index.md` updates the page in every locale with no second edit. An entry marked `{directory=false}` stays in the sidebar but is left off the page (on a group, the whole group): for guides still published but not to be put forward, such as discontinued hardware. Any other value fails the parse; `pnpm sidebar:copies` ignores the marker. Component: `components/ProductDirectory/`; test: `components/ProductDirectory/tree.test.ts`.
+
 #### How translations work
 
 There are two kinds of sidebar items:
@@ -196,11 +204,11 @@ The custom theme (`theme/index.tsx`) extends Rspress's original theme:
 
 Rules:
 - New styles read `--ovh-*` tokens, never hex values; `--rp-*` only where Rspress markup expects them.
-- Dark mode keys on `html.dark` (set by Rspress's inline script before first paint). Never `.tw-dark` (removed) or `data-theme`.
+- Dark mode keys on `html.dark` (set by Rspress's inline script before first paint). Never `.tw-dark` (removed) or `data-theme`. The reader's choice — system, light or dark — lives in `theme/hooks/useAppearance.ts`, re-exported as `useThemeState` (Rspress's ClientApp imports it through `@rspress/core/theme`, so `ThemeContext` / `useDark()` keep working). Same storage key as Rspress (`rspress-theme-appearance`: `auto` | `light` | `dark`), but the choice is stored as picked: Rspress would store `auto` whenever the choice equals the OS theme. `config/appearance-head-script.ts` copies it onto `<html data-ovh-appearance>` before first paint for the navbar switch.
 - New components use colocated plain `.css` (native nesting) with a prefixed class (`ovh-…`), not Sass.
 - Sidebar icons: an item's untranslated i18n key travels in its `context` field (Rspress translates `text` but passes `context` through); `theme/components/Sidebar/icons.tsx` maps it to the artwork.
 - Home (`HomeLayout`): `hero.name` + `hero.highlight`, `explore[].icon` (keys in `theme/components/HomeExplore/icons.tsx`), `quickstart`, `usecases`, `closing`. The hero effect (`theme/components/HeroFx`, engine vendored unchanged from the prototype) is a dynamic import, client-only, destroyed on unmount.
-- Navbar (`theme/components/Nav`): the Developers hub's header (developers.eu.ovhcloud.com). Tabs and the Console button come from `config/nav/index.ts`, a flat array for `themeConfig.nav` whose entries carry a `role` (`tab` | `console`), `external` (Labs only — an EU-only tab, the US bar has none), `current` (Documentation) and an optional `menu` (Tools); `useLocalizedNav()` resolves them per locale. 52 px (`--rp-nav-height`), 96 px under 1024 px where the tabs move to a second row. Language, GitHub and light / dark live in the bar; Support and Webmail in the sidebar's Documentation header.
+- Navbar (`theme/components/Nav`): the Developers hub's header (developers.eu.ovhcloud.com). Tabs and the Console button come from `config/nav/index.ts`, a flat array for `themeConfig.nav` whose entries carry a `role` (`tab` | `console`), `external` (Labs only — an EU-only tab, the US bar has none), `current` (Documentation) and an optional `menu` (Tools); `useLocalizedNav()` resolves them per locale. 52 px (`--rp-nav-height`), 96 px under 1024 px where the tabs move to a second row. Language, GitHub and the appearance switch (system / light / dark: three segments, or one cycling button under 480 px and at 1024–1279 px where the tabs share the bar) live in the bar; Support and Webmail in the sidebar's Documentation header.
 - `?from=EU|CA|US` (sent by the Developers hubs): `theme/hooks/useHubRegion.tsx` reads it after mount and keeps it in localStorage (`ovhcloud-docs:developers-hub`) until the next one. The hub tabs (entries with a `hubPath`) and the Console then point at that region's hub / manager (`hubOrigins` and `byHub` on the Console entry of `config/nav`); without it, the config's default links render. Arriving with `?from=EU|CA` also sets the commercial zone once (`components/Zone/ZoneContext.tsx`); `US` leaves the zone alone.
 
 ### Build Process
