@@ -3043,7 +3043,7 @@
     + [SSL Gateway](products/network-ssl-gateway)
         + [Getting started](network-ssl-gateway-getting-started)
             + [Order an SSL Gateway](network/ssl-gateway/order)
-            + [Using the SSL Gateway](network/ssl-gateway/use)
+            + [Configure and manage an SSL Gateway](network/ssl-gateway/use)
     + [vRack](products/network-vrack){landing=network/vrack/overview}
         + [Configuration](network-vrack-configuration)
             + [Configuring an Additional IP block in a vRack](bare-metal-cloud/dedicated-servers/configuring-an-ip-block-in-a-vrack)
