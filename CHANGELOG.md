@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.11.25
+
+### Features
+
+#### EU
+- **nutanix:** update Nutanix guides for the OVHcloud Console (#1312)
+
+#### All regions
+- **landing:** list a landing page's guides from the sidebar
+
+### Documentation
+- EU: 197 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.24
 
 ### Features
@@ -14,7 +27,8 @@
 - **sidebar:** group the Dedicated Servers backup guides by product (#1327)
 
 ### Documentation
-- EU: 17 guides across de, en, es, fr, it, pl, pt
+- EU: 716 guides across de, en, es, fr, it, pl, pt
+- US: 11 guides across en
 
 ## 2026.11.24
 

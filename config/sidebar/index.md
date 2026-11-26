@@ -131,8 +131,7 @@
         + [Responsibility sharing - Domain Name service](web-cloud/domains/domains-responsibility-sharing)
         + [Responsibility sharing for the Web Hosting service](web-cloud/web-hosting/web-hosting-responsibility-sharing)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
-    + [Startup Program](products/startup-program)
-        + [Overview](account-and-service-management/startup-program/overview)
+    + [Startup Program](products/startup-program){landing=account-and-service-management/startup-program/landing-page-startup-program}
         + [General information](startup-program-general-information)
             + [Startup Program - How to apply to our newsletter?](account-and-service-management/startup-program/apply-to-newsletter)
             + [How to optimise your application to the Startup Program](account-and-service-management/startup-program/optimise-application)
@@ -161,7 +160,7 @@
             + [How to get started with a Kimsufi, So you Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
             + [How to get started with SSH connections](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use authentication keys for SSH connections to OVHcloud servers](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
-            + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
+            + [How to store public authentication keys in the OVHcloud Console](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
             + [How to use the IPMI console with a dedicated server](bare-metal-cloud/dedicated-servers/ipmi)
             + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
         + [Configuration](bare-metal-cloud-dedicated-servers-configuration)
@@ -326,7 +325,7 @@
             + [How to configure user accounts and root access on a server](bare-metal-cloud/dedicated-servers/changing-root-password-linux-ds)
             + [How to get started with SSH](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use SSH keys](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
-            + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
+            + [How to store public authentication keys in the OVHcloud Console](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
             + [How to upgrade the resources of a VPS](bare-metal-cloud/virtual-private-servers/upgrade-resources)
             + [Repartitioning a VPS after an upgrade](bare-metal-cloud/virtual-private-servers/upsize-vps-partition)
             + [First steps with pre-installed applications](bare-metal-cloud/virtual-private-servers/apps-first-steps)
@@ -1538,6 +1537,18 @@
                 + [ClickHouse - Query files stored in OVHcloud Object Storage](public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
                 + [ClickHouse - Query PostgreSQL and MySQL databases](public-cloud/data-analytics/analytics/clickhouse-query-postgresql-mysql)
                 + [ClickHouse - Query Iceberg and Delta Lake tables and ingest files continuously](public-cloud/data-analytics/analytics/clickhouse-iceberg-delta-s3queue)
+        + [Lakehouse](products/public-cloud-data-analytics-lakehouse)
+            + [Overview](public-cloud/data-analytics/lakehouse/overview)
+            + [Key concepts](public-cloud-data-analytics-lakehouse-key-concepts)
+                + [Lakehouse - Key concepts](public-cloud/data-analytics/lakehouse/lakehouse-concepts)
+            + [Getting started](public-cloud-data-analytics-lakehouse-getting-started)
+                + [Lakehouse - Getting started](public-cloud/data-analytics/lakehouse/lakehouse-getting-started)
+            + [Configuration](public-cloud-data-analytics-lakehouse-configuration)
+                + [Lakehouse - Managing access to your data](public-cloud/data-analytics/lakehouse/lakehouse-manage-access)
+                + [Lakehouse - Using a dedicated Compute Pool](public-cloud/data-analytics/lakehouse/lakehouse-compute-pools)
+                + [Lakehouse - Restricting network access](public-cloud/data-analytics/lakehouse/lakehouse-network-access)
+            + [Tutorials](public-cloud-data-analytics-lakehouse-tutorials)
+                + [Lakehouse - Connecting your own tools](public-cloud/data-analytics/lakehouse/lakehouse-connect-tools)
         + [OpenSearch](products/public-cloud-data-analytics-opensearch)
             + [Key concepts](public-cloud-data-analytics-opensearch-key-concepts)
                 + [Lifecycle policy for Analytics](public-cloud/data-analytics/analytics/lifecycle-policy)
@@ -1855,6 +1866,8 @@
                 + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
                 + [Analyse online store sales with Apache Superset](public-cloud-data-platform-analyze-online-store-sales){landing=public-cloud/data-platform/tutorials-ecommerce-sales}
                     + [Build the sales dashboard in Superset](public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard){label=Build a sales dashboard for an online store in Superset}
+                + [Forecast regional electricity consumption](public-cloud-data-platform-forecast-regional-electricity-consumption){landing=public-cloud/data-platform/tutorials-eco2mix-forecast}
+                    + [Train and schedule the forecast with PySpark](public-cloud/data-platform/tutorials-eco2mix-forecast-production){label=Train and schedule the forecast with PySpark}
             + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
                 + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
                 + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
@@ -2333,10 +2346,10 @@
             + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra){label=Webmail Zimbra}
             + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube){label=Webmail Roundcube}
         + [Migrating](web-cloud-email-collaborative-solutions-migration)
-            + [MX Plan - Migrate to Exchange, Email Pro or Zimbra](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
-            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
+            + [Migrate your email accounts to another OVHcloud email offer](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [MX Plan - Migrate automatically to Email Pro or Exchange](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
             + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
-            + [Migrate email accounts between OVHcloud platforms](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
         + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
             + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced){label=Cannot send or receive}
             + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam){label=Blocked for spam}
@@ -2428,6 +2441,7 @@
             + [Setting up an email application on your mobile device](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-mobile-device)
                 + [Configuring an Exchange account on iPhone and iPad](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-ios)
                 + [Configuring an Exchange account on Android via the Gmail app](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-android)
+                + [Configuring an Exchange account in Outlook for Android](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-android)
             + [Troubleshooting](web-cloud-email-collaborative-solutions-microsoft-exchange-troubleshooting)
                 + [Using Exchange error diagnostics](web-cloud/email-and-collaborative-solutions/microsoft-exchange/diagnostic-advanced)
                 + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365)
@@ -2442,7 +2456,6 @@
                 + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra)
                 + [FAQ Zimbra OVHcloud](web-cloud/email-and-collaborative-solutions/mx-plan/faq-zimbra)
                 + [Configure Zimbra account on email client](web-cloud/email-and-collaborative-solutions/zimbra/mail-apps)
-                + [Zimbra - Migrate an MX Plan email account](web-cloud/email-and-collaborative-solutions/zimbra/migrate-mxplan-to-zimbra)
                 + [How to configure a Zimbra email account on the Zimbra mobile application](web-cloud/email-and-collaborative-solutions/zimbra/mail-app-zimbra-for-android-ios)
                 + [Synchronize a Zimbra CalDAV calendar in an application](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-calendar-sync)
                 + [How to mount a Zimbra WebDAV folder in an OS](web-cloud/email-and-collaborative-solutions/zimbra/webdav-mount)
@@ -2894,7 +2907,7 @@
 + Network
     + [BGP Service](network-bgp)
         + [BGP Service configuration](network/bgp-service/bgp-service-config)
-    + [CDN](network-content-delivery-network-cdninfrastructure)
+    + [CDN](network-content-delivery-network-cdninfrastructure){landing=network/cdn/landing-page-cdn}
         + [Configuring a domain name for the first time](network/cdn/cdn-infrastructure-first-domain-configuration)
         + [Understanding quota on the CDN](network/cdn/quota)
         + [Adding an SSL certificate on the CDN](network/cdn/cdn-infrastructure-ssl-certificate)
@@ -2938,8 +2951,7 @@
         + [Key concepts](network-global-load-balancer-key-concepts)
             + [Global Load Balancer routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies){label=Routing policies and health checks}
     + [IP Addresses](products/network-ip-addresses)
-        + [Additional IP](network-additional-ip)
-            + [Overview](network/ip-addresses/additional-ip/overview)
+        + [Additional IP](network-additional-ip){landing=network/ip-addresses/additional-ip/overview}
             + [Key concepts](network-additional-ip-key-concepts)
                 + [Concepts - Primary and Additional IP](network/ip-addresses/additional-ip/primary-additional-ip-concepts)
             + [Configuration](network-additional-ip-configuration)
@@ -2956,8 +2968,8 @@
                     + [Assigning a Virtual MAC to an Additional IP](bare-metal-cloud/dedicated-servers/network-virtual-mac)
                     + [Setting up a Virtual Machine using Additional IPs and Hyper-V over a vRack](bare-metal-cloud/dedicated-servers/ipfo-vrack-hyperv)
                 + [Hosted Private Cloud](network-additional-ip-products-hosted-private-cloud)
-                    + [Adding a public IP address to a new VM](hosted-private-cloud/nutanix-on-ovhcloud/public-ip)
-                    + [Adding an IP block](hosted-private-cloud/powered-by-vmware/add-ip-block)
+                    + [Adding a public IP address to a new VM](hosted-private-cloud/nutanix-on-ovhcloud/public-ip){label=Nutanix - Adding a public IP address to a new VM}
+                    + [Adding an IP block](hosted-private-cloud/powered-by-vmware/add-ip-block){label=VMware - Adding an IP block}
                 + [Load Balancer](network-additional-ip-products-load-balancer)
                     + [Routing an Additional IP](network/load-balancer/howto-route-ipfo)
                 + [Public Cloud](network-additional-ip-products-public-cloud)
@@ -2973,13 +2985,12 @@
                 + [Cancelling an Additional IP service](network/ip-addresses/additional-ip/additional-ip-cancellation)
         + [Bring Your Own IP](network-additional-ip-byoip)
             + [How to use the Bring Your Own IP feature](network/ip-addresses/bring-your-own-ip/bring-your-own-ip)
-    + [Load Balancer](products/network-load-balancer)
-        + [Overview](network/load-balancer/overview)
+    + [Load Balancer](products/network-load-balancer){landing=network/load-balancer/overview}
         + [Key concepts](network-load-balancer-key-concepts)
             + [Introduction to the OVHcloud Load Balancer](network/load-balancer/use-presentation)
             + [Load Balancer FAQ](network/load-balancer/create-faq)
         + [Getting Started](network-load-balancer-getting-started)
-            + [Managing your Load Balancer service via the Control Panel](network/load-balancer/use-lb)
+            + [Managing your Load Balancer service in the OVHcloud Console](network/load-balancer/use-lb)
             + [Order a free SSL certificate](network/load-balancer/order-freecertificate)
             + [Load Balancer API Quick Reference](network/load-balancer/use-api-reference)
             + [OVHcloud Load Balancer TCP / HTTP / HTTPS Logs Forwarding](network/load-balancer/use-api-logs-customers)
@@ -3005,13 +3016,12 @@
             + [Details of API functions](network/load-balancer/use-api-details)
         + [Troubleshooting](network-load-balancer-troubleshooting)
             + [Retrieve server health status](network/load-balancer/retrieve-servers-state)
-    + [Network Security](network-security)
+    + [Network Security](network-security){landing=network/landing-page-network-security}
         + [Enabling and configuring the Edge Network Firewall](bare-metal-cloud/dedicated-servers/firewall-network)
         + [How to protect a Game server with the application firewall](bare-metal-cloud/dedicated-servers/firewall-game-ddos)
         + [Monitor DDoS attacks with the Anti-DDoS dashboard](bare-metal-cloud/dedicated-servers/network-security-dashboard)
         + [Fine-tune Anti-DDoS protection with the new profiling feature](bare-metal-cloud/dedicated-servers/anti-ddos-vac-profiling)
-    + [OVHcloud Connect](products/network-ovhcloud-connect)
-        + [Overview](network/ovhcloud-connect/overview)
+    + [OVHcloud Connect](products/network-ovhcloud-connect){landing=network/ovhcloud-connect/overview}
         + [Key Concepts](network-ovhcloud-connect-concepts)
             + [Concepts overview](network/ovhcloud-connect/ovhcloud-connect-overview)
             + [Layer 2 mode](network/ovhcloud-connect/occ-layer2)
@@ -3029,7 +3039,7 @@
             + [Troubleshooting common errors setting up OVHcloud Connect](network/ovhcloud-connect/troubleshooting)
         + [Additional resources](network-ovhcloud-connect-technical-resources)
             + [Technical capabilities and limitations](network/ovhcloud-connect/occ-limits)
-    + [SecNumCloud](network-secnumcloud-connectivity)
+    + [SecNumCloud](network-secnumcloud-connectivity){landing=network/landing-page-secnumcloud-connectivity}
         + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
         + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
         + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
@@ -3038,8 +3048,7 @@
         + [Getting started](network-ssl-gateway-getting-started)
             + [Order an SSL Gateway](network/ssl-gateway/order)
             + [Using the SSL Gateway](network/ssl-gateway/use)
-    + [vRack](products/network-vrack)
-        + [Overview](network/vrack/overview)
+    + [vRack](products/network-vrack){landing=network/vrack/overview}
         + [Configuration](network-vrack-configuration)
             + [Configuring an Additional IP block in a vRack](bare-metal-cloud/dedicated-servers/configuring-an-ip-block-in-a-vrack)
             + [Configuring an IPv6 block in a vRack](bare-metal-cloud/dedicated-servers/configure-ipv6-in-vrack)
@@ -3075,7 +3084,7 @@
                     + [Configuring vRack for Public Cloud](public-cloud/network-services/vrack)
                     + [Configuring the vRack between the Public Cloud and a Dedicated Server](bare-metal-cloud/dedicated-servers/configuring-the-vrack-between-the-public-cloud-and-a-dedicated-server)
                     + [Configuring a public IP block in a vRack on a Public Cloud instance](public-cloud/network-services/configure-ip-block-vrack-instance)
-    + [vRack Services](products/network-vrack-services)
+    + [vRack Services](products/network-vrack-services){landing=network/vrack-services/landing-page-vrack-services}
         + [vRack Services - Exposing a Managed Service on your vRack](network/vrack-services/global)
         + [Manage Server-IP associations in vRack Services](network/vrack-services/server-ip-associations)
         + [Enterprise File Storage - Private network configuration](storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
