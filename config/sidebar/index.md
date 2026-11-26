@@ -145,8 +145,7 @@
         + [Technical resources](startup-program-technical-resources)
             + [How to increase Public Cloud quotas for a Startup Program member](account-and-service-management/startup-program/increase-quota)
 + Bare Metal Cloud
-    + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers) 
-        + [Overview](bare-metal-cloud/dedicated-servers/overview)
+    + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers){landing=bare-metal-cloud/dedicated-servers/overview}
         + [Key Concepts](bare-metal-cloud-dedicated-servers-key-concepts)
             + [Bare Metal 3-AZ Region - Service presentation](bare-metal-cloud/dedicated-servers/3az-presentation)
             + [Kimsufi and So you Start customers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/getting-familiar-with-ovhcloud-control-panel)
