@@ -3051,7 +3051,7 @@
     + [SSL Gateway](products/network-ssl-gateway)
         + [Getting started](network-ssl-gateway-getting-started)
             + [Order an SSL Gateway](network/ssl-gateway/order)
-            + [Using the SSL Gateway](network/ssl-gateway/use)
+            + [Configure and manage an SSL Gateway](network/ssl-gateway/use)
     + [vRack](products/network-vrack)
         + [Overview](network/vrack/overview)
         + [Configuration](network-vrack-configuration)
