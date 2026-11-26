@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026.11.26
+
+### Features
+
+#### EU
+- **mks:** document taints for system workload (#1237)
+
+### Maintenance
+
+#### All regions
+- **domains:** compress the FOA validation page screenshots
+
+### Documentation
+- EU: 452 guides across de, en, es, fr, it, pl, pt
+
 ## 2026.11.25
 
 ### Features
