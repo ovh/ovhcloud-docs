@@ -9,7 +9,7 @@
 - **sap:** update five SAP guides for the OVHcloud Console (#1308)
 
 ### Documentation
-- EU: 561 guides across de, en, es, fr, it, pl, pt
+- EU: 568 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.26
 
