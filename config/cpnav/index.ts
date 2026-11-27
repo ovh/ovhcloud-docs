@@ -20,6 +20,7 @@ import { accountSecurity } from './keys/account-security';
 import { accountSecurityConsole } from './keys/account-security-console';
 import { accountSecurityIpConsole } from './keys/account-security-ip-console';
 import { baremetalBackupAgent } from './keys/baremetal-backup-agent';
+import { baremetalBackupAgentConsole } from './keys/baremetal-backup-agent-console';
 import { baremetalDedicatedServers } from './keys/baremetal-dedicated-servers';
 import { baremetalDedicatedServersConsole } from './keys/baremetal-dedicated-servers-console';
 import { baremetalVeeamEnterpriseConsole } from './keys/baremetal-veeam-enterprise-console';
@@ -245,6 +246,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'baremetal-vps-console': baremetalVpsConsole,
   'baremetal-veeam-enterprise-console': baremetalVeeamEnterpriseConsole,
   'baremetal-backup-agent': baremetalBackupAgent,
+  'baremetal-backup-agent-console': baremetalBackupAgentConsole,
   'storage-backup-licenses': storageBackupLicenses,
   'storage-backup-licenses-console': storageBackupLicensesConsole,
   'storage-cloud-disk-array': storageCloudDiskArray,
