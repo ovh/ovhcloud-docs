@@ -998,7 +998,7 @@
                     + [Object Storage - FAQ](storage-and-backup/object-storage/s3-faq){label=FAQ}
                     + [Cold Archive - FAQ](storage-and-backup/object-storage/cold-archive-faq)
                     + [Object Storage - Local Zones specifications](storage-and-backup/object-storage/s3-local-zones-limitations){label=Local Zones specifications}
-                    + [Object Storage - Compliancy](storage-and-backup/object-storage/s3-s3-compliancy){label=Compliance}
+                    + [Object Storage - S3 API compatibility](storage-and-backup/object-storage/s3-s3-compliancy){label=S3 API compatibility}
                     + [Object Storage - Technical Limitations](storage-and-backup/object-storage/s3-limitations){label=Technical Limitations}
                     + [Object Storage - Optimising Performance](storage-and-backup/object-storage/s3-performance-optimization){label=Optimising Performance}
                     + [Object Storage - Optimise the sending of your files to Object Storage](storage-and-backup/object-storage/s3-optimise-the-sending-of-your-files){label=Optimise the sending of your files to Object Storage}
@@ -2669,7 +2669,7 @@
                 + [Object Storage - FAQ](storage-and-backup/object-storage/s3-faq){label=FAQ}
                 + [Cold Archive - FAQ](storage-and-backup/object-storage/cold-archive-faq)
                 + [Object Storage - Local Zones specifications](storage-and-backup/object-storage/s3-local-zones-limitations){label=Local Zones specifications}
-                + [Object Storage - Compliancy](storage-and-backup/object-storage/s3-s3-compliancy){label=Compliance}
+                + [Object Storage - S3 API compatibility](storage-and-backup/object-storage/s3-s3-compliancy){label=S3 API compatibility}
                 + [Object Storage - Technical Limitations](storage-and-backup/object-storage/s3-limitations){label=Technical Limitations}
                 + [Object Storage - Optimising Performance](storage-and-backup/object-storage/s3-performance-optimization){label=Optimising Performance}
                 + [Object Storage - Optimise the sending of your files to Object Storage](storage-and-backup/object-storage/s3-optimise-the-sending-of-your-files){label=Optimise the sending of your files to Object Storage}
