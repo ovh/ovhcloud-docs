@@ -540,6 +540,7 @@
                     + [Responsibility sharing for the SecNumcloud-qualified VMware on OVHcloud service](hosted-private-cloud/powered-by-vmware/snc-responsibility-sharing)
                     + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
                     + [SPN Connector Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn-connector)
+                    + [Configuring the SPN on a VMware SecNumCloud service](hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration)
             + [Troubleshooting](hosted-private-cloud-managed-vmware-troubleshooting)
                 + [Maintenance and Updates](hosted-private-cloud-managed-vmware-troubleshooting-maintenance)
                     + [Maintaining VMware on OVHcloud maintenance operations](hosted-private-cloud/powered-by-vmware/vmware-maintenance)
@@ -3009,6 +3010,7 @@
     + [SecNumCloud](network-secnumcloud-connectivity){landing=network/landing-page-secnumcloud-connectivity}
         + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
         + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
+        + [Configuring the SPN on a VMware SecNumCloud service](hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration)
         + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
         + [FAQ SecNumCloud Connectivity](hosted-private-cloud/powered-by-vmware/snc-connectivity-faq)
     + [SSL Gateway](products/network-ssl-gateway)
