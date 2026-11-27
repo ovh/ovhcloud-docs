@@ -677,6 +677,7 @@
         + [Getting started](hosted-private-cloud-nutanix-getting-started)
             + [Getting started with your Nutanix cluster](hosted-private-cloud/nutanix-on-ovhcloud/first-steps)
             + [Nutanix Hyperconvergence](hosted-private-cloud/nutanix-on-ovhcloud/nutanix-hci)
+            + [Installing your Nutanix cluster after delivery](hosted-private-cloud/nutanix-on-ovhcloud/install-cluster)
             + [Customised redeployment of your Cluster](hosted-private-cloud/nutanix-on-ovhcloud/cluster-custom-redeployment)
             + [Storage overview on Nutanix](hosted-private-cloud/nutanix-on-ovhcloud/storage)
             + [Importing ISO images](hosted-private-cloud/nutanix-on-ovhcloud/image-import)
