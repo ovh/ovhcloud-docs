@@ -1,0 +1,173 @@
+---
+title: Configurer le SPN sur un service VMware SecNumCloud
+description: Découvrez comment connecter les machines virtuelles d'un service VMware SecNumCloud à un sous-réseau SPN via un groupe de ports distribués du dVS vRack
+lastUpdated: 2026-11-27
+---
+
+import { Tab, Tabs } from '@rspress/core/theme';
+
+## Objectif
+
+Sur un service VMware SecNumCloud, le SPN (SecurePrivateNetwork) regroupe les sous-réseaux utilisés par vos machines virtuelles. Un sous-réseau SPN est un segment de niveau 2 avec un préfixe IPv4 et **sans tag VLAN**.
+
+**Ce guide explique comment connecter des machines virtuelles à un sous-réseau SPN : créer un groupe de ports distribués sur le dVS du vRack, y connecter les machines virtuelles, puis configurer leur adresse IP et leur passerelle par défaut.**
+
+## Prérequis
+
+- Disposer d'un service VMware SecNumCloud avec un SPN et un sous-réseau rattaché (consultez le guide « [SPN - Présentation du concept](/guides/hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn) »)
+- Connaître le préfixe IPv4 du sous-réseau
+- Disposer d'un identifiant utilisateur actif avec accès à vSphere et les droits spécifiques pour la mise en réseau
+- Disposer d'une machine virtuelle à connecter
+
+## En pratique
+
+Un sous-réseau SPN respecte les règles suivantes (consultez le guide « [SPN - Présentation du concept](/guides/hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn) ») :
+
+- les trois premières adresses IP du sous-réseau sont réservées à OVHcloud : la première est la VIP, les deux autres sont les routeurs OVHcloud
+- le sous-réseau n'a pas de tag VLAN
+- comme le sous-réseau n'a pas de tag VLAN, il ne peut y avoir qu'un seul segment SPN par Virtual Datacenter VMware
+
+En configuration de routage statique, la première adresse IP du sous-réseau est donc la passerelle par défaut de vos machines virtuelles : choisissez leurs propres adresses après les trois adresses réservées.
+
+Dans les exemples de ce guide, le sous-réseau est `192.0.2.0/24` : la passerelle par défaut est `192.0.2.1` et la machine virtuelle utilise `192.0.2.10`.
+
+### Étape 1 — Créer le groupe de ports distribués
+
+Ne créez qu'un seul groupe de ports pour le SPN dans un Virtual Datacenter donné. Rendez-vous dans la vue <code className="action">Mise en réseau</code> de votre client vSphere et sélectionnez votre datacenter. Dans l'onglet <code className="action">Réseaux</code>, ouvrez <code className="action">Commutateurs distribués</code>, faites un clic droit sur le **dVS** finissant par *-vrack*, sélectionnez <code className="action">Groupe de ports distribués</code> puis <code className="action">Nouveau groupe de ports distribués...</code>.
+
+<img className="thumbnail" alt="Nouveau groupe de ports distribués" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/new-distributed-port-group.png" loading="lazy" />
+
+Nommez votre **groupe de ports** de façon à identifier le sous-réseau SPN (par exemple `SPN`). Le champ *Emplacement* indique le dVS finissant par *-vrack*. Cliquez sur <code className="action">Suivant</code>.
+
+<img className="thumbnail" alt="Nom du groupe de ports" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-name.png" loading="lazy" />
+
+### Étape 2 — Configurer le groupe de ports
+
+Les paramètres sont ceux du guide « [Création de VLANs](/guides/hosted-private-cloud/powered-by-vmware/create-vlan) », à deux différences près : le nombre de ports reste à sa valeur par défaut (8) et le type de VLAN doit être **Aucun**, car un sous-réseau SPN n'a pas de tag VLAN.
+
+- **Liaison de port** : Liaison statique (réservation et assignation du port à une machine virtuelle)
+- **Allocation de port** : Élastique (des ports sont ajoutés automatiquement lorsque tous sont utilisés)
+- **Nombre de ports** : 8 (valeur par défaut)
+- **Type de VLAN** : **Aucun**. Aucun ID de VLAN n'est demandé.
+- Cochez l'option <code className="action">Personnaliser la configuration des stratégies par défaut</code>.
+
+<img className="thumbnail" alt="Configuration du groupe de ports avec le type de VLAN Aucun" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-vlan-none.png" loading="lazy" />
+
+Sur les pages suivantes de l'assistant, conservez les valeurs par défaut, sauf sur la page *Association et basculement*.
+
+Vous pouvez toutefois adapter les paramètres de sécurité (*Rejeter* pour les 3 premiers, *Apprentissage MAC* désactivé) à votre besoin.
+
+<img className="thumbnail" alt="Paramètres de sécurité du groupe de ports dans l'assistant" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-security.png" loading="lazy" />
+
+Laissez la *Formation du trafic* désactivée.
+
+<img className="thumbnail" alt="Formation du trafic désactivée dans l'assistant du groupe de ports" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-traffic-shaping.png" loading="lazy" />
+
+Dans l'ordre de basculement, sélectionnez la liaison montante `lag1` comme seule liaison montante *Active* (connexion entre le réseau virtuel et le réseau physique) et déplacez les autres liaisons montantes (`*-vrack_up1`, `*-vrack_up2`, `*-vrack_up3`) dans *Liaisons montantes inutilisées*. Ne modifiez pas la valeur *Équilibrage de la charge* : lorsqu'un groupe d'agrégation de liens (LAG) est la seule liaison montante active, le mode d'équilibrage de charge du LAG remplace celui du groupe de ports.
+
+:::warning
+Attention à la configuration de l'ordre de basculement : il est nécessaire de mettre la liaison montante `lag1` en *Active*, sinon aucune communication entre les hôtes ne sera possible.
+
+:::
+
+<img className="thumbnail" alt="Ordre de basculement avec lag1 comme seule liaison montante active" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-teaming-failover.png" loading="lazy" />
+
+Laissez `NetFlow` désactivé.
+
+<img className="thumbnail" alt="NetFlow désactivé dans l'assistant du groupe de ports" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-netflow.png" loading="lazy" />
+
+Laissez la valeur `Bloquer tous les ports` à `Non`.
+
+<img className="thumbnail" alt="Option Bloquer tous les ports réglée sur Non dans l'assistant" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-block-all-ports.png" loading="lazy" />
+
+Vérifiez le résumé : l'ID de VLAN est vide (`--`), puisque le sous-réseau n'a pas de tag VLAN. Cliquez sur <code className="action">Terminer</code> pour confirmer la création.
+
+<img className="thumbnail" alt="Résumé du groupe de ports" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-summary.png" loading="lazy" />
+
+Le nouveau groupe de ports apparaît sous le dVS finissant par *-vrack*.
+
+<img className="thumbnail" alt="Nouveau groupe de ports affiché sous le dVS finissant par -vrack" src="/images/hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration/port-group-created.png" loading="lazy" />
+
+### Étape 3 — Connecter les machines virtuelles au groupe de ports
+
+Faites un clic droit sur la machine virtuelle et sélectionnez <code className="action">Modifier les paramètres</code>. Pour la carte réseau, ouvrez la liste déroulante et sélectionnez <code className="action">Parcourir...</code>.
+
+<img className="thumbnail" alt="Option Parcourir dans la liste déroulante de la carte réseau" src="/images/hosted-private-cloud/powered-by-vmware/configure-ip-on-vm/04vlanBis.png" loading="lazy" />
+
+Dans la fenêtre **Sélectionner un réseau**, sélectionnez le groupe de ports créé à l'étape 1 (la capture montre un autre réseau à titre d'exemple), puis cliquez sur <code className="action">OK</code>.
+
+<img className="thumbnail" alt="Sélection du groupe de ports" src="/images/hosted-private-cloud/powered-by-vmware/configure-ip-on-vm/05vlan.png" loading="lazy" />
+
+Vérifiez que la case de connexion de la carte réseau est cochée, puis cliquez sur <code className="action">OK</code> pour enregistrer les paramètres de la machine virtuelle.
+
+### Étape 4 — Configurer l'adresse IP et la passerelle par défaut
+
+Dans la machine virtuelle, configurez :
+
+- une adresse IP du sous-réseau, après les trois adresses réservées (par exemple `192.0.2.10`)
+- le masque de sous-réseau correspondant au préfixe (par exemple `255.255.255.0` pour un `/24`)
+- en configuration de routage statique, la **première adresse IP du sous-réseau** comme passerelle par défaut (par exemple `192.0.2.1`)
+
+:::info
+Si le BGP est activé sur le SPN, le VRRP est désactivé et la première adresse IP du sous-réseau n'est plus joignable. La passerelle par défaut de vos machines virtuelles est alors votre propre routeur, qui établit les sessions eBGP avec les deux routeurs OVHcloud. Consultez la section « [Configuration BGP](/guides/hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn#configuration-bgp) » du guide « SPN - Présentation du concept ».
+
+:::
+
+<Tabs>
+  <Tab label="Linux">
+    Voici un exemple de configuration sur la distribution Debian. Modifiez le fichier `/etc/network/interfaces` (le nom de l'interface peut différer) :
+
+    <img className="thumbnail" alt="Configuration IP statique de l'interface eth0 dans le fichier /etc/network/interfaces" src="/images/hosted-private-cloud/powered-by-vmware/configure-ip-on-vm/linux_private.PNG" loading="lazy" />
+
+    Les valeurs de la capture appartiennent à un autre réseau : utilisez celles de votre sous-réseau.
+
+    ```sh
+    auto eth0
+    iface eth0 inet static
+    address 192.0.2.10
+    netmask 255.255.255.0
+    gateway 192.0.2.1
+    ```
+
+    Redémarrez le service réseau avec `systemctl restart networking`.
+
+    Vous pouvez vérifier la configuration avec `ip a`, et la passerelle par défaut avec `ip route`.
+  </Tab>
+  <Tab label="Windows">
+    Voici un exemple de configuration sur Windows.
+
+    Dans le <code className="action">Panneau de configuration</code>, rendez-vous dans <code className="action">Réseau et Internet</code> puis <code className="action">Centre Réseau et partage</code> et enfin <code className="action">Modifier les paramètres de la carte</code>.
+
+    Pour aller plus vite, vous pouvez saisir la commande suivante dans la fenêtre *Exécuter* de Windows (touche *Windows* et touche *R*) :
+
+    ```shell
+    ncpa.cpl
+    ```
+
+    Effectuez un clic droit sur la carte réseau, sélectionnez <code className="action">Propriétés</code>, puis <code className="action">Protocole Internet version 4 (TCP/IPv4)</code> et cliquez sur <code className="action">Propriétés</code>. Renseignez vos informations IP :
+
+    ```sh
+    Adresse IP : 192.0.2.10
+    Masque de sous-réseau : 255.255.255.0
+    Passerelle par défaut : 192.0.2.1
+    ```
+
+    <img className="thumbnail" alt="Configuration IP statique dans les propriétés du protocole Internet version 4 (TCP/IPv4) sous Windows" src="/images/hosted-private-cloud/powered-by-vmware/configure-ip-on-vm/windows_private.PNG" loading="lazy" />
+
+    Les valeurs de la capture appartiennent à un autre réseau : utilisez celles de votre sous-réseau.
+  </Tab>
+</Tabs>
+
+## Aller plus loin
+
+[SPN - Présentation du concept](/guides/hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
+
+[VPN-SPN - Présentation du concept](/guides/hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
+
+[FAQ SecNumCloud Connectivity](/guides/hosted-private-cloud/powered-by-vmware/snc-connectivity-faq)
+
+[Création de VLANs](/guides/hosted-private-cloud/powered-by-vmware/create-vlan)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).

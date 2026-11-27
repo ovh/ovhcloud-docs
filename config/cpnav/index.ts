@@ -54,6 +54,7 @@ import { networkOvhcloudConnect } from './keys/network-ovhcloud-connect';
 import { networkPublicIp } from './keys/network-public-ip';
 import { networkPublicIpConsole } from './keys/network-public-ip-console';
 import { networkSecurityDashboard } from './keys/network-security-dashboard';
+import { networkSecurityDashboardConsole } from './keys/network-security-dashboard-console';
 import { networkSslGatewayConsole } from './keys/network-ssl-gateway-console';
 import { networkVrack } from './keys/network-vrack';
 import { networkVrackConsole } from './keys/network-vrack-console';
@@ -67,6 +68,7 @@ import { privatecloudManagedBackupVmware } from './keys/privatecloud-managed-bac
 import { privatecloudNutanix } from './keys/privatecloud-nutanix';
 import { privatecloudNutanixConsole } from './keys/privatecloud-nutanix-console';
 import { privatecloudSapHana } from './keys/privatecloud-sap-hana';
+import { privatecloudSapHanaConsole } from './keys/privatecloud-sap-hana-console';
 import { privatecloudVeeamEnterprise } from './keys/privatecloud-veeam-enterprise';
 import { privatecloudVeeamEnterpriseConsole } from './keys/privatecloud-veeam-enterprise-console';
 import { privatecloudVmwareVcf } from './keys/privatecloud-vmware-vcf';
@@ -229,6 +231,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'privatecloud-nutanix': privatecloudNutanix,
   'privatecloud-nutanix-console': privatecloudNutanixConsole,
   'privatecloud-sap-hana': privatecloudSapHana,
+  'privatecloud-sap-hana-console': privatecloudSapHanaConsole,
   'privatecloud-veeam-enterprise': privatecloudVeeamEnterprise,
   'privatecloud-veeam-enterprise-console': privatecloudVeeamEnterpriseConsole,
   'privatecloud-hycu': privatecloudHycu,
@@ -335,6 +338,7 @@ export const CPNAV_KEYS: Record<string, CpNavKey> = {
   'network-load-balancer-console': networkLoadBalancerConsole,
   'network-global-load-balancer-console': networkGlobalLoadBalancerConsole,
   'network-security-dashboard': networkSecurityDashboard,
+  'network-security-dashboard-console': networkSecurityDashboardConsole,
   'network-cdn-console': networkCdnConsole,
   'network-ssl-gateway-console': networkSslGatewayConsole,
   // --- Telecom -------------------------------------------------------------------------

@@ -1,8 +1,7 @@
 -----
 ## Contents
 + Account and service management
-    + [Account Information](products/account-and-service-management-account-information)
-        + [Overview](account-and-service-management/account-information/overview)
+    + [Account Information](products/account-and-service-management-account-information){landing=account-and-service-management/account-information/overview}
         + [Getting started](account-and-service-management-account-information-getting-started)
             + [Creating an OVHcloud account](account-and-service-management/account-information/ovhcloud-account-creation)
             + [Logging in to the OVHcloud Console](account-and-service-management/account-information/ovhcloud-account-login)
@@ -43,7 +42,7 @@
             + [OVHcloud products ISO27k certifications](account-and-service-management/account-information/security-certifications)
             + [OVHcloud products HDS certification](account-and-service-management/account-information/hds-certification)
             + [Representation of the guarantees of the Healthcare Data Hosting (HDS) certification on OVHcloud products](account-and-service-management/account-information/hds-garanties)
-    + [Managing billing, payments and services](products/account-and-service-management-managing-billing-payments-and-services)
+    + [Managing billing, payments and services](products/account-and-service-management-managing-billing-payments-and-services){landing=account-and-service-management/managing-billing-payments-and-services/landing-page-billing}
         + [Renewing a service](account-and-service-management-managing-billing-payments-and-services-renewing-a-service)
             + [Managing renewal for OVHcloud services](account-and-service-management/managing-billing-payments-and-services/automatic-renewal)
             + [How to renew OVHcloud domain names](web-cloud/domains/autorenew-domain-name)
@@ -82,7 +81,7 @@
             + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
         + [API](account-and-service-management-managing-billing-payments-and-services-api)
             + [Ordering Public Cloud projects using the OVHcloud API](account-and-service-management/managing-billing-payments-and-services/order-project-api)
-    + [Reversibility](products/account-and-service-management-reversibility)
+    + [Reversibility](products/account-and-service-management-reversibility){landing=account-and-service-management/reversibility/landing-page-reversibility}
         + [Reversibility policies](account-and-service-management-reversibility-reversibility-policies)
             + [Global Reversibility Policy](account-and-service-management/reversibility/global-reversibility-policy)
             + [Web Hosting Reversibility Policy](account-and-service-management/reversibility/web-hosting-reversibility-policy)
@@ -110,7 +109,7 @@
             + [Reversibility Policy for the Dedicated PoD-SecNumCloud product](account-and-service-management/reversibility/bm-pod-snc-reversbility)
             + [Reversibility Policy for the Managed Database System for Web Hosting product](account-and-service-management/reversibility/db-web-hosting-reversibility)
             + [Reversibility Policy for the product Managed In-Memory Database ](account-and-service-management/reversibility/idb-reversibility-policy)
-    + [Responsibility sharing](account-and-service-management-responsibility-sharing)
+    + [Responsibility sharing](account-and-service-management-responsibility-sharing){landing=account-and-service-management/responsibility-sharing/landing-page-responsibility-sharing}
         + [Dedicated servers - Shared Responsibility](account-and-service-management/responsibility-sharing/dedicated-servers)
         + [File Storage services - Responsibility model](account-and-service-management/responsibility-sharing/file-storage)
         + [Cold Storage - Shared Responsibility for archive and restoration services](storage-and-backup/object-storage/cold-storage-responsibility-model)
@@ -420,9 +419,8 @@
                 + [Uploading a custom world to your Minecraft server](bare-metal-cloud/virtual-private-servers/game-panel-upload-minecraft-world)
                 + [Install mods on your Project Zomboid server](bare-metal-cloud/virtual-private-servers/game-panel-install-mods-project-zomboid)
 + Private Cloud
-    + [Managed VMware](products/hosted-private-cloud-managed-vmware)
-        + [Managed VMware vSphere](products/hosted-private-cloud-managed-vmware-vsphere)
-            + [Overview](hosted-private-cloud/powered-by-vmware/overview)
+    + [Managed VMware](products/hosted-private-cloud-managed-vmware){landing=hosted-private-cloud/powered-by-vmware/landing-page-managed-vmware}
+        + [Managed VMware vSphere](products/hosted-private-cloud-managed-vmware-vsphere){landing=hosted-private-cloud/powered-by-vmware/overview}
             + [Key Concepts](hosted-private-cloud-managed-vmware-key-concepts)
                 + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
                 + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
@@ -542,6 +540,7 @@
                     + [Responsibility sharing for the SecNumcloud-qualified VMware on OVHcloud service](hosted-private-cloud/powered-by-vmware/snc-responsibility-sharing)
                     + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
                     + [SPN Connector Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn-connector)
+                    + [Configuring the SPN on a VMware SecNumCloud service](hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration)
             + [Troubleshooting](hosted-private-cloud-managed-vmware-troubleshooting)
                 + [Maintenance and Updates](hosted-private-cloud-managed-vmware-troubleshooting-maintenance)
                     + [Maintaining VMware on OVHcloud maintenance operations](hosted-private-cloud/powered-by-vmware/vmware-maintenance)
@@ -563,55 +562,53 @@
                 + [NSX - FAQ](hosted-private-cloud/powered-by-vmware/nsx-faq)
                 + [Pricing and Management of OVHcloud NSX Edges](hosted-private-cloud/powered-by-vmware/nsx-pricing)
                 + [FAQ - SecNumCloud Connectivity](hosted-private-cloud/powered-by-vmware/snc-connectivity-faq)
-        + [Public VCF as-a-Service](products/hosted-private-cloud-public-VCF)
-            + [Overview](hosted-private-cloud/powered-by-vmware/public-vcf/overview)
+        + [Public VCF as-a-Service](products/hosted-private-cloud-public-VCF){landing=hosted-private-cloud/powered-by-vmware/public-vcf/overview}
             + [Key Concepts](hosted-private-cloud-public-VCF-key-concepts)
                 + [Technical capabilities](hosted-private-cloud/powered-by-vmware/hpc-limits)
                 + [VMware on OVHcloud Lifecycle Policy](hosted-private-cloud/powered-by-vmware/lifecycle-policy)
                 + [VMware on OVHcloud Lifecycle Policy - Determine actions to be taken](hosted-private-cloud/powered-by-vmware/lifecycle-actions)
                 + [Responsibility sharing for the VMware on OVHcloud service](hosted-private-cloud/powered-by-vmware/responsibility-sharing)
                 + [Datamotive - Introduction](hosted-private-cloud/powered-by-vmware/datamotive-intro)
-                + [Public VCF as-a-Service - The fundamentals of Public VCF as-a-Service](hosted-private-cloud/powered-by-vmware/vcd-get-concepts)
+                + [Public VCF as-a-Service - The fundamentals of Public VCF as-a-Service](hosted-private-cloud/powered-by-vmware/vcd-get-concepts){label=The fundamentals of Public VCF as-a-Service}
                 + [Technical capabilities and limitations of Public VCF as-a-Service](hosted-private-cloud/powered-by-vmware/vcd-limitations)
             + [Getting started](hosted-private-cloud-public-VCF-getting-started)
-                + [Introduction to the Hosted Private Cloud Control Panel](hosted-private-cloud/powered-by-vmware/manager-ovh-private-cloud)
+                + [Managing your Hosted Private Cloud in the OVHcloud Console](hosted-private-cloud/powered-by-vmware/manager-ovh-private-cloud)
                 + [Logging in to the vSphere interface](hosted-private-cloud/powered-by-vmware/vsphere-interface-connection)
-                + [Public VCF as-a-Service - Logging in to your organization](hosted-private-cloud/powered-by-vmware/vcd-logging)
-                + [Public VCF as-a-Service - How to use the Public VCF as-a-Service user interface](hosted-private-cloud/powered-by-vmware/vcd-getting-started-dashboard-overview)
+                + [Public VCF as-a-Service - Logging in to your organization](hosted-private-cloud/powered-by-vmware/vcd-logging){label=Logging in to your organization}
+                + [Public VCF as-a-Service - How to use the Public VCF as-a-Service user interface](hosted-private-cloud/powered-by-vmware/vcd-getting-started-dashboard-overview){label=How to use the Public VCF as-a-Service user interface}
             + [Configuration](hosted-private-cloud-public-VCF-configuration)
                 + [How to connect an ISO image to a VM](hosted-private-cloud/powered-by-vmware/connect-iso-to-vm)
                 + [How to disconnect an ISO image from a VM](hosted-private-cloud/powered-by-vmware/disconnect-iso-from-vm)
                 + [Configure an IP address on a virtual machine](hosted-private-cloud/powered-by-vmware/configure-ip-on-vm)
-                + [Public VCF as-a-Service - Network concepts and best practices](hosted-private-cloud/powered-by-vmware/vcd-network-concepts)
-                + [Public VCF as-a-Service - Creating network components from the Public VCF as-a-Service control panel](hosted-private-cloud/powered-by-vmware/vcd-network-creation)
-                + [Public VCF as-a-Service - Linking a public IP block with vRack](hosted-private-cloud/powered-by-vmware/vcd-link-ip-to-vrack)
-                + [Public VCF as-a-Service - Declaring the public IP gateway in VCD](hosted-private-cloud/powered-by-vmware/vcd-declare-public-gateway)
-                + [Public VCF as-a-Service - Configuring and managing your Edge Gateways](hosted-private-cloud/powered-by-vmware/vcd-edge-gateway)
-                + [Public VCF as-a-Service - User roles](hosted-private-cloud/powered-by-vmware/vcd-user-role)
+                + [Public VCF as-a-Service - Network concepts and best practices](hosted-private-cloud/powered-by-vmware/vcd-network-concepts){label=Network concepts and best practices}
+                + [Public VCF as-a-Service - Creating network components from the Public VCF as-a-Service control panel](hosted-private-cloud/powered-by-vmware/vcd-network-creation){label=Creating network components from the Public VCF as-a-Service control panel}
+                + [Public VCF as-a-Service - Linking a public IP block with vRack](hosted-private-cloud/powered-by-vmware/vcd-link-ip-to-vrack){label=Linking a public IP block with vRack}
+                + [Public VCF as-a-Service - Declaring the public IP gateway in VCD](hosted-private-cloud/powered-by-vmware/vcd-declare-public-gateway){label=Declaring the public IP gateway in VCD}
+                + [Public VCF as-a-Service - Configuring and managing your Edge Gateways](hosted-private-cloud/powered-by-vmware/vcd-edge-gateway){label=Configuring and managing your Edge Gateways}
+                + [Public VCF as-a-Service - User roles](hosted-private-cloud/powered-by-vmware/vcd-user-role){label=User roles}
             + [Migration](hosted-private-cloud-public-VCF-migration)
                 + [Migrating a PCC to Hosted Private Cloud](hosted-private-cloud/powered-by-vmware/service-migration)
                 + [Migrating an infrastructure to a new vDC](hosted-private-cloud/powered-by-vmware/service-migration-vdc)
                 + [End-Of-Life management for LV1 and LV2 storage](hosted-private-cloud/powered-by-vmware/eol-storage-migration)
-                + [Public VCF as-a-Service - Migrate from VMware vSphere on OVHcloud](hosted-private-cloud/powered-by-vmware/vcd-migration-use-cases)
-                + [Public VCF as-a-Service - Setting up your network after vSphere to Public VCF as-a-Service migration](hosted-private-cloud/powered-by-vmware/vcd-post-migration)
+                + [Public VCF as-a-Service - Migrate from VMware vSphere on OVHcloud](hosted-private-cloud/powered-by-vmware/vcd-migration-use-cases){label=Migrate from VMware vSphere on OVHcloud}
+                + [Public VCF as-a-Service - Setting up your network after vSphere to Public VCF as-a-Service migration](hosted-private-cloud/powered-by-vmware/vcd-post-migration){label=Setting up your network after vSphere to Public VCF as-a-Service migration}
                 + [Enable the VCDA migration option on your Public VCF as-a-Service organisation](hosted-private-cloud/powered-by-vmware/vcda-enable-offer)
                 + [Public VCF as-a-Service Migration with VCDA - Getting Started](hosted-private-cloud/powered-by-vmware/vcda-getting-started)
                 + [Trigger your first VCDA migration to Public VCF as-a-Service](hosted-private-cloud/powered-by-vmware/vcda-trigger-migration)
                 + [Reversibility Policy for the Managed Mutualized Virtualization product](account-and-service-management/reversibility/mutualized-virtualization-vcd-reversibility)
             + [Tutorials](hosted-private-cloud-public-VCF-tutorials)
-                + [Public VCF as-a-Service - Creating a new virtual machine](hosted-private-cloud/powered-by-vmware/vcd-vm-creation)
-                + [Public VCF as-a-Service - Backups with Veeam Data Platform](hosted-private-cloud/powered-by-vmware/vcd-backup)
+                + [Public VCF as-a-Service - Creating a new virtual machine](hosted-private-cloud/powered-by-vmware/vcd-vm-creation){label=Creating a new virtual machine}
+                + [Public VCF as-a-Service - Backups with Veeam Data Platform](hosted-private-cloud/powered-by-vmware/vcd-backup){label=Backups with Veeam Data Platform}
             + [Security](hosted-private-cloud-public-VCF-security)
             + [Troubleshooting](hosted-private-cloud-public-VCF-troubleshooting)
             + [Additional resources](hosted-private-cloud-public-VCF-additional-resources)
                 + [Dedicated Cloud FAQ](hosted-private-cloud/powered-by-vmware/faq-private-cloud)
                 + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
-                + [Public VCF as-a-Service - FAQ](hosted-private-cloud/powered-by-vmware/vcd-faq)
-        + [Private VCF as-a-Service](products/hosted-private-cloud-private-vcf)
-            + [Overview](hosted-private-cloud/powered-by-vmware/private-vcf/overview)
+                + [Public VCF as-a-Service - FAQ](hosted-private-cloud/powered-by-vmware/vcd-faq){label=FAQ}
+        + [Private VCF as-a-Service](products/hosted-private-cloud-private-vcf){landing=hosted-private-cloud/powered-by-vmware/private-vcf/overview}
             + [Key Concepts](hosted-private-cloud-private-vcf-key-concepts)
-                + [Private VCF as-a-Service - 3-AZ Stretched Cluster concepts](hosted-private-cloud/powered-by-vmware/private-vcf/3az-stretched-cluster-concepts)
-    + [SNC Cloud Platform](hosted-private-cloud-snc-cloud-platform)
+                + [Private VCF as-a-Service - 3-AZ Stretched Cluster concepts](hosted-private-cloud/powered-by-vmware/private-vcf/3az-stretched-cluster-concepts){label=3-AZ Stretched Cluster concepts}
+    + [SNC Cloud Platform](hosted-private-cloud-snc-cloud-platform){landing=hosted-private-cloud/cloud-platform/landing-page-snc-cloud-platform}
         + [Getting started](hosted-private-cloud-snc-cloud-platform-getting-started)
             + [Getting started with your SNC Cloud Platform project](hosted-private-cloud/cloud-platform/getting-started)
             + [Creating an instance and connecting to it](hosted-private-cloud/cloud-platform/snc-cloud-platform-create-instance)
@@ -622,7 +619,7 @@
             + [Managing Glance images](hosted-private-cloud/cloud-platform/snc-cloud-platform-glance-image-management)
             + [Managing public IPs](hosted-private-cloud/cloud-platform/snc-cloud-platform-public-ip-management)
             + [Installing an operating system from an ISO image](hosted-private-cloud/cloud-platform/snc-cloud-platform-install-os-from-iso)
-    + [Bare Metal Pod](hosted-private-cloud-baremetal-pod)
+    + [Bare Metal Pod](hosted-private-cloud-baremetal-pod){landing=hosted-private-cloud/baremetal-pod/landing-page-baremetal-pod}
         + [Getting started](hosted-private-cloud-baremetal-pod-getting-started)
             + [Mise en route de votre Bare Metal POD SecNumCloud](hosted-private-cloud/baremetal-pod/snc-getting-started)
             + [How to back up a Bare Metal Pod SecNumCloud instance](hosted-private-cloud/baremetal-pod/bmpod-secnumcloud-backup-instance)
@@ -669,8 +666,7 @@
             + [How to create a custom CentOS image](hosted-private-cloud/opcp/how-to-create-centos-image)
             + [How to deploy Scality RING on OPCP](hosted-private-cloud/opcp/how-to-deploy-scality-ring)
             + [Ceph RBD Block Storage - Performance, Resilience and Scalability with OpenStack](hosted-private-cloud/opcp/storage-ceph-rbd-overview)
-    + [Nutanix on OVHcloud](products/hosted-private-cloud-nutanix)
-        + [Overview](hosted-private-cloud/nutanix-on-ovhcloud/overview)
+    + [Nutanix on OVHcloud](products/hosted-private-cloud-nutanix){landing=hosted-private-cloud/nutanix-on-ovhcloud/overview}
         + [Key Concepts](hosted-private-cloud-nutanix-key-concepts)
             + [Nutanix global high-level documentation](hosted-private-cloud/nutanix-on-ovhcloud/global-high-level-doc)
             + [Nutanix hardware compatibility - OVHcloud configurations](hosted-private-cloud/nutanix-on-ovhcloud/nutanix-hardware-compatibility)
@@ -682,6 +678,7 @@
         + [Getting started](hosted-private-cloud-nutanix-getting-started)
             + [Getting started with your Nutanix cluster](hosted-private-cloud/nutanix-on-ovhcloud/first-steps)
             + [Nutanix Hyperconvergence](hosted-private-cloud/nutanix-on-ovhcloud/nutanix-hci)
+            + [Installing your Nutanix cluster after delivery](hosted-private-cloud/nutanix-on-ovhcloud/install-cluster)
             + [Customised redeployment of your Cluster](hosted-private-cloud/nutanix-on-ovhcloud/cluster-custom-redeployment)
             + [Storage overview on Nutanix](hosted-private-cloud/nutanix-on-ovhcloud/storage)
             + [Importing ISO images](hosted-private-cloud/nutanix-on-ovhcloud/image-import)
@@ -723,8 +720,7 @@
             + [Configuring Disaster Recovery with Metro](hosted-private-cloud/nutanix-on-ovhcloud/metro-availability)
             + [Setting up Multicloud Snapshot Technology (MST) on a Nutanix on OVHcloud infrastructure](hosted-private-cloud/nutanix-on-ovhcloud/set-up-mst)
             + [Configuring Prism Central Point-in-Time Backup to OVHcloud S3-compatible Object Storage](hosted-private-cloud/nutanix-on-ovhcloud/set-up-pcbr)
-    + [SAP on OVHcloud](products/hosted-private-cloud-sap-ovhcloud)
-        + [Overview](hosted-private-cloud/sap-on-ovhcloud/overview)
+    + [SAP on OVHcloud](products/hosted-private-cloud-sap-ovhcloud){landing=hosted-private-cloud/sap-on-ovhcloud/overview}
         + [Concepts](hosted-private-cloud-sap-ovhcloud-concepts)
             + [SAP HANA on Bare Metal and SAP Application Servers on VMware on OVHcloud](hosted-private-cloud/sap-on-ovhcloud/hana-dedicated-server-sap-as-hpc)
             + [SAP infrastructure with VMware on OVHcloud solution](hosted-private-cloud/sap-on-ovhcloud/concept-vmware-for-sap)
@@ -3014,6 +3010,7 @@
     + [SecNumCloud](network-secnumcloud-connectivity){landing=network/landing-page-secnumcloud-connectivity}
         + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
         + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
+        + [Configuring the SPN on a VMware SecNumCloud service](hosted-private-cloud/powered-by-vmware/snc-connectivity-spn-vmware-configuration)
         + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
         + [FAQ SecNumCloud Connectivity](hosted-private-cloud/powered-by-vmware/snc-connectivity-faq)
     + [SSL Gateway](products/network-ssl-gateway)

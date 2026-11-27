@@ -1101,6 +1101,15 @@ export const externalLinks: LinkMap = {
     pl: 'https://www.ovhcloud.com/pl/hosted-private-cloud/vmware/managed-vsphere/',
     pt: 'https://www.ovhcloud.com/pt/hosted-private-cloud/vmware/managed-vsphere/',
   },
+  'hosted-private-cloud/vmware-nsx': {
+    fr: 'https://www.ovhcloud.com/fr/hosted-private-cloud/vmware/nsx/',
+    en: 'https://www.ovhcloud.com/en-gb/hosted-private-cloud/vmware/nsx/',
+    de: 'https://www.ovhcloud.com/de/hosted-private-cloud/vmware/nsx/',
+    es: 'https://www.ovhcloud.com/es-es/hosted-private-cloud/vmware/nsx/',
+    it: 'https://www.ovhcloud.com/it/hosted-private-cloud/vmware/nsx/',
+    pl: 'https://www.ovhcloud.com/pl/hosted-private-cloud/vmware/nsx/',
+    pt: 'https://www.ovhcloud.com/pt/hosted-private-cloud/vmware/nsx/',
+  },
   'hosted-private-cloud/vmware-partnership-innovation': {
     fr: 'https://www.ovhcloud.com/fr/hosted-private-cloud/vmware-partnership-innovation/',
     en: 'https://www.ovhcloud.com/en-gb/hosted-private-cloud/vmware-partnership-innovation/',
@@ -1136,6 +1145,15 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/lp/vmware-vcd-evolution/',
     pl: 'https://www.ovhcloud.com/pl/lp/vmware-vcd-evolution/',
     pt: 'https://www.ovhcloud.com/pt/lp/vmware-vcd-evolution/',
+  },
+  'hosted-private-cloud/vmware-vrops': {
+    fr: 'https://www.ovhcloud.com/fr/hosted-private-cloud/vmware/vrops/',
+    en: 'https://www.ovhcloud.com/en-gb/hosted-private-cloud/vmware/vrops/',
+    de: 'https://www.ovhcloud.com/de/hosted-private-cloud/vmware/vrops/',
+    es: 'https://www.ovhcloud.com/es-es/hosted-private-cloud/vmware/vrops/',
+    it: 'https://www.ovhcloud.com/it/hosted-private-cloud/vmware/vrops/',
+    pl: 'https://www.ovhcloud.com/pl/hosted-private-cloud/vmware/vrops/',
+    pt: 'https://www.ovhcloud.com/pt/hosted-private-cloud/vmware/vrops/',
   },
   'hosted-private-cloud/vmware-vsphere': {
     fr: 'https://www.ovhcloud.com/fr/hosted-private-cloud/vmware/vsphere/',
@@ -2106,6 +2124,15 @@ export const externalLinks: LinkMap = {
     it: 'https://www.ovhcloud.com/it/solutions/nutanix/',
     pl: 'https://www.ovhcloud.com/pl/solutions/nutanix/',
     pt: 'https://www.ovhcloud.com/pt/solutions/nutanix/',
+  },
+  'solutions/sap': {
+    fr: 'https://www.ovhcloud.com/fr/solutions/sap/',
+    en: 'https://www.ovhcloud.com/en-gb/solutions/sap/',
+    de: 'https://www.ovhcloud.com/de/solutions/sap/',
+    es: 'https://www.ovhcloud.com/es-es/solutions/sap/',
+    it: 'https://www.ovhcloud.com/it/solutions/sap/',
+    pl: 'https://www.ovhcloud.com/pl/solutions/sap/',
+    pt: 'https://www.ovhcloud.com/pt/solutions/sap/',
   },
   'solutions/uc-app-modernization': {
     fr: 'https://www.ovhcloud.com/fr/solutions/uc-app-modernization/',

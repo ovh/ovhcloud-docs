@@ -62,8 +62,8 @@ export const CPNAV_UNIVERSES: Record<
     pt: 'Observabilidade',
   },
   // The Console's (v8) Security side-menu group (transverse.group.security), present under every
-  // universe. Only for the Console twins of the KMS and Secret Manager keys, until they are
-  // repointed at its GA.
+  // universe. For the Console twins of the KMS and Secret Manager keys and of the Anti-DDoS key
+  // (network-security-dashboard).
   security: {
     en: 'Security',
     fr: 'Sécurité',
