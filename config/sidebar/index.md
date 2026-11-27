@@ -1,8 +1,7 @@
 -----
 ## Contents
 + Account and service management
-    + [Account Information](products/account-and-service-management-account-information)
-        + [Overview](account-and-service-management/account-information/overview)
+    + [Account Information](products/account-and-service-management-account-information){landing=account-and-service-management/account-information/overview}
         + [Getting started](account-and-service-management-account-information-getting-started)
             + [Creating an OVHcloud account](account-and-service-management/account-information/ovhcloud-account-creation)
             + [Logging in to the OVHcloud Console](account-and-service-management/account-information/ovhcloud-account-login)
@@ -43,7 +42,7 @@
             + [OVHcloud products ISO27k certifications](account-and-service-management/account-information/security-certifications)
             + [OVHcloud products HDS certification](account-and-service-management/account-information/hds-certification)
             + [Representation of the guarantees of the Healthcare Data Hosting (HDS) certification on OVHcloud products](account-and-service-management/account-information/hds-garanties)
-    + [Managing billing, payments and services](products/account-and-service-management-managing-billing-payments-and-services)
+    + [Managing billing, payments and services](products/account-and-service-management-managing-billing-payments-and-services){landing=account-and-service-management/managing-billing-payments-and-services/landing-page-billing}
         + [Renewing a service](account-and-service-management-managing-billing-payments-and-services-renewing-a-service)
             + [Managing renewal for OVHcloud services](account-and-service-management/managing-billing-payments-and-services/automatic-renewal)
             + [How to renew OVHcloud domain names](web-cloud/domains/autorenew-domain-name)
@@ -82,7 +81,7 @@
             + [How can I find out if my IP address is managed by OVHcloud?](network/whois-ip)
         + [API](account-and-service-management-managing-billing-payments-and-services-api)
             + [Ordering Public Cloud projects using the OVHcloud API](account-and-service-management/managing-billing-payments-and-services/order-project-api)
-    + [Reversibility](products/account-and-service-management-reversibility)
+    + [Reversibility](products/account-and-service-management-reversibility){landing=account-and-service-management/reversibility/landing-page-reversibility}
         + [Reversibility policies](account-and-service-management-reversibility-reversibility-policies)
             + [Global Reversibility Policy](account-and-service-management/reversibility/global-reversibility-policy)
             + [Web Hosting Reversibility Policy](account-and-service-management/reversibility/web-hosting-reversibility-policy)
@@ -110,7 +109,7 @@
             + [Reversibility Policy for the Dedicated PoD-SecNumCloud product](account-and-service-management/reversibility/bm-pod-snc-reversbility)
             + [Reversibility Policy for the Managed Database System for Web Hosting product](account-and-service-management/reversibility/db-web-hosting-reversibility)
             + [Reversibility Policy for the product Managed In-Memory Database ](account-and-service-management/reversibility/idb-reversibility-policy)
-    + [Responsibility sharing](account-and-service-management-responsibility-sharing)
+    + [Responsibility sharing](account-and-service-management-responsibility-sharing){landing=account-and-service-management/responsibility-sharing/landing-page-responsibility-sharing}
         + [Dedicated servers - Shared Responsibility](account-and-service-management/responsibility-sharing/dedicated-servers)
         + [File Storage services - Responsibility model](account-and-service-management/responsibility-sharing/file-storage)
         + [Cold Storage - Shared Responsibility for archive and restoration services](storage-and-backup/object-storage/cold-storage-responsibility-model)
