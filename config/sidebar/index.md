@@ -442,7 +442,6 @@
                     + [Enabling promiscuous mode on a Virtual Machine](hosted-private-cloud/powered-by-vmware/vmware-carp)
                     + [Changing the MTU size for machines reaching the OVHcloud Gateway SSL](hosted-private-cloud/powered-by-vmware/recommended-mtu-for-machines-reaching-ovh-gw-ssl)
                     + [Deploy an OVF template through content libraries](hosted-private-cloud/powered-by-vmware/how-to-use-content-library)
-                    + [Deploy an OVF Linux, Windows Server and Windows SQL Server template](hosted-private-cloud/powered-by-vmware/ovf-template)
                     + [OVF Tool](hosted-private-cloud/powered-by-vmware/ovf-tool)
                 + [Storage and Resources](hosted-private-cloud-managed-vmware-configuration-storage)
                     + [How to add storage?](hosted-private-cloud/powered-by-vmware/how-to-add-storage)
