@@ -1,5 +1,123 @@
 # Changelog
 
+## 2026.11.26
+
+### Features
+
+#### EU
+- **mks:** document taints for system workload (#1237)
+
+### Maintenance
+
+#### All regions
+- **domains:** compress the FOA validation page screenshots
+
+### Documentation
+- EU: 452 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.25
+
+### Features
+
+#### EU
+- **nutanix:** update Nutanix guides for the OVHcloud Console (#1312)
+
+#### All regions
+- **landing:** list a landing page's guides from the sidebar
+
+### Documentation
+- EU: 197 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.24
+
+### Features
+
+#### All regions
+- **sidebar:** let a copy of guides leave them their home (#1338)
+- **theme:** add a pause / play button to the home hero animation
+
+### Maintenance
+
+#### All regions
+- **sidebar:** group the Dedicated Servers backup guides by product (#1327)
+
+### Documentation
+- EU: 716 guides across de, en, es, fr, it, pl, pt
+- US: 11 guides across en
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.24
+
+## 2026.11.23.1
+
+### Fixes
+
+#### EU
+- **v8:** apply recheck updates for account guides (#1336)
+
+#### All regions
+- **components:** space mermaid frame titles evenly and line up framed rows (#1337)
+
+### Documentation
+- EU: 69 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.23
+
+### Documentation
+- EU: 203 guides across de, en, es, fr, it, pl, pt
+- US: 2 guides across en
+
 ## 2026.11.20.1
 
 ### Features

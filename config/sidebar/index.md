@@ -131,8 +131,7 @@
         + [Responsibility sharing - Domain Name service](web-cloud/domains/domains-responsibility-sharing)
         + [Responsibility sharing for the Web Hosting service](web-cloud/web-hosting/web-hosting-responsibility-sharing)
         + [OKMS - Shared responsibilities](manage-and-operate/kms/raci)
-    + [Startup Program](products/startup-program)
-        + [Overview](account-and-service-management/startup-program/overview)
+    + [Startup Program](products/startup-program){landing=account-and-service-management/startup-program/landing-page-startup-program}
         + [General information](startup-program-general-information)
             + [Startup Program - How to apply to our newsletter?](account-and-service-management/startup-program/apply-to-newsletter)
             + [How to optimise your application to the Startup Program](account-and-service-management/startup-program/optimise-application)
@@ -146,8 +145,7 @@
         + [Technical resources](startup-program-technical-resources)
             + [How to increase Public Cloud quotas for a Startup Program member](account-and-service-management/startup-program/increase-quota)
 + Bare Metal Cloud
-    + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers) 
-        + [Overview](bare-metal-cloud/dedicated-servers/overview)
+    + [Dedicated Servers](products/bare-metal-cloud-dedicated-servers){landing=bare-metal-cloud/dedicated-servers/overview}
         + [Key Concepts](bare-metal-cloud-dedicated-servers-key-concepts)
             + [Bare Metal 3-AZ Region - Service presentation](bare-metal-cloud/dedicated-servers/3az-presentation)
             + [Kimsufi and So you Start customers - Get to know the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/getting-familiar-with-ovhcloud-control-panel)
@@ -161,7 +159,7 @@
             + [How to get started with a Kimsufi, So you Start or Rise dedicated server](bare-metal-cloud/dedicated-servers/getting-started-with-dedicated-server-eco)
             + [How to get started with SSH connections](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use authentication keys for SSH connections to OVHcloud servers](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
-            + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
+            + [How to store public authentication keys in the OVHcloud Console](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
             + [How to use the IPMI console with a dedicated server](bare-metal-cloud/dedicated-servers/ipmi)
             + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
         + [Configuration](bare-metal-cloud-dedicated-servers-configuration)
@@ -239,11 +237,32 @@
                 + [Bring Your Own Linux (BYOLinux)](bare-metal-cloud/dedicated-servers/bring-your-own-linux)
                 + [Configure a custom iPXE script to boot your server from the OVHcloud API](bare-metal-cloud/dedicated-servers/ipxe-scripts)
             + [Backup](bare-metal-cloud-dedicated-servers-configuration-backup)
-                + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation)
-                + [Backing up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux)
-                + [Backing Up a Bare Metal Windows Server Using Veeam Agent for Windows](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent)
-                + [Restoring a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore)
-                + [Using backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
+                + [Backup Agent](bare-metal-cloud-dedicated-servers-configuration-backup-backup-agent){landing=storage-and-backup/backup-agent/overview}{canonical=false}
+                    + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation){label=Product Overview}
+                    + [Backup Agent - How Vaults work](storage-and-backup/backup-agent/backup-agent-vault){label=How Vaults work}
+                    + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration){label=How to configure your first backup}
+                    + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore){label=Managing your backups}
+                    + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore){label=Triggering restores}
+                    + [Backup Agent - Connect to VSPC](storage-and-backup/backup-agent/vspc-presentation){label=Connect to VSPC}
+                    + [Backup Agent - Troubleshooting](storage-and-backup/backup-agent/troubleshooting){label=Troubleshooting}
+                    + [Backup Agent - Known Restrictions](storage-and-backup/backup-agent/restrictions){label=Known Restrictions}
+                    + [Backup Agent - Billing](storage-and-backup/backup-agent/billing){label=Billing}
+                    + [Backup Agent - Service updates](storage-and-backup/backup-agent/update){label=Service updates}
+                    + [Backup Agent - Deletion Procedure](storage-and-backup/backup-agent/deletion){label=Deletion Procedure}
+                    + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant){label=Linux CLI Assistant}
+                + [Backup Licenses](bare-metal-cloud-dedicated-servers-configuration-backup-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}{canonical=false}
+                    + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration){label=Ordering and configuring your first licence}
+                    + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise){label=Migrating from Veeam Enterprise to Backup Licenses}
+                    + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault){label=How Vaults work}
+                    + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting){label=Troubleshooting guide}
+                    + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions){label=Known restrictions}
+                + [Veeam Enterprise Plus](bare-metal-cloud-dedicated-servers-configuration-backup-veeam-enterprise-plus){landing=storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview}{canonical=false}
+                    + [Setting up Veeam Backup & Replication](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/veeam-veeam-backup-replication)
+                    + [Preparing a Bare Metal Server backup with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-preparation){canonical=true}
+                    + [Back up a Bare Metal Linux Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-linux){canonical=true}
+                    + [Back up a Dedicated Windows Server with Veeam Agent](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-backup-windows-agent){canonical=true}
+                    + [Restore a Bare Metal Server with Veeam Enterprise](bare-metal-cloud/dedicated-servers/veeam-enterprise-server-restore){canonical=true}
+                + [How to use the backup storage on a dedicated server](bare-metal-cloud/dedicated-servers/services-backup-storage)
         + [Migration](bare-metal-cloud-dedicated-servers-migration)
             + [Migrate data from one dedicated server to another](bare-metal-cloud/dedicated-servers/migrate-a-server-to-another)
             + [Copying data from one dedicated server to another using rsync](bare-metal-cloud/dedicated-servers/how-to-copy-data-from-one-dedicated-server-to-another-using-rsync)
@@ -305,7 +324,7 @@
             + [How to configure user accounts and root access on a server](bare-metal-cloud/dedicated-servers/changing-root-password-linux-ds)
             + [How to get started with SSH](bare-metal-cloud/dedicated-servers/ssh-introduction)
             + [How to create and use SSH keys](bare-metal-cloud/dedicated-servers/creating-ssh-keys)
-            + [How to store public authentication keys in the OVHcloud Control Panel](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
+            + [How to store public authentication keys in the OVHcloud Console](bare-metal-cloud/dedicated-servers/import-keys-control-panel)
             + [How to upgrade the resources of a VPS](bare-metal-cloud/virtual-private-servers/upgrade-resources)
             + [Repartitioning a VPS after an upgrade](bare-metal-cloud/virtual-private-servers/upsize-vps-partition)
             + [First steps with pre-installed applications](bare-metal-cloud/virtual-private-servers/apps-first-steps)
@@ -732,8 +751,7 @@
             + [SAP logs on OVHcloud Logs Data Platform - Analyze and work with your logs](hosted-private-cloud/sap-on-ovhcloud/cookbook-sap-logs-on-ovhcloud-logs-data-platform-analyze-and-work-with-your-logs)
             + [SAP logs on OVHcloud Logs Data Platform - Index of SAP logs](hosted-private-cloud/sap-on-ovhcloud/cookbook-sap-logs-on-ovhcloud-logs-data-platform-index-of-sap-logs)
 + Public Cloud
-    + [General Information](products/public-cloud-cross-functional)
-        + [Overview](public-cloud/cross-functional/overview)
+    + [General Information](products/public-cloud-cross-functional){landing=public-cloud/cross-functional/overview}
         + [Key concepts](public-cloud-cross-functional-key-concepts)
             + [Public Cloud Glossary](public-cloud/cross-functional/introduction-about-instances)
             + [Public Cloud API Rate Limits](public-cloud/cross-functional/api-rate-limits)
@@ -785,8 +803,7 @@
             + [Information regarding Public Cloud billing options](public-cloud/cross-functional/analyze-billing)
             + [Proper Usage and Limitations of Classic Multi-Attach Block Storage in 3AZ Regions](public-cloud/compute/storage-classic-multi-attach-3az)
             + [Understanding Landing Zones](public-cloud/cross-functional/whats-is-landing-zone)
-    + [Compute](products/public-cloud-compute)
-        + [Overview](public-cloud/compute/overview)
+    + [Compute](products/public-cloud-compute){landing=public-cloud/compute/overview}
         + [Instance](products/public-cloud-compute-instance)
             + [Key concepts](public-cloud-compute-instance-key-concepts)
                 + [Public Cloud Instances - Key concepts](public-cloud/compute/key-concepts)
@@ -873,9 +890,8 @@
                 + [Understanding OpenStack API logs](public-cloud/compute/openstack-api-logs)
             + [Additional resources](public-cloud-compute-common-additional-resources)
                 + [How to obtain the carbon footprint of your OVHcloud services](account-and-service-management/managing-billing-payments-and-services/carbon-footprint)
-    + [Network](products/public-cloud-network)
-        + [Overview](public-cloud/network-services/overview)
-        + [Private Network](products/public-cloud-network-private-network)
+    + [Network](products/public-cloud-network){landing=public-cloud/network-services/overview}
+        + [Private Network](products/public-cloud-network-private-network){landing=public-cloud/network-services/landing-page-private-network}
             + [Getting started](public-cloud-network-private-network-getting-started)
                 + [Creating a private network with Gateway](public-cloud/network-services/create-private-network-gateway)
                 + [Configuring vRack for Public Cloud](public-cloud/network-services/vrack)
@@ -890,7 +906,7 @@
         + [Private Endpoint](products/public-cloud-network-private-endpoint)
             + [Getting started](public-cloud-network-private-endpoint-getting-started)
                 + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
-        + [Public IP](products/public-cloud-network-public-ips)
+        + [Public IP](products/public-cloud-network-public-ips){landing=public-cloud/network-services/landing-page-public-ip}
             + [Key concepts](public-cloud-network-public-ips-key-concepts)
                 + [Concepts - Public Cloud IP types](public-cloud/network-services/additional-ip-vs-floating-ip)
             + [Getting started](public-cloud-network-public-ips-getting-started)
@@ -901,18 +917,18 @@
                 + [Importing an Additional IP](public-cloud/network-services/import-additional-ip)
                 + [Migrating an Additional IP](public-cloud/network-services/migrate-additional-ip)
                 + [Configuring a public IP block in a vRack on a Public Cloud instance](public-cloud/network-services/configure-ip-block-vrack-instance)
-        + [Gateway](products/public-cloud-network-gateway)
+        + [Gateway](products/public-cloud-network-gateway){landing=public-cloud/network-services/landing-page-gateway}
             + [Getting started](public-cloud-network-gateway-getting-started)
                 + [Getting started with OVHcloud Public Cloud Gateway](public-cloud/network-services/getting-started-gateway)
             + [Configuration](public-cloud-network-gateway-configuration)
                 + [L3 services SNAT configuration](public-cloud/network-services/l3-services-snat-configuration)
                 + [Configuring IPv6 on a Public Cloud instance](public-cloud/network-services/ipv6-configuration)
-        + [Site-to-Site VPN](products/public-cloud-network-site-to-site-vpn)
+        + [Site-to-Site VPN](products/public-cloud-network-site-to-site-vpn){landing=public-cloud/network-services/landing-page-site-to-site-vpn}
             + [Getting started](public-cloud-network-site-to-site-vpn-getting-started)
                 + [Site-to-Site VPN - Get started in the Console](public-cloud/network-services/site-to-site-vpn-getting-started)
             + [Configuration](public-cloud-network-site-to-site-vpn-configuration)
                 + [Site-to-Site VPN - Connect to AWS](public-cloud/network-services/site-to-site-vpn-connect-aws)
-        + [Load Balancer](products/public-cloud-network-load-balancer)
+        + [Load Balancer](products/public-cloud-network-load-balancer){landing=public-cloud/network-services/landing-page-load-balancer}
             + [Key concepts](public-cloud-network-load-balancer-key-concepts)
                 + [Concepts - Load Balancer](public-cloud/network-services/load-balancer-concepts)
             + [Getting started](public-cloud-network-load-balancer-getting-started)
@@ -941,97 +957,97 @@
                 + [Understanding OpenStack API logs](public-cloud/compute/openstack-api-logs)
     + [Storage](products/public-cloud-storage)
         + [Object Storage](products/public-cloud-storage-object-storage)
-            + [S3 compatible](products/public-cloud-storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
+            + [S3 compatible](products/public-cloud-storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}{canonical=false}
                 + [Key Concepts](products/public-cloud-storage-object-storage-s3-key-concepts)
-                    + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
-                    + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
+                    + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs){label=Choosing the right storage class for your needs}
+                    + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location){label=Endpoints and Object Storage geoavailability}
                     + [Comparison of Object Storage Deployment Modes - Understanding 3-AZ / 1-AZ / Local Zones](storage-and-backup/object-storage/s3-regions-comparison)
                     + [Cold Archive - Overview](storage-and-backup/object-storage/cold-archive-overview)
                 + [Getting Started](products/public-cloud-storage-object-storage-s3-getting-started)
-                    + [Object Storage - Getting started with Object Storage](storage-and-backup/object-storage/s3-getting-started-with-object-storage)
-                    + [Object Storage - Identity and access management](storage-and-backup/object-storage/s3-identity-and-access-management)
+                    + [Object Storage - Getting started with Object Storage](storage-and-backup/object-storage/s3-getting-started-with-object-storage){label=Getting started}
+                    + [Object Storage - Identity and access management](storage-and-backup/object-storage/s3-identity-and-access-management){label=Identity and access management}
                 + [Configuration](products/public-cloud-storage-object-storage-s3-configuration)
-                    + [Object Storage - Getting Started with Versioning](storage-and-backup/object-storage/s3-versioning) 
-                    + [Object Storage - Smart Storage Management with Lifecycle Rules](storage-and-backup/object-storage/s3-bucket-lifecycle)
-                    + [Object Storage - Master asynchronous replication across your buckets](storage-and-backup/object-storage/s3-asynchronous-replication)
-                    + [Object Storage - Conditional writes](storage-and-backup/object-storage/s3-conditional-writes)
-                    + [Object Storage - Servers Access Logging](storage-and-backup/object-storage/s3-server-access-logging)
-                    + [Object Storage - Setting up CORS on Object Storage](storage-and-backup/object-storage/s3-setting-up-cors)
-                    + [Object Storage - Bucket ACL](storage-and-backup/object-storage/s3-bucket-acl)
-                    + [Object Storage - Hosting a static website in an Object Storage bucket](storage-and-backup/object-storage/s3-website)
-                    + [Object Storage - Restoring an archived object from Cold Archive storage class](storage-and-backup/object-storage/s3-restoring-objects)
-                    + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/s3-website-https)
-                    + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network)
-                    + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
+                    + [Object Storage - Getting Started with Versioning](storage-and-backup/object-storage/s3-versioning){label=Getting Started with Versioning}
+                    + [Object Storage - Smart Storage Management with Lifecycle Rules](storage-and-backup/object-storage/s3-bucket-lifecycle){label=Smart Storage Management with Lifecycle Rules}
+                    + [Object Storage - Master asynchronous replication across your buckets](storage-and-backup/object-storage/s3-asynchronous-replication){label=Master asynchronous replication across your buckets}
+                    + [Object Storage - Conditional writes](storage-and-backup/object-storage/s3-conditional-writes){label=Conditional writes}
+                    + [Object Storage - Servers Access Logging](storage-and-backup/object-storage/s3-server-access-logging){label=Server Access Logging}
+                    + [Object Storage - Setting up CORS on Object Storage](storage-and-backup/object-storage/s3-setting-up-cors){label=Setting up CORS on Object Storage}
+                    + [Object Storage - Bucket ACL](storage-and-backup/object-storage/s3-bucket-acl){label=Bucket ACL}
+                    + [Object Storage - Hosting a static website in an Object Storage bucket](storage-and-backup/object-storage/s3-website){label=Hosting a static website in an Object Storage bucket}
+                    + [Object Storage - Restoring an archived object from Cold Archive storage class](storage-and-backup/object-storage/s3-restoring-objects){label=Restoring an archived object from Cold Archive storage class}
+                    + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/s3-website-https){label=Enabling HTTPS on a static website using a custom domain}
+                    + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network){label=How to connect Object Storage buckets with other resources in a vRack}
+                    + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint){label=Get started with Private Endpoint (Beta)}
                 + [Migration](products/public-cloud-storage-object-storage-s3-migration)
-                    + [Object Storage - How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage](storage-and-backup/object-storage/s3-migration)
-                    + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3)
+                    + [Object Storage - How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage](storage-and-backup/object-storage/s3-migration){label=How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage}
+                    + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3){label=How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage}
                 + [Tutorials](products/public-cloud-storage-object-storage-s3-tutorials)
-                    + [Object Storage - Use Object Storage with Rclone](storage-and-backup/object-storage/s3-rclone)
-                    + [Object Storage - Use Object Storage with S3cmd](storage-and-backup/object-storage/s3-s3cmd)
-                    + [Object Storage - Use Object Storage with WinSCP](storage-and-backup/object-storage/s3-winscp)
-                    + [Object Storage - Use Object Storage with Veeam](storage-and-backup/object-storage/s3-veeam)
-                    + [Object Storage - Use Object Storage with Nextcloud](storage-and-backup/object-storage/s3-nextcloud)
-                    + [Object Storage - Use Object Storage with Owncloud](storage-and-backup/object-storage/s3-owncloud)
-                    + [Object Storage - Use Object Storage with Cohesity NetBackup](storage-and-backup/object-storage/s3-cohesity-netbackup)
-                    + [Object Storage - Use Object Storage with Pure Storage Flashblade](storage-and-backup/object-storage/s3-pure-storage-flashblade)
-                    + [Object Storage - Manage an Object Storage bucket with Terraform](storage-and-backup/object-storage/s3-terraform)
-                    + [Object Storage – How to share an object or file externally](storage-and-backup/object-storage/s3-share-object-externally)
-                    + [Object Storage - How to retrieve object metadata with GetObjectAttributes](storage-and-backup/object-storage/s3-get-object-attributes)
-                    + [Object Storage - Lifecycle and replication use cases](storage-and-backup/object-storage/s3-use-cases-lifecycle-replication)
-                    + [Object Storage - Browser-based uploads using POST](storage-and-backup/object-storage/s3-post-object-upload)
+                    + [Object Storage - Use Object Storage with Rclone](storage-and-backup/object-storage/s3-rclone){label=Use Object Storage with Rclone}
+                    + [Object Storage - Use Object Storage with S3cmd](storage-and-backup/object-storage/s3-s3cmd){label=Use Object Storage with S3cmd}
+                    + [Object Storage - Use Object Storage with WinSCP](storage-and-backup/object-storage/s3-winscp){label=Use Object Storage with WinSCP}
+                    + [Object Storage - Use Object Storage with Veeam](storage-and-backup/object-storage/s3-veeam){label=Use Object Storage with Veeam}
+                    + [Object Storage - Use Object Storage with Nextcloud](storage-and-backup/object-storage/s3-nextcloud){label=Use Object Storage with Nextcloud}
+                    + [Object Storage - Use Object Storage with Owncloud](storage-and-backup/object-storage/s3-owncloud){label=Use Object Storage with Owncloud}
+                    + [Object Storage - Use Object Storage with Cohesity NetBackup](storage-and-backup/object-storage/s3-cohesity-netbackup){label=Use Object Storage with Cohesity NetBackup}
+                    + [Object Storage - Use Object Storage with Pure Storage Flashblade](storage-and-backup/object-storage/s3-pure-storage-flashblade){label=Use Object Storage with Pure Storage Flashblade}
+                    + [Object Storage - Manage an Object Storage bucket with Terraform](storage-and-backup/object-storage/s3-terraform){label=Manage an Object Storage bucket with Terraform}
+                    + [Object Storage – How to share an object or file externally](storage-and-backup/object-storage/s3-share-object-externally){label=How to share an object or file externally}
+                    + [Object Storage - How to retrieve object metadata with GetObjectAttributes](storage-and-backup/object-storage/s3-get-object-attributes){label=How to retrieve object metadata with GetObjectAttributes}
+                    + [Object Storage - Lifecycle and replication use cases](storage-and-backup/object-storage/s3-use-cases-lifecycle-replication){label=Lifecycle and replication use cases}
+                    + [Object Storage - Browser-based uploads using POST](storage-and-backup/object-storage/s3-post-object-upload){label=Browser-based uploads using POST}
                 + [Security](products/public-cloud-storage-object-storage-s3-security)
-                    + [Object Storage - Encrypt your server-side objects with SSE-C](storage-and-backup/object-storage/s3-encrypt-your-objects-with-sse-c)
-                    + [Object Storage - Managing object immutability with Object Lock (WORM)](storage-and-backup/object-storage/s3-managing-object-lock)
-                    + [Object Storage - Identity and access management (IAM)](storage-and-backup/object-storage/s3-identity-and-access-management)
+                    + [Object Storage - Encrypt your server-side objects with SSE-C](storage-and-backup/object-storage/s3-encrypt-your-objects-with-sse-c){label=Encrypt your server-side objects with SSE-C or SSE-OMK}
+                    + [Object Storage - Managing object immutability with Object Lock (WORM)](storage-and-backup/object-storage/s3-managing-object-lock){label=Managing object immutability with Object Lock (WORM)}
+                    + [Object Storage - Identity and access management (IAM)](storage-and-backup/object-storage/s3-identity-and-access-management){label=Identity and access management}
                 + [Troubleshooting](products/public-cloud-storage-object-storage-s3-troubleshooting)
-                    + [Object Storage - FAQ](storage-and-backup/object-storage/s3-faq)
+                    + [Object Storage - FAQ](storage-and-backup/object-storage/s3-faq){label=FAQ}
                     + [Cold Archive - FAQ](storage-and-backup/object-storage/cold-archive-faq)
-                    + [Object Storage - Local Zones specifications](storage-and-backup/object-storage/s3-local-zones-limitations)
-                    + [Object Storage - Compliancy](storage-and-backup/object-storage/s3-s3-compliancy)
-                    + [Object Storage - Technical Limitations](storage-and-backup/object-storage/s3-limitations)
-                    + [Object Storage - Optimising Performance](storage-and-backup/object-storage/s3-performance-optimization)
-                    + [Object Storage - Optimise the sending of your files to Object Storage](storage-and-backup/object-storage/s3-optimise-the-sending-of-your-files)
+                    + [Object Storage - Local Zones specifications](storage-and-backup/object-storage/s3-local-zones-limitations){label=Local Zones specifications}
+                    + [Object Storage - Compliancy](storage-and-backup/object-storage/s3-s3-compliancy){label=Compliance}
+                    + [Object Storage - Technical Limitations](storage-and-backup/object-storage/s3-limitations){label=Technical Limitations}
+                    + [Object Storage - Optimising Performance](storage-and-backup/object-storage/s3-performance-optimization){label=Optimising Performance}
+                    + [Object Storage - Optimise the sending of your files to Object Storage](storage-and-backup/object-storage/s3-optimise-the-sending-of-your-files){label=Optimise the sending of your files to Object Storage}
                 + [Additional Resources](products/public-cloud-storage-object-storage-s3-additional-resources)
-                    + [Object Storage - Shared Responsibility RACI](storage-and-backup/object-storage/s3-object-storage-responsibility-model)
+                    + [Object Storage - Shared Responsibility RACI](storage-and-backup/object-storage/s3-object-storage-responsibility-model){label=Shared Responsibility}
                     + [Cold Storage - Shared Responsibility for archive and restoration services](storage-and-backup/object-storage/cold-storage-responsibility-model)
                     + [Legacy Cold Archive - Getting started with Cold Archive](storage-and-backup/object-storage/cold-archive-getting-started)
-                    + [Object Storage - Third-party applications compatibility](storage-and-backup/object-storage/s3-ecosystem)
-            + [Swift](products/public-cloud-storage-object-storage-swift)
+                    + [Object Storage - Third-party applications compatibility](storage-and-backup/object-storage/s3-ecosystem){label=Third-party applications compatibility}
+            + [Swift](products/public-cloud-storage-object-storage-swift){landing=storage-and-backup/object-storage/swift/overview}{canonical=false}
                 + [Getting Started](public-cloud-storage-object-storage-swift-getting-started)
-                    + [Object Storage Swift - Getting started](storage-and-backup/object-storage/pcs-create-container)
+                    + [Object Storage Swift - Getting started](storage-and-backup/object-storage/pcs-create-container){label=Getting started}
                 + [Configuration](public-cloud-storage-object-storage-swift-configuration)
-                    + [Object Storage Swift - Configure a domain name on your Object Storage container](storage-and-backup/object-storage/pcs-link-domain)
-                    + [Object Storage Swift - Syncing object containers](storage-and-backup/object-storage/pcs-sync-object-containers)
-                    + [Object Storage Swift - Configure automatic object deletion](storage-and-backup/object-storage/pcs-configure-automatic-object-deletion)
-                    + [Object Storage Swift - Setting up CORS on Object Storage](storage-and-backup/object-storage/pcs-cors)
+                    + [Object Storage Swift - Configure a domain name on your Object Storage container](storage-and-backup/object-storage/pcs-link-domain){label=Configure a domain name on your Object Storage container}
+                    + [Object Storage Swift - Syncing object containers](storage-and-backup/object-storage/pcs-sync-object-containers){label=Syncing object containers}
+                    + [Object Storage Swift - Configure automatic object deletion](storage-and-backup/object-storage/pcs-configure-automatic-object-deletion){label=Configure automatic object deletion}
+                    + [Object Storage Swift - Setting up CORS on Object Storage](storage-and-backup/object-storage/pcs-cors){label=Setting up CORS on Object Storage}
                     + [Cloud Archive Swift - Manage your archives with an SFTP/SCP client](storage-and-backup/object-storage/pca-sftp)
                     + [Cloud Archive Swift - Creating a Public Cloud Archive container](storage-and-backup/object-storage/pca-create-container)
                     + [Cloud Archive Swift - Unfreezing your data stored in the Public Cloud Archive](storage-and-backup/object-storage/pca-unlock)
                     + [Cloud Archive Swift - Set up an Access Control List on Public Cloud Archive](storage-and-backup/object-storage/pca-acl)
                 + [Migration](public-cloud-storage-object-storage-swift-migration)
-                    + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3)
+                    + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3){label=How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage}
                 + [Tutorials](public-cloud-storage-object-storage-swift-tutorials)
-                    + [Object Storage Swift - Synchronise Synology NAS with Object Storage](storage-and-backup/object-storage/pcs-pcs-syno)
-                    + [Object Storage Swift - Use S3QL to mount object storage containers](storage-and-backup/object-storage/pcs-use-s3ql-to-mount-object-storage-containers)
-                    + [Object Storage Swift - Managing Object Storage with CyberDuck](storage-and-backup/object-storage/pcs-manage-object-storage-with-cyberduck)
-                    + [Object Storage Swift - Using Object Storage with Rclone](storage-and-backup/object-storage/pcs-sync-rclone-object-storage)
-                    + [Object Storage Swift - Configure ownCloud with Object Storage](storage-and-backup/object-storage/pcs-configure-owncloud-with-object-storage)
+                    + [Object Storage Swift - Synchronise Synology NAS with Object Storage](storage-and-backup/object-storage/pcs-pcs-syno){label=Synchronise Synology NAS with Object Storage}
+                    + [Object Storage Swift - Use S3QL to mount object storage containers](storage-and-backup/object-storage/pcs-use-s3ql-to-mount-object-storage-containers){label=Use S3QL to mount object storage containers}
+                    + [Object Storage Swift - Managing Object Storage with CyberDuck](storage-and-backup/object-storage/pcs-manage-object-storage-with-cyberduck){label=Managing Object Storage with CyberDuck}
+                    + [Object Storage Swift - Using Object Storage with Rclone](storage-and-backup/object-storage/pcs-sync-rclone-object-storage){label=Using Object Storage with Rclone}
+                    + [Object Storage Swift - Configure ownCloud with Object Storage](storage-and-backup/object-storage/pcs-configure-owncloud-with-object-storage){label=Configure ownCloud with Object Storage}
                     + [Cloud Archive Swift - Managing your archives with a Swift client (Cyberduck)](storage-and-backup/object-storage/pca-cyberduck) 
                     + [Cloud Archive Swift - Managing your archives with Rsync](storage-and-backup/object-storage/pca-rsync)
                 + [Security](public-cloud-storage-object-storage-swift-security)
-                    + [Object Storage Swift - Set up an Access Control List on Object Storage](storage-and-backup/object-storage/pcs-acl)
+                    + [Object Storage Swift - Set up an Access Control List on Object Storage](storage-and-backup/object-storage/pcs-acl){label=Set up an Access Control List on Object Storage}
                 + [Troubleshooting](public-cloud-storage-object-storage-swift-troubleshooting)
-                    + [Object Storage Swift - S3/Swift REST API compatibility](storage-and-backup/object-storage/pcs-object-storage-standard-s3-and-swift-rest-api-compatibility)
-                    + [Object Storage Swift - Capabilities and limitations](storage-and-backup/object-storage/pcs-capabilities-and-limitations)
+                    + [Object Storage Swift - S3/Swift REST API compatibility](storage-and-backup/object-storage/pcs-object-storage-standard-s3-and-swift-rest-api-compatibility){label=S3/Swift REST API compatibility}
+                    + [Object Storage Swift - Capabilities and limitations](storage-and-backup/object-storage/pcs-capabilities-and-limitations){label=Capabilities and limitations}
                     + [Cloud Archive Swift - Capabilities and limitations](storage-and-backup/object-storage/pca-capabilities-and-limitations)
-                    + [Object Storage Swift - Optimised method for uploading files to Object Storage](storage-and-backup/object-storage/pcs-optimised-method-for-uploading-files-to-object-storage)
+                    + [Object Storage Swift - Optimised method for uploading files to Object Storage](storage-and-backup/object-storage/pcs-optimised-method-for-uploading-files-to-object-storage){label=Optimised method for uploading files to Object Storage}
                 + [Additional Resources](public-cloud-storage-object-storage-swift-additional-resources)
-                    + [Object Storage Swift - Curl Command Memo](storage-and-backup/object-storage/pcs-curl-commands-memo)
-                    + [Object Storage Swift - Swift commands Memo](storage-and-backup/object-storage/pcs-swift-commands-memo)
+                    + [Object Storage Swift - Curl Command Memo](storage-and-backup/object-storage/pcs-curl-commands-memo){label=Curl Command Memo}
+                    + [Object Storage Swift - Swift commands Memo](storage-and-backup/object-storage/pcs-swift-commands-memo){label=Swift commands Memo}
                     + [Cloud Archive Swift - Curl Command Memo](storage-and-backup/object-storage/pca-curl-commands-memo)
                     + [Cloud Archive Swift - Swift Command Memo](storage-and-backup/object-storage/pca-swift-commands-memo)
-        + [Block Storage](products/public-cloud-storage-block-storage)
+        + [Block Storage](products/public-cloud-storage-block-storage){landing=storage-and-backup/block-storage/landing-page-block-volume}{canonical=false}
             + [Key concepts](public-cloud-storage-block-storage-key-concepts)
                 + [Choosing the Right Block Storage Class](storage-and-backup/block-storage/block-storage-the-right-storage-class)
                 + [Proper Usage and Limitations of Classic Multi-Attach Block Storage in 3AZ Regions](public-cloud/compute/storage-classic-multi-attach-3az)
@@ -1051,7 +1067,7 @@
             + [Troubleshooting](public-cloud-storage-block-storage-troubleshooting)
                 + [Understanding OpenStack API logs](public-cloud/compute/openstack-api-logs)
             + [Additional resources](public-cloud-storage-block-storage-additional-resources)
-                + [Public Cloud Block Storage - Shared responsibilities](storage-and-backup/block-storage/responsibility-model-block-storage)
+                + [Public Cloud Block Storage - Shared responsibilities](storage-and-backup/block-storage/responsibility-model-block-storage){label=Shared responsibilities}
         + [File Storage](products/public-cloud-storage-file-storage)
             + [Key concepts](public-cloud-storage-file-storage-key-concepts)
                 + [File Storage Service - Key concepts](storage-and-backup/file-storage/file-storage-service/key-concepts)
@@ -1059,8 +1075,7 @@
                 + [File Storage Service - Getting started](storage-and-backup/file-storage/file-storage-service/getting-started)
                 + [File Storage Service - Managing Share Snapshots](storage-and-backup/file-storage/file-storage-service/create-snapshot)
     + [Container](products/public-cloud-containers-orchestration)
-        + [Managed Kubernetes Service (MKS)](products/public-cloud-containers-orchestration-managed-kubernetes-k8s)
-            + [Overview](public-cloud/containers-orchestration/managed-kubernetes/overview)
+        + [Managed Kubernetes Service (MKS)](products/public-cloud-containers-orchestration-managed-kubernetes-k8s){landing=public-cloud/containers-orchestration/managed-kubernetes/overview}
             + [Key concepts](public-cloud-containers-orchestration-managed-kubernetes-k8s-key-concepts)
                 + [Understanding OVHcloud Managed Kubernetes architecture](public-cloud/containers-orchestration/managed-kubernetes/understanding-mks-architecture)
                 + [Known limits](public-cloud/containers-orchestration/managed-kubernetes/known-limits)
@@ -1091,10 +1106,9 @@
                     + [How to manage nodes and node pools on an OVHcloud Managed Kubernetes cluster](public-cloud/containers-orchestration/managed-kubernetes/managing-nodes)
                     + [Dynamically resizing a cluster with the cluster autoscaler](public-cloud/containers-orchestration/managed-kubernetes/using-cluster-autoscaler)
                     + [Configuring the cluster autoscaler](public-cloud/containers-orchestration/managed-kubernetes/configure-cluster-autoscaler)
-                    + [Adding Labels & Taint on Node Pool (Node Pool template)](public-cloud/containers-orchestration/managed-kubernetes/automatically-label-taint-node-pool)
+                    + [Managing labels and taints on Nodes and Node Pools](public-cloud/containers-orchestration/managed-kubernetes/automatically-label-taint-node-pool)
                     + [Cluster autoscaler example](public-cloud/containers-orchestration/managed-kubernetes/cluster-autoscaler-example)
                     + [Deploy applications to specific Nodes and Nodes Pools](public-cloud/containers-orchestration/managed-kubernetes/label-nodeaffinity-node-pools)
-                    + [Taint, cordon and drain specific Nodes and Nodes Pools](public-cloud/containers-orchestration/managed-kubernetes/taint-drain-node-pools)
                     + [Adapt your Inotify parameters for your deployments](public-cloud/containers-orchestration/managed-kubernetes/adapt-inotify-parameters-deployments)
                 + [Storage](public-cloud-containers-orchestration-managed-kubernetes-k8s-configuration-storage)
                     + [Persistent Volumes on OVHcloud Managed Kubernetes Service](public-cloud/containers-orchestration/managed-kubernetes/set-up-persistent-volume)
@@ -1174,9 +1188,8 @@
                 + [Orchestration product reversibility policy](account-and-service-management/reversibility/reversibility-orchestration)
                 + [Recommended external resources for Kubernetes](public-cloud/containers-orchestration/managed-kubernetes/recommended-external-resources)
                 + [Available and planned features](public-cloud/containers-orchestration/managed-kubernetes/available-upcoming-features)
-                + [Kubernetes Plugins (CNI, CRI, CSI...) & softwares versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
-        + [Managed Private Registry (MPR)](products/public-cloud-containers-orchestration-managed-private-registry)
-            + [Overview](public-cloud/containers-orchestration/managed-private-registry/overview)
+                + [Kubernetes Plugins (CNI, CRI, CSI...) & software versions and reserved resources](public-cloud/containers-orchestration/managed-kubernetes/plugins-software-versions-reserved-resources)
+        + [Managed Private Registry (MPR)](products/public-cloud-containers-orchestration-managed-private-registry){landing=public-cloud/containers-orchestration/managed-private-registry/overview}
             + [Getting started](public-cloud-containers-orchestration-managed-private-registry-getting-started)
                 + [Creating a private registry](public-cloud/containers-orchestration/managed-private-registry/creation)
                 + [Creating and using a Docker image stored in an OVHcloud Managed Private Registry](public-cloud/containers-orchestration/managed-private-registry/create-private-image)
@@ -1200,8 +1213,7 @@
             + [Additional resources](public-cloud-containers-orchestration-managed-private-registry-additional-resources)
                 + [Managed Private Registry - Responsibility model](public-cloud/containers-orchestration/managed-private-registry/responsibility-model)
                 + [Managed OCI artifact Registry Product Reversibility Policy](account-and-service-management/reversibility/reversibility-oci-registry)
-        + [Managed Rancher Service (MRS)](products/public-cloud-containers-orchestration-managed-rancher-service)
-            + [Overview](public-cloud/containers-orchestration/managed-rancher-service/overview)
+        + [Managed Rancher Service (MRS)](products/public-cloud-containers-orchestration-managed-rancher-service){landing=public-cloud/containers-orchestration/managed-rancher-service/overview}
             + [Getting started](public-cloud-containers-orchestration-managed-rancher-service-getting-started)
                 + [Getting started with Managed Rancher Service](public-cloud/containers-orchestration/managed-rancher-service/getting-started)
                 + [Creating, Updating and Accessing a Managed Rancher Service](public-cloud/containers-orchestration/managed-rancher-service/creation)
@@ -1221,10 +1233,8 @@
             + [Additional resources](public-cloud-containers-orchestration-managed-rancher-service-additional-resources)
                 + [Managed Rancher Service supported versions and lifecycle policy](public-cloud/containers-orchestration/managed-rancher-service/lifecycle-policy)
                 + [Orchestration product reversibility policy](account-and-service-management/reversibility/reversibility-orchestration)
-    + [Databases](products/public-cloud-databases)
-        + [Overview](public-cloud/databases/overview)
-        + [PostgreSQL](products/public-cloud-databases-postgresql)
-            + [Overview](public-cloud/databases/postgresql/overview)
+    + [Databases](products/public-cloud-databases){landing=public-cloud/databases/overview}
+        + [PostgreSQL](products/public-cloud-databases-postgresql){landing=public-cloud/databases/postgresql/overview}
             + [Key concepts](public-cloud-databases-postgresql-key-concepts)
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud Databases](public-cloud/databases/faq)
@@ -1274,8 +1284,7 @@
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)
             + [Additional resources](public-cloud-databases-postgresql-additional-resources)
                 + [Available extensions for Public Cloud Databases for PostgreSQL](public-cloud/databases/postgresql-extensions)
-        + [MongoDB](products/public-cloud-databases-mongodb)
-            + [Overview](public-cloud/databases/mongodb/overview)
+        + [MongoDB](products/public-cloud-databases-mongodb){landing=public-cloud/databases/mongodb/overview}
             + [Key concepts](public-cloud-databases-mongodb-key-concepts)
                 + [Why choose MongoDB?](public-cloud/databases/mongodb-why-mongodb)
                 + [Cluster sizing for Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-cluster-sizing)
@@ -1333,8 +1342,7 @@
                 + [Setup a Kafka integration for Public Cloud for MongoDB](public-cloud/databases/mongodb-kafka-connector)
                 + [Understand readPreference and writeConcern of Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-read-preference-and-write-concern)
                 + [Benchmark Public Cloud Databases for MongoDB](public-cloud/databases/mongodb-benchmark)
-        + [MySQL](products/public-cloud-databases-mysql)
-            + [Overview](public-cloud/databases/mysql/overview)
+        + [MySQL](products/public-cloud-databases-mysql){landing=public-cloud/databases/mysql/overview}
             + [Key concepts](public-cloud-databases-mysql-key-concepts)
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud databases](public-cloud/databases/faq)
@@ -1375,8 +1383,7 @@
             + [Troubleshooting](public-cloud-databases-mysql-troubleshooting)
                 + [Troubleshoot your Public Cloud Databases](public-cloud/databases/troubleshooting)
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)
-        + [Valkey](products/public-cloud-databases-valkey)
-            + [Overview](public-cloud/databases/valkey/overview)
+        + [Valkey](products/public-cloud-databases-valkey){landing=public-cloud/databases/valkey/overview}
             + [Key concepts](public-cloud-databases-valkey-key-concepts)
                 + [Lifecycle policy for Public Cloud Databases](public-cloud/databases/lifecycle-policy)
                 + [FAQ for Public Cloud databases](public-cloud/databases/faq)
@@ -1455,8 +1462,7 @@
                 + [Troubleshoot your Public Cloud Databases](public-cloud/databases/troubleshooting)
                 + [Handle 'Disk Full' situations for Public Cloud Databases](public-cloud/databases/handling-disk-full)
     + [Analytics](products/public-cloud-data-analytics)
-        + [Kafka](products/public-cloud-data-analytics-kafka)
-            + [Overview](public-cloud/data-analytics/kafka/overview)
+        + [Kafka](products/public-cloud-data-analytics-kafka){landing=public-cloud/data-analytics/kafka/overview}
             + [Key concepts](public-cloud-data-analytics-kafka-key-concepts)
                 + [Lifecycle policy for Analytics](public-cloud/data-analytics/analytics/lifecycle-policy)
                 + [Capabilities and Limitations of Analytics](public-cloud/data-analytics/analytics/capabilities)
@@ -1500,8 +1506,7 @@
             + [Troubleshooting](public-cloud-data-analytics-kafka-troubleshooting)
                 + [Troubleshoot your Analytics](public-cloud/data-analytics/analytics/troubleshooting)
                 + [Handle 'Disk Full' situations for Analytics](public-cloud/data-analytics/analytics/handling-disk-full)
-        + [ClickHouse](products/public-cloud-data-analytics-clickhouse)
-            + [Overview](public-cloud/data-analytics/clickhouse/overview)
+        + [ClickHouse](products/public-cloud-data-analytics-clickhouse){landing=public-cloud/data-analytics/clickhouse/overview}
             + [Key concepts](public-cloud-data-analytics-clickhouse-key-concepts)
                 + [Capabilities and Limitations of Public Cloud Analytics with ClickHouse](public-cloud/data-analytics/analytics/clickhouse-capabilities-limitations)
             + [Getting started](public-cloud-data-analytics-clickhouse-getting-started)
@@ -1517,7 +1522,18 @@
                 + [ClickHouse - Query files stored in OVHcloud Object Storage](public-cloud/data-analytics/analytics/clickhouse-query-object-storage)
                 + [ClickHouse - Query PostgreSQL and MySQL databases](public-cloud/data-analytics/analytics/clickhouse-query-postgresql-mysql)
                 + [ClickHouse - Query Iceberg and Delta Lake tables and ingest files continuously](public-cloud/data-analytics/analytics/clickhouse-iceberg-delta-s3queue)
-        + [OpenSearch](products/public-cloud-data-analytics-opensearch)
+        + [Lakehouse](products/public-cloud-data-analytics-lakehouse){landing=public-cloud/data-analytics/lakehouse/overview}
+            + [Key concepts](public-cloud-data-analytics-lakehouse-key-concepts)
+                + [Lakehouse - Key concepts](public-cloud/data-analytics/lakehouse/lakehouse-concepts)
+            + [Getting started](public-cloud-data-analytics-lakehouse-getting-started)
+                + [Lakehouse - Getting started](public-cloud/data-analytics/lakehouse/lakehouse-getting-started)
+            + [Configuration](public-cloud-data-analytics-lakehouse-configuration)
+                + [Lakehouse - Managing access to your data](public-cloud/data-analytics/lakehouse/lakehouse-manage-access)
+                + [Lakehouse - Using a dedicated Compute Pool](public-cloud/data-analytics/lakehouse/lakehouse-compute-pools)
+                + [Lakehouse - Restricting network access](public-cloud/data-analytics/lakehouse/lakehouse-network-access)
+            + [Tutorials](public-cloud-data-analytics-lakehouse-tutorials)
+                + [Lakehouse - Connecting your own tools](public-cloud/data-analytics/lakehouse/lakehouse-connect-tools)
+        + [OpenSearch](products/public-cloud-data-analytics-opensearch){landing=public-cloud/data-analytics/analytics/landing-page-opensearch}
             + [Key concepts](public-cloud-data-analytics-opensearch-key-concepts)
                 + [Lifecycle policy for Analytics](public-cloud/data-analytics/analytics/lifecycle-policy)
                 + [Capabilities and Limitations of Analytics](public-cloud/data-analytics/analytics/capabilities)
@@ -1549,8 +1565,7 @@
             + [Troubleshooting](public-cloud-data-analytics-opensearch-troubleshooting)
                 + [Troubleshoot your Analytics](public-cloud/data-analytics/analytics/troubleshooting)
                 + [Handle 'Disk Full' situations for Analytics](public-cloud/data-analytics/analytics/handling-disk-full)
-        + [Managed Dashboards](products/public-cloud-data-analytics-grafana)
-            + [Overview](public-cloud/data-analytics/grafana/overview)
+        + [Managed Dashboards](products/public-cloud-data-analytics-grafana){landing=public-cloud/data-analytics/grafana/overview}
             + [Guides](public-cloud-data-analytics-grafana-guides)
                 + [Dashboards - Capabilities and Limitations](public-cloud/databases/grafana-capabilities)
                 + [Dashboards - Configure your Dashboards instance to accept incoming connections](public-cloud/databases/grafana-prepare-for-incoming-connections)
@@ -1590,8 +1605,7 @@
             + [Troubleshooting](public-cloud-data-analytics-common-troubleshooting)
                 + [Troubleshoot your Analytics](public-cloud/data-analytics/analytics/troubleshooting)
                 + [Handle 'Disk Full' situations for Analytics](public-cloud/data-analytics/analytics/handling-disk-full)
-    + [AI](products/public-cloud-ai-and-machine-learning)
-        + [Overview](public-cloud/ai-machine-learning/overview)
+    + [AI](products/public-cloud-ai-and-machine-learning){landing=public-cloud/ai-machine-learning/overview}
         + [General information](public-cloud-ai-and-machine-learning-general-information)
             + [Comparative tables - AI Notebooks, AI Training, AI Deploy](public-cloud/ai-machine-learning/ai-comparative-tables)
             + [AI Tools - Lifecycle policy](public-cloud/ai-machine-learning/ai-tools-lifecycle-policy)
@@ -1615,8 +1629,7 @@
             + [CLI - Commands reference for data](public-cloud/ai-machine-learning/ai-cli-data)
             + [CLI - Use your data in a notebook](public-cloud/ai-machine-learning/ai-cli-access-data)
             + [CLI - Launch an AI Deploy app](public-cloud/ai-machine-learning/ai-cli-deploy-app)
-        + [AI Notebooks](products/public-cloud-ai-and-machine-learning-ai-notebooks)
-            + [Overview](public-cloud/ai-machine-learning/ai-notebooks/overview)
+        + [AI Notebooks](products/public-cloud-ai-and-machine-learning-ai-notebooks){landing=public-cloud/ai-machine-learning/ai-notebooks/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-notebooks-key-concepts)
                 + [AI Notebooks - Notebook concept](public-cloud/ai-machine-learning/ai-notebooks-concept)
                 + [AI Notebooks - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-notebooks-capabilities)
@@ -1654,8 +1667,7 @@
                 + [AI Notebooks - Troubleshooting](public-cloud/ai-machine-learning/ai-notebooks-debug)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-notebooks-additional-resources)
                 + [AI Notebooks - Billing and lifecycle](public-cloud/ai-machine-learning/ai-notebooks-billing)
-        + [AI Training](products/public-cloud-ai-and-machine-learning-ai-training)
-            + [Overview](public-cloud/ai-machine-learning/ai-training/overview)
+        + [AI Training](products/public-cloud-ai-and-machine-learning-ai-training){landing=public-cloud/ai-machine-learning/ai-training/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-training-key-concepts)
                 + [AI Training - Job concept](public-cloud/ai-machine-learning/ai-training-jobs)
                 + [AI Training - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-training-capabilities)
@@ -1686,8 +1698,7 @@
                 + [AI Training - Troubleshooting](public-cloud/ai-machine-learning/ai-training-debug-jobs)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-training-additional-resources)
                 + [AI Training - Billing and lifecycle](public-cloud/ai-machine-learning/ai-training-billing-lifecycle)
-        + [AI Deploy](products/public-cloud-ai-and-machine-learning-ai-deploy)
-            + [Overview](public-cloud/ai-machine-learning/ai-deploy/overview)
+        + [AI Deploy](products/public-cloud-ai-and-machine-learning-ai-deploy){landing=public-cloud/ai-machine-learning/ai-deploy/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-deploy-key-concepts)
                 + [AI Deploy - App concept](public-cloud/ai-machine-learning/ai-deploy-apps)
                 + [AI Deploy - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-deploy-capabilities)
@@ -1727,8 +1738,7 @@
                 + [AI Deploy - Troubleshooting](public-cloud/ai-machine-learning/ai-deploy-debug-apps)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-deploy-additional-resources)
                 + [AI Deploy - Billing and lifecycle](public-cloud/ai-machine-learning/ai-deploy-billing)
-        + [AI Endpoints](products/public-cloud-ai-and-machine-learning-ai-endpoints)
-            + [Overview](public-cloud/ai-machine-learning/ai-endpoints/overview)
+        + [AI Endpoints](products/public-cloud-ai-and-machine-learning-ai-endpoints){landing=public-cloud/ai-machine-learning/ai-endpoints/overview}
             + [Key concepts](public-cloud-ai-and-machine-learning-ai-endpoints-key-concepts)
                 + [AI Endpoints - Features, Capabilities and Limitations](public-cloud/ai-machine-learning/ai-endpoints-capabilities)
                 + [AI Endpoints - Structured Output](public-cloud/ai-machine-learning/ai-endpoints-structured-output)
@@ -1768,7 +1778,7 @@
                 + [AI Endpoints - Troubleshooting](public-cloud/ai-machine-learning/ai-endpoints-troubleshooting)
             + [Additional resources](public-cloud-ai-and-machine-learning-ai-endpoints-additional-resources)
                 + [AI Endpoints - Billing and lifecycle](public-cloud/ai-machine-learning/ai-endpoints-billing)
-    + [Quantum](products/public-cloud-quantum-computing)
+    + [Quantum](products/public-cloud-quantum-computing){landing=public-cloud/quantum-computing/landing-page-quantum-computing}
         + [General information](products/public-cloud-quantum-computing-general-information)
             + [Capabilities](public-cloud/quantum-computing/capabilities)
             + [Billing concepts](public-cloud/quantum-computing/billing)
@@ -1834,6 +1844,8 @@
                 + [FOCUS & Apache Superset Use Case](public-cloud/data-platform/tutorials-finops-focus-superset){label=FOCUS & Apache Superset Use Case}
                 + [Analyse online store sales with Apache Superset](public-cloud-data-platform-analyze-online-store-sales){landing=public-cloud/data-platform/tutorials-ecommerce-sales}
                     + [Build the sales dashboard in Superset](public-cloud/data-platform/tutorials-ecommerce-sales-superset-dashboard){label=Build a sales dashboard for an online store in Superset}
+                + [Forecast regional electricity consumption](public-cloud-data-platform-forecast-regional-electricity-consumption){landing=public-cloud/data-platform/tutorials-eco2mix-forecast}
+                    + [Train and schedule the forecast with PySpark](public-cloud/data-platform/tutorials-eco2mix-forecast-production){label=Train and schedule the forecast with PySpark}
             + [Data export & management](public-cloud-data-platform-data-export-and-management){landing=public-cloud/data-platform/landing-page-tutorials-data-export}
                 + [Export folders with a custom date](public-cloud/data-platform/tutorials-dated-export-folders)
                 + [Set role conditions on one bucket](public-cloud/data-platform/tutorials-bucket-role-conditions){label=Set role conditions on one bucket}
@@ -1929,6 +1941,7 @@
                     + [Maintenance actions](public-cloud/data-platform/dpe-actions-maintenance){label=Maintenance actions}
                     + [Send OpenLineage Events](public-cloud/data-platform/dpe-actions-send-openlineage-events)
                 + [Workflows](public-cloud-data-platform-workflows){landing=public-cloud/data-platform/dpe-workflows}
+                    + [Workflow builder](public-cloud/data-platform/dpe-workflows-builder){label=Workflow builder}
                     + [Advanced Mode](public-cloud/data-platform/dpe-workflows-advanced-mode){label=Advanced Mode}
                 + [Notebooks](public-cloud-data-platform-notebooks){landing=public-cloud/data-platform/dpe-notebooks}
                     + [Data Platform Extension](public-cloud/data-platform/dpe-notebooks-data-platform-extension)
@@ -2030,10 +2043,8 @@
                 + [Delete a Project](public-cloud/data-platform/manage-projects-delete)
         + [Release notes](public-cloud/data-platform/release-notes)
 + Web Cloud
-    + [Domains](products/web-cloud-domains)
-        + [Overview](web-cloud/domains/overview)
-        + [API](products/web-cloud-domains-api)
-            + [Overview](web-cloud/domains/api/overview)
+    + [Domains](products/web-cloud-domains){landing=web-cloud/domains/overview}
+        + [API](products/web-cloud-domains-api){landing=web-cloud/domains/api/overview}
             + [Key concepts](web-cloud-domains-api-key-concepts)
                 + [Introduction](web-cloud/domains/api-domain-intro)
             + [Getting started](web-cloud-domains-api-getting-started)
@@ -2256,11 +2267,12 @@
             + [Reversibility Policy for the Managed Web Hosting product](account-and-service-management/reversibility/web-hosting-reversibility-policy)
             + [SQL Database EOS and EOL announcements](web-cloud/web-hosting/sql-eos-eol)
             + [MySQL migration to Percona Server for MySQL](web-cloud/web-hosting/percona-server-mysql-migration-info)
-    + [Managed Hosting for WordPress](web-cloud-managed-hosting-for-wordpress)
+    + [Managed Hosting for WordPress](web-cloud-managed-hosting-for-wordpress){landing=web-cloud/managed-hosting/landing-page-managed-hosting-wordpress}
         + [Getting started](web-cloud-managed-hosting-for-wordpress-getting-started)
             + [Discover Managed Hosting for WordPress (Beta version)](web-cloud/managed-hosting/wordpress)
             + [Linking a domain name to your Managed Hosting for WordPress](web-cloud/managed-hosting/wordpress-domain-link)
             + [Retrieving and analysing your Managed Hosting for WordPress logs](web-cloud/managed-hosting/wordpress-logs)
+        + [Tutorials](web-cloud-managed-hosting-for-wordpress-tutorials)
             + [Managing your Managed Hosting for WordPress with an AI agent (MCP)](web-cloud/managed-hosting/wordpress-mcp)
     + [Video Center](web-cloud-video-center)
         + [Getting started](web-cloud-video-center-getting-started)
@@ -2310,10 +2322,10 @@
             + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra){label=Webmail Zimbra}
             + [Using your email account via the RoundCube webmail interface](web-cloud/email-and-collaborative-solutions/mx-plan/email-roundcube){label=Webmail Roundcube}
         + [Migrating](web-cloud-email-collaborative-solutions-migration)
-            + [MX Plan - Migrate to Exchange, Email Pro or Zimbra](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
-            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
+            + [Migrate your email accounts to another OVHcloud email offer](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [MX Plan - Migrate automatically to Email Pro or Exchange](web-cloud/email-and-collaborative-solutions/migrating/migration-control-panel)
             + [Migrating email accounts using OVHcloud Mail Migrator](web-cloud/email-and-collaborative-solutions/migrating/omm-migrate-email-account-to-ovhcloud)
-            + [Migrate email accounts between OVHcloud platforms](web-cloud/email-and-collaborative-solutions/migrating/migration-platform)
+            + [Manually migrate your email account](web-cloud/email-and-collaborative-solutions/migrating/manual-email-migration)
         + [Troubleshooting](web-cloud-email-collaborative-solutions-troubleshooting){landing=web-cloud/email-and-collaborative-solutions/troubleshooting/landing-page-troubleshooting}
             + [Unable to send or receive emails](web-cloud/email-and-collaborative-solutions/troubleshooting/diagnostic-advanced){label=Cannot send or receive}
             + [What to do if your account is blocked for spam](web-cloud/email-and-collaborative-solutions/troubleshooting/locked-for-spam){label=Blocked for spam}
@@ -2405,6 +2417,7 @@
             + [Setting up an email application on your mobile device](web-cloud-email-collaborative-solutions-microsoft-exchange-setting-up-email-application-on-mobile-device)
                 + [Configuring an Exchange account on iPhone and iPad](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-ios)
                 + [Configuring an Exchange account on Android via the Gmail app](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-android)
+                + [Configuring an Exchange account in Outlook for Android](web-cloud/email-and-collaborative-solutions/microsoft-exchange/how-to-configure-outlook-android)
             + [Troubleshooting](web-cloud-email-collaborative-solutions-microsoft-exchange-troubleshooting)
                 + [Using Exchange error diagnostics](web-cloud/email-and-collaborative-solutions/microsoft-exchange/diagnostic-advanced)
                 + [Exchange - Outlook sign-in prompts to Office 365](web-cloud/email-and-collaborative-solutions/microsoft-exchange/outlook-connecting-to-office-365)
@@ -2419,7 +2432,6 @@
                 + [Using Zimbra webmail](web-cloud/email-and-collaborative-solutions/mx-plan/email-zimbra)
                 + [FAQ Zimbra OVHcloud](web-cloud/email-and-collaborative-solutions/mx-plan/faq-zimbra)
                 + [Configure Zimbra account on email client](web-cloud/email-and-collaborative-solutions/zimbra/mail-apps)
-                + [Zimbra - Migrate an MX Plan email account](web-cloud/email-and-collaborative-solutions/zimbra/migrate-mxplan-to-zimbra)
                 + [How to configure a Zimbra email account on the Zimbra mobile application](web-cloud/email-and-collaborative-solutions/zimbra/mail-app-zimbra-for-android-ios)
                 + [Synchronize a Zimbra CalDAV calendar in an application](web-cloud/email-and-collaborative-solutions/zimbra/zimbra-calendar-sync)
                 + [How to mount a Zimbra WebDAV folder in an OS](web-cloud/email-and-collaborative-solutions/zimbra/webdav-mount)
@@ -2571,8 +2583,7 @@
                 + [Dépannage SPA504G](web-cloud/phone-and-fax/voip/depannage-spa504g)
                 + [Branchements IP5000](web-cloud/phone-and-fax/voip/branchements-ip5000)
                 + [Dépannage IP5000](web-cloud/phone-and-fax/voip/depannage-ip5000)
-        + [Fax](products/web-cloud-phone-and-fax-fax)
-            + [Overview](web-cloud/phone-and-fax/fax/overview)
+        + [Fax](products/web-cloud-phone-and-fax-fax){landing=web-cloud/phone-and-fax/fax/overview}
             + [Getting started](web-cloud-phone-and-fax-fax-getting-started)
                 + [FAQ sur la solution Fax OVHcloud](web-cloud/phone-and-fax/fax/faq)
                 + [Configuration de votre ligne Fax](web-cloud/phone-and-fax/fax/configuration-fax-espace-client)
@@ -2617,140 +2628,139 @@
                 + [SMPP Technical Specifications](web-cloud/messaging/sms/smpp-specification)
 + Storage and Backup
     + [Object Storage](products/storage-object-storage)
-        + [Overview](storage-and-backup/object-storage/overview)
         + [S3 compatible](products/storage-object-storage-s3){landing=storage-and-backup/object-storage/landing-page-object-storage}
             + [Key Concepts](products/storage-object-storage-s3-key-concepts)
-                + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs)
-                + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location)
+                + [Object Storage - Choosing the right storage class for your needs](storage-and-backup/object-storage/s3-choosing-the-right-storage-class-for-your-needs){label=Choosing the right storage class for your needs}
+                + [Object Storage - Endpoints and Object Storage geoavailability](storage-and-backup/object-storage/s3-location){label=Endpoints and Object Storage geoavailability}
                 + [Comparison of Object Storage Deployment Modes - Understanding 3-AZ / 1-AZ / Local Zones](storage-and-backup/object-storage/s3-regions-comparison)
                 + [Cold Archive - Overview](storage-and-backup/object-storage/cold-archive-overview)
             + [Getting Started](products/storage-object-storage-s3-getting-started)
-                + [Object Storage - Getting started with Object Storage](storage-and-backup/object-storage/s3-getting-started-with-object-storage)
-                + [Object Storage - Identity and access management](storage-and-backup/object-storage/s3-identity-and-access-management)
+                + [Object Storage - Getting started with Object Storage](storage-and-backup/object-storage/s3-getting-started-with-object-storage){label=Getting started}
+                + [Object Storage - Identity and access management](storage-and-backup/object-storage/s3-identity-and-access-management){label=Identity and access management}
             + [Configuration](products/storage-object-storage-s3-configuration)
-                + [Object Storage - Getting Started with Versioning](storage-and-backup/object-storage/s3-versioning) 
-                + [Object Storage - Smart Storage Management with Lifecycle Rules](storage-and-backup/object-storage/s3-bucket-lifecycle)
-                + [Object Storage - Master asynchronous replication across your buckets](storage-and-backup/object-storage/s3-asynchronous-replication)
-                + [Object Storage - Conditional writes](storage-and-backup/object-storage/s3-conditional-writes)
-                + [Object Storage - Servers Access Logging](storage-and-backup/object-storage/s3-server-access-logging)
-                + [Object Storage - Setting up CORS on Object Storage](storage-and-backup/object-storage/s3-setting-up-cors)
-                + [Object Storage - Bucket ACL](storage-and-backup/object-storage/s3-bucket-acl)
-                + [Object Storage - Hosting a static website in an Object Storage bucket](storage-and-backup/object-storage/s3-website)
-                + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/s3-website-https)
-                + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network) 
-                + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint)
+                + [Object Storage - Getting Started with Versioning](storage-and-backup/object-storage/s3-versioning){label=Getting Started with Versioning}
+                + [Object Storage - Smart Storage Management with Lifecycle Rules](storage-and-backup/object-storage/s3-bucket-lifecycle){label=Smart Storage Management with Lifecycle Rules}
+                + [Object Storage - Master asynchronous replication across your buckets](storage-and-backup/object-storage/s3-asynchronous-replication){label=Master asynchronous replication across your buckets}
+                + [Object Storage - Conditional writes](storage-and-backup/object-storage/s3-conditional-writes){label=Conditional writes}
+                + [Object Storage - Servers Access Logging](storage-and-backup/object-storage/s3-server-access-logging){label=Server Access Logging}
+                + [Object Storage - Setting up CORS on Object Storage](storage-and-backup/object-storage/s3-setting-up-cors){label=Setting up CORS on Object Storage}
+                + [Object Storage - Bucket ACL](storage-and-backup/object-storage/s3-bucket-acl){label=Bucket ACL}
+                + [Object Storage - Hosting a static website in an Object Storage bucket](storage-and-backup/object-storage/s3-website){label=Hosting a static website in an Object Storage bucket}
+                + [Object Storage - Restoring an archived object from Cold Archive storage class](storage-and-backup/object-storage/s3-restoring-objects){label=Restoring an archived object from Cold Archive storage class}
+                + [Object Storage - Enabling HTTPS on a static website using a custom domain](storage-and-backup/object-storage/s3-website-https){label=Enabling HTTPS on a static website using a custom domain}
+                + [Object Storage - How to connect Object Storage buckets with other resources in a vRack](storage-and-backup/object-storage/connect-other-ressources-in-vrack-private-network){label=How to connect Object Storage buckets with other resources in a vRack}
+                + [Object Storage - Get started with Private Endpoint (Beta)](storage-and-backup/object-storage/s3-private-endpoint){label=Get started with Private Endpoint (Beta)}
             + [Migration](products/storage-object-storage-s3-migration)
-                + [Object Storage - How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage](storage-and-backup/object-storage/s3-migration)
-                + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3)
+                + [Object Storage - How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage](storage-and-backup/object-storage/s3-migration){label=How to migrate from an S3-compatible object storage provider to OVHcloud Object Storage}
+                + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3){label=How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage}
             + [Tutorials](products/storage-object-storage-s3-tutorials)
-                + [Object Storage - Use Object Storage with Rclone](storage-and-backup/object-storage/s3-rclone)
-                + [Object Storage - Use Object Storage with S3cmd](storage-and-backup/object-storage/s3-s3cmd)
-                + [Object Storage - Use Object Storage with WinSCP](storage-and-backup/object-storage/s3-winscp)
-                + [Object Storage - Use Object Storage with Veeam](storage-and-backup/object-storage/s3-veeam)
-                + [Object Storage - Use Object Storage with Nextcloud](storage-and-backup/object-storage/s3-nextcloud)
-                + [Object Storage - Use Object Storage with Owncloud](storage-and-backup/object-storage/s3-owncloud)
-                + [Object Storage - Use Object Storage with Cohesity NetBackup](storage-and-backup/object-storage/s3-cohesity-netbackup)
-                + [Object Storage - Use Object Storage with Pure Storage Flashblade](storage-and-backup/object-storage/s3-pure-storage-flashblade)
-                + [Object Storage - Manage an Object Storage bucket with Terraform](storage-and-backup/object-storage/s3-terraform)
-                + [Object Storage – How to share an object or file externally](storage-and-backup/object-storage/s3-share-object-externally)
+                + [Object Storage - Use Object Storage with Rclone](storage-and-backup/object-storage/s3-rclone){label=Use Object Storage with Rclone}
+                + [Object Storage - Use Object Storage with S3cmd](storage-and-backup/object-storage/s3-s3cmd){label=Use Object Storage with S3cmd}
+                + [Object Storage - Use Object Storage with WinSCP](storage-and-backup/object-storage/s3-winscp){label=Use Object Storage with WinSCP}
+                + [Object Storage - Use Object Storage with Veeam](storage-and-backup/object-storage/s3-veeam){label=Use Object Storage with Veeam}
+                + [Object Storage - Use Object Storage with Nextcloud](storage-and-backup/object-storage/s3-nextcloud){label=Use Object Storage with Nextcloud}
+                + [Object Storage - Use Object Storage with Owncloud](storage-and-backup/object-storage/s3-owncloud){label=Use Object Storage with Owncloud}
+                + [Object Storage - Use Object Storage with Cohesity NetBackup](storage-and-backup/object-storage/s3-cohesity-netbackup){label=Use Object Storage with Cohesity NetBackup}
+                + [Object Storage - Use Object Storage with Pure Storage Flashblade](storage-and-backup/object-storage/s3-pure-storage-flashblade){label=Use Object Storage with Pure Storage Flashblade}
+                + [Object Storage - Manage an Object Storage bucket with Terraform](storage-and-backup/object-storage/s3-terraform){label=Manage an Object Storage bucket with Terraform}
+                + [Object Storage – How to share an object or file externally](storage-and-backup/object-storage/s3-share-object-externally){label=How to share an object or file externally}
+                + [Object Storage - How to retrieve object metadata with GetObjectAttributes](storage-and-backup/object-storage/s3-get-object-attributes){label=How to retrieve object metadata with GetObjectAttributes}
+                + [Object Storage - Lifecycle and replication use cases](storage-and-backup/object-storage/s3-use-cases-lifecycle-replication){label=Lifecycle and replication use cases}
+                + [Object Storage - Browser-based uploads using POST](storage-and-backup/object-storage/s3-post-object-upload){label=Browser-based uploads using POST}
             + [Security](products/storage-object-storage-s3-security)
-                + [Object Storage - Encrypt your server-side objects with SSE-C](storage-and-backup/object-storage/s3-encrypt-your-objects-with-sse-c)
-                + [Object Storage - Managing object immutability with Object Lock (WORM)](storage-and-backup/object-storage/s3-managing-object-lock)
-                + [Object Storage - Identity and access management (IAM)](storage-and-backup/object-storage/s3-identity-and-access-management)
+                + [Object Storage - Encrypt your server-side objects with SSE-C](storage-and-backup/object-storage/s3-encrypt-your-objects-with-sse-c){label=Encrypt your server-side objects with SSE-C or SSE-OMK}
+                + [Object Storage - Managing object immutability with Object Lock (WORM)](storage-and-backup/object-storage/s3-managing-object-lock){label=Managing object immutability with Object Lock (WORM)}
+                + [Object Storage - Identity and access management (IAM)](storage-and-backup/object-storage/s3-identity-and-access-management){label=Identity and access management}
             + [Troubleshooting](products/storage-object-storage-s3-troubleshooting)
-                + [Object Storage - FAQ](storage-and-backup/object-storage/s3-faq)
+                + [Object Storage - FAQ](storage-and-backup/object-storage/s3-faq){label=FAQ}
                 + [Cold Archive - FAQ](storage-and-backup/object-storage/cold-archive-faq)
-                + [Object Storage - Local Zones specifications](storage-and-backup/object-storage/s3-local-zones-limitations)
-                + [Object Storage - Compliancy](storage-and-backup/object-storage/s3-s3-compliancy)
-                + [Object Storage - Technical Limitations](storage-and-backup/object-storage/s3-limitations)
-                + [Object Storage - Optimising Performance](storage-and-backup/object-storage/s3-performance-optimization)
-                + [Object Storage - Optimise the sending of your files to Object Storage](storage-and-backup/object-storage/s3-optimise-the-sending-of-your-files)
+                + [Object Storage - Local Zones specifications](storage-and-backup/object-storage/s3-local-zones-limitations){label=Local Zones specifications}
+                + [Object Storage - Compliancy](storage-and-backup/object-storage/s3-s3-compliancy){label=Compliance}
+                + [Object Storage - Technical Limitations](storage-and-backup/object-storage/s3-limitations){label=Technical Limitations}
+                + [Object Storage - Optimising Performance](storage-and-backup/object-storage/s3-performance-optimization){label=Optimising Performance}
+                + [Object Storage - Optimise the sending of your files to Object Storage](storage-and-backup/object-storage/s3-optimise-the-sending-of-your-files){label=Optimise the sending of your files to Object Storage}
             + [Additional Resources](products/storage-object-storage-s3-additional-resources)
-                + [Object Storage - Shared Responsibility RACI](storage-and-backup/object-storage/s3-object-storage-responsibility-model)
+                + [Object Storage - Shared Responsibility RACI](storage-and-backup/object-storage/s3-object-storage-responsibility-model){label=Shared Responsibility}
                 + [Cold Storage - Shared Responsibility for archive and restoration services](storage-and-backup/object-storage/cold-storage-responsibility-model)
                 + [Legacy Cold Archive - Getting started with Cold Archive](storage-and-backup/object-storage/cold-archive-getting-started)
-                + [Object Storage - Third-party applications compatibility](storage-and-backup/object-storage/s3-ecosystem)
-        + [Swift](products/storage-object-storage-swift)
-            + [Overview](storage-and-backup/object-storage/swift/overview)
+                + [Object Storage - Third-party applications compatibility](storage-and-backup/object-storage/s3-ecosystem){label=Third-party applications compatibility}
+        + [Swift](products/storage-object-storage-swift){landing=storage-and-backup/object-storage/swift/overview}
             + [Getting Started](storage-object-storage-swift-getting-started)
-                + [Object Storage Swift - Getting started](storage-and-backup/object-storage/pcs-create-container)
+                + [Object Storage Swift - Getting started](storage-and-backup/object-storage/pcs-create-container){label=Getting started}
             + [Configuration](storage-object-storage-swift-configuration)
-                + [Object Storage Swift - Configure a domain name on your Object Storage container](storage-and-backup/object-storage/pcs-link-domain)
-                + [Object Storage Swift - Syncing object containers](storage-and-backup/object-storage/pcs-sync-object-containers)
-                + [Object Storage Swift - Configure automatic object deletion](storage-and-backup/object-storage/pcs-configure-automatic-object-deletion)
-                + [Object Storage Swift - Setting up CORS on Object Storage](storage-and-backup/object-storage/pcs-cors)
+                + [Object Storage Swift - Configure a domain name on your Object Storage container](storage-and-backup/object-storage/pcs-link-domain){label=Configure a domain name on your Object Storage container}
+                + [Object Storage Swift - Syncing object containers](storage-and-backup/object-storage/pcs-sync-object-containers){label=Syncing object containers}
+                + [Object Storage Swift - Configure automatic object deletion](storage-and-backup/object-storage/pcs-configure-automatic-object-deletion){label=Configure automatic object deletion}
+                + [Object Storage Swift - Setting up CORS on Object Storage](storage-and-backup/object-storage/pcs-cors){label=Setting up CORS on Object Storage}
                 + [Cloud Archive Swift - Manage your archives with an SFTP/SCP client](storage-and-backup/object-storage/pca-sftp)
                 + [Cloud Archive Swift - Creating a Public Cloud Archive container](storage-and-backup/object-storage/pca-create-container)
                 + [Cloud Archive Swift - Unfreezing your data stored in the Public Cloud Archive](storage-and-backup/object-storage/pca-unlock)
                 + [Cloud Archive Swift - Set up an Access Control List on Public Cloud Archive](storage-and-backup/object-storage/pca-acl)
             + [Migration](storage-object-storage-swift-migration)
-                + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3)
+                + [Object Storage - How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage](storage-and-backup/object-storage/s3-migration-swift-to-s3){label=How to migrate from OVHcloud Swift Object Storage to OVHcloud S3-compatible Object Storage}
             + [Tutorials](storage-object-storage-swift-tutorials)
-                + [Object Storage Swift - Synchronise Synology NAS with Object Storage](storage-and-backup/object-storage/pcs-pcs-syno)
-                + [Object Storage Swift - Use S3QL to mount object storage containers](storage-and-backup/object-storage/pcs-use-s3ql-to-mount-object-storage-containers)
-                + [Object Storage Swift - Managing Object Storage with CyberDuck](storage-and-backup/object-storage/pcs-manage-object-storage-with-cyberduck)
-                + [Object Storage Swift - Using Object Storage with Rclone](storage-and-backup/object-storage/pcs-sync-rclone-object-storage)
-                + [Object Storage Swift - Configure ownCloud with Object Storage](storage-and-backup/object-storage/pcs-configure-owncloud-with-object-storage)
+                + [Object Storage Swift - Synchronise Synology NAS with Object Storage](storage-and-backup/object-storage/pcs-pcs-syno){label=Synchronise Synology NAS with Object Storage}
+                + [Object Storage Swift - Use S3QL to mount object storage containers](storage-and-backup/object-storage/pcs-use-s3ql-to-mount-object-storage-containers){label=Use S3QL to mount object storage containers}
+                + [Object Storage Swift - Managing Object Storage with CyberDuck](storage-and-backup/object-storage/pcs-manage-object-storage-with-cyberduck){label=Managing Object Storage with CyberDuck}
+                + [Object Storage Swift - Using Object Storage with Rclone](storage-and-backup/object-storage/pcs-sync-rclone-object-storage){label=Using Object Storage with Rclone}
+                + [Object Storage Swift - Configure ownCloud with Object Storage](storage-and-backup/object-storage/pcs-configure-owncloud-with-object-storage){label=Configure ownCloud with Object Storage}
                 + [Cloud Archive Swift - Managing your archives with a Swift client (Cyberduck)](storage-and-backup/object-storage/pca-cyberduck) 
                 + [Cloud Archive Swift - Managing your archives with Rsync](storage-and-backup/object-storage/pca-rsync)
             + [Security](storage-object-storage-swift-security)
-                + [Object Storage Swift - Set up an Access Control List on Object Storage](storage-and-backup/object-storage/pcs-acl)
+                + [Object Storage Swift - Set up an Access Control List on Object Storage](storage-and-backup/object-storage/pcs-acl){label=Set up an Access Control List on Object Storage}
             + [Troubleshooting](storage-object-storage-swift-troubleshooting)
-                + [Object Storage Swift - S3/Swift REST API compatibility](storage-and-backup/object-storage/pcs-object-storage-standard-s3-and-swift-rest-api-compatibility)
-                + [Object Storage Swift - Capabilities and limitations](storage-and-backup/object-storage/pcs-capabilities-and-limitations)
+                + [Object Storage Swift - S3/Swift REST API compatibility](storage-and-backup/object-storage/pcs-object-storage-standard-s3-and-swift-rest-api-compatibility){label=S3/Swift REST API compatibility}
+                + [Object Storage Swift - Capabilities and limitations](storage-and-backup/object-storage/pcs-capabilities-and-limitations){label=Capabilities and limitations}
                 + [Cloud Archive Swift - Capabilities and limitations](storage-and-backup/object-storage/pca-capabilities-and-limitations)
-                + [Object Storage Swift - Optimised method for uploading files to Object Storage](storage-and-backup/object-storage/pcs-optimised-method-for-uploading-files-to-object-storage)
+                + [Object Storage Swift - Optimised method for uploading files to Object Storage](storage-and-backup/object-storage/pcs-optimised-method-for-uploading-files-to-object-storage){label=Optimised method for uploading files to Object Storage}
             + [Additional Resources](storage-object-storage-swift-additional-resources)
-                + [Object Storage Swift - Curl Command Memo](storage-and-backup/object-storage/pcs-curl-commands-memo)
-                + [Object Storage Swift - Swift commands Memo](storage-and-backup/object-storage/pcs-swift-commands-memo)
+                + [Object Storage Swift - Curl Command Memo](storage-and-backup/object-storage/pcs-curl-commands-memo){label=Curl Command Memo}
+                + [Object Storage Swift - Swift commands Memo](storage-and-backup/object-storage/pcs-swift-commands-memo){label=Swift commands Memo}
                 + [Cloud Archive Swift - Curl Command Memo](storage-and-backup/object-storage/pca-curl-commands-memo)
                 + [Cloud Archive Swift - Swift Command Memo](storage-and-backup/object-storage/pca-swift-commands-memo)
-    + [File Storage](products/storage-file-storage)
-        + [Overview](storage-and-backup/file-storage/overview)
-        + [Enterprise File Storage](products/storage-file-storage-enterprise-file-storage)
-            + [Overview](storage-and-backup/file-storage/enterprise-file-storage/overview)
+    + [File Storage](products/storage-file-storage){landing=storage-and-backup/file-storage/overview}
+        + [Enterprise File Storage](products/storage-file-storage-enterprise-file-storage){landing=storage-and-backup/file-storage/enterprise-file-storage/overview}
             + [Key concepts](storage-file-storage-enterprise-file-storage-key-concepts)
-                + [Enterprise File Storage - Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts)
-                + [Enterprise File Storage - Performance Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts-performances)
-                + [Enterprise File Storage - FAQ](storage-and-backup/file-storage/enterprise-file-storage/netapp-faq)
+                + [Enterprise File Storage - Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts){label=Concepts}
+                + [Enterprise File Storage - Performance Concepts](storage-and-backup/file-storage/enterprise-file-storage/netapp-concepts-performances){label=Performance Concepts}
+                + [Enterprise File Storage - FAQ](storage-and-backup/file-storage/enterprise-file-storage/netapp-faq){label=FAQ}
             + [Getting Started](storage-file-storage-enterprise-file-storage-getting-started)
-                + [Managing Enterprise File Storage from the OVHcloud Console](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel)
-                + [Managing Enterprise File Storage with OVHcloud Terraform provider](storage-and-backup/file-storage/enterprise-file-storage/netapp-terraform)
-                + [Enterprise File Storage - API Quickstart](storage-and-backup/file-storage/enterprise-file-storage/netapp-quick-start)
-                + [Enterprise File Storage - Getting started with Trident CSI](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-csi)
+                + [Managing Enterprise File Storage from the OVHcloud Console](storage-and-backup/file-storage/enterprise-file-storage/netapp-control-panel){label=Managing from the OVHcloud Console}
+                + [Managing Enterprise File Storage with OVHcloud Terraform provider](storage-and-backup/file-storage/enterprise-file-storage/netapp-terraform){label=Managing with the OVHcloud Terraform provider}
+                + [Enterprise File Storage - API Quickstart](storage-and-backup/file-storage/enterprise-file-storage/netapp-quick-start){label=API Quickstart}
+                + [Enterprise File Storage - Getting started with Trident CSI](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-csi){label=Getting started with Trident CSI}
             + [Configuration](storage-file-storage-enterprise-file-storage-configuration)
-                + [Enterprise File Storage - Manage your snapshot policies](storage-and-backup/file-storage/enterprise-file-storage/netapp-snapshot-policy)
-                + [Enterprise File Storage - Hold an automatic snapshot](storage-and-backup/file-storage/enterprise-file-storage/netapp-hold-automatic-snapshot)
-                + [Enterprise File Storage - Restore volume using snapshot revert API](storage-and-backup/file-storage/enterprise-file-storage/netapp-revert-snapshot)
-                + [Enterprise File Storage - Managing volumes](storage-and-backup/file-storage/enterprise-file-storage/netapp-volumes)
-                + [Enterprise File Storage - Managing volume ACLs](storage-and-backup/file-storage/enterprise-file-storage/netapp-volume-acl)
-                + [Enterprise File Storage - Managing volume snapshots](storage-and-backup/file-storage/enterprise-file-storage/netapp-volume-snapshots)
-                + [Enterprise File Storage - NFS Client considerations](storage-and-backup/file-storage/enterprise-file-storage/netapp-nfs-client-considerations)
-                + [Enterprise File Storage - Connect a Public Cloud instance to an EFS volume via vRack](storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack)
-                + [Enterprise File Storage - Private network configuration](storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)
+                + [Enterprise File Storage - Manage your snapshot policies](storage-and-backup/file-storage/enterprise-file-storage/netapp-snapshot-policy){label=Manage your snapshot policies}
+                + [Enterprise File Storage - Hold an automatic snapshot](storage-and-backup/file-storage/enterprise-file-storage/netapp-hold-automatic-snapshot){label=Hold an automatic snapshot}
+                + [Enterprise File Storage - Restore volume using snapshot revert API](storage-and-backup/file-storage/enterprise-file-storage/netapp-revert-snapshot){label=Restore a volume using the snapshot revert API}
+                + [Enterprise File Storage - Managing volumes](storage-and-backup/file-storage/enterprise-file-storage/netapp-volumes){label=Managing volumes}
+                + [Enterprise File Storage - Managing volume ACLs](storage-and-backup/file-storage/enterprise-file-storage/netapp-volume-acl){label=Managing volume ACLs}
+                + [Enterprise File Storage - Managing volume snapshots](storage-and-backup/file-storage/enterprise-file-storage/netapp-volume-snapshots){label=Managing volume snapshots}
+                + [Enterprise File Storage - NFS Client considerations](storage-and-backup/file-storage/enterprise-file-storage/netapp-nfs-client-considerations){label=NFS Client considerations}
+                + [Enterprise File Storage - Connect a Public Cloud instance to an EFS volume via vRack](storage-and-backup/file-storage/enterprise-file-storage/netapp-pci-connection-via-vrack){label=Connect a Public Cloud instance to an EFS Volume via vRack Private Network}
+                + [Enterprise File Storage - Private network configuration](storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config){label=Private network configuration}
                 + [Enterprise File Storage - How to deploy an EFS stack for Trident CSI with Terraform](storage-and-backup/file-storage/enterprise-file-storage/netapp-trident-terraform)
             + [Migration](storage-file-storage-enterprise-file-storage-migration)
-                + [Enterprise File Storage - Clone a volume](storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume)
-                + [Enterprise File Storage - Migrate a volume to vRack using share replication](storage-and-backup/file-storage/enterprise-file-storage/netapp-migrate-vrack-replication)
+                + [Enterprise File Storage - Clone a volume](storage-and-backup/file-storage/enterprise-file-storage/netapp-clone-volume){label=Clone a volume}
+                + [Enterprise File Storage - Migrate a volume to vRack using share replication](storage-and-backup/file-storage/enterprise-file-storage/netapp-migrate-vrack-replication){label=Migrate a volume to the vRack}
             + [Additional resources](storage-file-storage-enterprise-file-storage-additional-resources)
                 + [File Storage services - Responsibility model](account-and-service-management/responsibility-sharing/file-storage)
                 + [File Storage reversibility policy](account-and-service-management/reversibility/file-storage-reversibility-policy)
-        + [HA-NAS](products/storage-file-storage-ha-nas)
-            + [Overview](storage-and-backup/file-storage/ha-nas/overview)
+        + [HA-NAS](products/storage-file-storage-ha-nas){landing=storage-and-backup/file-storage/ha-nas/overview}
             + [Key concepts](storage-file-storage-ha-nas-key-concepts)
-                + [HA-NAS - Frequently Asked Questions](storage-and-backup/file-storage/ha-nas/nas-faq)
+                + [HA-NAS - Frequently Asked Questions](storage-and-backup/file-storage/ha-nas/nas-faq){label=FAQ}
             + [Getting Started](storage-file-storage-ha-nas-getting-started)
                 + [Getting started with a HA-NAS solution](storage-and-backup/file-storage/ha-nas/nas-get-started)
-                + [HA-NAS - API Quickstart](storage-and-backup/file-storage/ha-nas/nas-quick-api)
+                + [HA-NAS - API Quickstart](storage-and-backup/file-storage/ha-nas/nas-quick-api){label=API Quickstart}
             + [Configuration](storage-file-storage-ha-nas-configuration)
                 + [Mounting HA-NAS via NFS share](storage-and-backup/file-storage/ha-nas/nas-nfs)
                 + [Mount your HA-NAS on Windows Server via CIFS](storage-and-backup/file-storage/ha-nas/nas-cifs)
-                + [HA-NAS - Managing ACLs via API](storage-and-backup/file-storage/ha-nas/nas-manage-acls)
-                + [HA-NAS - Configuring the ZFS settings of a partition](storage-and-backup/file-storage/ha-nas/nas-zfs-settings)
-                + [HA-NAS - Managing partitions via API](storage-and-backup/file-storage/ha-nas/nas-partitions-api)
-                + [HA-NAS - Managing snapshots via API](storage-and-backup/file-storage/ha-nas/nas-snapshots-api)
-                + [HA-NAS - Private network configuration (Beta)](storage-and-backup/file-storage/ha-nas/nas-network-config)
-                + [HA-NAS - Connect a Public Cloud instance to a HA-NAS volume via vRack (Beta)](storage-and-backup/file-storage/ha-nas/nas-pci-connection-via-vrack)
+                + [HA-NAS - Managing ACLs via API](storage-and-backup/file-storage/ha-nas/nas-manage-acls){label=Managing ACLs via API}
+                + [HA-NAS - Configuring the ZFS settings of a partition](storage-and-backup/file-storage/ha-nas/nas-zfs-settings){label=Configuring the ZFS settings of a partition}
+                + [HA-NAS - Managing partitions via API](storage-and-backup/file-storage/ha-nas/nas-partitions-api){label=Managing partitions via API}
+                + [HA-NAS - Managing snapshots via API](storage-and-backup/file-storage/ha-nas/nas-snapshots-api){label=Managing snapshots via API}
+                + [HA-NAS - Private network configuration (Beta)](storage-and-backup/file-storage/ha-nas/nas-network-config){label=Private network configuration (Beta)}
+                + [HA-NAS - Connect a Public Cloud instance to a HA-NAS volume via vRack (Beta)](storage-and-backup/file-storage/ha-nas/nas-pci-connection-via-vrack){label=Connect a Public Cloud instance to a HA-NAS volume via vRack (Beta)}
             + [Migration](storage-file-storage-ha-nas-migration)
                 + [Migrating data from one HA-NAS to another via NFS](storage-and-backup/file-storage/ha-nas/nas-migration)
             + [Additional resources](storage-file-storage-ha-nas-additional-resources)
@@ -2761,10 +2771,10 @@
             + [Getting Started](storage-file-storage-public-cloud-file-storage-getting-started)
                 + [File Storage Service - Getting started](storage-and-backup/file-storage/file-storage-service/getting-started)
                 + [Getting started with NFS Subdir External Provisioner and OVHcloud File Storage Service](public-cloud/containers-orchestration/managed-kubernetes/configure-nfs-subdir-external-provisioner-file-storage-service)
-    + [Block storage](products/storage-block-storage)
-        + [Overview](storage-and-backup/block-storage/overview)
-        + [Block volume](storage-block-storage-block-volume)
+    + [Block storage](products/storage-block-storage){landing=storage-and-backup/block-storage/overview}
+        + [Block volume](storage-block-storage-block-volume){landing=storage-and-backup/block-storage/landing-page-block-volume}
             + [Key concepts](storage-block-storage-block-volume-key-concepts)
+                + [Choosing the Right Block Storage Class](storage-and-backup/block-storage/block-storage-the-right-storage-class)
                 + [Proper Usage and Limitations of Classic Multi-Attach Block Storage in 3AZ Regions](public-cloud/compute/storage-classic-multi-attach-3az)
             + [Getting Started](storage-block-storage-block-volume-getting-started)
                 + [Creating and configuring an additional disk on an instance](public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance)
@@ -2779,16 +2789,17 @@
             + [Migration](storage-block-storage-block-volume-migration)
                 + [Migrating a Block Storage volume to an encrypted LUKS volume](public-cloud/compute/migrating-non-encrypted-to-encrypted-volume)
                 + [Change your Block Storage volume type](public-cloud/compute/switch-volume-type)
+            + [Troubleshooting](storage-block-storage-block-volume-troubleshooting)
+                + [Understanding OpenStack API logs](public-cloud/compute/openstack-api-logs)
             + [Additional resources](storage-block-storage-block-volume-additional-resources)
-                + [Public Cloud Block Storage - Shared responsibilities](storage-and-backup/block-storage/responsibility-model-block-storage)
-        + [Cloud Disk Array](storage-block-storage-cloud-disk-array)
-            + [Overview](storage-and-backup/block-storage/cloud-disk-array/overview)
+                + [Public Cloud Block Storage - Shared responsibilities](storage-and-backup/block-storage/responsibility-model-block-storage){label=Shared responsibilities}
+        + [Cloud Disk Array](storage-block-storage-cloud-disk-array){landing=storage-and-backup/block-storage/cloud-disk-array/overview}
             + [Key concepts](storage-block-storage-cloud-disk-array-key-concepts)
                 + [FAQ](storage-and-backup/block-storage/cloud-disk-array/ceph-faq)
             + [Getting Started](storage-block-storage-cloud-disk-array-getting-started)
-                + [User creation](storage-and-backup/block-storage/cloud-disk-array/ceph-create-a-user)
-                + [Pool creation](storage-and-backup/block-storage/cloud-disk-array/ceph-create-a-pool)
-                + [IP ACL creation](storage-and-backup/block-storage/cloud-disk-array/ceph-create-an-ip-acl) 
+                + [User creation](storage-and-backup/block-storage/cloud-disk-array/ceph-create-a-user){label=User creation}
+                + [Pool creation](storage-and-backup/block-storage/cloud-disk-array/ceph-create-a-pool){label=Pool creation}
+                + [IP ACL creation](storage-and-backup/block-storage/cloud-disk-array/ceph-create-an-ip-acl){label=IP ACL creation}
             + [Configuration](storage-block-storage-cloud-disk-array-configuration)
                 + [Change user rights](storage-and-backup/block-storage/cloud-disk-array/ceph-change-user-rights)
                 + [CephFS distributed filesystem](storage-and-backup/block-storage/cloud-disk-array/ceph-cephfs)
@@ -2800,37 +2811,35 @@
             + [Additional resources](storage-block-storage-cloud-disk-array-additional-resources)
                 + [Cluster status](storage-and-backup/block-storage/cloud-disk-array/ceph-check-cluster-status)
                 + [Storage Benchmarking](storage-and-backup/block-storage/cloud-disk-array/ceph-io-benchmarking)
-    + [Backup and disaster recovery solutions](products/storage-backup-and-disaster-recovery-solution)
-        + [Overview](storage-and-backup/backup-and-disaster-recovery-solutions/overview)
-        + [Backup Agent](products/storage-backup-and-disaster-recovery-solution-backup-agent)
-            + [Overview](storage-and-backup/backup-agent/overview)
+    + [Backup and disaster recovery solutions](products/storage-backup-and-disaster-recovery-solution){landing=storage-and-backup/backup-and-disaster-recovery-solutions/overview}
+        + [Backup Agent](products/storage-backup-and-disaster-recovery-solution-backup-agent){landing=storage-and-backup/backup-agent/overview}
             + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-agent-key-concepts)
-                + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation)
-                + [Backup Agent - Understanding Vault](storage-and-backup/backup-agent/backup-agent-vault)
+                + [Backup Agent - Product Overview](storage-and-backup/backup-agent/product-presentation){label=Product Overview}
+                + [Backup Agent - Understanding Vault](storage-and-backup/backup-agent/backup-agent-vault){label=How Vaults work}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-agent-getting-started)
-                + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration)
-                + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore)
-                + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore)
-                + [Backup Agent - First steps with VSPC](storage-and-backup/backup-agent/vspc-presentation)
+                + [Backup Agent - How to configure your first backup](storage-and-backup/backup-agent/first-configuration){label=How to configure your first backup}
+                + [Backup Agent - Managing your backups](storage-and-backup/backup-agent/backup-restore){label=Managing your backups}
+                + [Backup Agent - Triggering restores](storage-and-backup/backup-agent/restore){label=Triggering restores}
+                + [Backup Agent - First steps with VSPC](storage-and-backup/backup-agent/vspc-presentation){label=Connect to VSPC}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-agent-troubleshooting)
-                + [Backup Agent - Troubleshooting Guide](storage-and-backup/backup-agent/troubleshooting)
+                + [Backup Agent - Troubleshooting Guide](storage-and-backup/backup-agent/troubleshooting){label=Troubleshooting}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-agent-additional-resources)
-                + [Backup Agent - Known restrictions](storage-and-backup/backup-agent/restrictions)
-                + [Backup Agent - Billing](storage-and-backup/backup-agent/billing)
-                + [Backup Agent - Service updates](storage-and-backup/backup-agent/update)
-                + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion)
-                + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant)
+                + [Backup Agent - Known restrictions](storage-and-backup/backup-agent/restrictions){label=Known Restrictions}
+                + [Backup Agent - Billing](storage-and-backup/backup-agent/billing){label=Billing}
+                + [Backup Agent - Service updates](storage-and-backup/backup-agent/update){label=Service updates}
+                + [Backup Agent - Cancellation process](storage-and-backup/backup-agent/deletion){label=Deletion Procedure}
+                + [Backup Agent - Linux CLI Assistant](storage-and-backup/backup-agent/linux-cli-assistant){label=Linux CLI Assistant}
         + [Backup Licenses](products/storage-backup-and-disaster-recovery-solution-backup-licenses){landing=storage-and-backup/backup-licenses/landing-page-backup-licenses}
             + [Getting started](storage-backup-and-disaster-recovery-solution-backup-licenses-getting-started)
-                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration)
-                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise)
+                + [Backup Licenses - Ordering and configuring your first licence](storage-and-backup/backup-licenses/first-configuration){label=Ordering and configuring your first licence}
+                + [Backup Licenses - Migrating from Veeam Enterprise to Backup Licenses](storage-and-backup/backup-licenses/migration-veeam-enterprise){label=Migrating from Veeam Enterprise to Backup Licenses}
             + [Key concepts](storage-backup-and-disaster-recovery-solution-backup-licenses-key-concepts)
-                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault)
+                + [Backup Licenses - How Vaults work](storage-and-backup/backup-licenses/vault){label=How Vaults work}
             + [Troubleshooting](storage-backup-and-disaster-recovery-solution-backup-licenses-troubleshooting)
-                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting)
+                + [Backup Licenses - Troubleshooting guide](storage-and-backup/backup-licenses/troubleshooting){label=Troubleshooting guide}
             + [Additional resources](storage-backup-and-disaster-recovery-solution-backup-licenses-additional-resources)
-                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions)
-        + [Managed Backup for VMware](products/storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware)
+                + [Backup Licenses - Known restrictions](storage-and-backup/backup-licenses/restrictions){label=Known restrictions}
+        + [Managed Backup for VMware](products/storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware){landing=storage-and-backup/managed-backup-for-vmware/landing-page-managed-backup-for-vmware}
             + [Getting started](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-getting-started)
                 + [Managed Backup for VMware - Getting started](storage-and-backup/managed-backup-for-vmware/getting-started){label=Getting started}
                 + [Managed Backup for VMware - Protecting your virtual machines](storage-and-backup/managed-backup-for-vmware/tag-vm){label=Protecting your virtual machines}
@@ -2844,8 +2853,7 @@
             + [Additional resources](storage-backup-and-disaster-recovery-solution-managed-backup-for-vmware-additional-resources)
                 + [Managed Backup for VMware - Understanding your billing](storage-and-backup/managed-backup-for-vmware/billing){label=Understanding your billing}
                 + [Managed Backup for VMware - Terminating and reactivating a service](storage-and-backup/managed-backup-for-vmware/terminate){label=Terminating and reactivating a service}
-        + [Veeam Enterprise Plus](products/storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus)
-            + [Overview](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview)
+        + [Veeam Enterprise Plus](products/storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus){landing=storage-and-backup/backup-and-disaster-recovery-solutions/veeam/overview}
             + [Getting started](storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus-getting-started)
                 + [Setting up Veeam Backup & Replication](storage-and-backup/backup-and-disaster-recovery-solutions/veeam/veeam-veeam-backup-replication)
             + [Configuration](storage-backup-and-disaster-recovery-solution-veeam-enterprise-plus-configuration)
@@ -2871,7 +2879,7 @@
 + Network
     + [BGP Service](network-bgp)
         + [BGP Service configuration](network/bgp-service/bgp-service-config)
-    + [CDN](network-content-delivery-network-cdninfrastructure)
+    + [CDN](network-content-delivery-network-cdninfrastructure){landing=network/cdn/landing-page-cdn}
         + [Configuring a domain name for the first time](network/cdn/cdn-infrastructure-first-domain-configuration)
         + [Understanding quota on the CDN](network/cdn/quota)
         + [Adding an SSL certificate on the CDN](network/cdn/cdn-infrastructure-ssl-certificate)
@@ -2915,8 +2923,7 @@
         + [Key concepts](network-global-load-balancer-key-concepts)
             + [Global Load Balancer routing policies and health checks](network/global-load-balancer/global-load-balancer-routing-policies){label=Routing policies and health checks}
     + [IP Addresses](products/network-ip-addresses)
-        + [Additional IP](network-additional-ip)
-            + [Overview](network/ip-addresses/additional-ip/overview)
+        + [Additional IP](network-additional-ip){landing=network/ip-addresses/additional-ip/overview}
             + [Key concepts](network-additional-ip-key-concepts)
                 + [Concepts - Primary and Additional IP](network/ip-addresses/additional-ip/primary-additional-ip-concepts)
             + [Configuration](network-additional-ip-configuration)
@@ -2933,8 +2940,8 @@
                     + [Assigning a Virtual MAC to an Additional IP](bare-metal-cloud/dedicated-servers/network-virtual-mac)
                     + [Setting up a Virtual Machine using Additional IPs and Hyper-V over a vRack](bare-metal-cloud/dedicated-servers/ipfo-vrack-hyperv)
                 + [Hosted Private Cloud](network-additional-ip-products-hosted-private-cloud)
-                    + [Adding a public IP address to a new VM](hosted-private-cloud/nutanix-on-ovhcloud/public-ip)
-                    + [Adding an IP block](hosted-private-cloud/powered-by-vmware/add-ip-block)
+                    + [Adding a public IP address to a new VM](hosted-private-cloud/nutanix-on-ovhcloud/public-ip){label=Nutanix - Adding a public IP address to a new VM}
+                    + [Adding an IP block](hosted-private-cloud/powered-by-vmware/add-ip-block){label=VMware - Adding an IP block}
                 + [Load Balancer](network-additional-ip-products-load-balancer)
                     + [Routing an Additional IP](network/load-balancer/howto-route-ipfo)
                 + [Public Cloud](network-additional-ip-products-public-cloud)
@@ -2950,13 +2957,12 @@
                 + [Cancelling an Additional IP service](network/ip-addresses/additional-ip/additional-ip-cancellation)
         + [Bring Your Own IP](network-additional-ip-byoip)
             + [How to use the Bring Your Own IP feature](network/ip-addresses/bring-your-own-ip/bring-your-own-ip)
-    + [Load Balancer](products/network-load-balancer)
-        + [Overview](network/load-balancer/overview)
+    + [Load Balancer](products/network-load-balancer){landing=network/load-balancer/overview}
         + [Key concepts](network-load-balancer-key-concepts)
             + [Introduction to the OVHcloud Load Balancer](network/load-balancer/use-presentation)
             + [Load Balancer FAQ](network/load-balancer/create-faq)
         + [Getting Started](network-load-balancer-getting-started)
-            + [Managing your Load Balancer service via the Control Panel](network/load-balancer/use-lb)
+            + [Managing your Load Balancer service in the OVHcloud Console](network/load-balancer/use-lb)
             + [Order a free SSL certificate](network/load-balancer/order-freecertificate)
             + [Load Balancer API Quick Reference](network/load-balancer/use-api-reference)
             + [OVHcloud Load Balancer TCP / HTTP / HTTPS Logs Forwarding](network/load-balancer/use-api-logs-customers)
@@ -2982,13 +2988,12 @@
             + [Details of API functions](network/load-balancer/use-api-details)
         + [Troubleshooting](network-load-balancer-troubleshooting)
             + [Retrieve server health status](network/load-balancer/retrieve-servers-state)
-    + [Network Security](network-security)
+    + [Network Security](network-security){landing=network/landing-page-network-security}
         + [Enabling and configuring the Edge Network Firewall](bare-metal-cloud/dedicated-servers/firewall-network)
         + [How to protect a Game server with the application firewall](bare-metal-cloud/dedicated-servers/firewall-game-ddos)
         + [Monitor DDoS attacks with the Anti-DDoS dashboard](bare-metal-cloud/dedicated-servers/network-security-dashboard)
         + [Fine-tune Anti-DDoS protection with the new profiling feature](bare-metal-cloud/dedicated-servers/anti-ddos-vac-profiling)
-    + [OVHcloud Connect](products/network-ovhcloud-connect)
-        + [Overview](network/ovhcloud-connect/overview)
+    + [OVHcloud Connect](products/network-ovhcloud-connect){landing=network/ovhcloud-connect/overview}
         + [Key Concepts](network-ovhcloud-connect-concepts)
             + [Concepts overview](network/ovhcloud-connect/ovhcloud-connect-overview)
             + [Layer 2 mode](network/ovhcloud-connect/occ-layer2)
@@ -3006,7 +3011,7 @@
             + [Troubleshooting common errors setting up OVHcloud Connect](network/ovhcloud-connect/troubleshooting)
         + [Additional resources](network-ovhcloud-connect-technical-resources)
             + [Technical capabilities and limitations](network/ovhcloud-connect/occ-limits)
-    + [SecNumCloud](network-secnumcloud-connectivity)
+    + [SecNumCloud](network-secnumcloud-connectivity){landing=network/landing-page-secnumcloud-connectivity}
         + [Concepts overview](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-overview)
         + [SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-spn)
         + [VPN-SPN Concept](hosted-private-cloud/powered-by-vmware/snc-connectivity-concepts-vpn-spn)
@@ -3014,9 +3019,8 @@
     + [SSL Gateway](products/network-ssl-gateway)
         + [Getting started](network-ssl-gateway-getting-started)
             + [Order an SSL Gateway](network/ssl-gateway/order)
-            + [Using the SSL Gateway](network/ssl-gateway/use)
-    + [vRack](products/network-vrack)
-        + [Overview](network/vrack/overview)
+            + [Configure and manage an SSL Gateway](network/ssl-gateway/use)
+    + [vRack](products/network-vrack){landing=network/vrack/overview}
         + [Configuration](network-vrack-configuration)
             + [Configuring an Additional IP block in a vRack](bare-metal-cloud/dedicated-servers/configuring-an-ip-block-in-a-vrack)
             + [Configuring an IPv6 block in a vRack](bare-metal-cloud/dedicated-servers/configure-ipv6-in-vrack)
@@ -3052,7 +3056,7 @@
                     + [Configuring vRack for Public Cloud](public-cloud/network-services/vrack)
                     + [Configuring the vRack between the Public Cloud and a Dedicated Server](bare-metal-cloud/dedicated-servers/configuring-the-vrack-between-the-public-cloud-and-a-dedicated-server)
                     + [Configuring a public IP block in a vRack on a Public Cloud instance](public-cloud/network-services/configure-ip-block-vrack-instance)
-    + [vRack Services](products/network-vrack-services)
+    + [vRack Services](products/network-vrack-services){landing=network/vrack-services/landing-page-vrack-services}
         + [vRack Services - Exposing a Managed Service on your vRack](network/vrack-services/global)
         + [Manage Server-IP associations in vRack Services](network/vrack-services/server-ip-associations)
         + [Enterprise File Storage - Private network configuration](storage-and-backup/file-storage/enterprise-file-storage/netapp-network-config)

@@ -29,6 +29,11 @@ const INDEX = path.resolve(
 
 const ITEM = /^( *)\+ /;
 const PRODUCT_REF = /\]\((products\/[^)]+)\)/;
+// `{canonical=…}` says which placement is the home, `{directory=…}` what one
+// placement's landing page lists: by design they may differ between the copies
+// of a group, so they are left out of the comparison.
+const PLACEMENT_MARKER = /\s*\{(?:canonical|directory)=[^}]*\}/g;
+const comparable = (line: string) => line.trim().replace(PLACEMENT_MARKER, '');
 
 const lines = fs.readFileSync(INDEX, 'utf-8').split('\n');
 const copies = new Map<string, { line: number; body: string }[]>();
@@ -39,7 +44,7 @@ for (let i = 0; i < lines.length; i++) {
   if (!ref || !head) continue;
   const indent = head[1].length;
   // The group runs until the next item at the same or a shallower level.
-  const body: string[] = [lines[i].trim()];
+  const body: string[] = [comparable(lines[i])];
   for (let j = i + 1; j < lines.length; j++) {
     const item = lines[j].match(ITEM);
     if (!item) {
@@ -47,7 +52,7 @@ for (let i = 0; i < lines.length; i++) {
       break;
     }
     if (item[1].length <= indent) break;
-    body.push(`${item[1].length - indent}:${lines[j].trim()}`);
+    body.push(`${item[1].length - indent}:${comparable(lines[j])}`);
   }
   const list = copies.get(ref) ?? [];
   list.push({ line: i + 1, body: body.join('\n') });

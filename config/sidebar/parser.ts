@@ -164,9 +164,40 @@ interface ParsedLine {
   landing?: string;
 }
 
+/**
+ * `canonical: false` marks a placement that is NOT a guide's home: a copy of
+ * guides whose canonical branch is listed elsewhere in the index (set with a
+ * `{canonical=false}` marker, see parseIndexMd). The theme then resolves the
+ * breadcrumb and the cold-entry sidebar branch from another placement
+ * (theme/components/Sidebar/canonical.ts). The field is absent everywhere
+ * else; Rspress passes it through untouched.
+ */
+type CanonicalFlag = { canonical?: false };
+
+/**
+ * `directory: false` keeps an entry in the sidebar but out of the guide
+ * directory a landing page builds from it (components/ProductDirectory), set
+ * with a `{directory=false}` marker. On a group, the whole group is left out.
+ * Absent everywhere else; Rspress passes it through untouched.
+ */
+type DirectoryFlag = { directory?: false };
+
+/** The `{key=value}` markers an index line may carry (see parseIndexMd). */
+const SIDEBAR_MARKER_KEYS: ReadonlySet<string> = new Set([
+  'landing',
+  'label',
+  'canonical',
+  'directory',
+]);
+
 interface StackEntry {
   parsed: ParsedLine;
   items: (SidebarGroup | SidebarItem)[];
+  // Effective flag: the line's own `{canonical=…}` marker, else its parent's.
+  nonCanonical: boolean;
+  // The line's own `{directory=false}` marker (not inherited: skipping the
+  // group already skips everything below it).
+  hiddenFromDirectory: boolean;
 }
 
 // -------------------------------------------------------------------
@@ -321,7 +352,7 @@ export function parseIndexMd(
     ) {
       const entry = stack.pop();
       if (!entry) break;
-      const { parsed, items } = entry;
+      const { parsed, items, nonCanonical, hiddenFromDirectory } = entry;
 
       // Build the sidebar node for this entry
       const i18nKey = generateI18nKey(parsed);
@@ -354,7 +385,7 @@ export function parseIndexMd(
         continue;
       }
 
-      let node: SidebarGroup;
+      let node: SidebarGroup & CanonicalFlag & DirectoryFlag;
       if (parsed.kind === 'universe') {
         node = {
           text: i18nKey,
@@ -383,6 +414,8 @@ export function parseIndexMd(
           node.link = slugToLink(parsed.landing);
         }
       }
+      if (nonCanonical) node.canonical = false;
+      if (hiddenFromDirectory) node.directory = false;
 
       // Add to parent or to root
       if (stack.length > 0) {
@@ -412,6 +445,19 @@ export function parseIndexMd(
     //                          translators then fill the per-locale values in
     //                          i18n.json. Lets the sidebar rename/shorten an
     //                          entry without touching the guide.
+    //   - `{canonical=false}`: this placement is a copy, not the guide's home.
+    //                          On a group, it covers the group's own landing
+    //                          page and every entry below it; an entry below
+    //                          can take it back with `{canonical=true}`. The
+    //                          breadcrumb and the branch a cold entry (search,
+    //                          deep link) opens then come from another
+    //                          placement of the same page. Without the marker,
+    //                          the first placement in the index wins.
+    //   - `{directory=false}`: keep this entry in the sidebar but out of the
+    //                          guide list of the landing page above it
+    //                          (<ProductDirectory />); on a group, the whole
+    //                          group. For guides still published but not to be
+    //                          put forward (discontinued hardware…).
     const markers: Record<string, string> = {};
     const markerRe = /\s*\{([a-zA-Z]+)=([^}]+)\}\s*$/;
     let markerMatch = stripped.match(markerRe);
@@ -422,8 +468,34 @@ export function parseIndexMd(
         .trimEnd();
       markerMatch = stripped.match(markerRe);
     }
+    const unknownKey = Object.keys(markers).find(
+      (key) => !SIDEBAR_MARKER_KEYS.has(key),
+    );
+    if (unknownKey !== undefined) {
+      // `{canonicl=false}` would otherwise be dropped without a word.
+      throw new Error(
+        `${indexMdPath}: unknown marker {${unknownKey}=…} (expected ${[...SIDEBAR_MARKER_KEYS].join(', ')}): ${line.trim()}`,
+      );
+    }
     const landing: string | undefined = markers.landing;
     const labelOverride: string | undefined = markers.label;
+    if (
+      markers.canonical !== undefined &&
+      markers.canonical !== 'true' &&
+      markers.canonical !== 'false'
+    ) {
+      // A typo would silently leave the copy in charge of the breadcrumb.
+      throw new Error(
+        `${indexMdPath}: {canonical=${markers.canonical}} must be true or false: ${line.trim()}`,
+      );
+    }
+    if (markers.directory !== undefined && markers.directory !== 'false') {
+      // Listing is the default: only `false` means something.
+      throw new Error(
+        `${indexMdPath}: {directory=${markers.directory}} must be false: ${line.trim()}`,
+      );
+    }
+    const hiddenFromDirectory = markers.directory === 'false';
 
     const linkMatch = stripped.match(/^\[([^\]]+)\]\(([^)]+)\)/);
     const label = linkMatch ? linkMatch[1] : stripped.trim();
@@ -436,6 +508,12 @@ export function parseIndexMd(
 
     // Flush stack entries at the same or deeper indent
     flushTo(indent);
+
+    // The stack top is now this line's parent.
+    const nonCanonical =
+      markers.canonical !== undefined
+        ? markers.canonical === 'false'
+        : stack.length > 0 && stack[stack.length - 1].nonCanonical;
 
     if (parsed.kind === 'guide') {
       // Leaf node — add directly to parent
@@ -480,16 +558,18 @@ export function parseIndexMd(
         }
       }
 
-      const guideItem: SidebarItem = {
+      const guideItem: SidebarItem & CanonicalFlag & DirectoryFlag = {
         text: guideText,
         link,
       };
+      if (nonCanonical) guideItem.canonical = false;
+      if (hiddenFromDirectory) guideItem.directory = false;
       if (stack.length > 0) {
         stack[stack.length - 1].items.push(guideItem);
       }
     } else {
       // Group node — push onto stack
-      stack.push({ parsed, items: [] });
+      stack.push({ parsed, items: [], nonCanonical, hiddenFromDirectory });
     }
   }
 

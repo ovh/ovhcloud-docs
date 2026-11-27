@@ -9,7 +9,7 @@ export const baremetalDedicatedServersConsole: CpNavKey = {
   console: true,
   locations: [
     {
-      route: '/beta/#/bare-metal/dedicated-server',
+      route: '/#/bare-metal/dedicated-server',
       text: {
         en: {
           product: 'Dedicated servers',
