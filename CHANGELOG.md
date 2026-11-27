@@ -1,9 +1,30 @@
 # Changelog
 
-## 2026.11.26
+## 2026.11.27
+
+### Features
+
+#### EU
+- **vmware:** update VMware vSphere guides for the OVHcloud Console (#1324)
+- **sap:** update five SAP guides for the OVHcloud Console (#1308)
 
 ### Documentation
-- EU: 309 guides across de, en, es, fr, it, pl, pt
+- EU: 552 guides across de, en, es, fr, it, pl, pt
+
+## 2026.11.26
+
+### Features
+
+#### EU
+- **mks:** document taints for system workload (#1237)
+
+### Maintenance
+
+#### All regions
+- **domains:** compress the FOA validation page screenshots
+
+### Documentation
+- EU: 452 guides across de, en, es, fr, it, pl, pt
 
 ## 2026.11.25
 

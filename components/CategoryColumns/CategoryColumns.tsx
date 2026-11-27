@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { type CSSProperties, Fragment, type ReactNode } from 'react';
 import { useLocalizeHref } from '../../theme/hooks/useLocalizedHref';
 import { MdLinkItem } from '../LlmsMarkdown/MdLinkItem';
 import { useZone, type Zone } from '../Zone/ZoneContext';
@@ -40,10 +40,44 @@ interface CategoryColumnsProps {
    * and collapse to a single column on narrow screens.
    */
   categories: Category[];
+  /**
+   * `grid` (default): categories sit in rows (1 2 / 3 4 …), so headings line
+   * up across the two columns and `rowSpan` / headingless continuation
+   * columns can shape the layout — what hand-written landings rely on.
+   * `flow`: categories fill the left column, then the right one, without
+   * being split, and the two columns balance. No gap opens under a short
+   * category set beside a long one: meant for generated directories
+   * (<ProductDirectory />), whose category lengths nobody arranges.
+   * `rowSpan` is ignored there.
+   */
+  layout?: 'grid' | 'flow';
 }
 
 const isExternal = (href: string) =>
   href.startsWith('http://') || href.startsWith('https://');
+
+/**
+ * `flow` layout: each category, in index order, goes to the shorter of the two
+ * columns, as a masonry would. Heights are estimated from the content (a
+ * heading, one line per item, a second line for a long title), which is all
+ * the server render knows; close enough to keep the columns level.
+ */
+function splitColumns(categories: Category[]) {
+  const cols: { cat: Category; index: number }[][] = [[], []];
+  const height = [0, 0];
+  categories.forEach((cat, index) => {
+    const weight =
+      2.5 +
+      cat.items.reduce(
+        (sum, item) => sum + (item.title.length > 55 ? 1.6 : 1),
+        0,
+      );
+    const target = height[1] < height[0] ? 1 : 0;
+    cols[target].push({ cat, index });
+    height[target] += weight + 1.5;
+  });
+  return cols;
+}
 
 /**
  * Condensed two-column directory of guide links grouped by category.
@@ -52,7 +86,10 @@ const isExternal = (href: string) =>
  * titles stack as a light vertical list. The only separator is a thin rule
  * under each category heading — no per-item dividers — to keep it uncluttered.
  */
-export function CategoryColumns({ categories }: CategoryColumnsProps) {
+export function CategoryColumns({
+  categories,
+  layout = 'grid',
+}: CategoryColumnsProps) {
   const localizeHref = useLocalizeHref();
   const { effectiveZone } = useZone();
 
@@ -93,58 +130,79 @@ export function CategoryColumns({ categories }: CategoryColumnsProps) {
     );
   }
 
+  const renderCategory = (cat: Category, style?: CSSProperties) => (
+    <section className="rp-category-columns__col" key={cat.title} style={style}>
+      {cat.title ? (
+        <h3 className="rp-category-columns__heading">
+          {cat.icon ? (
+            <span
+              className="rp-category-columns__heading-icon"
+              aria-hidden="true"
+            >
+              {cat.icon}
+            </span>
+          ) : null}
+          {cat.title}
+        </h3>
+      ) : (
+        <div
+          className="rp-category-columns__heading rp-category-columns__heading--spacer"
+          aria-hidden="true"
+        />
+      )}
+      <ul className="rp-category-columns__list">
+        {cat.items.map((item) => (
+          <li key={item.title}>
+            <a
+              href={item.link ? localizeHref(item.link) : '#'}
+              className="rp-category-columns__link"
+              {...(item.link &&
+                isExternal(item.link) && {
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                })}
+            >
+              <span className="rp-category-columns__link-text">
+                {item.title}
+              </span>
+              <span className="rp-category-columns__link-arrow">→</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+
+  if (layout === 'flow') {
+    // `order` keeps the index order on narrow screens, where both stacks
+    // dissolve into one column (see the CSS).
+    const [left, right] = splitColumns(visibleCategories);
+    return (
+      <div className="rp-category-columns rp-category-columns--flow">
+        {[left, right].map((stack, s) => (
+          <div
+            className="rp-category-columns__stack"
+            key={s === 0 ? 'left' : 'right'}
+          >
+            {stack.map(({ cat, index }) =>
+              renderCategory(cat, { order: index }),
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="rp-category-columns">
-      {visibleCategories.map((cat) => (
-        <section
-          className="rp-category-columns__col"
-          key={cat.title}
-          style={
-            cat.rowSpan && cat.rowSpan > 1
-              ? { gridRow: `span ${cat.rowSpan}` }
-              : undefined
-          }
-        >
-          {cat.title ? (
-            <h3 className="rp-category-columns__heading">
-              {cat.icon ? (
-                <span
-                  className="rp-category-columns__heading-icon"
-                  aria-hidden="true"
-                >
-                  {cat.icon}
-                </span>
-              ) : null}
-              {cat.title}
-            </h3>
-          ) : (
-            <div
-              className="rp-category-columns__heading rp-category-columns__heading--spacer"
-              aria-hidden="true"
-            />
-          )}
-          <ul className="rp-category-columns__list">
-            {cat.items.map((item) => (
-              <li key={item.title}>
-                <a
-                  href={item.link ? localizeHref(item.link) : '#'}
-                  className="rp-category-columns__link"
-                  {...(item.link &&
-                    isExternal(item.link) && {
-                      target: '_blank',
-                      rel: 'noopener noreferrer',
-                    })}
-                >
-                  <span className="rp-category-columns__link-text">
-                    {item.title}
-                  </span>
-                  <span className="rp-category-columns__link-arrow">→</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      {visibleCategories.map((cat) =>
+        renderCategory(
+          cat,
+          cat.rowSpan && cat.rowSpan > 1
+            ? { gridRow: `span ${cat.rowSpan}` }
+            : undefined,
+        ),
+      )}
     </div>
   );
 }
