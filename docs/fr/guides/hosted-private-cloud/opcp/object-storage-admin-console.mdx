@@ -1,0 +1,142 @@
+---
+title: Déployer Object Storage
+description: Découvrez comment déployer et dimensionner le service Object Storage depuis l'OPCP Admin Console, et l'activer pour des organisations
+lastUpdated: 2026-11-27
+---
+
+[[fragment:cloudstore-alpha]]
+
+## Objectif
+
+**Ce guide explique aux IT Admins comment déployer le service Object Storage depuis l'OPCP Admin Console, le dimensionner et l'activer pour des organisations.**
+
+**Object Storage** fournit un stockage compatible S3<sup>1</sup> aux organisations de votre plateforme : des buckets et des objets, accessibles avec l'API S3 ou l'interface web du service. Il repose sur Ceph : la passerelle Ceph RADOS Gateway (RGW) sert l'API S3, et un cluster Ceph stocke les objets. Chaque organisation dispose de ses propres clés d'accès S3 et ne voit que ses propres buckets.
+
+Ce guide couvre ce qui est propre à Object Storage. Les étapes générales (Service Catalog, déploiements de service, organisations) sont décrites dans notre guide « [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started) ». L'utilisation du service par les utilisateurs d'une organisation est décrite dans notre guide « [Utiliser Object Storage](/guides/hosted-private-cloud/opcp/object-storage-cloud-console) ».
+
+## Prérequis
+
+- Disposer d'un accès à l'OPCP Admin Console, comme décrit dans notre guide « [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started) ».
+- Disposer du service **Compute and Block Storage** déployé sur la plateforme, comme décrit dans notre guide « [Déployer et faire évoluer Compute and Block Storage](/guides/hosted-private-cloud/opcp/compute-block-storage-admin-console) ». Dans l'Alpha, le cluster Ceph d'Object Storage fonctionne sur des machines virtuelles, qui s'exécutent sur les hyperviseurs de Compute and Block Storage. Avec les paramètres par défaut, Object Storage a besoin de place pour 5 machines virtuelles du gabarit `opcp-b3-8` (2 vCPU et 8 Go de RAM chacune) et d'environ 140 Go de stockage block.
+- Disposer d'une organisation pour laquelle activer le service. Pour en créer une, consultez la section « [Créer une organisation](/guides/hosted-private-cloud/opcp/admin-console-getting-started#créer-une-organisation) ».
+
+## En pratique
+
+### Vue d'ensemble de l'architecture
+
+| Composant | S'exécute sur | Rôle |
+|-----------|---------------|------|
+| **Cluster Ceph** | Des machines virtuelles sur les hyperviseurs de Compute and Block Storage | Stocke les objets. Ceph conserve 3 copies de chaque objet, chacune sur une machine virtuelle différente. RGW sert l'API S3. Une machine virtuelle de gestion (`oob`) synchronise les horloges du cluster. |
+| **Control plane** | Le contrôleur OPCP | Déployé une fois par déploiement de service. Exécute le point d'entrée S3, le service qui gère les clés d'accès S3 et l'interface web du service. |
+| **Data plane** | Le contrôleur OPCP | Créé pour chaque organisation lorsque vous activez le service pour elle. Donne à l'organisation son propre projet S3, son accès via l'OPCP Cloud Console et sa propre interface web pour le service. |
+
+Chaque organisation ne voit que ses propres buckets. Toutes les organisations partagent le même cluster Ceph et le même endpoint S3.
+
+### Déployer le service
+
+1. Rendez-vous dans <code className="action">Management</code> > <code className="action">Service Catalog</code> et ouvrez **Object-storage**. Cliquez sur <code className="action">New deployment</code>.
+2. **Choisissez la version de votre service**, puis cliquez sur <code className="action">Next</code>.
+3. **Allouez les pools d'hôtes** : choisissez le projet OpenStack du déploiement. Ne sélectionnez aucun hôte pour le pool d'hôtes `ceph` : dans l'Alpha, le cluster Ceph fonctionne sur des machines virtuelles, et les hôtes de ce pool ne sont pas utilisés.
+4. **Configurez votre service**. Réglez la taille des volumes de données sur la capacité dont vous avez besoin. Consultez la section [Paramètres](#paramètres) ci-dessous.
+5. Cliquez sur <code className="action">Deploy</code>.
+
+Le déploiement crée les machines virtuelles du cluster Ceph, installe Ceph, puis démarre le point d'entrée S3 et l'interface web du service. Il dure plusieurs dizaines de minutes. Le déploiement de service est `deploying`, puis `deployed`.
+
+#### Paramètres
+
+| Paramètre | Valeur par défaut | Description |
+|-----------|-------------------|-------------|
+| `ceph_flavor_mon_nodes` | `opcp-b3-8` | Gabarit des machines virtuelles qui exécutent les moniteurs Ceph. Utilisez un gabarit `opcp-` : seuls ces gabarits s'exécutent sur les hyperviseurs de Compute and Block Storage. |
+| `ceph_flavor_osd_nodes` | `opcp-b3-8` | Gabarit des autres machines virtuelles Ceph. Utilisez un gabarit `opcp-`. |
+| `ceph_flavor_oob` | `opcp-b3-8` | Gabarit de la machine virtuelle de gestion. Utilisez un gabarit `opcp-`. |
+| `ceph_mon_node_count` | `3` | Nombre de machines virtuelles qui exécutent un moniteur Ceph, de 3 à 9. Utilisez un nombre impair. |
+| `ceph_osd_node_count` | `4` | Nombre total de machines virtuelles qui stockent des données, moniteurs compris. Doit être au moins égal à `ceph_mon_node_count`. |
+| `ceph_osd_volume_size` | `10` | Taille en Go du volume de données de chaque machine virtuelle de stockage. La capacité utile est d'environ `ceph_osd_node_count` × `ceph_osd_volume_size` / 3. La valeur par défaut de 10 Go ne suffit que pour un test. |
+| `ceph_system_volume_size` | `20` | Taille en Go du volume système de chaque machine virtuelle. |
+| `volume_type` | vide | Type de volume Cinder des volumes. Vide signifie le type de volume par défaut de Compute and Block Storage. |
+| `ntp_server` | vide | Adresse IPv4 du serveur NTP avec lequel le cluster Ceph synchronise ses horloges. Vide signifie les serveurs NTP publics de Debian : renseignez-le si votre plateforme n'a pas d'accès à Internet. |
+
+:::warning
+Choisissez la taille du cluster avant le déploiement. Elle ne peut pas être modifiée ensuite dans l'Alpha.
+
+:::
+
+### Outputs
+
+Une fois le déploiement de service `deployed`, son onglet <code className="action">Outputs</code> affiche notamment :
+
+| Output | Contenu |
+|--------|---------|
+| `rgw_fqdn` | L'endpoint S3 du service, par exemple `s3.object-storage-<id>.<votre domaine>`. |
+| `rgw_fqdn_website` | L'endpoint des buckets publiés comme sites web statiques. |
+| `ceph_ui_url` | L'adresse du tableau de bord Ceph. Il est également affiché dans un onglet dédié du déploiement de service. |
+| `ceph_ui_username`, `ceph_ui_password` | Les identifiants initiaux du tableau de bord Ceph. |
+
+<img className="thumbnail" alt="Onglet Outputs d'un déploiement de service Object Storage, avec les identifiants du tableau de bord Ceph et l'onglet ceph_ui_url" src="/images/hosted-private-cloud/opcp/object-storage-admin-console/outputs.png" loading="lazy" />
+
+Chaque service activé a un output, `Console` : le lien vers l'interface web du service pour cette organisation. Les utilisateurs de l'organisation le trouvent dans l'onglet <code className="action">Overview</code> du service dans l'OPCP Cloud Console.
+
+#### Tableau de bord Ceph
+
+Ouvrez l'onglet <code className="action">ceph_ui_url</code> du déploiement de service, puis connectez-vous avec `ceph_ui_username` et `ceph_ui_password`, indiqués dans l'onglet <code className="action">Outputs</code>. Le tableau de bord affiche l'état du cluster, son utilisation et ses hôtes.
+
+Ces identifiants sont ceux d'un administrateur du cluster Ceph : ils donnent un contrôle total sur le cluster. Si vous modifiez le mot de passe dans le tableau de bord, l'onglet <code className="action">Outputs</code> continue d'afficher le mot de passe initial.
+
+:::warning
+Les modifications effectuées dans le tableau de bord Ceph ne sont pas connues du déploiement de service. Modifier ou supprimer des pools, des passerelles ou des services peut rendre Object Storage inutilisable pour toutes les organisations et entraîner une perte de données. Utilisez le tableau de bord pour vérifier le cluster, pas pour le modifier.
+
+:::
+
+### Activer le service pour une organisation
+
+Activez le déploiement de service pour chaque organisation qui a besoin d'Object Storage, comme décrit dans la section « [Activer un service pour une organisation](/guides/hosted-private-cloud/opcp/admin-console-getting-started#activer-un-service-pour-une-organisation) ».
+
+- Le cluster Ceph est partagé entre les organisations : il n'y a pas d'hôte à sélectionner.
+- Il n'y a aucune propriété à renseigner : le service récupère tout ce dont il a besoin du déploiement de service.
+
+Le service activé est `deploying`, puis `deployed`. Les utilisateurs de l'organisation trouvent alors **Object Storage** dans l'OPCP Cloud Console. Transmettez-leur notre guide « [Utiliser Object Storage](/guides/hosted-private-cloud/opcp/object-storage-cloud-console) ».
+
+### Supprimer le service
+
+1. Demandez aux organisations de sauvegarder leurs données et de supprimer leurs buckets. La désactivation du service pour une organisation ne supprime pas ses buckets.
+2. Désactivez le service pour chaque organisation.
+3. Supprimez le déploiement de service, comme décrit dans la section « [Désactiver un service ou supprimer un déploiement de service](/guides/hosted-private-cloud/opcp/admin-console-getting-started#désactiver-un-service-ou-supprimer-un-déploiement-de-service) ».
+
+:::warning
+La suppression du déploiement de service supprime le cluster Ceph et ses volumes. Tous les buckets et objets de toutes les organisations sont définitivement perdus.
+
+:::
+
+### Limitations connues
+
+L'Alpha présente les limitations connues suivantes :
+
+| Limitation | Que faire |
+|------------|-----------|
+| Un déploiement de service ne peut pas être mis à jour sur place. Une nouvelle version implique de supprimer le déploiement de service, ce qui supprime toutes les données. | Utilisez l'Alpha uniquement pour une évaluation, pas pour des données à conserver. |
+| La taille du cluster Ceph est fixée au déploiement et ne peut pas être modifiée. | Dimensionnez le cluster pour la capacité nécessaire avant le déploiement (consultez la section [Paramètres](#paramètres)). |
+| Le cluster Ceph fonctionne sur des machines virtuelles, et non sur des hôtes de stockage dédiés. Il n'existe pas de chiffres de performance pour l'Alpha. | N'utilisez pas l'Alpha pour des tests de performance. |
+
+### Dépannage
+
+| Ce que vous constatez | Que faire |
+|-----------------------|-----------|
+| Le déploiement échoue car un gabarit est introuvable. | Vérifiez que `ceph_flavor_mon_nodes`, `ceph_flavor_osd_nodes` et `ceph_flavor_oob` désignent des gabarits `opcp-` existants, par exemple `opcp-b3-8` (valeur par défaut), puis déployez à nouveau. |
+| Le déploiement échoue lors de la création des machines virtuelles, ou celles-ci restent à l'état `scheduling`. | Vérifiez que Compute and Block Storage est `deployed` et que ses hyperviseurs ont la place nécessaire pour les machines virtuelles (consultez la section [Prérequis](#prérequis)). |
+| Le tableau de bord Ceph indique que le cluster est presque plein. | Demandez aux organisations de supprimer les données dont elles n'ont plus besoin. Le cluster ne peut pas être agrandi dans l'Alpha. |
+
+## Aller plus loin
+
+[OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started)
+
+[Utiliser Object Storage](/guides/hosted-private-cloud/opcp/object-storage-cloud-console)
+
+[Déployer et faire évoluer Compute and Block Storage](/guides/hosted-private-cloud/opcp/compute-block-storage-admin-console)
+
+[Fonctionnalités et spécifications d'Object Storage sur OPCP](/guides/hosted-private-cloud/opcp/s3-opcp-limitations)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+[[fragment:s3-trademark]]

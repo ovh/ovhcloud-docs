@@ -1,0 +1,142 @@
+---
+title: Deploying Object Storage
+description: Find out how to deploy and size the Object Storage service from the OPCP Admin Console, and enable it for Organizations
+lastUpdated: 2026-11-27
+---
+
+[[fragment:cloudstore-alpha|en]]
+
+## Objective
+
+**This guide shows IT Admins how to deploy the Object Storage service from the OPCP Admin Console, size it and enable it for Organizations.**
+
+**Object Storage** provides S3<sup>1</sup>-compatible storage to the Organizations of your platform: buckets and objects, reached with the S3 API or the service's web interface. It is built on Ceph: the Ceph RADOS Gateway (RGW) serves the S3 API, and a Ceph cluster stores the objects. Each Organization gets its own S3 access keys and only sees its own buckets.
+
+This guide covers what is specific to Object Storage. The general steps (Service Catalog, Service Deployments, Organizations) are described in the guide [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started). How Organization users work with the service is described in the guide [Using Object Storage](/guides/hosted-private-cloud/opcp/object-storage-cloud-console).
+
+## Requirements
+
+- Access to the OPCP Admin Console, as described in the guide [OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started).
+- **Compute and Block Storage** deployed on the platform, as described in the guide [Deploying and scaling Compute and Block Storage](/guides/hosted-private-cloud/opcp/compute-block-storage-admin-console). In the Alpha, the Ceph cluster of Object Storage runs on virtual machines, and these run on the hypervisors of Compute and Block Storage. With the default settings, Object Storage needs room for 5 virtual machines of the `opcp-b3-8` flavor (2 vCPU and 8 GB of RAM each) and about 140 GB of block storage.
+- An Organization to enable the service for. To create one, read [Creating an Organization](/guides/hosted-private-cloud/opcp/admin-console-getting-started#creating-an-organization).
+
+## Instructions
+
+### Architecture overview
+
+| Component | Runs on | Role |
+|-----------|---------|------|
+| **Ceph cluster** | Virtual machines on the Compute and Block Storage hypervisors | Stores the objects. Ceph keeps 3 copies of each object, each on a different virtual machine. RGW serves the S3 API. A management virtual machine (`oob`) synchronises the clocks of the cluster. |
+| **Control plane** | The OPCP controller | Deployed once per Service Deployment. Runs the S3 entry point, the service that manages S3 access keys, and the web interface of the service. |
+| **Data plane** | The OPCP controller | Created for each Organization when you enable the service for it. Gives the Organization its own S3 project, its access through the OPCP Cloud Console and its own web interface for the service. |
+
+Each Organization only sees its own buckets. All Organizations share the same Ceph cluster and the same S3 endpoint.
+
+### Deploying the service
+
+1. Go to <code className="action">Management</code> > <code className="action">Service Catalog</code> and open **Object-storage**. Click <code className="action">New deployment</code>.
+2. **Choose the version of your service**, then click <code className="action">Next</code>.
+3. **Allocate the host pools**: choose the OpenStack project of the deployment. Do not select any host for the `ceph` Host Pool: in the Alpha, the Ceph cluster runs on virtual machines, and the hosts of this pool are not used.
+4. **Configure your service**. Set the size of the data volumes to the capacity you need. See [Settings](#settings) below.
+5. Click <code className="action">Deploy</code>.
+
+The deployment creates the virtual machines of the Ceph cluster, installs Ceph, and starts the S3 entry point and the web interface of the service. It takes several tens of minutes. The Service Deployment is `deploying`, then `deployed`.
+
+#### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `ceph_flavor_mon_nodes` | `opcp-b3-8` | Flavor of the virtual machines that run the Ceph monitors. Use an `opcp-` flavor: only these run on the Compute and Block Storage hypervisors. |
+| `ceph_flavor_osd_nodes` | `opcp-b3-8` | Flavor of the other Ceph virtual machines. Use an `opcp-` flavor. |
+| `ceph_flavor_oob` | `opcp-b3-8` | Flavor of the management virtual machine. Use an `opcp-` flavor. |
+| `ceph_mon_node_count` | `3` | Number of virtual machines that run a Ceph monitor, from 3 to 9. Use an odd number. |
+| `ceph_osd_node_count` | `4` | Total number of virtual machines that store data, monitors included. Must be at least `ceph_mon_node_count`. |
+| `ceph_osd_volume_size` | `10` | Size in GB of the data volume of each storage virtual machine. The usable capacity is about `ceph_osd_node_count` × `ceph_osd_volume_size` / 3. The default of 10 GB is only enough for a test. |
+| `ceph_system_volume_size` | `20` | Size in GB of the system volume of each virtual machine. |
+| `volume_type` | empty | Cinder volume type of the volumes. Empty means the default volume type of Compute and Block Storage. |
+| `ntp_server` | empty | IPv4 address of the NTP server the Ceph cluster synchronises its clocks with. Empty means the public Debian NTP servers: set it if your platform has no internet access. |
+
+:::warning
+Choose the size of the cluster before you deploy. It cannot be changed afterwards in the Alpha.
+
+:::
+
+### Outputs
+
+Once the Service Deployment is `deployed`, its <code className="action">Outputs</code> tab shows, among others:
+
+| Output | Content |
+|--------|---------|
+| `rgw_fqdn` | The S3 endpoint of the service, for example `s3.object-storage-<id>.<your domain>`. |
+| `rgw_fqdn_website` | The endpoint of the buckets published as static websites. |
+| `ceph_ui_url` | The address of the Ceph dashboard. It is also shown as its own tab of the Service Deployment. |
+| `ceph_ui_username`, `ceph_ui_password` | The initial login of the Ceph dashboard. |
+
+<img className="thumbnail" alt="Outputs tab of an Object Storage Service Deployment, with the login of the Ceph dashboard and the ceph_ui_url tab" src="/images/hosted-private-cloud/opcp/object-storage-admin-console/outputs.png" loading="lazy" />
+
+Each Enabled Service has one Output, `Console`: the link to the web interface of the service for this Organization. The Organization's users find it in the <code className="action">Overview</code> tab of the service in the OPCP Cloud Console.
+
+#### Ceph dashboard
+
+Open the <code className="action">ceph_ui_url</code> tab of the Service Deployment, and log in with `ceph_ui_username` and `ceph_ui_password` from the <code className="action">Outputs</code> tab. The dashboard shows the health of the cluster, its usage and its hosts.
+
+This login is an administrator of the Ceph cluster: it gives full control over the cluster. If you change its password in the dashboard, the <code className="action">Outputs</code> tab keeps showing the initial one.
+
+:::warning
+Changes made in the Ceph dashboard are not known to the Service Deployment. Changing or deleting pools, gateways or services there can break Object Storage for all Organizations and lose data. Use the dashboard to check the cluster, not to change it.
+
+:::
+
+### Enabling the service for an Organization
+
+Enable the Service Deployment for each Organization that needs Object Storage, as described in [Enabling a service for an Organization](/guides/hosted-private-cloud/opcp/admin-console-getting-started#enabling-a-service-for-an-organization).
+
+- The Ceph cluster is shared between Organizations: there is no host to select.
+- There is no property to fill in: the service takes everything it needs from the Service Deployment.
+
+The Enabled Service is `deploying`, then `deployed`. The Organization's users then find **Object Storage** in the OPCP Cloud Console. Send them the guide [Using Object Storage](/guides/hosted-private-cloud/opcp/object-storage-cloud-console).
+
+### Deleting the service
+
+1. Ask the Organizations to save their data and delete their buckets. Disabling the service for an Organization does not delete its buckets.
+2. Disable the service for each Organization.
+3. Delete the Service Deployment, as described in [Disabling a service or deleting a Service Deployment](/guides/hosted-private-cloud/opcp/admin-console-getting-started#disabling-a-service-or-deleting-a-service-deployment).
+
+:::warning
+Deleting the Service Deployment deletes the Ceph cluster with its volumes. All buckets and objects of all Organizations are permanently lost.
+
+:::
+
+### Known limitations
+
+The Alpha has the following known limitations:
+
+| Limitation | What to do |
+|------------|------------|
+| A Service Deployment cannot be upgraded in place. A new version means deleting the Service Deployment, which deletes all data. | Use the Alpha for evaluation only, not for data you need to keep. |
+| The size of the Ceph cluster is set at deployment and cannot be changed. | Size the cluster for the capacity you need before you deploy (see [Settings](#settings)). |
+| The Ceph cluster runs on virtual machines, not on dedicated storage hosts. There are no performance figures for the Alpha. | Do not use the Alpha for performance tests. |
+
+### Troubleshooting
+
+| What you notice | What to do |
+|-----------------|------------|
+| The deployment fails because a flavor is not found. | Check that `ceph_flavor_mon_nodes`, `ceph_flavor_osd_nodes` and `ceph_flavor_oob` name existing `opcp-` flavors, for example the default `opcp-b3-8`, then deploy again. |
+| The deployment fails while creating the virtual machines, or they stay in the `scheduling` state. | Check that Compute and Block Storage is `deployed` and that its hypervisors have room for the virtual machines (see [Requirements](#requirements)). |
+| The Ceph dashboard shows the cluster nearly full. | Ask the Organizations to delete data they no longer need. The cluster cannot be extended in the Alpha. |
+
+## Go further
+
+[OPCP Admin Console](/guides/hosted-private-cloud/opcp/admin-console-getting-started)
+
+[Using Object Storage](/guides/hosted-private-cloud/opcp/object-storage-cloud-console)
+
+[Deploying and scaling Compute and Block Storage](/guides/hosted-private-cloud/opcp/compute-block-storage-admin-console)
+
+[Object Storage features and specifications on OPCP](/guides/hosted-private-cloud/opcp/s3-opcp-limitations)
+
+[[fragment:professional-services|en]]
+
+Join our [community of users](/links/community).
+
+[[fragment:s3-trademark|en]]
