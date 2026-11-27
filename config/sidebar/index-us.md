@@ -491,7 +491,6 @@
                 + [How to Register a Windows Machine](hosted-private-cloud/vmware/register-windows-machine)
             + [Maintenance and Updates](hosted-private-cloud-vmware-troubleshooting-maintenance-and-updates)
                 + [How to Reboot The Host After an Upgrade](hosted-private-cloud/vmware/reboot-host-after-upgrade)
-                + [How to Use the VMware Update Manager](hosted-private-cloud/vmware/use-update-manager)
             + [Monitoring and Logs](hosted-private-cloud-vmware-troubleshooting-monitoring-and-logs)
                 + [Configuring a vROps alert by the SMTP protocol](hosted-private-cloud/vmware/vrops-monitoring-by-smtp)
                 + [VMware on OVHcloud - Logs forwarding to Logs Data Platform](hosted-private-cloud/vmware/ovhcloud-logs-forwarding-logs-data-platform)
