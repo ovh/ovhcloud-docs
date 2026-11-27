@@ -546,7 +546,6 @@
                     + [Maintaining VMware on OVHcloud maintenance operations](hosted-private-cloud/powered-by-vmware/vmware-maintenance)
                     + [Rescheduling a maintenance on your Hosted Private Cloud](hosted-private-cloud/powered-by-vmware/maintenance-rescheduling)
                     + [Updating ESXi hosts with vLCM](hosted-private-cloud/powered-by-vmware/vmware-update-esxi-vlcm)
-                    + [VMware Update Manager](hosted-private-cloud/powered-by-vmware/use-vmware-update-manager)
                     + [Extend Volume in vSphere and in OS](hosted-private-cloud/powered-by-vmware/extend-disk)
                     + [Testing a temporary host loss by enabling resilience mode](hosted-private-cloud/powered-by-vmware/vsphere-resilience-mode)
                 + [Monitoring and Logs](hosted-private-cloud-managed-vmware-troubleshooting-logs)
