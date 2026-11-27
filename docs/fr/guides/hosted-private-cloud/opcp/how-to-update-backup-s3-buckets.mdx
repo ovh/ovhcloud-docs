@@ -1,17 +1,12 @@
 ---
 title: "Comment mettre à jour les buckets S3 de sauvegarde"
 description: "Découvrez comment changer les buckets de stockage objet S3 utilisés par les sauvegardes de la plateforme OPCP"
-lastUpdated: 2026-11-12
+lastUpdated: 2026-11-23
 ---
 
 ## Objectif
 
-Votre plateforme **OVHcloud On-Prem Cloud Platform (OPCP)** stocke ses sauvegardes dans un **stockage objet compatible S3<sup>1</sup>** externe. Ces sauvegardes couvrent les composants critiques nécessaires à la restauration du plan de contrôle, à savoir :
-
-- les **bases de données** internes (`db`),
-- les **volumes persistants** (`pv`),
-- l’**état Terraform** (`tfState`),
-- les **parts de l’auto-unsealer KMS** (`kmsShares`).
+Votre plateforme **OVHcloud On-Prem Cloud Platform (OPCP)** stocke ses sauvegardes dans un **stockage objet compatible S3<sup>1</sup>** externe. Le contenu sauvegardé et son emplacement sont décrits dans le guide « [Sauvegardes sur OPCP](/guides/hosted-private-cloud/opcp/backup-overview#backup-architecture) ».
 
 Vous pouvez être amené à changer les buckets de stockage objet ou l’endpoint utilisés pour ces sauvegardes dans plusieurs situations : migration vers un nouvel endpoint ou une nouvelle région S3, changement de fournisseur de stockage objet, renommage des buckets, ou ajustement de la politique de rétention.
 
@@ -24,7 +19,7 @@ Cette procédure modifie la configuration de sauvegarde de la plateforme et réi
 ## Prérequis
 
 - Disposer d’une infrastructure [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) opérationnelle.
-- Disposer d’un accès administrateur au contrôleur OPCP avec les outils `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl` et `velero` installés et configurés.
+- Disposer d’un accès administrateur au contrôleur OPCP avec les outils `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl`, `velero` et `restic` installés et configurés.
 - Disposer des informations de connexion du stockage objet S3 **cible** : URL de l’endpoint, région et noms des buckets à utiliser pour les sauvegardes.
 - Prévoir une fenêtre de maintenance, le plan de contrôle étant redéployé pendant l’opération.
 
@@ -68,19 +63,18 @@ backups:
       retention: "720h0m0s"
     kmsShares:
       retention: "720h0m0s"
+  controller_fs:
+    resources:
+      opcp-config:
+        s3_bucket: opcp01-fs-backups-region/opcp-config # Un préfixe peut être configuré, ici « opcp-config ».
+      etcd-snapshots:
+        s3_bucket: opcp01-fs-backups-region/etcd-snapshots # Un préfixe peut être configuré, ici « etcd-snapshots ».
+    defaults:
+      retention: "3m"
 ...
 ```
 
-Les champs à vérifier sont :
-
-- **`endpoint.region`** / **`endpoint.url`** : la région et l’URL du service S3 compatible cible.
-- **`db.bucket`** : le bucket qui stocke les sauvegardes des bases de données, avec sa `retention` (ici `30d`).
-- **`pv.bucket`** : le bucket qui stocke les sauvegardes des volumes persistants, avec sa `retention` (ici `720h0m0s`, soit 30 jours). Il doit être différent de `db.bucket` : Velero refuse un bucket qui contient aussi les sauvegardes des bases de données, et son emplacement de stockage reste alors `Unavailable`.
-- **`pv.tfState.retention`** / **`pv.kmsShares.retention`** : la rétention appliquée aux sauvegardes de l’état Terraform et des parts KMS.
-
-:::info
-Les valeurs de rétention peuvent être exprimées soit sous forme de durée en jours (par exemple `30d`), soit sous forme de durée Go (par exemple `720h0m0s`, ce qui équivaut également à 30 jours). Conservez le format utilisé par la configuration existante.
-:::
+Vérifiez les valeurs de `endpoint` et chaque clé de bucket. Chaque clé est décrite dans la section « [Configuration des sauvegardes](/guides/hosted-private-cloud/opcp/backup-overview#backup-configuration) », et les valeurs de rétention dans la section « [Rétention des données](/guides/hosted-private-cloud/opcp/backup-overview#data-retention) ».
 
 Enregistrez et fermez le fichier. Cette commande se contente de **mettre à jour** la configuration enregistrée ; elle ne l’**applique** pas encore. La modification est appliquée à l’étape suivante avec `sudo opcp-cli deploy --system`. La CLI indique lorsque l’édition est terminée :
 
@@ -229,7 +223,7 @@ pvs-backup                       Enabled   2025-12-03 13:30:21 +0000 UTC   0 * *
 tfstate-backup                   Enabled   2025-12-03 13:30:21 +0000 UTC   0 * * * *   720h0m0s     34m ago       tfstate=true                             false
 ```
 
-Plutôt que d’attendre la prochaine exécution planifiée, déclenchez une sauvegarde immédiate à partir de chaque planification. L’option `--wait` fait patienter la commande jusqu’à la fin de la sauvegarde.
+Plutôt que d’attendre la prochaine exécution planifiée, déclenchez une sauvegarde immédiate à partir de chaque planification (consultez également la section « [Déclencher une sauvegarde](/guides/hosted-private-cloud/opcp/backup-overview#triggering-a-backup) »).
 
 Sauvegardez les parts de l’auto-unsealer KMS :
 
@@ -314,13 +308,31 @@ kubectl get backups -n placement
 placement-db-20260707124646   5s      placement-db   barmanObjectStore   completed
 ```
 
-### 10. Vérifier que les données ont bien été écrites dans les nouveaux buckets
+### 10. Sauvegarder le système de fichiers
+
+Sauvegardez les fichiers de configuration et les snapshots etcd :
+
+```bash
+systemctl start opcp-config-backup.service
+systemctl start etcd-snapshots-backup.service
+```
+
+Vérifiez ensuite l’état des unités systemd :
+
+```bash
+systemctl status opcp-config-backup.service
+systemctl status etcd-snapshots-backup.service
+```
+
+Pour vérifier le résultat, consultez la section « [Lister les sauvegardes disponibles](/guides/hosted-private-cloud/opcp/backup-overview#listing-backups) ».
+
+### 11. Vérifier que les données ont bien été écrites dans les nouveaux buckets
 
 Les étapes précédentes indiquent que les sauvegardes se sont terminées du point de vue de la plateforme. Par précaution supplémentaire, vérifiez que les objets ont réellement été créés dans les **nouveaux** buckets S3.
 
 À l’aide de votre client S3 habituel ou de l’interface de votre stockage objet, parcourez chaque bucket de sauvegarde et confirmez que de nouveaux objets sont apparus depuis l’opération. Vous devriez voir des objets récemment datés correspondant aux sauvegardes des bases de données, des volumes persistants, de l’état Terraform et des parts KMS que vous avez déclenchées. Cela confirme que les sauvegardes sont effectivement stockées sur le nouveau stockage objet.
 
-### 11. Vérification finale
+### 12. Vérification finale
 
 Relancez le diagnostic pour confirmer que la plateforme est en bonne santé après la modification :
 

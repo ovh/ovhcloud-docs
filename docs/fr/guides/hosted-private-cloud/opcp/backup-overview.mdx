@@ -1,0 +1,415 @@
+---
+title: "Sauvegardes sur OPCP"
+description: "Découvrez comment OPCP sauvegarde son plan de contrôle : sauvegardes du système de fichiers avec restic, des bases de données avec CloudNativePG, sauvegardes Velero, configuration, rétention, déclenchement et liste des sauvegardes"
+lastUpdated: 2026-11-23
+---
+
+## Objectif
+
+Votre **OVHcloud On-Prem Cloud Platform (OPCP)** sauvegarde son plan de contrôle dans un stockage objet externe compatible S3<sup>1</sup>. Ces sauvegardes vous permettent de vous remettre d'une panne physique ou logique du contrôleur.
+
+Elles ne couvrent aucune autre donnée, comme les données et les charges de travail présentes sur les nœuds OPCP.
+
+Ce guide décrit ce qui est sauvegardé, comment les sauvegardes sont configurées, combien de temps elles sont conservées, et comment les déclencher et les lister. La restauration est décrite dans le guide « [Comment restaurer OPCP à partir d'une sauvegarde](/guides/hosted-private-cloud/opcp/how-to-restore-backup) ».
+
+:::warning
+Les sauvegardes du système de fichiers (fichiers de configuration et snapshots etcd) sont disponibles à partir d'OPCP v3.2.
+
+:::
+
+## Prérequis
+
+- Disposer d'un service [On-Prem Cloud Platform](/links/hosted-private-cloud/onprem-cloud-platform) livré et opérationnel
+- Disposer d'un accès SSH au contrôleur OPCP avec un utilisateur autorisé à utiliser `sudo`. Les commandes de ce guide s'exécutent en tant que `root` (`sudo -i`)
+- Disposer d'un stockage objet compatible S3 **en dehors** de la plateforme, avec les buckets et les identifiants décrits dans la section « [Configuration des sauvegardes](#backup-configuration) »
+- Si vous administrez vous-même votre plateforme, connaître `opcp-cli` (consultez le guide « [Comment gérer la configuration d'OPCP avec opcp-cli](/guides/hosted-private-cloud/opcp/how-to-manage-configuration) »)
+
+## En pratique
+
+<a id="backup-architecture"></a>
+
+### Architecture des sauvegardes
+
+OPCP utilise trois mécanismes indépendants. Chacun écrit dans son propre bucket.
+
+| Mécanisme | Outil | Contenu sauvegardé | Planification | Bucket |
+|---|---|---|---|---|
+| [Sauvegardes du système de fichiers](#filesystem-backups) | [restic](https://restic.net/) | Fichiers de configuration, snapshots etcd | Quotidienne {/*TODO verify default calendar*/} | `backups.controller_fs.resources.<name>.s3_bucket` |
+| [Sauvegardes des bases de données](#database-backups) | [CloudNativePG](https://cloudnative-pg.io/) (Barman) | Toutes les bases PostgreSQL du plan de contrôle | Toutes les heures {/*TODO verify*/} | `backups.db.bucket` |
+| [Sauvegardes Velero](#velero-backups) | [Velero](https://velero.io/) (Kopia) | État OpenTofu, parts de clé KMS (auto-unsealer), volumes persistants sélectionnés | Toutes les heures | `backups.pv.bucket` |
+
+<a id="filesystem-backups"></a>
+
+#### Sauvegardes du système de fichiers
+
+restic sauvegarde des fichiers du système de fichiers local du contrôleur. Deux ressources sont activées par défaut :
+
+| Ressource | Contenu |
+|---|---|
+| `opcp-config` | La configuration et les secrets de la plateforme : `/opt/opcp/config` et `/opt/opcp/secrets` |
+| `etcd-snapshots` | Les snapshots de la base etcd du cluster Kubernetes du contrôleur |
+
+Chaque ressource s'exécute sous la forme d'un service systemd déclenché par un timer sur le contrôleur : `opcp-config-backup.service` et `etcd-snapshots-backup.service`. Les sauvegardes sont chiffrées avec le secret `config_backups_encryption_secret` (reportez-vous à la section « [Identifiants et chiffrement](#credentials-and-encryption) »).
+
+Vous pouvez ajouter vos propres ressources, reportez-vous à la section « [Paramètres des sauvegardes du système de fichiers](#filesystem-settings) ».
+
+<a id="database-backups"></a>
+
+#### Sauvegardes des bases de données
+
+Les bases de données internes sont des clusters PostgreSQL gérés par **CloudNativePG**.
+
+Chaque cluster dispose d'une ressource `ScheduledBackup`. CloudNativePG envoie les sauvegardes et les journaux de transactions (WAL) vers le `barmanObjectStore`, qui pointe vers le bucket `backups.db.bucket`.
+
+<a id="velero-backups"></a>
+
+#### Sauvegardes Velero
+
+Velero sauvegarde des ressources et des volumes Kubernetes. Trois planifications sont définies :
+
+| Planification | Contenu |
+|---|---|
+| `tfstate-backup` | L'état d'[OpenTofu](https://opentofu.org/). OPCP l'utilise lors de la configuration, par exemple pour configurer l'IAM |
+| `kms-autounsealer-shares-backup` | Les parts de clé KMS (auto-unsealer) : des secrets nécessaires pour desceller (unseal) le système de gestion des secrets |
+| `pvs-backup` | Des volumes persistants sélectionnés : les images Glance (`glance-images`), les données partagées d'Ironic (`ironic-shared`), le volume SQLite du KMS (`ovhcloud-ssm-sqlite`) et le stockage de Grafana, qui contient vos tableaux de bord personnalisés {/*TODO verify list*/} |
+
+Les données des volumes sont envoyées avec **Kopia**, dans un dépôt de sauvegarde par namespace.
+
+<a id="not-backed-up"></a>
+
+#### Ce qui n'est pas sauvegardé
+
+- **Les données et les charges de travail des nœuds.** Sauvegardez-les séparément.
+- **Les parts de clé de descellement du KMS.** Le KMS repose sur le [partage de clé secrète de Shamir](https://fr.wikipedia.org/wiki/Partage_de_cl%C3%A9_secr%C3%A8te_de_Shamir) : le secret est divisé en trois parts, dont deux sont nécessaires au déchiffrement. Ces parts sont hautement sensibles : OPCP ne les sauvegarde donc pas. Sans elles, vous ne pouvez pas restaurer le KMS.
+
+Exportez les parts une fois, et conservez-les en dehors d'OPCP, idéalement dans votre gestionnaire de mots de passe de confiance :
+
+```bash
+touch kms-shares-backup.yaml
+for i in {1..3}; do
+  echo "---" >> kms-shares-backup.yaml
+  kubectl -n kms get secret ovhcloud-kms-share-${i} -o yaml >> kms-shares-backup.yaml
+done
+```
+
+Supprimez ensuite `kms-shares-backup.yaml` du contrôleur.
+
+<a id="backup-configuration"></a>
+
+### Configuration des sauvegardes
+
+Les sauvegardes sont configurées dans la section `backups` de la configuration de la plateforme (`/opt/opcp/config/opcp-deployment-config.yaml`).
+
+Sur une plateforme que vous administrez vous-même :
+
+- modifiez les paramètres avec `sudo opcp-cli config edit` ;
+- modifiez les identifiants avec `sudo opcp-cli secrets passwords --edit` (clés sous `stringData`) ;
+- appliquez les modifications avec `sudo opcp-cli deploy --system`.
+
+Sur une plateforme infogérée par OVHcloud, demandez la modification via votre canal de support habituel.
+
+#### Référence de la configuration
+
+```yaml
+backups:
+  endpoint:
+    url: "url.of.your.s3.service"     # endpoint S3, en dehors de la plateforme
+    region: yourRegion
+  db:                                 # sauvegardes des bases de données
+    enabled: true
+    retention: "30d"
+    bucket: "opcp01-backups-db-region"
+  pv:                                 # sauvegardes Velero
+    enabled: true
+    retention: "720h0m0s"             # volumes persistants
+    bucket: "opcp01-backups-pv-region"
+    tfState:
+      retention: "720h0m0s"
+    kmsShares:
+      retention: "720h0m0s"
+  controller_fs:                      # sauvegardes du système de fichiers
+    enabled: true
+    defaults:
+      retention: "3m"
+    resources:
+      opcp-config:
+        enabled: true
+        s3_bucket: opcp01-fs-backups-region/opcp-config        # bucket/préfixe-facultatif
+      etcd-snapshots:
+        enabled: true
+        s3_bucket: opcp01-fs-backups-region/etcd-snapshots
+```
+
+| Clé | Description |
+|---|---|
+| `endpoint.url` / `endpoint.region` | URL et région du service compatible S3. Commun à tous les mécanismes, sauf si une ressource du système de fichiers définit son propre `s3_url` |
+| `db.enabled` / `db.bucket` / `db.retention` | Sauvegardes des bases de données : activation, bucket et rétention |
+| `pv.enabled` / `pv.bucket` / `pv.retention` | Sauvegardes Velero : activation, bucket et rétention des volumes persistants. Le bucket doit être différent de `db.bucket` : Velero refuse un bucket qui contient aussi les sauvegardes des bases de données, et son emplacement de stockage reste alors à l'état `Unavailable`. |
+| `pv.tfState.retention` / `pv.kmsShares.retention` | Rétention des sauvegardes de l'état OpenTofu et des parts de clé KMS (auto-unsealer) |
+| `controller_fs.enabled` | Activation de l'ensemble des sauvegardes du système de fichiers |
+| `controller_fs.defaults` | Paramètres par défaut de chaque ressource du système de fichiers, reportez-vous à la section « [Paramètres des sauvegardes du système de fichiers](#filesystem-settings) » |
+| `controller_fs.resources.<name>` | Une ressource du système de fichiers. `s3_bucket` accepte un préfixe après le nom du bucket |
+
+Si aucun bucket n'est défini, OPCP utilise des noms générés : `{stage}-{env}` pour les bases de données et `{stage}-{env}-volumes` pour Velero. Les valeurs `stage` et `env` figurent dans la configuration de la plateforme.
+
+:::warning
+Utilisez un bucket distinct pour les sauvegardes du système de fichiers et des bases de données. Ne réutilisez pas le bucket de Velero, sinon Velero renvoie des erreurs lors des sauvegardes.
+
+:::
+
+Pour changer l'endpoint ou les buckets d'une plateforme existante, suivez le guide « [Comment mettre à jour les buckets S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets) » : les dépôts Velero doivent être réinitialisés.
+
+<a id="credentials-and-encryption"></a>
+
+#### Identifiants et chiffrement
+
+Les clés suivantes des secrets de la plateforme sont utilisées par les sauvegardes :
+
+| Clé du secret | Utilisation |
+|---|---|
+| `backup_access_key_id` | Clé d'accès S3. L'utilisateur doit avoir accès à tous les buckets de sauvegarde |
+| `backup_secret_access_key` | Clé secrète S3 |
+| `config_backups_encryption_secret` | Mot de passe des dépôts restic (sauvegardes du système de fichiers) |
+
+:::warning
+Conservez une copie de `config_backups_encryption_secret` en dehors d'OPCP. Vous en avez besoin pour restaurer les sauvegardes du système de fichiers, et la copie stockée sur le contrôleur fait elle-même partie de ces sauvegardes.
+
+:::
+
+Pour limiter ce que le contrôleur peut faire avec ces identifiants, reportez-vous à la section « [Sécuriser le bucket de sauvegarde](#bucket-security) ».
+
+<a id="filesystem-settings"></a>
+
+#### Paramètres des sauvegardes du système de fichiers
+
+Les paramètres `controller_fs.defaults` s'appliquent à chaque ressource qui ne les redéfinit pas :
+
+```yaml
+backups:
+  controller_fs:
+    defaults:
+      calendar: "*-*-* 02:00:00"     # format d'un timer systemd
+      retention: "3m"                 # conserver les sauvegardes des trois derniers mois
+      s3_access_key_id: "{{ backup_access_key_id }}"           # référence au secret
+      s3_secret_access_key: "{{ backup_secret_access_key }}"   # référence au secret
+      pre_scripts: []                 # commandes exécutées avant la sauvegarde
+      password_command: "/usr/local/bin/sops decrypt --extract '[\\\"stringData\\\"][\\\"config_backups_encryption_secret\\\"]' /opt/opcp/secrets/controller/common-secret.yaml"
+      additional_env:                 # environnement de password_command
+        SOPS_AGE_KEY_FILE: "/opt/opcp/secrets/opcp-age-key.pem"
+```
+
+Conservez les identifiants dans les secrets et faites-y seulement référence ici. Ne modifiez `password_command` que pour utiliser un autre secret de chiffrement.
+
+Pour sauvegarder d'autres répertoires du contrôleur, ajoutez une ressource :
+
+```yaml
+backups:
+  controller_fs:
+    resources:
+      my-backup:
+        enabled: true                            # obligatoire
+        src:                                     # obligatoire, un ou plusieurs chemins
+          - "/path/to/backup-source"
+        s3_bucket: "%{stage}-%{env}-my-bucket"   # obligatoire, avec un préfixe facultatif
+        # s3_url: ""                             # facultatif, une URL S3 personnalisée
+        # Toute clé de "defaults" peut être redéfinie ici.
+```
+
+Pour désactiver une ressource, définissez sa clé `enabled` sur `false`, par exemple `controller_fs.resources.etcd-snapshots.enabled`. Pour désactiver l'ensemble des sauvegardes du système de fichiers, définissez `controller_fs.enabled` sur `false`.
+
+:::warning
+Sans les sauvegardes par défaut du système de fichiers, vous ne pouvez pas restaurer entièrement votre OPCP après un sinistre.
+
+:::
+
+#### Vérifier la configuration
+
+Après `sudo opcp-cli deploy --system`, vérifiez chaque mécanisme : {/*TODO verify list-timers pattern*/}
+
+```bash
+systemctl list-timers '*-backup*'    # système de fichiers : un timer par ressource
+kubectl get scheduledbackup -A       # bases de données : une ScheduledBackup par cluster
+velero backup-location get           # Velero : PHASE doit valoir Available
+```
+
+L'emplacement de sauvegarde Velero peut mettre quelques minutes à passer à l'état `Available`.
+
+<a id="data-retention"></a>
+
+### Rétention des données
+
+| Sauvegarde | Paramètre | Valeur par défaut |
+|---|---|---|
+| Système de fichiers | `controller_fs.defaults.retention` | 3 mois |
+| Bases de données | `db.retention` | 30 jours {/*TODO verify default*/} |
+| Volumes persistants | `pv.retention` | 30 jours |
+| État OpenTofu | `pv.tfState.retention` | 30 jours |
+| Parts de clé KMS (auto-unsealer) | `pv.kmsShares.retention` | 30 jours |
+
+Les durées s'écrivent en jours (`30d`) ou sous forme de durée Go (`720h0m0s`, soit également 30 jours). Conservez le format utilisé par votre configuration. Pour modifier une valeur, reportez-vous à la section « [Configuration des sauvegardes](#backup-configuration) ».
+
+Les sauvegardes expirées du système de fichiers sont supprimées par une tâche de nettoyage périodique. Si vous définissez `retention` sur `false`, vous devez effectuer le nettoyage vous-même, reportez-vous à la section « [Sécuriser le bucket de sauvegarde](#bucket-security) ».
+
+<a id="triggering-a-backup"></a>
+
+### Déclencher une sauvegarde
+
+Les sauvegardes s'exécutent automatiquement. Déclenchez-en une manuellement avant une opération risquée, ou pour tester votre configuration.
+
+#### Sauvegardes du système de fichiers
+
+```bash
+systemctl start opcp-config-backup.service
+systemctl start etcd-snapshots-backup.service
+```
+
+Vérifiez le résultat avec `systemctl status <name>-backup.service`. Une ressource personnalisée dispose de son propre `<name>-backup.service`. {/*TODO verify unit naming*/}
+
+#### Sauvegardes des bases de données
+
+Sauvegardez un cluster de bases de données :
+
+```bash
+kubectl cnpg backup <db-name> -n <namespace>
+```
+
+Listez les clusters avec `kubectl get cluster -A`. Pour tous les sauvegarder en une fois :
+
+```bash
+kubectl get cluster -A -o jsonpath='{range .items[*]}kubectl cnpg backup {.metadata.name} -n {.metadata.namespace}{"\n"}{end}' | bash
+```
+
+#### Sauvegardes Velero
+
+Créez une sauvegarde à partir d'une planification. L'option `--wait` fait patienter la commande jusqu'à la fin de la sauvegarde :
+
+```bash
+velero backup create --from-schedule <schedule-name> --wait
+```
+
+Pour lancer une sauvegarde à partir de toutes les planifications en une fois :
+
+```bash
+velero get schedule -o json | jq -r '.items[].metadata.name' | xargs -I{} velero backup create --from-schedule {}
+```
+
+<a id="listing-backups"></a>
+
+### Lister les sauvegardes disponibles
+
+#### Sauvegardes du système de fichiers
+
+Dans Grafana, ouvrez le tableau de bord **Controller local filesystem backups**. Il affiche les sauvegardes disponibles et leur statut, environ 5 minutes après une sauvegarde (consultez le guide « [Observabilité sur OPCP](/guides/hosted-private-cloud/opcp/observability-overview) »).
+
+Vous pouvez également lister les snapshots avec `restic`. Indiquez-lui le bucket et le préfixe de la ressource :
+
+```bash
+export AWS_ACCESS_KEY_ID="<your-s3-access-key>"
+export AWS_SECRET_ACCESS_KEY="<your-s3-secret-key>"
+export RESTIC_REPOSITORY="s3:<s3-url>/<bucket>/<prefix>"
+restic snapshots
+```
+
+restic demande le mot de passe du dépôt : la valeur de `config_backups_encryption_secret`.
+
+```console
+ID        Time                 Host         Tags        Paths
+-------------------------------------------------------------------------
+db2d12a0  2026-10-07 14:18:22  opcp-test-0              /opt/opcp/config
+                                                        /opt/opcp/secrets
+-------------------------------------------------------------------------
+1 snapshots
+```
+
+#### Sauvegardes des bases de données
+
+```bash
+kubectl get scheduledbackup -A    # les planifications
+kubectl get backup -A             # les sauvegardes, avec leur phase
+```
+
+Une sauvegarde réussie est dans la phase `completed`.
+
+#### Sauvegardes Velero
+
+```bash
+velero get schedule    # les planifications, avec leur dernière sauvegarde
+velero backup get      # les sauvegardes, avec leur statut et leur expiration
+```
+
+Une sauvegarde réussie a le statut `Completed` et `0` erreur.
+
+#### Dans les buckets S3
+
+Les commandes ci-dessus montrent le point de vue de la plateforme. Pour vérifier que les données ont bien atteint le stockage objet, parcourez les buckets, par exemple avec [s3cmd](https://s3tools.org/s3cmd) :
+
+```bash
+cat << EOF > ~/.s3cfg
+[default]
+access_key = ${ACCESS_KEY_ID}
+secret_key = ${SECRET_ACCESS_KEY}
+bucket_location = ${REGION}
+host_base = s3.gra.io.cloud.ovh.net
+host_bucket = %(bucket)s.s3.gra.io.cloud.ovh.net
+EOF
+s3cmd ls s3://<bucket-name>
+```
+
+Adaptez les valeurs à votre fournisseur. Un bucket vide signifie que la configuration est incorrecte.
+
+Les sauvegardes Velero sont listées sous le préfixe `backups/` du bucket de Velero. Le suffixe de chaque nom correspond à la date et à l'heure de la sauvegarde.
+
+<a id="bucket-security"></a>
+
+### Sécuriser le bucket de sauvegarde
+
+Par défaut, les identifiants du contrôleur peuvent supprimer des sauvegardes. Pour protéger les sauvegardes du système de fichiers contre une suppression accidentelle ou un rançongiciel (ransomware) :
+
+1\. Attribuez au contrôleur un utilisateur disposant uniquement des permissions de lecture et d'écriture, grâce à la [gestion avancée des accès aux ressources](/guides/storage-and-backup/object-storage/s3-identity-and-access-management#gestion-avancée-des-accès-aux-ressources) :
+
+```json
+{
+  "Statement":[{
+    "Sid": "RWContainer",
+    "Effect": "Allow",
+    "Action":["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:ListMultipartUploadParts", "s3:ListBucketMultipartUploads", "s3:AbortMultipartUpload", "s3:GetBucketLocation"],
+    "Resource":["arn:aws:s3:::<bucket_name>", "arn:aws:s3:::<bucket_name>/*"]
+  }]
+}
+```
+
+2\. Activez le [versioning](/guides/storage-and-backup/object-storage/s3-versioning) sur le bucket.
+
+3\. Définissez `retention` sur `false` : le contrôleur ne peut plus supprimer les sauvegardes expirées.
+
+4\. Effectuez le nettoyage depuis un hôte distinct, inaccessible depuis OPCP, avec des identifiants distincts. Exécutez périodiquement `restic forget` et `restic prune` (consultez la page [Removing snapshots](https://restic.readthedocs.io/en/stable/060_forget.html)).
+
+Vous pouvez également ajouter des clés de chiffrement à un dépôt restic avec `restic key add`, par exemple une par administrateur (consultez la page [Encryption](https://restic.readthedocs.io/en/stable/070_encryption.html)).
+
+### Restaurer
+
+OPCP permet uniquement une restauration complète du plan de contrôle, à partir de tous les mécanismes ci-dessus. Vous avez besoin :
+
+- du mot de passe de chiffrement des sauvegardes du système de fichiers (reportez-vous à la section « [Identifiants et chiffrement](#credentials-and-encryption) ») ;
+- des parts de clé de descellement du KMS (reportez-vous à la section « [Ce qui n'est pas sauvegardé](#not-backed-up) ») ;
+- des identifiants des sauvegardes à restaurer (reportez-vous à la section « [Lister les sauvegardes disponibles](#listing-backups) »).
+
+Suivez le guide « [Comment restaurer OPCP à partir d'une sauvegarde](/guides/hosted-private-cloud/opcp/how-to-restore-backup) ».
+
+## Aller plus loin
+
+[Comment restaurer OPCP à partir d'une sauvegarde](/guides/hosted-private-cloud/opcp/how-to-restore-backup)
+
+[Comment mettre à jour les buckets S3 de sauvegarde](/guides/hosted-private-cloud/opcp/how-to-update-backup-s3-buckets)
+
+[Comment gérer la configuration d'OPCP avec opcp-cli](/guides/hosted-private-cloud/opcp/how-to-manage-configuration)
+
+[Observabilité sur OPCP](/guides/hosted-private-cloud/opcp/observability-overview)
+
+[Documentation de restic](https://restic.readthedocs.io/en/stable/)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+[[fragment:s3-trademark]]

@@ -1,17 +1,12 @@
 ---
 title: How to update the backup S3 buckets
 description: Find out how to change the S3 object storage buckets used by the OPCP platform backups
-lastUpdated: 2026-11-12
+lastUpdated: 2026-11-23
 ---
 
 ## Objective
 
-Your **OVHcloud On-Prem Cloud Platform (OPCP)** stores its platform backups in an external **S3<sup>1</sup>-compatible object storage**. These backups cover the critical components required to restore the control plane, namely:
-
-- the internal **databases** (`db`),
-- the **persistent volumes** (`pv`),
-- the **Terraform state** (`tfState`),
-- the **KMS auto-unsealer shares** (`kmsShares`).
+Your **OVHcloud On-Prem Cloud Platform (OPCP)** stores its platform backups in an external **S3<sup>1</sup>-compatible object storage**. What is backed up, and where, is described in [Backups on OPCP](/guides/hosted-private-cloud/opcp/backup-overview#backup-architecture).
 
 You may need to change the object storage buckets or endpoint used for these backups in several situations: migrating to a new S3 endpoint or region, moving to a different object storage provider, renaming buckets, or adjusting the retention policy.
 
@@ -24,7 +19,7 @@ This procedure modifies the backup configuration of the platform and re-initiali
 ## Requirements
 
 - An operational [OPCP](/links/hosted-private-cloud/onprem-cloud-platform) infrastructure.
-- Administrative access to the OPCP controller with the `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl` and `velero` tools installed and configured.
+- Administrative access to the OPCP controller with the `opcp-cli`, `opcp-diag`, `kubectl`, `flux`, `tfctl`, `velero` and `restic` tools installed and configured.
 - The connection details of the **target** S3 object storage: endpoint URL, region, and the names of the buckets to use for the backups.
 - A maintenance window, as the control plane is redeployed during the operation.
 
@@ -68,19 +63,18 @@ backups:
       retention: "720h0m0s"
     kmsShares:
       retention: "720h0m0s"
+  controller_fs:
+    resources:
+      opcp-config:
+        s3_bucket: opcp01-fs-backups-region/opcp-config # A prefix can be configured, as in this case "opcp-config".
+      etcd-snapshots:
+        s3_bucket: opcp01-fs-backups-region/etcd-snapshots # A prefix can be configured, as in this case "etcd-snapshots".
+    defaults:
+      retention: "3m"
 ...
 ```
 
-The fields to review are:
-
-- **`endpoint.region`** / **`endpoint.url`**: the region and URL of the target S3-compatible service.
-- **`db.bucket`**: the bucket storing the database backups, with its `retention` (here `30d`).
-- **`pv.bucket`**: the bucket storing the persistent volume backups, with its `retention` (here `720h0m0s`, i.e. 30 days). It must differ from `db.bucket`: Velero refuses a bucket that also holds the database backups, and its storage location then stays `Unavailable`.
-- **`pv.tfState.retention`** / **`pv.kmsShares.retention`**: the retention applied to the Terraform state and KMS shares backups.
-
-:::info
-Retention values can be expressed either as a day-based duration (for example `30d`) or as a Go duration string (for example `720h0m0s`, which is also 30 days). Keep the format used by the existing configuration.
-:::
+Review the `endpoint` values and every bucket key. Each key is described in "[Backup configuration](/guides/hosted-private-cloud/opcp/backup-overview#backup-configuration)", and the retention values in "[Data retention](/guides/hosted-private-cloud/opcp/backup-overview#data-retention)".
 
 Save and close the file. The command only **updates** the stored configuration; it does **not** apply it yet. The change is applied in the next step with `sudo opcp-cli deploy --system`. The CLI reports when the edit is done:
 
@@ -229,7 +223,7 @@ pvs-backup                       Enabled   2025-12-03 13:30:21 +0000 UTC   0 * *
 tfstate-backup                   Enabled   2025-12-03 13:30:21 +0000 UTC   0 * * * *   720h0m0s     34m ago       tfstate=true                             false
 ```
 
-Rather than waiting for the next scheduled run, trigger an immediate backup from each schedule. The `--wait` flag makes the command block until the backup completes.
+Rather than waiting for the next scheduled run, trigger an immediate backup from each schedule (see also "[Triggering a backup](/guides/hosted-private-cloud/opcp/backup-overview#triggering-a-backup)").
 
 Back up the KMS auto-unsealer shares:
 
@@ -314,13 +308,31 @@ kubectl get backups -n placement
 placement-db-20260707124646   5s      placement-db   barmanObjectStore   completed
 ```
 
-### 10. Checking that data has been written to the new buckets
+### 10. Backing up the filesystem
+
+Back up the config files and etcd-snapshots:
+
+```bash
+systemctl start opcp-config-backup.service
+systemctl start etcd-snapshots-backup.service
+```
+
+Check the systemd units afterwards:
+
+```bash
+systemctl status opcp-config-backup.service
+systemctl status etcd-snapshots-backup.service
+```
+
+To check the result, see "[Listing the available backups](/guides/hosted-private-cloud/opcp/backup-overview#listing-backups)".
+
+### 11. Checking that data has been written to the new buckets
 
 The previous steps report that the backups completed from the platform's point of view. As an additional check, verify that the objects were actually created in the **new** S3 buckets.
 
 Using your usual S3 client or object storage interface, browse each backup bucket and confirm that new objects have appeared since the operation. You should see recently dated objects corresponding to the database, persistent volume, Terraform state and KMS shares backups you triggered. This confirms that the backups are actually stored on the new object storage.
 
-### 11. Final verification
+### 12. Final verification
 
 Run the diagnostic again to confirm the platform is healthy after the change:
 
