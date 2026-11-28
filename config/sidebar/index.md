@@ -774,6 +774,7 @@
                 + [Delegating projects](public-cloud/cross-functional/delegate-projects)
         + [Migration](public-cloud-cross-functional-migration)
             + [Public Cloud IaaS Migration - Steps and Best Practices](public-cloud/cross-functional/iaas-migration-steps)
+            + [Migrating to OVHcloud Public Cloud with Migrator](public-cloud/cross-functional/migrate-to-public-cloud-with-migrator)
             + [Migrating a Compute instance and its Block Storage volume from a Local Zone to a 1-AZ or 3-AZ region](public-cloud/cross-functional/migrating-instance-and-volume-from-local-zone)
             + [Architecture Reference - Building a Landing Zone with OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-migration)
             + [Hub and spoke landing zone on OVHcloud Public Cloud](public-cloud/cross-functional/landing-zone-hub-spoke-cloud-architects)

@@ -1,0 +1,392 @@
+---
+title: Migrer vers le Public Cloud OVHcloud avec Migrator
+description: Déployez Migrator, un outil open source auto-hébergé, pour migrer instances, bases de données et Object Storage vers le Public Cloud OVHcloud
+lastUpdated: 2026-11-18
+---
+
+## Objectif
+
+Migrator est une application web open source (interface et API REST) qui pilote des migrations vers le Public Cloud OVHcloud. Vous la déployez vous-même, sur une instance de votre propre projet Public Cloud, et l'utilisez pour déplacer des machines virtuelles, des bases de données, des buckets Object Storage et des partages de fichiers depuis un autre fournisseur cloud, une plateforme de virtualisation ou un serveur on-premises.
+
+Pour chaque migration, Migrator vérifie les prérequis avant tout transfert, copie les données pendant que la source continue de tourner lorsque celle-ci le permet, valide le résultat et mesure l'interruption de service réelle lors de la bascule finale.
+
+**Ce guide vous explique comment déployer Migrator sur une instance Public Cloud OVHcloud, enregistrer vos identifiants, puis réaliser une migration d'instance, de base de données et d'Object Storage.**
+
+:::warning
+Migrator est un projet open source publié sous licence Apache 2.0. Ce n'est pas un service managé par OVHcloud : il n'est pas disponible dans l'espace client OVHcloud et n'est couvert par aucun engagement de niveau de service (SLA) ni contrat de support OVHcloud. Il est fourni « en l'état », sans garantie d'aucune sorte.
+
+Vous restez responsable de son utilisation : évaluez-le au regard de vos propres exigences de sécurité et de conformité, protégez les identifiants que vous lui confiez, sauvegardez vos données sources avant toute migration et validez les workloads migrés avant de basculer votre production.
+:::
+
+## Prérequis
+
+- Un [projet Public Cloud](/guides/public-cloud/cross-functional/create-a-public-cloud-project) dans votre compte OVHcloud, pour héberger Migrator et accueillir les ressources migrées.
+- Une instance Public Cloud sous Ubuntu ou Debian, disposant d'un accès sortant à Internet et d'un utilisateur ayant les droits `sudo`. Consultez notre guide « [Comment créer une instance Public Cloud et s'y connecter](/guides/public-cloud/compute/getting-started) ».
+- Un [volume Block Storage](/guides/public-cloud/compute/create-and-configure-an-additional-disk-on-an-instance) supplémentaire attaché à cette instance, utilisé comme disque de travail de Migrator (recommandé).
+- Un [utilisateur OpenStack](/guides/public-cloud/cross-functional/create-and-delete-a-user) dans le projet de destination, ainsi que son fichier OpenStack RC (`openrc.sh`).
+- Les identifiants de chaque source à migrer (par exemple une clé d'accès IAM pour AWS ou un compte de service pour Google Cloud), avec les permissions indiquées dans la documentation de Migrator.
+- Facultativement, un nom de domaine dont l'enregistrement DNS A pointe vers l'instance, pour servir Migrator en HTTPS.
+
+## En pratique
+
+### 1. Comprendre le fonctionnement de Migrator
+
+Migrator regroupe les migrations par **univers**. Chaque univers dispose de sa propre liste de migrations, de son inventaire des ressources sources, de ses identifiants, de sa planification et de ses métriques. Tous suivent le même cycle de vie :
+
+1. **Brouillon** : une migration créée est enregistrée sans être démarrée. Rien n'est lu, copié ni créé tant que vous ne la démarrez pas.
+2. **Vérifications préalables** : avant chaque passe, Migrator contrôle la source, la destination, les droits, l'espace disque et la durée estimée. Une vérification bloquante arrête la passe avant toute modification.
+3. **Copie** : en une fois, ou sous la forme d'une première copie suivie de passes incrémentales (**Sync**) pendant que la source continue de tourner.
+4. **Bascule** : la passe finale (**Finaliser**), après laquelle Migrator valide les données et mesure l'interruption de service.
+5. **En production** : une fois votre application en service chez OVHcloud, vous le déclarez avec <code className="action">J'ai basculé sur OVHcloud</code>.
+
+Le tableau ci-dessous liste les sources prises en charge par Migrator. La documentation de Migrator précise l'état de validation de chaque source et de chaque fonctionnalité.
+
+| Univers | Sources | Destination |
+|---|---|---|
+| Compute | AWS EC2, machines virtuelles Azure, Google Compute Engine, Scaleway, STACKIT, VMware vSphere, Microsoft Hyper-V, Citrix Hypervisor / XCP-ng, tout cloud OpenStack, un autre projet Public Cloud OVHcloud, OVHcloud Bare Metal, VPS OVHcloud, fichiers OVF/OVA, toute machine Linux ou Windows accessible en SSH | Instances Public Cloud |
+| Bases de données | PostgreSQL, MySQL, MariaDB, MongoDB, Valkey / Redis, OpenSearch / Elasticsearch, ClickHouse et Kafka, autogérés ou managés par un fournisseur cloud (Amazon RDS / Aurora / MSK, Google Cloud SQL, Azure, Scaleway, STACKIT, OVHcloud) | Public Cloud Databases, ou tout serveur de base de données joignable depuis Migrator |
+| Object Storage | Amazon S3, Azure Blob Storage, Google Cloud Storage, Scaleway, STACKIT, un autre projet OVHcloud, tout endpoint compatible S3<sup>1</sup> | OVHcloud Object Storage |
+| File Storage | Amazon EFS, Azure Files, Google Cloud Filestore, OVHcloud File Storage, tout export NFS | OVHcloud File Storage |
+
+Migrator migre également des secrets (AWS Secrets Manager, Azure Key Vault, Google Cloud Secret Manager, Scaleway, STACKIT et HashiCorp Vault) vers OVHcloud Secret Manager, et réalise un relevé du réseau d'un projet Public Cloud. Ces univers ne sont pas traités dans ce guide.
+
+Migrator fonctionne sous la forme d'un ensemble de conteneurs sur une seule instance Linux :
+
+- `caddy` assure la terminaison HTTPS et obtient un certificat Let's Encrypt ;
+- `app` sert l'interface web et l'API REST ;
+- les conteneurs `worker` et `worker-file` exécutent les migrations, et leur nombre s'ajuste automatiquement entre zéro et un maximum que vous définissez ;
+- PostgreSQL stocke l'état, les journaux et les identifiants chiffrés, et Redis gère les files d'attente des tâches.
+
+Migrator peut aussi être déployé sur un cluster Kubernetes avec un chart Helm. Ce guide traite du déploiement sur une seule instance avec Docker Compose.
+
+### 2. Préparer l'instance Migrator
+
+Migrator tourne dans votre projet Public Cloud, sur une instance que vous administrez. Dimensionnez-la selon le nombre de migrations que vous souhaitez exécuter en parallèle :
+
+- Chaque worker a besoin d'environ 3 Go de RAM. Le nombre maximal de workers recommandé est égal au nombre de vCPU moins un (par exemple, 7 workers sur une instance de 8 vCPU).
+- Les migrations Compute convertissent les images disque sur le disque de travail. Prévoyez environ deux fois l'espace occupé des disques migrés simultanément. Une migration qui ne tiendrait pas est arrêtée avant de copier quoi que ce soit.
+- Les conversions de disques sont bien plus rapides avec la virtualisation matérielle (`/dev/kvm`). Vérifiez que le périphérique existe sur l'instance avec `ls /dev/kvm`. Sans lui, les conversions basculent sur une émulation logicielle plus lente, et vous devez supprimer le bloc `devices:` du service `worker` dans le fichier `docker-compose.yml`.
+
+Avant l'installation, préparez les accès réseau :
+
+- L'instance a besoin d'un accès sortant à Internet, pour joindre les clouds sources, les API OVHcloud et les dépôts de paquets utilisés pour construire l'image.
+- Pour servir Migrator en HTTPS, créez un enregistrement DNS A (par exemple `migrator.example.com`) pointant vers l'adresse IP publique de l'instance, et autorisez le trafic entrant sur les ports 80 et 443. Le port 80 est nécessaire à la validation du certificat Let's Encrypt.
+- Sans nom de domaine, Migrator est servi en HTTP simple sur le port 80. Réservez ce mode aux tests.
+
+### 3. Installer Migrator avec Docker Compose
+
+Connectez-vous à l'instance en SSH, clonez le dépôt et lancez l'installateur :
+
+```bash
+git clone https://github.com/ovh/migrator.git migrator
+cd migrator
+./install.sh
+```
+
+L'installateur :
+
+- installe Docker Engine et Docker Compose v2 s'ils sont absents (Ubuntu et Debian uniquement) ;
+- vous demande la configuration : nom de domaine pour le HTTPS, URL publique, chemin du disque de travail (`/srv/migrator-data` par défaut), utilisateur et mot de passe PostgreSQL, région OVHcloud par défaut (`GRA11` par défaut) et nombre initial de workers ;
+- génère les secrets (clé de signature des sessions, clé de chiffrement des identifiants, mot de passe Redis et mot de passe du premier administrateur) et écrit l'ensemble dans un fichier `.env` ;
+- formate et monte, si vous le souhaitez, un disque dédié sur le chemin du disque de travail ;
+- construit l'image de l'application et démarre la stack.
+
+Appuyez sur `Entrée` pour accepter une valeur par défaut. Laissez `Mock external steps (demo only)` à `false` : en mode simulé, Migrator n'effectue aucun appel réel aux clouds.
+
+#### Le disque de travail
+
+Lorsque l'installateur demande `Put /srv/migrator-data on a dedicated disk?`, répondez `y` et indiquez le périphérique de votre volume Block Storage supplémentaire (par exemple `/dev/sdb`). L'installateur affiche la liste des périphériques de stockage pour vous aider à le choisir :
+
+- un périphérique qui contient déjà un système de fichiers est monté tel quel, sans formatage ;
+- un périphérique vierge n'est formaté qu'après que vous avez saisi à nouveau son chemin pour confirmer ;
+- un périphérique comportant des partitions ou toute autre signature est refusé, et rien n'est formaté.
+
+Le montage est ajouté au fichier `/etc/fstab` par UUID et persiste donc après un redémarrage.
+
+#### Installation sans interaction
+
+Avec l'option `--yes`, l'installateur ne pose aucune question. Chaque valeur est lue dans la variable d'environnement portant le nom de la clé du fichier `.env`, ou prend sa valeur par défaut :
+
+```bash
+APP_DOMAIN=migrator.example.com DATA_DEVICE=/dev/sdb ./install.sh --yes
+```
+
+#### Le fichier de configuration
+
+Le fichier `.env` est créé avec des permissions restreintes (mode 600) et ne doit jamais être versionné ni partagé. Conservez-en une copie en lieu sûr : il contient la clé qui chiffre tous les identifiants enregistrés dans Migrator. Ses principaux paramètres sont les suivants :
+
+| Variable | Rôle |
+|---|---|
+| `APP_DOMAIN` / `APP_BASE_URL` | Domaine servi en HTTPS et URL publique de Migrator |
+| `DATA_DIR` | Chemin du disque de travail sur l'instance |
+| `DEFAULT_OVH_REGION` | Région de destination par défaut |
+| `ENCRYPTION_KEY` | Clé de chiffrement des identifiants enregistrés (AES-256-GCM) |
+| `ADMIN_INITIAL_PASSWORD` | Mot de passe du premier administrateur, valable uniquement jusqu'à son changement |
+| `METRICS_TOKEN` | Jeton facultatif qui active l'endpoint Prometheus `/api/metrics` |
+
+Pour modifier une valeur par la suite, éditez le fichier `.env` puis exécutez `./upgrade.sh`.
+
+À la fin de l'installation, vérifiez que les conteneurs tournent et que l'application répond :
+
+```bash
+docker compose ps
+curl -s https://migrator.example.com/api/health
+```
+
+### 4. Se connecter pour la première fois
+
+1. Ouvrez l'URL publique de Migrator dans votre navigateur (par exemple `https://migrator.example.com`, ou `http://<instance-ip>` sans nom de domaine).
+2. Connectez-vous avec l'utilisateur `admin` et le mot de passe affiché à la fin de l'installation. Celui-ci figure aussi dans le fichier `.env`, sous `ADMIN_INITIAL_PASSWORD`.
+3. Choisissez un nouveau mot de passe. Ce changement est obligatoire à la première connexion ; le mot de passe initial cesse ensuite de fonctionner.
+
+L'interface est en anglais par défaut. Vous pouvez la passer en français depuis le menu du compte, en haut à droite.
+
+En tant qu'administrateur, vous pouvez ensuite :
+
+- créer des comptes dans **Paramètres** > **Utilisateurs**, avec le rôle *admin* ou *reader* (un compte *reader* peut suivre les migrations mais ne peut rien modifier) ;
+- ajouter vos réseaux d'administration dans **Paramètres** > **Sécurité** > **Réseaux d'administration**. Ces CIDR sont autorisés à joindre les instances migrées en SSH ou RDP, et sont ajoutés aux IP autorisées des clusters Public Cloud Databases créés par Migrator ;
+- définir le nombre maximal de workers dans **Paramètres** > **Préférences**.
+
+Toute modification effectuée depuis l'interface ou l'API, ainsi que chaque connexion, est enregistrée dans le journal d'audit (**État** > **Journal d'audit**).
+
+### 5. Enregistrer vos identifiants
+
+Chaque univers conserve ses propres identifiants, dans sa page **Identifiants** (par exemple **Migrations** > **Compute** > **Identifiants**). Chaque carte d'identifiants propose les boutons <code className="action">Tester la connexion</code> et <code className="action">Vérifier les droits</code>. <code className="action">Vérifier les droits</code> teste en lecture seule les permissions dont Migrator a besoin. Les identifiants sont stockés chiffrés, et les secrets ne sont plus jamais affichés une fois enregistrés.
+
+Une source n'apparaît dans les formulaires de migration qu'une fois ses identifiants enregistrés et tant que sa dernière vérification des droits n'a pas échoué.
+
+#### Destination OVHcloud
+
+La destination des migrations Compute est la carte **OVHcloud (OpenStack)**, sous **Destination**, dans **Compute** > **Identifiants** :
+
+1. Cliquez sur <code className="action">Importer un fichier OpenStack RC (openrc.sh)</code> et sélectionnez le fichier `openrc.sh` de votre utilisateur OpenStack. Les champs sont remplis à partir du fichier.
+2. Saisissez le mot de passe de l'utilisateur OpenStack, qui ne figure pas dans le fichier.
+3. Cliquez sur <code className="action">Enregistrer les identifiants OVHcloud (OpenStack)</code>, puis sur <code className="action">Vérifier les droits</code>.
+
+L'utilisateur OpenStack doit pouvoir créer des images, démarrer des instances, gérer les paires de clés et les groupes de sécurité, lire les réseaux, créer des ports, ainsi que créer et attacher des volumes Block Storage. Le rôle *Administrator* du projet couvre l'ensemble de ces droits.
+
+Les autres univers utilisent leurs propres identifiants de destination :
+
+- **Object Storage** : la carte **OVHcloud (OpenStack — projet Object Storage)**, remplie de la même façon à partir du fichier `openrc.sh` du projet cible. Migrator en déduit les clés d'accès S3 et l'endpoint. L'utilisateur doit disposer du rôle *ObjectStore operator*.
+- **Bases de données** : la connexion à chaque base est saisie dans chaque migration. La carte facultative **API OVHcloud (Public Cloud Databases)** contient un jeton d'API OVHcloud (application key, application secret, consumer key) et l'identifiant du projet. Elle permet à Migrator de lister vos clusters Public Cloud Databases, de créer un nouveau cluster de destination et de migrer les utilisateurs. Générez les clés depuis la <CreateToken rights="GET=/cloud/project/*&POST=/cloud/project/*&PUT=/cloud/project/*&DELETE=/cloud/project/*">page de création de jetons de l'API OVHcloud</CreateToken>. Lister vos bases ne nécessite que le droit `GET`.
+
+#### Sources
+
+Renseignez la carte de chaque source à migrer, dans la page **Identifiants** de l'univers concerné. Par exemple :
+
+- **AWS** : une clé d'accès IAM et son secret, avec les permissions EC2 et EBS listées dans la documentation de Migrator ;
+- **Azure** : un principal de service (ou une connexion par code d'appareil) disposant du rôle *Virtual Machine Contributor* ;
+- **Google Cloud** : une clé de compte de service ;
+- **VMware vSphere** : un utilisateur vCenter capable de lire l'inventaire et d'exporter des machines virtuelles.
+
+N'accordez que les permissions indiquées dans la documentation de l'univers (dossier `docs/` du dépôt) : elles sont limitées au strict nécessaire pour chaque opération. Certaines sources ne nécessitent aucun identifiant enregistré, comme une machine joignable en SSH, un fichier OVA, un endpoint compatible S3 personnalisé ou un export NFS : leurs informations d'accès sont saisies dans la migration elle-même.
+
+### 6. Migrer une instance
+
+Migrator exporte les disques de la machine source, les convertit, importe l'image dans votre projet et démarre à partir de celle-ci une instance Public Cloud. Il ne supprime jamais la machine source.
+
+#### Créer la migration
+
+1. Rendez-vous dans **Migrations** > **Compute**, cliquez sur <code className="action">+ Nouvelle migration</code> et choisissez la source.
+2. Sélectionnez la **Machine source**. Le formulaire affiche ses vCPU, sa RAM, ses disques et son état.
+3. Dans la section **Destination**, choisissez la **Région de destination OVHcloud**, le modèle d'instance (**Flavor OVHcloud**), les **Réseaux** et, si vous le souhaitez, une **Paire de clés** SSH. Migrator met en avant les modèles adaptés à la source : au moins aussi grands, et au plus deux fois plus grands.
+4. Sous **IP autorisées**, passez en revue la liste des CIDR autorisés à joindre l'instance en SSH (ou en RDP pour Windows). Elle reprend les réseaux d'administration définis dans **Paramètres** > **Sécurité** : vous pouvez en retirer un pour cette migration uniquement, ou ajouter une IP ou un CIDR avec <code className="action">Ajouter une IP ou un CIDR</code>. Sans aucun CIDR, l'instance ne reçoit aucune règle entrante et n'est joignable que par le réseau privé ou la console.
+5. Choisissez le **Mode d'exécution** :
+    - <code className="action">Migrer en une fois</code> : une seule passe, de l'export au démarrage. Une machine source hébergée dans un cloud est arrêtée pour l'export : l'interruption de service dure donc toute la copie.
+    - <code className="action">Répliquer, finaliser plus tard — via l'API du fournisseur</code> : la première copie est réalisée à partir d'un snapshot pendant que la source continue de tourner, puis chaque **Sync** ne récupère que les blocs modifiés. La passe finale arrête la machine source pour obtenir une copie cohérente. Disponible pour AWS, Azure, VMware, XCP-ng, OpenStack et OVHcloud.
+    - <code className="action">Répliquer, finaliser plus tard — en SSH</code> : les modifications sont lues depuis le système invité en fonctionnement (Linux avec root ou `sudo` sans mot de passe, Windows avec OpenSSH et un compte administrateur local). La source continue de tourner pendant la passe finale : la copie est donc cohérente uniquement au sens d'un arrêt brutal (*crash-consistent*). Arrêtez d'abord votre application.
+6. Cliquez sur <code className="action">Lancer les vérifications</code>. Migrator contrôle les identifiants et la machine source, l'accès SSH si nécessaire, l'espace sur le disque de travail, le modèle d'instance, les quotas du projet, les réseaux et la paire de clés, et estime la durée du transfert ainsi que le coût du trafic sortant facturé par la source.
+7. Cliquez sur <code className="action">Créer la migration</code> pour enregistrer un brouillon, ou sur <code className="action">Créer et démarrer</code> pour la lancer immédiatement. Vous pouvez aussi planifier le démarrage à une date et une heure données dans la carte **Planification**.
+
+#### Répliquer, puis finaliser
+
+Avec un mode de réplication, la première copie est stockée sur le disque de travail et rien n'est encore créé chez OVHcloud. Utilisez les actions de la page de la migration :
+
+- <code className="action">Sync</code> : récupère ce qui a changé depuis la dernière passe. Répétez cette action aussi souvent que nécessaire, par exemple la veille de la bascule, afin de raccourcir la passe finale.
+- <code className="action">Finaliser et démarrer</code> : effectue une dernière synchronisation, puis convertit les disques, importe l'image et démarre l'instance avec ses volumes de données attachés.
+
+Si un disque source a été redimensionné, la synchronisation est refusée : lancez plutôt une <code className="action">Copie complète</code>.
+
+#### Basculer
+
+Pour une migration répliquée, l'onglet **Bascule** vous guide pas à pas :
+
+1. Arrêtez votre application, ou la machine source, puis cliquez sur <code className="action">J'ai arrêté la source</code> pour démarrer la mesure de l'interruption.
+2. Lancez <code className="action">Finaliser et démarrer</code>.
+3. Contrôlez les résultats post-démarrage dans l'onglet **Vérifications** : port d'accès ouvert, cloud-init terminé et volumes de données attachés. Connectez-vous à l'instance avec l'adresse indiquée dans le **Récapitulatif**.
+4. Faites pointer vos enregistrements DNS ou votre IP publique vers la nouvelle instance. Abaissez le TTL des enregistrements la veille.
+5. Éteignez la machine source sans la supprimer, afin de pouvoir revenir en arrière.
+6. Cliquez sur <code className="action">J'ai basculé sur OVHcloud</code>.
+
+Migrator mesure l'interruption de service depuis l'arrêt de la source jusqu'à ce que l'instance réponde sur son port d'accès (TCP 22 pour Linux, TCP 3389 pour Windows).
+
+:::info
+Un système Windows migré arrive non activé : Migrator ne gère pas les licences. Une licence fournie par votre ancien fournisseur cloud cesse de fonctionner une fois la machine sortie de son infrastructure. Vérifiez vos options de licence avant de migrer un serveur Windows.
+:::
+
+### 7. Migrer une base de données
+
+Migrator se connecte directement aux bases source et de destination. Il copie les données avec les outils propres à chaque moteur (dump puis restauration) et peut ensuite maintenir la destination à jour par réplication logique jusqu'à la bascule.
+
+#### Préparer la source
+
+- **Réseau** : les workers de Migrator doivent joindre les deux bases. Il n'existe ni tunnel ni agent. Exposez la source sur un endpoint public en autorisant l'IP de sortie de Migrator (affichée dans **IP publique (sortie)** sur la page **État**), ou mettez en place une liaison privée (VPN, peering, interconnexion, réseau privé vRack) vers laquelle l'instance Migrator peut router.
+- **Utilisateur** : un utilisateur capable de lire toutes les tables suffit pour une copie en une fois. Les modes incrémental et continu nécessitent des droits de réplication (par exemple `REPLICATION` sur PostgreSQL, `REPLICATION SLAVE` et `REPLICATION CLIENT` sur MySQL).
+- **Paramètres du serveur**, pour les modes incrémental et continu uniquement : `wal_level = logical` sur PostgreSQL, un journal binaire au format `ROW` avec `binlog_row_image = FULL` sur MySQL, un replica set sur MongoDB. Sur une source managée, ces réglages se font via les groupes de paramètres ou les flags du fournisseur, et peuvent nécessiter un redémarrage.
+- **Clés primaires** : la réplication des tables PostgreSQL et MySQL exige une clé primaire sur chaque table.
+
+La documentation de Migrator détaille ces prérequis pour chaque moteur et chaque fournisseur cloud.
+
+#### Créer la migration
+
+1. Rendez-vous dans **Migrations** > **Bases de données**, cliquez sur <code className="action">+ Nouvelle migration</code> et choisissez le moteur. Si la source figure dans **Bases de données** > **Inventaire**, son bouton <code className="action">Migrer</code> préremplit le formulaire.
+2. Renseignez la connexion **Source** : hôte, port, utilisateur, mot de passe et **Mode SSL**. Cliquez sur <code className="action">Tester la connexion</code>, puis sur <code className="action">Lister les bases</code>, et sélectionnez les bases à migrer.
+3. Choisissez la **Destination** : une base existante, sélectionnée parmi vos clusters Public Cloud Databases ou saisie manuellement, ou l'option <code className="action">Créer un nouveau cluster Public Cloud Databases</code>. Dans ce second cas, choisissez la région, l'offre, la version, le modèle, la taille du disque et le réseau. Migrator crée le cluster, ajoute sa propre IP de sortie aux IP autorisées et enregistre les identifiants administrateur. Le cluster est facturé dès sa création.
+4. Choisissez le **Mode d'exécution** :
+    - **En une fois** : dump puis restauration. Les écritures doivent rester arrêtées pendant toute la copie.
+    - **Incrémentale (Sync, finaliser plus tard)** : une première copie, puis chaque <code className="action">Sync</code> applique les changements intervenus depuis la dernière passe. <code className="action">Finaliser</code> met fin à la réplication.
+    - **Continue (en direct, Bascule)** : une première copie, puis une boucle de réplication en direct qui maintient la destination à quelques secondes de la source, avec affichage du retard. <code className="action">Bascule</code> y met fin.
+5. Si vous le souhaitez, cochez **Migrer les utilisateurs et les droits** pour recréer les comptes de la source sur la destination, et choisissez le niveau de **Validation avancée** : `counts`, `sample` ou `full` (sommes de contrôle de toutes les lignes).
+6. Cliquez sur <code className="action">Lancer les vérifications</code>. Les vérifications comparent les versions, les extensions, les privilèges, l'espace disque de destination et les tables sans clé primaire.
+7. Cliquez sur <code className="action">Créer la migration</code> ou sur <code className="action">Créer et démarrer</code>.
+
+La réplication incrémentale et continue est disponible pour PostgreSQL, MySQL et MariaDB, MongoDB, Valkey / Redis, ClickHouse (incrémentale uniquement), OpenSearch (incrémentale uniquement) et Kafka. Dans les autres cas, utilisez le mode en une fois.
+
+#### Basculer
+
+En mode incrémental ou continu, l'interruption de service se limite à la dernière passe :
+
+1. Arrêtez les écritures de votre application, puis cliquez sur <code className="action">J'ai arrêté les écritures</code> dans l'onglet **Bascule**. Vous pouvez aussi cocher **Passer d'abord la source en lecture seule** dans la fenêtre de confirmation de l'étape suivante : Migrator passe alors lui-même la source en lecture seule (PostgreSQL et MySQL ; Valkey suspend ses écritures).
+2. Cliquez sur <code className="action">Finaliser</code> (mode incrémental) ou sur <code className="action">Bascule</code> (mode continu). Migrator applique les derniers changements, puis valide la destination par rapport à la source : nombre de lignes par table et, par défaut à cette étape, sommes de contrôle d'un échantillon de lignes.
+3. Copiez les chaînes de connexion de la destination depuis l'onglet **Bascule** (URI, variables d'environnement ou JDBC) et mettez à jour la configuration de votre application.
+4. Conservez la source en lecture seule comme solution de repli jusqu'à ce que vous soyez sûr de la destination.
+5. Cliquez sur <code className="action">J'ai basculé sur OVHcloud</code>.
+
+Migrator mesure l'interruption de service depuis l'arrêt des écritures jusqu'à la validation de la destination.
+
+:::info
+OVHcloud ne propose pas d'offre MariaDB managée : une source MariaDB est migrée vers Public Cloud Databases pour MySQL. Les vérifications préalables listent précisément ce qui est converti au passage (collations, moteurs de stockage, types de données) et ce qui bloque la migration.
+:::
+
+### 8. Migrer de l'Object Storage
+
+Migrator copie les buckets avec [rclone](https://rclone.org). Chaque passe est différentielle : elle ne transfère que les objets nouveaux ou modifiés depuis la précédente.
+
+#### Créer la migration
+
+1. Rendez-vous dans **Migrations** > **Object Storage**, cliquez sur <code className="action">+ Nouvelle migration</code> et choisissez la source.
+2. Cliquez sur <code className="action">Lister les buckets</code> et sélectionnez le **Bucket source**. Si vous le souhaitez, saisissez un **Préfixe source** pour n'en migrer qu'une partie.
+3. Sélectionnez un **Bucket de destination (OVHcloud S3)** existant, ou saisissez un nom dans le champ **…ou créer un nouveau bucket** et choisissez sa région.
+4. Choisissez le **Mode** : `copy` ajoute et met à jour les objets sans jamais rien supprimer à la destination, `sync` reproduit la source à l'identique et supprime aussi les objets qui en ont été retirés.
+5. Choisissez le **Mode d'exécution** :
+    - **En une fois** : une seule passe. Vous pouvez ensuite lancer <code className="action">Sync</code> aussi souvent que vous le souhaitez, chaque passe ne transférant que les changements.
+    - **Continue (passes périodiques, Bascule)** : une première passe, puis une passe courte à intervalle régulier (toutes les 5 minutes par défaut, réglable dans **Une passe toutes les (minutes)**).
+6. Cliquez sur <code className="action">Lancer les vérifications</code>. Migrator contrôle l'accès en lecture, compte les objets et leur volume, estime la durée et le coût du trafic sortant, et examine les classes de stockage, le versioning et les noms d'objets.
+7. Cliquez sur <code className="action">Créer la migration</code> ou sur <code className="action">Créer et démarrer</code>.
+
+Les données et les métadonnées des objets sont copiées. Seule la version courante de chaque objet est copiée, sauf si vous cochez **Copier toutes les versions des objets** (sources compatibles S3 uniquement). Les options **Configuration du bucket** et **Utilisateurs et droits** transposent également les réglages et les accès du bucket source chez OVHcloud, lorsqu'un équivalent existe.
+
+:::warning
+Les objets stockés dans des classes d'archivage (Amazon S3 Glacier et Deep Archive, Azure Archive, Google Cloud Archive, OVHcloud Cold Archive) ne peuvent pas être lus sans restauration préalable. Les vérifications préalables bloquent alors la migration et indiquent comment les restaurer d'abord à la source.
+:::
+
+#### Basculer
+
+1. Arrêtez les écritures de votre application dans le bucket source, puis cliquez sur <code className="action">J'ai arrêté les écritures</code> dans l'onglet **Bascule**.
+2. Cliquez sur <code className="action">Finaliser</code> (en une fois) ou sur <code className="action">Bascule</code> (continue). Migrator effectue une dernière passe en mode miroir, de sorte que les objets supprimés à la source le sont aussi à la destination, puis valide un échantillon d'objets par leur taille et leur somme de contrôle.
+3. Copiez les valeurs de destination depuis l'onglet **Bascule** (endpoint, région, bucket, remote rclone) et mettez à jour votre application.
+4. Cliquez sur <code className="action">J'ai basculé sur OVHcloud</code>.
+
+### 9. Suivre vos migrations
+
+- La page **Migrations** liste toutes les migrations en cours, tous univers confondus, avec leur progression, leur retard et leur durée. Sa carte **Rapports** permet de télécharger un rapport HTML autonome d'une ou plusieurs migrations : ce qui a été migré, la chronologie, les volumes de données, les résultats de validation et l'auteur de chaque action. Le rapport ne contient aucun mot de passe ni secret.
+- Chaque page de migration présente les mêmes onglets dans tous les univers : **Vue d'ensemble**, **Vérifications**, **Paramètres et accès**, **Bascule**, **Terraform**, **Journaux** (en direct) et **Historique**. L'onglet **Terraform** fournit des blocs `import` pour gérer les ressources migrées avec Terraform.
+- **Accueil** > **Inventaires** indique, pour chaque source, combien de ressources sont migrées, en cours ou pas encore migrées, et estime la durée et le coût du trafic sortant de ce qui reste à déplacer.
+- La page **État** présente les workers et ce que chacun exécute, les ressources du serveur et l'état des identifiants.
+- Pour basculer plusieurs migrations ensemble (par exemple la base de données, le bucket et les serveurs d'une même application), regroupez-les dans une **vague** dotée d'une fenêtre de bascule, depuis la carte **Vagues** de la page **Migrations**.
+
+#### Notifications
+
+La cloche en haut à droite liste les événements de tous les univers : passe terminée, migration en échec, migration prête pour la bascule, migration en production, action planifiée déclenchée ou ignorée, échec d'une vérification des droits et disque de travail presque plein.
+
+Pour recevoir ces événements en dehors de Migrator, rendez-vous dans **Paramètres** > **Notifications** et ajoutez un ou plusieurs canaux, chacun avec les événements qu'il reçoit et un bouton <code className="action">Envoyer un test</code> :
+
+- **Webhooks** : un `POST` JSON accepté tel quel par les webhooks entrants Slack et Microsoft Teams. Un secret de signature facultatif ajoute un en-tête de signature HMAC-SHA256 ;
+- **E-mail (SMTP)** ;
+- **Bots Webex**.
+
+Un échec d'envoi n'affecte jamais une migration : il est consigné dans les journaux et dans le journal d'audit.
+
+#### Résumer un inventaire avec Olala
+
+Dans **Migrations** > **Compute** > **Inventaire**, <code className="action">Résumer avec Olala</code> demande à Olala, le modèle de langage d'OVHcloud, via [AI Endpoints](/guides/public-cloud/ai-machine-learning/ai-endpoints-getting-started), un court résumé des machines listées, les **points d'attention** et, si c'est pertinent, des **vagues suggérées**. Les points d'attention commencent par les vérifications de Migrator lui-même (migrations en échec, disques ou machines très volumineux, systèmes Windows, machines pas encore migrées) : ils ne dépendent donc pas du modèle.
+
+- La fonctionnalité est désactivée tant qu'un administrateur n'a pas enregistré de jeton d'accès AI Endpoints dans **Paramètres** > **AI Endpoints**. Créez ce jeton dans l'espace client OVHcloud, dans **Public Cloud** > **AI Endpoints** > **API keys**.
+- Avant tout envoi, la fenêtre affiche exactement les données envoyées : tailles, systèmes d'exploitation, états et noms courts des machines. Aucune adresse IP, aucun nom d'hôte, tag, identifiant ou secret n'est envoyé.
+- La réponse n'est qu'un conseil : elle ne déclenche rien, et les vérifications préalables restent la référence. Chaque résumé est inscrit dans le journal d'audit.
+- Le modèle peut être changé avec `AI_MODEL` dans le fichier `.env` (par défaut `Olala-v1.0-summarise`).
+
+#### Avis à OVHcloud
+
+Le bouton <code className="action">Avis</code> de la barre du haut envoie un message à l'équipe OVHcloud qui développe Migrator : un type (bug, idée ou général), votre texte et une note facultative, avec la version de Migrator et la page en cours. Vous voyez le contenu exact avant de l'envoyer. Aucune adresse IP, aucun nom d'hôte, identifiant, nom de ressource ni adresse e-mail n'est envoyé. Pour le désactiver, décochez **Afficher le bouton Avis** dans **Paramètres** > **Préférences**, ou définissez `FEEDBACK_FORWARD_URL=` (vide) dans le fichier `.env`.
+
+#### Automatisation et supervision
+
+- Toutes les actions de l'interface sont disponibles via l'API REST. Sa description OpenAPI est servie à l'adresse `/api/docs`. Créez une clé pour vos scripts dans **Paramètres** > **Clés d'API**, et envoyez-la sous forme de jeton *bearer*.
+- `GET /api/health` renvoie l'état de l'application, de sa base de données et de sa file d'attente.
+- Lorsque `METRICS_TOKEN` est défini dans le fichier `.env`, `GET /api/metrics` expose des métriques Prometheus. Les journaux et les métriques peuvent également être envoyés vers [Logs Data Platform](/guides/manage-and-operate/observability/logs-data-platform/getting-started-quick-start).
+
+### 10. Limites et bonnes pratiques
+
+#### Limites
+
+- Migrator ne met en place ni tunnel ni agent. Chaque source doit être joignable depuis l'instance Migrator, via un endpoint public avec liste d'IP autorisées ou via une liaison privée que vous mettez en place vous-même. Les partages de fichiers des hyperscalers (Amazon EFS, Azure Files, Google Cloud Filestore) ne sont joignables que depuis le réseau privé du fournisseur : utilisez une machine virtuelle relais dans le cloud source, ou une interconnexion.
+- La réplication en SSH produit toujours une copie *crash-consistent*. Arrêtez votre application avant la passe finale.
+- La réplication logique PostgreSQL ne transporte ni les modifications de schéma (DDL) ni les large objects. Évitez de modifier le schéma entre la première copie et la bascule.
+- Un cluster Public Cloud Databases créé par Migrator n'accepte que des IP autorisées en IPv4.
+- Les classes de stockage froides doivent être restaurées à la source avant que leurs objets puissent être copiés.
+- Les systèmes Windows migrés doivent être réactivés avec une licence valide.
+
+#### Bonnes pratiques
+
+- **Testez d'abord.** Migrez une ressource hors production, validez le résultat, puis planifiez la bascule de production. Sauvegardez vos données sources avant toute migration.
+- **Utilisez la réplication pour les ressources volumineuses.** Copiez à l'avance, lancez plusieurs passes **Sync**, puis ne gardez qu'une passe finale courte dans votre fenêtre de maintenance.
+- **Lancez les vérifications.** <code className="action">Lancer les vérifications</code> fonctionne en lecture seule et prend moins d'une minute. Les actions planifiées exécutent aussi les vérifications préalables une heure avant leur déclenchement, et sont ignorées, avec une notification, si une vérification est bloquante.
+- **Conservez la source.** Migrator ne supprime jamais la source. Gardez-la arrêtée ou en lecture seule jusqu'à la validation de la destination, afin de pouvoir revenir en arrière.
+- **Surveillez les coûts.** Le fournisseur source facture le trafic sortant (estimé avant chaque migration), et certaines sources conservent des snapshots facturés pour la réplication. Un cluster Public Cloud Databases ou un bucket créé par Migrator est facturé dès sa création. La page **Ressources orphelines** de chaque univers liste ce que des migrations en échec ou supprimées ont laissé derrière elles, et permet de le supprimer.
+- **Protégez les accès.** Restreignez l'accès à l'interface de Migrator, attribuez le rôle *reader* aux comptes qui ne font que suivre les migrations, n'accordez aux identifiants sources que les permissions minimales documentées et gardez le fichier `.env` secret.
+
+#### Mettre à jour Migrator
+
+Pour installer une nouvelle version, exécutez `./upgrade.sh` depuis le dossier `migrator`. Le script récupère le code, reconstruit l'image et recrée tous les conteneurs.
+
+:::warning
+Une mise à jour interrompt les migrations en cours. Avant d'exécuter `upgrade.sh`, vérifiez sur la page **Migrations** qu'aucune migration n'est en cours ou en file d'attente, et consultez les actions planifiées dans les prochaines heures. En SSH, lancez le script avec `nohup` afin qu'une déconnexion ne l'interrompe pas :
+
+```bash
+nohup ./upgrade.sh > upgrade.log 2>&1 &
+```
+
+:::
+
+## Aller plus loin
+
+[Code source et documentation de Migrator sur GitHub](https://github.com/ovh/migrator)
+
+[Migration IaaS vers le Public Cloud - Étapes et bonnes pratiques](/guides/public-cloud/cross-functional/iaas-migration-steps)
+
+[Architectures de référence - Créer une Landing Zone avec OVHcloud Public Cloud](/guides/public-cloud/cross-functional/landing-zone-migration)
+
+[Migrer vers OVHcloud Public Cloud Databases pour MongoDB](/guides/public-cloud/databases/mongodb-migrate-to-ovhcloud)
+
+[Migrer vers OVHcloud Public Cloud Databases pour MySQL](/guides/public-cloud/databases/mysql-external-database-migration)
+
+[Migrer une base de données on-premises vers Public Cloud Databases for PostgreSQL](/guides/public-cloud/databases/postgresql-tuto-migrate-ecdb)
+
+[Object Storage - Comment migrer d'un fournisseur de stockage objet compatible S3 vers OVHcloud Object Storage](/guides/storage-and-backup/object-storage/s3-migration)
+
+[[fragment:professional-services]]
+
+Échangez avec notre [communauté d'utilisateurs](/links/community).
+
+[[fragment:s3-trademark]]
